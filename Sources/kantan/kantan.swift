@@ -51,7 +51,16 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         window.backgroundColor = NSColor.clear
         window.ignoresMouseEvents = true
         
-        let statusBarColor = NSColor(hex: config.global.colour.bg)
+        // let statusBarColor = NSColor(hex: config.global.colour.bg)
+        // TODO: Make this dynamic
+        let appearance = getCurrentAppearance()
+        var statusBarColor: NSColor!
+        if case appearance = "light" {
+            statusBarColor = NSColor(hex: config.global.colour.light.bg)
+        } else {
+            statusBarColor = NSColor(hex: config.global.colour.dark.bg)
+        }
+
 
         statusBarView = NSView(frame: statusBarRect)
         statusBarView.wantsLayer = true
@@ -73,10 +82,9 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         var centerOffset: CGFloat = 0
 
         for module in config.modules {
-            let fgColor = (module.colour?.fg).flatMap { NSColor(hex: String($0)) } ?? NSColor(hex: config.global.colour.fg)
-            let bgColor = (module.colour?.bg).flatMap { NSColor(hex: String($0)) } ?? NSColor(hex: config.global.colour.bg)
-
-
+            let currentColour = currentColourConfig(moduleColour: module.colour, globalColour: config.global.colour)
+            let fgColor = NSColor(hex: currentColour.fg)
+            let bgColor = NSColor(hex: currentColour.bg)
 
             if let icon = module.icon {
                 let iconText = NSTextField(labelWithString: icon)
@@ -126,6 +134,52 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                 statusBarView.addSubview(text)
             }
         }
+    }
+
+    func getCurrentAppearance() -> String {
+        let appearance = NSApp.effectiveAppearance
+        if appearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua {
+            return "dark"
+        } else {
+            return "light"
+        }
+    }
+
+    func currentColourConfig(moduleColour: ColourModeConfig?, globalColour: ColourModeConfig) -> ColourConfig {
+        let appearance = NSApp.effectiveAppearance
+        if appearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua {
+            return moduleColour?.dark ?? globalColour.dark
+        } else {
+            return moduleColour?.light ?? globalColour.light
+        }
+    }
+
+    override init() {
+        super.init()
+        NSApp.addObserver(self, forKeyPath: #keyPath(NSApplication.effectiveAppearance), options: [.new], context: nil)
+    }
+
+    deinit {
+        NSApp.removeObserver(self, forKeyPath: #keyPath(NSApplication.effectiveAppearance))
+    }
+    
+    override func observeValue(forKeyPath keyPath: String?, of object: Any?, change: [NSKeyValueChangeKey : Any]?, context: UnsafeMutableRawPointer?) {
+        if keyPath == #keyPath(NSApplication.effectiveAppearance) {
+            redrawBar()
+        }
+    }
+    
+    func redrawBar() {
+        // Remove all subviews from the statusBarView
+        statusBarView.subviews.forEach { $0.removeFromSuperview() }
+
+        // Update the bar background color based on the current appearance
+        let appearance = NSApp.effectiveAppearance.bestMatch(from: [.aqua, .darkAqua]) ?? .aqua
+        let barBgColor = appearance == .aqua ? NSColor(hex: config!.global.colour.light.bg) : NSColor(hex: config!.global.colour.dark.bg)
+        statusBarView.layer?.backgroundColor = barBgColor.cgColor
+
+        // Call the drawModules function
+        drawModules(config: config!, barWidth: statusBarView.frame.width)
     }
 
     

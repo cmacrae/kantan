@@ -10,7 +10,12 @@ struct Config: Codable {
 struct GlobalConfig: Codable {
     let height: Int
     let padding: Int
-    let colour: ColourConfig
+    let colour: ColourModeConfig
+}
+
+struct ColourModeConfig: Codable {
+    let light: ColourConfig
+    let dark: ColourConfig
 }
 
 struct ColourConfig: Codable {
@@ -23,7 +28,7 @@ struct ModuleConfig: Codable {
     let alignment: String
     let text: String?
     let icon: String?
-    let colour: ColourConfig?
+    let colour: ColourModeConfig?
 }
 
 // Load configuration from a YAML object
@@ -32,43 +37,64 @@ func loadConfig(from yaml: Yaml) -> Config? {
           let height = globalYaml["height"]?.int,
           let padding = globalYaml["padding"]?.int,
           let colourYaml = globalYaml["colour"]?.dictionary,
-          let fg = colourYaml["fg"]?.string,
-          let bg = colourYaml["bg"]?.string else {
+          let lightColourYaml = colourYaml["light"]?.dictionary,
+          let darkColourYaml = colourYaml["dark"]?.dictionary,
+          let lightFg = lightColourYaml["fg"]?.string,
+          let lightBg = lightColourYaml["bg"]?.string,
+          let darkFg = darkColourYaml["fg"]?.string,
+          let darkBg = darkColourYaml["bg"]?.string else {
             print("Failed to load global config from YAML") // NOTE: debugging
             return nil
     }
 
+    let globalConfig = GlobalConfig(
+        height: height,
+        padding: padding,
+        colour: ColourModeConfig(
+            light: ColourConfig(fg: lightFg, bg: lightBg),
+            dark: ColourConfig(fg: darkFg, bg: darkBg)
+        )
+    )
 
-    let globalConfig = GlobalConfig(height: height, padding: padding, colour: ColourConfig(fg: fg, bg: bg))
+guard let modulesYaml = yaml["modules"].array else {
+    print("Failed to load modules config from YAML")
+    return nil
+}
 
-    guard let modulesYaml = yaml["modules"].array else {
-        print("Failed to load modules config from YAML")
+var modules: [ModuleConfig] = []
+
+for moduleYaml in modulesYaml {
+    guard let name = moduleYaml["name"].string,
+          let alignment = moduleYaml["alignment"].string else {
+        print("Uh oh! Failed to load module config from YAML") // NOTE: debugging
         return nil
     }
 
-    var modules: [ModuleConfig] = []
+    let icon = moduleYaml["icon"].string
+    let text = moduleYaml["text"].string
 
-    for moduleYaml in modulesYaml {
-        guard let name = moduleYaml["name"].string,
-              let alignment = moduleYaml["alignment"].string else {
-            print("Uh oh! Failed to load module config from YAML") // NOTE: debugging
-            return nil
+    var colour: ColourModeConfig? = nil
+    if let colourYaml = moduleYaml["colour"].dictionary {
+        let lightColourYaml = colourYaml["light"]?.dictionary
+        let darkColourYaml = colourYaml["dark"]?.dictionary
+
+        let lightFg = lightColourYaml?["fg"]?.string
+        let lightBg = lightColourYaml?["bg"]?.string
+        let darkFg = darkColourYaml?["fg"]?.string
+        let darkBg = darkColourYaml?["bg"]?.string
+
+        if lightFg != nil || lightBg != nil || darkFg != nil || darkBg != nil {
+            colour = ColourModeConfig(
+              light: ColourConfig(fg: lightFg ?? globalConfig.colour.light.fg, bg: lightBg ?? globalConfig.colour.light.bg),
+              dark: ColourConfig(fg: darkFg ?? globalConfig.colour.dark.fg, bg: darkBg ?? globalConfig.colour.dark.bg)
+            )
         }
-
-
-        let icon = moduleYaml["icon"].string
-        let text = moduleYaml["text"].string
-
-        let colour: ColourConfig?
-        if let fg = moduleYaml["colour"].string {
-            colour = ColourConfig(fg: fg, bg: globalConfig.colour.bg)
-        } else {
-            colour = nil
-        }
-
-        let module = ModuleConfig(name: name, alignment: alignment, text: text, icon: icon, colour: colour)
-        modules.append(module)
     }
+
+    let module = ModuleConfig(name: name, alignment: alignment, text: text, icon: icon, colour: colour)
+    modules.append(module)
+}
+
 
     return Config(global: globalConfig, modules: modules)
 }
@@ -90,22 +116,18 @@ func loadFileContents(filePath: String) -> String? {
 
 // Convenience extension to convert hex strings to NSColor
 extension NSColor {
-    convenience init(hex: String) {
-        let hexString: String = hex.trimmingCharacters(in: CharacterSet.whitespacesAndNewlines)
-        let scanner = Scanner(string: hexString)
+    convenience init(hex: String, defaultColor: NSColor = NSColor.clear) {
+        let hex = hex.trimmingCharacters(in: CharacterSet.alphanumerics.inverted)
+        let scanner = Scanner(string: hex)
+        var rgbValue: UInt64 = 0
 
-        if hexString.hasPrefix("#") {
-            scanner.currentIndex = hexString.index(after: hexString.startIndex)
+        if scanner.scanHexInt64(&rgbValue) {
+            let r = CGFloat((rgbValue & 0xFF0000) >> 16) / 255.0
+            let g = CGFloat((rgbValue & 0x00FF00) >> 8) / 255.0
+            let b = CGFloat(rgbValue & 0x0000FF) / 255.0
+            self.init(red: r, green: g, blue: b, alpha: 1)
+        } else {
+            self.init(red: defaultColor.redComponent, green: defaultColor.greenComponent, blue: defaultColor.blueComponent, alpha: defaultColor.alphaComponent)
         }
-
-        var color: UInt64 = 0
-        scanner.scanHexInt64(&color)
-
-        let mask = 0x000000FF
-        let r = CGFloat(Int(color >> 16) & mask) / 255.0
-        let g = CGFloat(Int(color >> 8) & mask) / 255.0
-        let b = CGFloat(Int(color) & mask) / 255.0
-
-        self.init(red: r, green: g, blue: b, alpha: 1)
     }
 }

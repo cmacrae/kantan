@@ -2,8 +2,12 @@ global:
   height: 35
   padding: 10
   colour:
-    fg: "#ffffff"
-    bg: "#222222"
+    light:
+      bg: "#bfccb5"
+      fg: "#65647c"
+    dark:
+      fg: "#f7f5eb"
+      bg: "#7c96ab"
 
 modules:
   - name: left 1
@@ -16,10 +20,14 @@ modules:
   - name: right 1
     alignment: right
     text: three
-    colour:
-      fg: "#ff0000"
+    # colour:
+    #   light:
+    #     fg: "#ff0000"
+    #   dark:
+    #     fg: "#ff0000"
   - name: right 2
     alignment: right
     text: four
-    colour:
-      fg: "#ff0000"
+    # colour:
+    #   light:
+    #     fg: "#ff0000"
