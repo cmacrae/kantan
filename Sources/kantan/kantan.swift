@@ -36,12 +36,9 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         }
 
         let screenSize = focusedScreen.frame.size
-
         // let screenSize = NSScreen.main!.frame.size
+
         let statusBarWidth = screenSize.width
-        
-        // print("Screen height: \(screenSize.height)") // NOTE: debugging
-        // print("Config height: \(config.global.height)") // NOTE: debugging
 
         let statusBarRect = NSRect(x: 0, y: screenSize.height - CGFloat(config.global.height), width: statusBarWidth, height: CGFloat(config.global.height))
 
@@ -61,25 +58,74 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         statusBarView.layer?.backgroundColor = statusBarColor.cgColor
         window.contentView = statusBarView
         
-        let leftText = "Left"
-        let centerText = "Center"
-        let rightText = "Right"
-        let padding: CGFloat = 10
-        
-        addTextToStatusBar(text: leftText, xPosition: padding)
-        addTextToStatusBar(text: centerText, xPosition: (statusBarWidth / 2) - (padding / 2))
-        addTextToStatusBar(text: rightText, xPosition: statusBarWidth - padding, alignment: .right)
+
+        drawModules(config: config, barWidth: statusBarWidth)
         
         window.makeKeyAndOrderFront(nil)
     }
-    
-    func addTextToStatusBar(text: String, xPosition: CGFloat, alignment: NSTextAlignment = .left) {
-        let textField = NSTextField(labelWithString: text)
-        textField.alignment = alignment
-        textField.sizeToFit()
-        textField.frame.origin.x = xPosition
-        textField.frame.origin.y = (statusBarView.frame.height - textField.frame.height) / 2
-        statusBarView.addSubview(textField)
+
+    func drawModules(config: Config, barWidth: CGFloat) {
+        let padding: CGFloat = CGFloat(config.global.padding)
+        let iconTextSpacing: CGFloat = 2
+
+        var leftOffset: CGFloat = padding
+        var rightOffset: CGFloat = padding
+        var centerOffset: CGFloat = 0
+
+        for module in config.modules {
+            let fgColor = (module.colour?.fg).flatMap { NSColor(hex: String($0)) } ?? NSColor(hex: config.global.colour.fg)
+            let bgColor = (module.colour?.bg).flatMap { NSColor(hex: String($0)) } ?? NSColor(hex: config.global.colour.bg)
+
+
+
+            if let icon = module.icon {
+                let iconText = NSTextField(labelWithString: icon)
+                iconText.sizeToFit()
+
+                switch module.alignment {
+                case "left":
+                    iconText.frame.origin = CGPoint(x: leftOffset, y: (statusBarView.frame.height - iconText.frame.height) / 2)
+                    leftOffset += iconText.frame.width + (module.text != nil ? iconTextSpacing : padding)
+                case "right":
+                    iconText.frame.origin = CGPoint(x: barWidth - rightOffset - iconText.frame.width, y: (statusBarView.frame.height - iconText.frame.height) / 2)
+                    rightOffset += iconText.frame.width + (module.text != nil ? iconTextSpacing : padding)
+                case "centre":
+                    iconText.frame.origin = CGPoint(x: (barWidth - iconText.frame.width) / 2 + centerOffset, y: (statusBarView.frame.height - iconText.frame.height) / 2)
+                    centerOffset += iconText.frame.width + (module.text != nil ? iconTextSpacing : 0)
+                default:
+                    print("Invalid alignment")
+                    return
+                }
+
+                iconText.textColor = fgColor
+                iconText.backgroundColor = bgColor
+                statusBarView.addSubview(iconText)
+            }
+
+            if let textContent = module.text {
+                let text = NSTextField(labelWithString: textContent)
+                text.sizeToFit()
+
+                switch module.alignment {
+                case "left":
+                    text.frame.origin = CGPoint(x: leftOffset, y: (statusBarView.frame.height - text.frame.height) / 2)
+                    leftOffset += text.frame.width + padding
+                case "right":
+                    text.frame.origin = CGPoint(x: barWidth - rightOffset - text.frame.width, y: (statusBarView.frame.height - text.frame.height) / 2)
+                    rightOffset += text.frame.width + padding
+                case "centre":
+                    text.frame.origin = CGPoint(x: (barWidth - text.frame.width) / 2 + centerOffset, y: (statusBarView.frame.height - text.frame.height) / 2)
+                    centerOffset += text.frame.width
+                default:
+                    print("Invalid alignment")
+                    return
+                }
+
+                text.textColor = fgColor
+                text.backgroundColor = bgColor
+                statusBarView.addSubview(text)
+            }
+        }
     }
 
     

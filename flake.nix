@@ -1,5 +1,5 @@
 {
-  description = "A minimal status bar for macOS";
+  description = "A beautifully simple status bar for macOS";
 
   inputs = {
     nixpkgs.url = github:NixOS/nixpkgs/nixos-unstable;

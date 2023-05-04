@@ -1,14 +1,25 @@
 global:
-  height: 26
+  height: 35
+  padding: 10
   colour:
     fg: "#ffffff"
     bg: "#222222"
 
 modules:
-  - name: left
+  - name: left 1
     alignment: left
-    text: "left side"
-  - name: right
+    icon: blah
+    # text: one
+  - name: left 2
+    alignment: left
+    text: two
+  - name: right 1
     alignment: right
-    text: "right side"
-    fg: "#ff0000"
+    text: three
+    colour:
+      fg: "#ff0000"
+  - name: right 2
+    alignment: right
+    text: four
+    colour:
+      fg: "#ff0000"

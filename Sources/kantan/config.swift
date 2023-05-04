@@ -9,6 +9,7 @@ struct Config: Codable {
 
 struct GlobalConfig: Codable {
     let height: Int
+    let padding: Int
     let colour: ColourConfig
 }
 
@@ -20,51 +21,25 @@ struct ColourConfig: Codable {
 struct ModuleConfig: Codable {
     let name: String
     let alignment: String
-    let text: String
+    let text: String?
+    let icon: String?
     let colour: ColourConfig?
 }
 
 // Load configuration from a YAML object
 func loadConfig(from yaml: Yaml) -> Config? {
-    // guard let globalYaml = yaml["global"].dictionary,
-    //       let height = globalYaml["height"]?.int,
-    //       let colourYaml = globalYaml["colour"]?.dictionary,
-    //       let fg = colourYaml["fg"]?.string,
-    //       let bg = colourYaml["bg"]?.string else {
-    //         print("Failed to load global config from YAML") // NOTE: debugging
-    //         return nil
-    // }
-
-    let globalYaml = yaml["global"]
-
-    if case .null = globalYaml {
-        print("Failed to find 'global' key in YAML data")
-        return nil
+    guard let globalYaml = yaml["global"].dictionary,
+          let height = globalYaml["height"]?.int,
+          let padding = globalYaml["padding"]?.int,
+          let colourYaml = globalYaml["colour"]?.dictionary,
+          let fg = colourYaml["fg"]?.string,
+          let bg = colourYaml["bg"]?.string else {
+            print("Failed to load global config from YAML") // NOTE: debugging
+            return nil
     }
 
-    guard let height = globalYaml["height"].int else {
-        print("Failed to find 'height' key in global config")
-        return nil
-    }
 
-    let colourYaml = globalYaml["colour"]
-
-    if case .null = colourYaml {
-        print("Failed to find 'colour' key in global config")
-        return nil
-    }
-
-    guard let fg = colourYaml["fg"].string else {
-        print("Failed to find 'fg' key in colour config")
-        return nil
-    }
-
-    guard let bg = colourYaml["bg"].string else {
-        print("Failed to find 'bg' key in colour config")
-        return nil
-    }
-
-    let globalConfig = GlobalConfig(height: height, colour: ColourConfig(fg: fg, bg: bg))
+    let globalConfig = GlobalConfig(height: height, padding: padding, colour: ColourConfig(fg: fg, bg: bg))
 
     guard let modulesYaml = yaml["modules"].array else {
         print("Failed to load modules config from YAML")
@@ -75,11 +50,14 @@ func loadConfig(from yaml: Yaml) -> Config? {
 
     for moduleYaml in modulesYaml {
         guard let name = moduleYaml["name"].string,
-              let alignment = moduleYaml["alignment"].string,
-              let text = moduleYaml["text"].string else {
-            print("Failed to load module config from YAML") // NOTE: debugging
+              let alignment = moduleYaml["alignment"].string else {
+            print("Uh oh! Failed to load module config from YAML") // NOTE: debugging
             return nil
         }
+
+
+        let icon = moduleYaml["icon"].string
+        let text = moduleYaml["text"].string
 
         let colour: ColourConfig?
         if let fg = moduleYaml["colour"].string {
@@ -88,7 +66,7 @@ func loadConfig(from yaml: Yaml) -> Config? {
             colour = nil
         }
 
-        let module = ModuleConfig(name: name, alignment: alignment, text: text, colour: colour)
+        let module = ModuleConfig(name: name, alignment: alignment, text: text, icon: icon, colour: colour)
         modules.append(module)
     }
 
