@@ -1,3 +1,1 @@
-# kantan
-
-A description of this package.
+# kantan 簡単

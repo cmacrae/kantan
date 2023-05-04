@@ -1,0 +1,14 @@
+global:
+  height: 26
+  colour:
+    fg: "#ffffff"
+    bg: "#222222"
+
+modules:
+  - name: left
+    alignment: left
+    text: "left side"
+  - name: right
+    alignment: right
+    text: "right side"
+    fg: "#ff0000"

@@ -1,0 +1,133 @@
+import AppKit
+import Foundation
+import Yaml
+
+struct Config: Codable {
+    let global: GlobalConfig
+    let modules: [ModuleConfig]
+}
+
+struct GlobalConfig: Codable {
+    let height: Int
+    let colour: ColourConfig
+}
+
+struct ColourConfig: Codable {
+    let fg: String
+    let bg: String
+}
+
+struct ModuleConfig: Codable {
+    let name: String
+    let alignment: String
+    let text: String
+    let colour: ColourConfig?
+}
+
+// Load configuration from a YAML object
+func loadConfig(from yaml: Yaml) -> Config? {
+    // guard let globalYaml = yaml["global"].dictionary,
+    //       let height = globalYaml["height"]?.int,
+    //       let colourYaml = globalYaml["colour"]?.dictionary,
+    //       let fg = colourYaml["fg"]?.string,
+    //       let bg = colourYaml["bg"]?.string else {
+    //         print("Failed to load global config from YAML") // NOTE: debugging
+    //         return nil
+    // }
+
+    let globalYaml = yaml["global"]
+
+    if case .null = globalYaml {
+        print("Failed to find 'global' key in YAML data")
+        return nil
+    }
+
+    guard let height = globalYaml["height"].int else {
+        print("Failed to find 'height' key in global config")
+        return nil
+    }
+
+    let colourYaml = globalYaml["colour"]
+
+    if case .null = colourYaml {
+        print("Failed to find 'colour' key in global config")
+        return nil
+    }
+
+    guard let fg = colourYaml["fg"].string else {
+        print("Failed to find 'fg' key in colour config")
+        return nil
+    }
+
+    guard let bg = colourYaml["bg"].string else {
+        print("Failed to find 'bg' key in colour config")
+        return nil
+    }
+
+    let globalConfig = GlobalConfig(height: height, colour: ColourConfig(fg: fg, bg: bg))
+
+    guard let modulesYaml = yaml["modules"].array else {
+        print("Failed to load modules config from YAML")
+        return nil
+    }
+
+    var modules: [ModuleConfig] = []
+
+    for moduleYaml in modulesYaml {
+        guard let name = moduleYaml["name"].string,
+              let alignment = moduleYaml["alignment"].string,
+              let text = moduleYaml["text"].string else {
+            print("Failed to load module config from YAML") // NOTE: debugging
+            return nil
+        }
+
+        let colour: ColourConfig?
+        if let fg = moduleYaml["colour"].string {
+            colour = ColourConfig(fg: fg, bg: globalConfig.colour.bg)
+        } else {
+            colour = nil
+        }
+
+        let module = ModuleConfig(name: name, alignment: alignment, text: text, colour: colour)
+        modules.append(module)
+    }
+
+    return Config(global: globalConfig, modules: modules)
+}
+
+// Convenience function to load data from a file
+func loadFileContents(filePath: String) -> String? {
+    let fileURL = URL(fileURLWithPath: filePath)
+    // NOTE: Debugging
+    print("Loading file from: \(fileURL.path)")
+
+    do {
+        let fileData = try String(contentsOf: fileURL, encoding: .utf8)
+        return fileData
+    } catch {
+        print("Error loading file: \(error)")
+        return nil
+    }
+}
+
+// Convenience extension to convert hex strings to NSColor
+extension NSColor {
+    convenience init(hex: String) {
+        let hexString: String = hex.trimmingCharacters(in: CharacterSet.whitespacesAndNewlines)
+        let scanner = Scanner(string: hexString)
+
+        if hexString.hasPrefix("#") {
+            scanner.currentIndex = hexString.index(after: hexString.startIndex)
+        }
+
+        var color: UInt64 = 0
+        scanner.scanHexInt64(&color)
+
+        let mask = 0x000000FF
+        let r = CGFloat(Int(color >> 16) & mask) / 255.0
+        let g = CGFloat(Int(color >> 8) & mask) / 255.0
+        let b = CGFloat(Int(color) & mask) / 255.0
+
+        self.init(red: r, green: g, blue: b, alpha: 1)
+    }
+}
