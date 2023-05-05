@@ -7,6 +7,9 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     var config: Config?
     
     func applicationDidFinishLaunching(_ aNotification: Notification) {
+        // Make sure we're not focusable
+        NSApp.setActivationPolicy(.accessory)
+
         if let fileData = loadFileContents(filePath: "config.yaml") {
             do {
                 let yaml = try Yaml.load(fileData)

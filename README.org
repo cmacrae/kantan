@@ -1,0 +1,36 @@
+* 簡単
+/kantan: A beautifully simple status bar for macOS/
+
+** Tasks
+*** DONE Redraw the bar background
+*** DONE Make the window unfocusable
+*** DONE Do not present to the app switcher
+*** TODO Font family for icon & text
+*** TODO Introduce native modules
+- spaces
+- clock
+- power
+- volume
+- coffee
+- DND
+- network
+- focused window title
+- command output
+
+*** TODO Make click-through optional
+*** TODO Make draw-over optional
+*** TODO Notch detection
+Could we do some nice splitting for when we detect a notch?
+
+*** TODO Show on all displays, main display, or specific display
+*** TODO Top/Bottom positioning
+*** TODO Gaps
+#+begin_src yaml
+gaps:
+  top: 2
+  bottom: 0
+  left: 5
+  right: 5
+#+end_src
+
+*** TODO Corner rounding
