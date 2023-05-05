@@ -11,6 +11,8 @@ struct GlobalConfig: Codable {
     let height: Int
     let padding: Int
     let colour: ColourModeConfig
+    let iconFont: FontConfig?
+    let textFont: FontConfig?
 }
 
 struct ColourModeConfig: Codable {
@@ -28,8 +30,62 @@ struct ModuleConfig: Codable {
     let alignment: String
     let text: String?
     let icon: String?
+    let textFont: FontConfig?
+    let iconFont: FontConfig?
     let colour: ColourModeConfig?
 }
+
+struct FontConfig: Codable {
+    let descriptor: String
+
+    var name: String {
+        guard let firstComponent = descriptor.components(separatedBy: ":").first else {
+            return "HelveticaNeue"
+        }
+        return firstComponent
+    }
+
+    var weight: NSFont.Weight {
+        guard descriptor.components(separatedBy: ":").count > 1 else {
+            return .regular
+        }
+        let weightString = descriptor.components(separatedBy: ":")[1]
+        switch weightString.lowercased() {
+        case "ultralight":
+            return .ultraLight
+        case "thin":
+            return .thin
+        case "light":
+            return .light
+        case "regular":
+            return .regular
+        case "medium":
+            return .medium
+        case "semibold", "demi-bold":
+            return .semibold
+        case "bold":
+            return .bold
+        case "heavy", "extrabold":
+            return .heavy
+        case "black":
+            return .black
+        default:
+            return .regular
+        }
+    }
+
+    var size: CGFloat {
+        guard descriptor.components(separatedBy: ":").count > 2 else {
+            return CGFloat(14)
+        }
+        return CGFloat(Double(descriptor.components(separatedBy: ":")[2]) ?? 14)
+    }
+    
+    var symbolicTraits: NSFontDescriptor.SymbolicTraits {
+        return weight == .bold ? .bold : []
+    }
+}
+
 
 // Load configuration from a YAML object
 func loadConfig(from yaml: Yaml) -> Config? {
@@ -47,13 +103,20 @@ func loadConfig(from yaml: Yaml) -> Config? {
             return nil
     }
 
+    let globalIconFontDescriptor = globalYaml["iconFont"]?.string
+    let globalTextFontDescriptor = globalYaml["textFont"]?.string
+    let globalIconFont = globalIconFontDescriptor.map { FontConfig(descriptor: $0) }
+    let globalTextFont = globalTextFontDescriptor.map { FontConfig(descriptor: $0) }
+
     let globalConfig = GlobalConfig(
         height: height,
         padding: padding,
         colour: ColourModeConfig(
             light: ColourConfig(fg: lightFg, bg: lightBg),
             dark: ColourConfig(fg: darkFg, bg: darkBg)
-        )
+        ),
+        iconFont: globalIconFont,
+        textFont: globalTextFont
     )
 
 guard let modulesYaml = yaml["modules"].array else {
@@ -70,8 +133,23 @@ for moduleYaml in modulesYaml {
         return nil
     }
 
-    let icon = moduleYaml["icon"].string
     let text = moduleYaml["text"].string
+
+    let moduleTextFont: FontConfig?
+    if let textFontDescriptor = moduleYaml["textFont"].string {
+        moduleTextFont = FontConfig(descriptor: textFontDescriptor)
+    } else {
+        moduleTextFont = nil
+    }
+
+    let icon = moduleYaml["icon"].string
+
+    let moduleIconFont: FontConfig?
+    if let iconFontDescriptor = moduleYaml["iconFont"].string {
+        moduleIconFont = FontConfig(descriptor: iconFontDescriptor)
+    } else {
+        moduleIconFont = nil
+    }
 
     var colour: ColourModeConfig? = nil
     if let colourYaml = moduleYaml["colour"].dictionary {
@@ -91,7 +169,7 @@ for moduleYaml in modulesYaml {
         }
     }
 
-    let module = ModuleConfig(name: name, alignment: alignment, text: text, icon: icon, colour: colour)
+    let module = ModuleConfig(name: name, alignment: alignment, text: text, icon: icon, textFont: moduleTextFont, iconFont: moduleIconFont, colour: colour)
     modules.append(module)
 }
 

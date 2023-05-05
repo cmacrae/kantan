@@ -5,7 +5,7 @@
 *** DONE Redraw the bar background
 *** DONE Make the window unfocusable
 *** DONE Do not present to the app switcher
-*** TODO Font family for icon & text
+*** DONE Font family for icon & text
 *** TODO Introduce native modules
 - spaces
 - clock

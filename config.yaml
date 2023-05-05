@@ -1,6 +1,8 @@
 global:
   height: 35
   padding: 10
+  textFont: "Helvetica Neue"
+  iconFont: "FontAwesome:Regular:15"
   colour:
     light:
       bg: "#bfccb5"
@@ -12,11 +14,19 @@ global:
 modules:
   - name: left 1
     alignment: left
-    icon: blah
-    # text: one
+    icon: 
+    text: one
   - name: left 2
     alignment: left
     text: two
+  - name: right 2
+    alignment: right
+    text: four
+    colour:
+      dark:
+        fg: "#e8a0bf"
+        bg: "#b2a4ff"
+    textFont: "Menlo"
   - name: right 1
     alignment: right
     text: three
@@ -24,10 +34,4 @@ modules:
     #   light:
     #     fg: "#ff0000"
     #   dark:
-    #     fg: "#ff0000"
-  - name: right 2
-    alignment: right
-    text: four
-    # colour:
-    #   light:
     #     fg: "#ff0000"

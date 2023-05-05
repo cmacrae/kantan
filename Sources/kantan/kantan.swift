@@ -84,57 +84,75 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         var rightOffset: CGFloat = padding
         var centerOffset: CGFloat = 0
 
+
         for module in config.modules {
             let currentColour = currentColourConfig(moduleColour: module.colour, globalColour: config.global.colour)
             let fgColor = NSColor(hex: currentColour.fg)
             let bgColor = NSColor(hex: currentColour.bg)
 
+            let iconField = NSTextField(labelWithAttributedString: NSAttributedString())
+            let textField = NSTextField(labelWithAttributedString: NSAttributedString())
+
             if let icon = module.icon {
-                let iconText = NSTextField(labelWithString: icon)
-                iconText.sizeToFit()
+                let iconFontConfig = module.iconFont ?? config.global.iconFont!
+                let fontName = iconFontConfig.name
+                let fontSize = iconFontConfig.size
+                let fontSymbolicTraits = iconFontConfig.symbolicTraits
+
+                let fontDescriptor = NSFontDescriptor(name: fontName, size: fontSize).withSymbolicTraits(fontSymbolicTraits)
+                let font = NSFont(descriptor: fontDescriptor, size: fontSize) ?? NSFont.systemFont(ofSize: fontSize)
+                let iconText = NSAttributedString(string: icon, attributes: [.font: font, .foregroundColor: fgColor, .backgroundColor: bgColor])
+
+                iconField.attributedStringValue = iconText
+                iconField.sizeToFit()
 
                 switch module.alignment {
                 case "left":
-                    iconText.frame.origin = CGPoint(x: leftOffset, y: (statusBarView.frame.height - iconText.frame.height) / 2)
-                    leftOffset += iconText.frame.width + (module.text != nil ? iconTextSpacing : padding)
+                    iconField.frame.origin = CGPoint(x: leftOffset, y: (statusBarView.frame.height - iconField.frame.height) / 2)
+                    leftOffset += iconField.frame.width + (module.text != nil ? iconTextSpacing : padding)
                 case "right":
-                    iconText.frame.origin = CGPoint(x: barWidth - rightOffset - iconText.frame.width, y: (statusBarView.frame.height - iconText.frame.height) / 2)
-                    rightOffset += iconText.frame.width + (module.text != nil ? iconTextSpacing : padding)
+                    iconField.frame.origin = CGPoint(x: barWidth - rightOffset - iconField.frame.width, y: (statusBarView.frame.height - iconField.frame.height) / 2)
+                    rightOffset += iconField.frame.width + (module.text != nil ? iconTextSpacing : padding)
                 case "centre":
-                    iconText.frame.origin = CGPoint(x: (barWidth - iconText.frame.width) / 2 + centerOffset, y: (statusBarView.frame.height - iconText.frame.height) / 2)
-                    centerOffset += iconText.frame.width + (module.text != nil ? iconTextSpacing : 0)
+                    iconField.frame.origin = CGPoint(x: (barWidth - iconField.frame.width) / 2 + centerOffset, y: (statusBarView.frame.height - iconField.frame.height) / 2)
+                    centerOffset += iconField.frame.width + (module.text != nil ? iconTextSpacing : 0)
                 default:
                     print("Invalid alignment")
                     return
                 }
 
-                iconText.textColor = fgColor
-                iconText.backgroundColor = bgColor
-                statusBarView.addSubview(iconText)
+                statusBarView.addSubview(iconField)
             }
 
             if let textContent = module.text {
-                let text = NSTextField(labelWithString: textContent)
-                text.sizeToFit()
+                let textFontConfig = module.textFont ?? config.global.textFont!
+                let fontName = textFontConfig.name
+                let fontSize = textFontConfig.size
+                let fontSymbolicTraits = textFontConfig.symbolicTraits
+
+                let fontDescriptor = NSFontDescriptor(name: fontName, size: fontSize).withSymbolicTraits(fontSymbolicTraits)
+                let font = NSFont(descriptor: fontDescriptor, size: fontSize) ?? NSFont.systemFont(ofSize: fontSize)
+                let text = NSAttributedString(string: textContent, attributes: [.font: font, .foregroundColor: fgColor, .backgroundColor: bgColor])
+
+                textField.attributedStringValue = text
+                textField.sizeToFit()
 
                 switch module.alignment {
                 case "left":
-                    text.frame.origin = CGPoint(x: leftOffset, y: (statusBarView.frame.height - text.frame.height) / 2)
-                    leftOffset += text.frame.width + padding
+                    textField.frame.origin = CGPoint(x: leftOffset, y: (statusBarView.frame.height - textField.frame.height) / 2)
+                    leftOffset += textField.frame.width + padding
                 case "right":
-                    text.frame.origin = CGPoint(x: barWidth - rightOffset - text.frame.width, y: (statusBarView.frame.height - text.frame.height) / 2)
-                    rightOffset += text.frame.width + padding
+                    textField.frame.origin = CGPoint(x: barWidth - rightOffset - textField.frame.width, y: (statusBarView.frame.height - textField.frame.height) / 2)
+                    rightOffset += textField.frame.width + padding
                 case "centre":
-                    text.frame.origin = CGPoint(x: (barWidth - text.frame.width) / 2 + centerOffset, y: (statusBarView.frame.height - text.frame.height) / 2)
-                    centerOffset += text.frame.width
+                    textField.frame.origin = CGPoint(x: (barWidth - textField.frame.width) / 2 + centerOffset, y: (statusBarView.frame.height - textField.frame.height) / 2)
+                    centerOffset += textField.frame.width
                 default:
                     print("Invalid alignment")
                     return
                 }
 
-                text.textColor = fgColor
-                text.backgroundColor = bgColor
-                statusBarView.addSubview(text)
+                statusBarView.addSubview(textField)
             }
         }
     }
