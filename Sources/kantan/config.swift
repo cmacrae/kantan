@@ -79,7 +79,6 @@ struct FontConfig: Codable {
 // NOTE: ModuleConfig & ModuleConfiguration:
 //       see modules/modules.swift
 
-
 // Load configuration from a YAML object
 func loadConfig(from yaml: Yaml) -> Config? {
     guard let globalYaml = yaml["global"].dictionary,
@@ -92,7 +91,7 @@ func loadConfig(from yaml: Yaml) -> Config? {
           let lightBg = lightColourYaml["bg"]?.string,
           let darkFg = darkColourYaml["fg"]?.string,
           let darkBg = darkColourYaml["bg"]?.string else {
-        print("Failed to load global config from YAML") // NOTE: debugging
+        print("Failed to load global config") // NOTE: debugging
         return nil
     }
 
@@ -123,7 +122,7 @@ func loadConfig(from yaml: Yaml) -> Config? {
         guard let name = moduleYaml["name"].string,
               let alignment = moduleYaml["alignment"].string,
               let type = moduleYaml["type"].string else {
-                print("Uh oh! Failed to load module config from YAML") // NOTE: debugging
+                print("Failed to load module config") // NOTE: debugging
                 return nil
         }
 
@@ -141,8 +140,6 @@ func loadConfig(from yaml: Yaml) -> Config? {
             } else {
                 moduleConfig = nil
             }
-            // let format = moduleYaml["config"]["format"].string ?? "%H:%m"
-            // moduleConfig = ClockConfig(format: format)
         default:
             print("Unsupported module type")
             moduleConfig = nil

@@ -6,16 +6,17 @@
 *** DONE Make the window unfocusable
 *** DONE Do not present to the app switcher
 *** DONE Font family for icon & text
+*** TODO Don't draw over fullscreen apps
 *** TODO Introduce native modules
-- spaces
-- clock
-- power
-- volume
-- coffee
-- DND
-- network
-- focused window title
-- command output
+**** TODO spaces
+**** DONE clock
+**** TODO power
+**** TODO volume
+**** TODO coffee
+**** TODO focus mode
+**** TODO network
+**** TODO focused window title
+**** TODO command output
 
 *** TODO Make click-through optional
 *** TODO Make draw-over optional

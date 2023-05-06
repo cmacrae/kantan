@@ -28,7 +28,7 @@ modules:
     alignment: right
     icon: 
     config:
-      format: "H:m"
+      format: "H:mm"
     # colour:
     #   light:
     #     fg: "#ff0000"

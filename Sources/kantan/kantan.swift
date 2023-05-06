@@ -16,6 +16,8 @@ class StatusBarController {
         self.statusBarWindow = statusBarWindow
         self.statusBarView = statusBarView
         self.statusBarWidth = statusBarWidth
+
+        self.applyCurrentAppearance()
     }
 
     func startClockUpdateTimer() {
@@ -45,17 +47,19 @@ class StatusBarController {
         }
     }
 
-    func redrawBar() {
-        // Remove all subviews from the statusBarView
-        self.statusBarView.subviews.forEach { $0.removeFromSuperview() }
-
+    func applyCurrentAppearance() {
         // Get the current color configuration for the background
-        let currentBgColour = currentColourConfig(moduleColour: nil, globalColour: config.global.colour).bg
+        let currentBgColour = currentColourConfig(moduleColour: nil, globalColour: self.config.global.colour).bg
 
         // Update the bar background color
         let barBgColor = NSColor(hex: currentBgColour)
         self.statusBarView.layer?.backgroundColor = barBgColor.cgColor
+    }
 
+    func redrawBar() {
+        // Remove all subviews from the statusBarView
+        self.statusBarView.subviews.forEach { $0.removeFromSuperview() }
+        self.applyCurrentAppearance()
         self.drawModules()
     }
 
@@ -201,7 +205,6 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                 config = loadConfig(from: yaml)
                 if let config = config {
                     print("Loaded config: \(config)") // NOTE: debugging
-                    // Work with the config object here
                 } else {
                     print("Failed to load config from YAML data") // NOTE: debugging
                 }
@@ -238,20 +241,8 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         window.backgroundColor = NSColor.clear
         window.ignoresMouseEvents = true
         
-        // let statusBarColor = NSColor(hex: config.global.colour.bg)
-        // TODO: Make this dynamic
-        let appearance = getCurrentAppearance()
-        var statusBarColor: NSColor!
-        if case appearance = "light" {
-            statusBarColor = NSColor(hex: config.global.colour.light.bg)
-        } else {
-            statusBarColor = NSColor(hex: config.global.colour.dark.bg)
-        }
-
-
         statusBarView = NSView(frame: statusBarRect)
         statusBarView.wantsLayer = true
-        statusBarView.layer?.backgroundColor = statusBarColor.cgColor
         window.contentView = statusBarView
         window.makeKeyAndOrderFront(nil)
 
@@ -261,15 +252,6 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                                                       statusBarWidth: statusBarWidth)
 
         statusBarController?.drawModules()
-    }
-
-    func getCurrentAppearance() -> String {
-        let appearance = NSApp.effectiveAppearance
-        if appearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua {
-            return "dark"
-        } else {
-            return "light"
-        }
     }
 
     override init() {
