@@ -13,25 +13,34 @@ global:
 
 modules:
   - name: left 1
+    type: text
     alignment: left
     icon: 
-    text: one
+    config:
+      value: one
   - name: left 2
+    type: text
     alignment: left
-    text: two
-  - name: right 2
+    config:
+      value: two
+  - name: clock
+    type: clock
     alignment: right
-    text: four
-    colour:
-      dark:
-        fg: "#e8a0bf"
-        bg: "#b2a4ff"
-    textFont: "Menlo"
-  - name: right 1
-    alignment: right
-    text: three
+    icon: 
+    config:
+      format: "H:m"
     # colour:
     #   light:
     #     fg: "#ff0000"
     #   dark:
     #     fg: "#ff0000"
+  - name: right 2
+    type: text
+    alignment: right
+    config:
+      value: four
+    colour:
+      dark:
+        fg: "#e8a0bf"
+        bg: "#b2a4ff"
+    textFont: "Menlo"

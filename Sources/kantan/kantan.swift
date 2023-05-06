@@ -14,7 +14,6 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             do {
                 let yaml = try Yaml.load(fileData)
                 config = loadConfig(from: yaml)
-                // Work with the config object here
                 if let config = config {
                     print("Loaded config: \(config)") // NOTE: debugging
                     // Work with the config object here
@@ -83,6 +82,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         var leftOffset: CGFloat = padding
         var rightOffset: CGFloat = padding
         var centerOffset: CGFloat = 0
+        var totalWidth: CGFloat = 0
 
 
         for module in config.modules {
@@ -92,6 +92,23 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
             let iconField = NSTextField(labelWithAttributedString: NSAttributedString())
             let textField = NSTextField(labelWithAttributedString: NSAttributedString())
+
+            var textContent: String?
+
+            // Determine the text content based on the module type
+            switch module.type {
+            case "text":
+                if let textConfig = module.config as? TextConfig {
+                    textContent = textConfig.value
+                }
+            case "clock":
+                if let clockConfig = module.config as? ClockConfig {
+                    textContent = getClockText(format: clockConfig.format) // Replace this with your clock module implementation
+                }
+            default:
+                print("Unsupported module type")
+                continue
+            }
 
             if let icon = module.icon {
                 let iconFontConfig = module.iconFont ?? config.global.iconFont!
@@ -106,25 +123,11 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                 iconField.attributedStringValue = iconText
                 iconField.sizeToFit()
 
-                switch module.alignment {
-                case "left":
-                    iconField.frame.origin = CGPoint(x: leftOffset, y: (statusBarView.frame.height - iconField.frame.height) / 2)
-                    leftOffset += iconField.frame.width + (module.text != nil ? iconTextSpacing : padding)
-                case "right":
-                    iconField.frame.origin = CGPoint(x: barWidth - rightOffset - iconField.frame.width, y: (statusBarView.frame.height - iconField.frame.height) / 2)
-                    rightOffset += iconField.frame.width + (module.text != nil ? iconTextSpacing : padding)
-                case "centre":
-                    iconField.frame.origin = CGPoint(x: (barWidth - iconField.frame.width) / 2 + centerOffset, y: (statusBarView.frame.height - iconField.frame.height) / 2)
-                    centerOffset += iconField.frame.width + (module.text != nil ? iconTextSpacing : 0)
-                default:
-                    print("Invalid alignment")
-                    return
-                }
-
+                totalWidth += iconField.frame.width
                 statusBarView.addSubview(iconField)
             }
 
-            if let textContent = module.text {
+            if let textContent = textContent {
                 let textFontConfig = module.textFont ?? config.global.textFont!
                 let fontName = textFontConfig.name
                 let fontSize = textFontConfig.size
@@ -137,22 +140,54 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                 textField.attributedStringValue = text
                 textField.sizeToFit()
 
-                switch module.alignment {
-                case "left":
-                    textField.frame.origin = CGPoint(x: leftOffset, y: (statusBarView.frame.height - textField.frame.height) / 2)
-                    leftOffset += textField.frame.width + padding
-                case "right":
-                    textField.frame.origin = CGPoint(x: barWidth - rightOffset - textField.frame.width, y: (statusBarView.frame.height - textField.frame.height) / 2)
-                    rightOffset += textField.frame.width + padding
-                case "centre":
-                    textField.frame.origin = CGPoint(x: (barWidth - textField.frame.width) / 2 + centerOffset, y: (statusBarView.frame.height - textField.frame.height) / 2)
-                    centerOffset += textField.frame.width
-                default:
-                    print("Invalid alignment")
-                    return
+                totalWidth += (module.icon != nil ? iconTextSpacing : 0) + textField.frame.width
+                statusBarView.addSubview(textField)
+            }
+
+            switch module.alignment {
+            case "left":
+                if let _ = module.icon {
+                    iconField.frame.origin = CGPoint(x: leftOffset, y: (statusBarView.frame.height - iconField.frame.height) / 2)
+                    leftOffset += iconField.frame.width
                 }
 
-                statusBarView.addSubview(textField)
+                if let _ = textContent {
+                    if let _ = module.icon {
+                        leftOffset += iconTextSpacing
+                    }
+                    textField.frame.origin = CGPoint(x: leftOffset, y: (statusBarView.frame.height - textField.frame.height) / 2)
+                    leftOffset += textField.frame.width + padding
+                }
+            case "right":
+                if let _ = textContent {
+                    textField.frame.origin = CGPoint(x: barWidth - rightOffset - textField.frame.width, y: (statusBarView.frame.height - textField.frame.height) / 2)
+                    rightOffset += textField.frame.width
+                }
+
+                if let _ = module.icon {
+                    if let _ = textContent {
+                        rightOffset += iconTextSpacing
+                    }
+                    iconField.frame.origin = CGPoint(x: barWidth - rightOffset - iconField.frame.width, y: (statusBarView.frame.height - iconField.frame.height) / 2)
+                    rightOffset += iconField.frame.width + padding
+                }
+            case "centre":
+                let startingCenterOffset = (barWidth - totalWidth) / 2
+
+                if let _ = module.icon {
+                    iconField.frame.origin = CGPoint(x: startingCenterOffset + centerOffset, y: (statusBarView.frame.height - iconField.frame.height) / 2)
+                    centerOffset += iconField.frame.width
+                }
+
+                if let _ = textContent {
+                    if let _ = module.icon {
+                        centerOffset += iconTextSpacing
+                    }
+                    textField.frame.origin = CGPoint(x: startingCenterOffset + centerOffset, y: (statusBarView.frame.height - textField.frame.height) / 2)
+                }
+            default:
+                print("Invalid alignment")
+                return
             }
         }
     }

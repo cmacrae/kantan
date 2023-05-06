@@ -34,3 +34,7 @@ gaps:
 #+end_src
 
 *** TODO Corner rounding
+*** TODO Redraw events
+- lid close/open
+- wake from sleep
+- display added/removed/changed

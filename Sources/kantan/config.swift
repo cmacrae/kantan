@@ -25,16 +25,6 @@ struct ColourConfig: Codable {
     let bg: String
 }
 
-struct ModuleConfig: Codable {
-    let name: String
-    let alignment: String
-    let text: String?
-    let icon: String?
-    let textFont: FontConfig?
-    let iconFont: FontConfig?
-    let colour: ColourModeConfig?
-}
-
 struct FontConfig: Codable {
     let descriptor: String
 
@@ -80,11 +70,14 @@ struct FontConfig: Codable {
         }
         return CGFloat(Double(descriptor.components(separatedBy: ":")[2]) ?? 14)
     }
-    
+
     var symbolicTraits: NSFontDescriptor.SymbolicTraits {
         return weight == .bold ? .bold : []
     }
 }
+
+// NOTE: ModuleConfig & ModuleConfiguration:
+//       see modules/modules.swift
 
 
 // Load configuration from a YAML object
@@ -99,8 +92,8 @@ func loadConfig(from yaml: Yaml) -> Config? {
           let lightBg = lightColourYaml["bg"]?.string,
           let darkFg = darkColourYaml["fg"]?.string,
           let darkBg = darkColourYaml["bg"]?.string else {
-            print("Failed to load global config from YAML") // NOTE: debugging
-            return nil
+        print("Failed to load global config from YAML") // NOTE: debugging
+        return nil
     }
 
     let globalIconFontDescriptor = globalYaml["iconFont"]?.string
@@ -109,69 +102,89 @@ func loadConfig(from yaml: Yaml) -> Config? {
     let globalTextFont = globalTextFontDescriptor.map { FontConfig(descriptor: $0) }
 
     let globalConfig = GlobalConfig(
-        height: height,
-        padding: padding,
-        colour: ColourModeConfig(
-            light: ColourConfig(fg: lightFg, bg: lightBg),
-            dark: ColourConfig(fg: darkFg, bg: darkBg)
-        ),
-        iconFont: globalIconFont,
-        textFont: globalTextFont
+      height: height,
+      padding: padding,
+      colour: ColourModeConfig(
+        light: ColourConfig(fg: lightFg, bg: lightBg),
+        dark: ColourConfig(fg: darkFg, bg: darkBg)
+      ),
+      iconFont: globalIconFont,
+      textFont: globalTextFont
     )
 
-guard let modulesYaml = yaml["modules"].array else {
-    print("Failed to load modules config from YAML")
-    return nil
-}
-
-var modules: [ModuleConfig] = []
-
-for moduleYaml in modulesYaml {
-    guard let name = moduleYaml["name"].string,
-          let alignment = moduleYaml["alignment"].string else {
-        print("Uh oh! Failed to load module config from YAML") // NOTE: debugging
+    guard let modulesYaml = yaml["modules"].array else {
+        print("Failed to load modules config from YAML")
         return nil
     }
 
-    let text = moduleYaml["text"].string
+    var modules: [ModuleConfig] = []
 
-    let moduleTextFont: FontConfig?
-    if let textFontDescriptor = moduleYaml["textFont"].string {
-        moduleTextFont = FontConfig(descriptor: textFontDescriptor)
-    } else {
-        moduleTextFont = nil
-    }
-
-    let icon = moduleYaml["icon"].string
-
-    let moduleIconFont: FontConfig?
-    if let iconFontDescriptor = moduleYaml["iconFont"].string {
-        moduleIconFont = FontConfig(descriptor: iconFontDescriptor)
-    } else {
-        moduleIconFont = nil
-    }
-
-    var colour: ColourModeConfig? = nil
-    if let colourYaml = moduleYaml["colour"].dictionary {
-        let lightColourYaml = colourYaml["light"]?.dictionary
-        let darkColourYaml = colourYaml["dark"]?.dictionary
-
-        let lightFg = lightColourYaml?["fg"]?.string
-        let lightBg = lightColourYaml?["bg"]?.string
-        let darkFg = darkColourYaml?["fg"]?.string
-        let darkBg = darkColourYaml?["bg"]?.string
-
-        if lightFg != nil || lightBg != nil || darkFg != nil || darkBg != nil {
-            colour = ColourModeConfig(
-              light: ColourConfig(fg: lightFg ?? globalConfig.colour.light.fg, bg: lightBg ?? globalConfig.colour.light.bg),
-              dark: ColourConfig(fg: darkFg ?? globalConfig.colour.dark.fg, bg: darkBg ?? globalConfig.colour.dark.bg)
-            )
+    for moduleYaml in modulesYaml {
+        guard let name = moduleYaml["name"].string,
+              let alignment = moduleYaml["alignment"].string,
+              let type = moduleYaml["type"].string else {
+                print("Uh oh! Failed to load module config from YAML") // NOTE: debugging
+                return nil
         }
-    }
 
-    let module = ModuleConfig(name: name, alignment: alignment, text: text, icon: icon, textFont: moduleTextFont, iconFont: moduleIconFont, colour: colour)
-    modules.append(module)
-}
+        let moduleConfig: Codable?
+        switch type {
+        case "text":
+            if moduleYaml["config"]["value"].string != nil {
+                moduleConfig = try? TextConfig(yaml: moduleYaml["config"])
+            } else {
+                moduleConfig = nil
+            }
+        case "clock":
+            if moduleYaml["config"]["format"].string != nil {
+                moduleConfig = try? ClockConfig(yaml: moduleYaml["config"])
+            } else {
+                moduleConfig = nil
+            }
+            // let format = moduleYaml["config"]["format"].string ?? "%H:%m"
+            // moduleConfig = ClockConfig(format: format)
+        default:
+            print("Unsupported module type")
+            moduleConfig = nil
+        }
+
+        let moduleTextFont: FontConfig?
+        if let textFontDescriptor = moduleYaml["textFont"].string {
+            moduleTextFont = FontConfig(descriptor: textFontDescriptor)
+        } else {
+            moduleTextFont = nil
+        }
+
+        let icon = moduleYaml["icon"].string
+
+        let moduleIconFont: FontConfig?
+        if let iconFontDescriptor = moduleYaml["iconFont"].string {
+            moduleIconFont = FontConfig(descriptor: iconFontDescriptor)
+        } else {
+            moduleIconFont = nil
+        }
+
+        var colour: ColourModeConfig? = nil
+        if let colourYaml = moduleYaml["colour"].dictionary {
+            let lightColourYaml = colourYaml["light"]?.dictionary
+            let darkColourYaml = colourYaml["dark"]?.dictionary
+
+            let lightFg = lightColourYaml?["fg"]?.string
+            let lightBg = lightColourYaml?["bg"]?.string
+            let darkFg = darkColourYaml?["fg"]?.string
+            let darkBg = darkColourYaml?["bg"]?.string
+
+            if lightFg != nil || lightBg != nil || darkFg != nil || darkBg != nil {
+                colour = ColourModeConfig(
+                  light: ColourConfig(fg: lightFg ?? globalConfig.colour.light.fg, bg: lightBg ?? globalConfig.colour.light.bg),
+                  dark: ColourConfig(fg: darkFg ?? globalConfig.colour.dark.fg, bg: darkBg ?? globalConfig.colour.dark.bg)
+                )
+            }
+        }
+
+        let module = ModuleConfig(name: name, alignment: alignment, type: type, icon: icon, textFont: moduleTextFont, iconFont: moduleIconFont, colour: colour, config: moduleConfig)
+        modules.append(module)
+    }
 
 
     return Config(global: globalConfig, modules: modules)
