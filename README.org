@@ -39,3 +39,5 @@ gaps:
 - lid close/open
 - wake from sleep
 - display added/removed/changed
+*** TODO Fix bug with omitting power.config.showLevel
+If this is omitted, it doesn't render

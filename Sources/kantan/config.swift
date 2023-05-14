@@ -140,6 +140,14 @@ func loadConfig(from yaml: Yaml) -> Config? {
             } else {
                 moduleConfig = nil
             }
+        case "power":
+            if moduleYaml["config"]["showLevel"].bool != nil,
+               moduleYaml["config"]["charging"]["icon"].string != nil,
+               moduleYaml["config"]["battery"]["icons"].array != nil {
+                moduleConfig = try? PowerConfig(yaml: moduleYaml["config"])
+            } else {
+                moduleConfig = nil
+            }
         default:
             print("Unsupported module type")
             moduleConfig = nil

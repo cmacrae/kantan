@@ -29,18 +29,17 @@ modules:
     icon: 
     config:
       format: "H:mm"
-    # colour:
-    #   light:
-    #     fg: "#ff0000"
-    #   dark:
-    #     fg: "#ff0000"
-  - name: right 2
-    type: text
+  - name: power
+    type: power
     alignment: right
     config:
-      value: four
-    colour:
-      dark:
-        fg: "#e8a0bf"
-        bg: "#b2a4ff"
-    textFont: "Menlo"
+      showLevel: true
+      charging:
+        icon: 
+      battery:
+        icons:
+          - 
+          - 
+          - 
+          - 
+          - 

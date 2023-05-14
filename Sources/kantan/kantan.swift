@@ -88,26 +88,46 @@ class StatusBarController {
             let iconField = NSTextField(labelWithAttributedString: NSAttributedString())
             let textField = NSTextField(labelWithAttributedString: NSAttributedString())
 
+            var icon: String?
             var textContent: String?
 
+            icon = module.icon
             // Determine the text content based on the module type
             switch module.type {
+
             case "text":
                 if let textConfig = module.config as? TextConfig {
                     textContent = textConfig.value
                 }
+
             case "clock":
                 if let clockConfig = module.config as? ClockConfig {
                     textContent = getClockText(format: clockConfig.format)
                 }
 
                 self.startClockUpdateTimer()
+
+            case "power":
+                if let powerConfig = module.config as? PowerConfig {
+                    let batteryLevel = getBatteryLevel()
+                    let charging = isCharging()
+
+                    if charging {
+                        icon = powerConfig.charging.icon
+                        textContent = powerConfig.showLevel ? "\(batteryLevel)%" : ""
+                    } else {
+                        let index = min(batteryLevel / 25, powerConfig.battery.icons.count - 1)
+                        icon = powerConfig.battery.icons[index]
+                        textContent = powerConfig.showLevel ? "\(batteryLevel)%" : ""
+                    }
+                }
+
             default:
                 print("Unsupported module type")
                 continue
             }
 
-            if let icon = module.icon {
+            if let icon = icon {
                 let iconFontConfig = module.iconFont ?? self.config.global.iconFont!
                 let fontName = iconFontConfig.name
                 let fontSize = iconFontConfig.size
@@ -143,7 +163,7 @@ class StatusBarController {
 
             switch module.alignment {
             case "left":
-                if let _ = module.icon {
+                if let _ = icon {
                     iconField.frame.origin = CGPoint(x: leftOffset, y: (self.statusBarView.frame.height - iconField.frame.height) / 2)
                     leftOffset += iconField.frame.width
                 }
@@ -161,7 +181,7 @@ class StatusBarController {
                     rightOffset += textField.frame.width
                 }
 
-                if let _ = module.icon {
+                if let _ = icon {
                     if let _ = textContent {
                         rightOffset += iconTextSpacing
                     }
@@ -171,7 +191,7 @@ class StatusBarController {
             case "centre":
                 let startingCenterOffset = (self.statusBarWidth - totalWidth) / 2
 
-                if let _ = module.icon {
+                if let _ = icon {
                     iconField.frame.origin = CGPoint(x: startingCenterOffset + centerOffset, y: (self.statusBarView.frame.height - iconField.frame.height) / 2)
                     centerOffset += iconField.frame.width
                 }
