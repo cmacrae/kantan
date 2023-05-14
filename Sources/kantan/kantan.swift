@@ -6,9 +6,9 @@ class StatusBarController {
     var statusBarWindow: NSWindow
     var statusBarView: NSView
     var statusBarWidth: CGFloat
-    var timer: Timer?
     var clockUpdateTimer: Timer?
     var lastDrawnClockValue: String?
+    var eventObserver: EventObserver
 
 
     init(config: Config, statusBarWindow: NSWindow, statusBarView: NSView, statusBarWidth: CGFloat) {
@@ -16,8 +16,10 @@ class StatusBarController {
         self.statusBarWindow = statusBarWindow
         self.statusBarView = statusBarView
         self.statusBarWidth = statusBarWidth
+        self.eventObserver = EventObserver()
 
         self.applyCurrentAppearance()
+
     }
 
     func startClockUpdateTimer() {

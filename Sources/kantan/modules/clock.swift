@@ -6,7 +6,7 @@ struct ClockConfig: Codable {
 
     init(yaml: Yaml) throws {
         guard let format = yaml["format"].string else {
-            throw DecodingError.dataCorrupted(DecodingError.Context(codingPath: [], debugDescription: "Unable to decode ClockConfig from Yaml"))
+            throw DecodingError.dataCorrupted(DecodingError.Context(codingPath: [], debugDescription: "Unable to decode clock configuration"))
         }
         self.format = format
     }
