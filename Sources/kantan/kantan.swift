@@ -8,6 +8,8 @@ class StatusBarController {
     var statusBarWidth: CGFloat
     var moduleTimers: [ModuleTimer] = []
     var eventObserver: EventObserver
+    var moduleLayout: [String: (textPosition: CGPoint, iconPosition: CGPoint, width: CGFloat)] = [:]
+
 
     init(config: Config, statusBarWindow: NSWindow, statusBarView: NSView, statusBarWidth: CGFloat) {
         self.config = config
@@ -31,9 +33,14 @@ class StatusBarController {
     func updateModuleIfNeeded(_ module: inout ModuleConfig) {
         guard let config = module.config else { return }
         
-        let newValue = config.getNewValue()
-        if newValue != module.lastDrawnValue {
+        let newValue = config.getValue()
+
+        let icon = config.getIcon()
+        let newIcon = icon.isEmpty ? module.icon : icon
+
+        if newValue != module.lastDrawnValue || newIcon != module.lastDrawnIcon {
             module.lastDrawnValue = newValue
+            module.lastDrawnIcon = newIcon
             self.drawModules(type: module.type)
         }
     }
@@ -97,27 +104,18 @@ class StatusBarController {
                 switch module.type {
                 case "text":
                     if let textConfig = module.config as? TextConfig {
-                        textContent = textConfig.value
+                        textContent = textConfig.getValue()
                     }
 
                 case "clock":
                     if let clockConfig = module.config as? ClockConfig {
-                        textContent = getClockText(format: clockConfig.format)
+                        textContent = clockConfig.getValue()
                     }
 
                 case "power":
                     if let powerConfig = module.config as? PowerConfig {
-                        let batteryLevel = getBatteryLevel()
-                        let charging = isCharging()
-
-                        if charging {
-                            icon = powerConfig.charging.icon
-                            textContent = powerConfig.showLevel ? "\(batteryLevel)%" : ""
-                        } else {
-                            let index = min(batteryLevel / 25, powerConfig.battery.icons.count - 1)
-                            icon = powerConfig.battery.icons[index]
-                            textContent = powerConfig.showLevel ? "\(batteryLevel)%" : ""
-                        }
+                        icon = powerConfig.getIcon()
+                        textContent = powerConfig.showLevel ? powerConfig.getValue() : ""
                     }
 
                 default:
@@ -159,53 +157,59 @@ class StatusBarController {
                     self.statusBarView.addSubview(textField)
                 }
 
-                switch module.alignment {
-                case "left":
-                    if let _ = icon {
-                        iconField.frame.origin = CGPoint(x: leftOffset, y: (self.statusBarView.frame.height - iconField.frame.height) / 2)
-                        leftOffset += iconField.frame.width
-                    }
-
-                    if let _ = textContent {
+                if let layout = self.moduleLayout[module.name] {
+                    iconField.frame.origin = layout.iconPosition
+                    textField.frame.origin = layout.textPosition
+                } else {
+                    switch module.alignment {
+                    case "left":
                         if let _ = icon {
-                            leftOffset += iconTextSpacing
+                            iconField.frame.origin = CGPoint(x: leftOffset, y: (self.statusBarView.frame.height - iconField.frame.height) / 2)
+                            leftOffset += iconField.frame.width
                         }
-                        textField.frame.origin = CGPoint(x: leftOffset, y: (self.statusBarView.frame.height - textField.frame.height) / 2)
-                        leftOffset += textField.frame.width + padding
-                    }
-                case "right":
-                    if let _ = textContent {
-                        textField.frame.origin = CGPoint(x: self.statusBarWidth - rightOffset - textField.frame.width, y: (self.statusBarView.frame.height - textField.frame.height) / 2)
-                        rightOffset += textField.frame.width
-                    }
 
-                    if let _ = icon {
                         if let _ = textContent {
-                            rightOffset += iconTextSpacing
+                            if let _ = icon {
+                                leftOffset += iconTextSpacing
+                            }
+                            textField.frame.origin = CGPoint(x: leftOffset, y: (self.statusBarView.frame.height - textField.frame.height) / 2)
+                            leftOffset += textField.frame.width + padding
                         }
-                        iconField.frame.origin = CGPoint(x: self.statusBarWidth - rightOffset - iconField.frame.width, y: (self.statusBarView.frame.height - iconField.frame.height) / 2)
-                        rightOffset += iconField.frame.width + padding
-                    }
-                case "centre":
-                    let startingCenterOffset = (self.statusBarWidth - totalWidth) / 2
+                    case "right":
+                        if let _ = textContent {
+                            textField.frame.origin = CGPoint(x: self.statusBarWidth - rightOffset - textField.frame.width, y: (self.statusBarView.frame.height - textField.frame.height) / 2)
+                            rightOffset += textField.frame.width
+                        }
 
-                    if let _ = icon {
-                        iconField.frame.origin = CGPoint(x: startingCenterOffset + centerOffset, y: (self.statusBarView.frame.height - iconField.frame.height) / 2)
-                        centerOffset += iconField.frame.width
-                    }
-
-                    if let _ = textContent {
                         if let _ = icon {
-                            centerOffset += iconTextSpacing
+                            if let _ = textContent {
+                                rightOffset += iconTextSpacing
+                            }
+                            iconField.frame.origin = CGPoint(x: self.statusBarWidth - rightOffset - iconField.frame.width, y: (self.statusBarView.frame.height - iconField.frame.height) / 2)
+                            rightOffset += iconField.frame.width + padding
                         }
-                        textField.frame.origin = CGPoint(x: startingCenterOffset + centerOffset, y: (self.statusBarView.frame.height - textField.frame.height) / 2)
-                        centerOffset += textField.frame.width + padding
+                    case "centre":
+                        let startingCenterOffset = (self.statusBarWidth - totalWidth) / 2
+
+                        if let _ = icon {
+                            iconField.frame.origin = CGPoint(x: startingCenterOffset + centerOffset, y: (self.statusBarView.frame.height - iconField.frame.height) / 2)
+                            centerOffset += iconField.frame.width
+                        }
+
+                        if let _ = textContent {
+                            if let _ = icon {
+                                centerOffset += iconTextSpacing
+                            }
+                            textField.frame.origin = CGPoint(x: startingCenterOffset + centerOffset, y: (self.statusBarView.frame.height - textField.frame.height) / 2)
+                            centerOffset += textField.frame.width + padding
+                        }
+                    default:
+                        print("Invalid alignment")
+                        return
                     }
-                default:
-                    print("Invalid alignment")
-                    return
                 }
 
+                self.moduleLayout[module.name] = (textField.frame.origin, iconField.frame.origin, totalWidth)
                 self.config.modules[i] = module
             }
         }

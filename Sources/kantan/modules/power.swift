@@ -33,9 +33,24 @@ struct PowerConfig: ModuleConfiguration {
         self.battery = battery
     }
 
-    func getNewValue() -> String {
+    func getValue() -> String {
         let batteryLevel = getBatteryLevel()
         return showLevel ? "\(batteryLevel)%" : ""
+    }
+
+    func getIcon() -> String {
+        let icon: String
+        let batteryLevel = getBatteryLevel()
+        let isCharging = isCharging()
+
+        if isCharging {
+            icon = charging.icon
+        } else {
+            let index = min(batteryLevel / 25, battery.icons.count - 1)
+            icon = battery.icons[index]
+        }
+
+        return icon
     }
 }
 

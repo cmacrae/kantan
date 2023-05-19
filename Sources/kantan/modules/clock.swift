@@ -21,11 +21,15 @@ struct ClockConfig: ModuleConfiguration {
         self.format = format
     }
     
-    // var redrawInterval: TimeInterval { return 1.0 }
     var redrawInterval: TimeInterval { 1.0 }
 
-    func getNewValue() -> String {
+    func getValue() -> String {
         return getClockText(format: format)
+    }
+
+    // NOTE: rely on module's 'icon' as we have no special icon to return
+    func getIcon() -> String {
+        return ""
     }
 }
 

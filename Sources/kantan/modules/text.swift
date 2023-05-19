@@ -24,7 +24,12 @@ struct TextConfig: ModuleConfiguration {
 
     var redrawInterval: TimeInterval { 1.0 }
 
-    func getNewValue() -> String {
+    func getValue() -> String {
         return self.value
+    }
+
+    // NOTE: rely on module's 'icon' as we have no special icon to return
+    func getIcon() -> String {
+        return ""
     }
 }

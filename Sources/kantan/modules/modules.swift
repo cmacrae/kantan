@@ -4,7 +4,8 @@ import Yaml
 protocol ModuleConfiguration: Codable {
     var type: String { get }
     var redrawInterval: TimeInterval { get }
-    func getNewValue() -> String
+    func getValue() -> String
+    func getIcon() -> String
 }
 
 protocol ModuleConfigurationFactory {
@@ -21,6 +22,7 @@ struct ModuleConfigBuilder {
     private var colour: ColourModeConfig? = nil
     private var config: ModuleConfiguration?
     private var lastDrawnValue: String?
+    private var lastDrawnIcon: String?
     private var offset: CGFloat = 0
     private var configFactory: ModuleConfigurationFactory?
 
@@ -59,15 +61,20 @@ struct ModuleConfigBuilder {
         return self
     }
 
-     mutating func setLastDrawnValue(_ lastDrawnValue: String) -> ModuleConfigBuilder {
+    mutating func setLastDrawnValue(_ lastDrawnValue: String) -> ModuleConfigBuilder {
         self.lastDrawnValue = lastDrawnValue
         return self
     }
 
-     mutating func setOffset(_ offset: CGFloat) -> ModuleConfigBuilder {
+    mutating func setLastDrawnIcon(_ lastDrawnIcon: String) -> ModuleConfigBuilder {
+        self.lastDrawnIcon = lastDrawnIcon
+        return self
+    }
+
+    mutating func setOffset(_ offset: CGFloat) -> ModuleConfigBuilder {
         self.offset = offset
         return self
-     }
+    }
 
     mutating func setConfigFactory(_ factory: ModuleConfigurationFactory) -> ModuleConfigBuilder {
         self.configFactory = factory
@@ -111,10 +118,11 @@ struct ModuleConfig: Codable {
     let colour: ColourModeConfig?
     var config: ModuleConfiguration?
     var lastDrawnValue: String?
+    var lastDrawnIcon: String?
     var offset: CGFloat = 0
 
     private enum CodingKeys: String, CodingKey {
-        case name, type, alignment, icon, textFont, iconFont, colour, config, lastDrawnValue
+        case name, type, alignment, icon, textFont, iconFont, colour, config, lastDrawnValue, lastDrawnIcon
     }
 
     init(name: String, alignment: String, type: String, icon: String? = nil, textFont: FontConfig? = nil, iconFont: FontConfig? = nil, colour: ColourModeConfig? = nil, config: ModuleConfiguration? = nil) {
@@ -154,6 +162,7 @@ struct ModuleConfig: Codable {
         }
 
         lastDrawnValue = try container.decodeIfPresent(String.self, forKey: .lastDrawnValue)
+        lastDrawnIcon = try container.decodeIfPresent(String.self, forKey: .lastDrawnIcon)
     }
 
     func encode(to encoder: Encoder) throws {
@@ -168,6 +177,7 @@ struct ModuleConfig: Codable {
         // NOTE: We're not encoding the `config` property here, as it's not directly encodable.
 
         try container.encodeIfPresent(lastDrawnValue, forKey: .lastDrawnValue)
+        try container.encodeIfPresent(lastDrawnIcon, forKey: .lastDrawnIcon)
     }
 
     static func yaml(from dictionary: [String: Any]) -> Yaml {
