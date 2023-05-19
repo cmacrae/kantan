@@ -117,49 +117,38 @@ func loadConfig(from yaml: Yaml) -> Config? {
     }
 
     var modules: [ModuleConfig] = []
+    let textConfigFactory = TextConfigFactory()
+    let clockConfigFactory = ClockConfigFactory()
+    let powerConfigFactory = PowerConfigFactory()
 
     for moduleYaml in modulesYaml {
+        var builder = ModuleConfigBuilder()
+
         guard let name = moduleYaml["name"].string,
               let alignment = moduleYaml["alignment"].string,
               let type = moduleYaml["type"].string else {
-                print("Failed to load module config") // NOTE: debugging
-                return nil
+            print("Failed to load module config")
+            return nil
         }
 
-        let moduleConfig: ModuleConfiguration?
-        let textConfigFactory = TextConfigFactory()
-        let clockConfigFactory = ClockConfigFactory()
-        let powerConfigFactory = PowerConfigFactory()
+        builder = builder.setName(name)
+        builder = builder.setAlignment(alignment)
+        builder = builder.setType(type)
 
-        switch type {
-        case "text":
-            moduleConfig = try? textConfigFactory.configuration(from: moduleYaml["config"])
-        case "clock":
-            moduleConfig = try? clockConfigFactory.configuration(from: moduleYaml["config"])
-        case "power":
-            moduleConfig = try? powerConfigFactory.configuration(from: moduleYaml["config"])
-       default:
-            print("Unsupported module type")
-            moduleConfig = nil
+        if let icon = moduleYaml["icon"].string {
+            builder = builder.setIcon(icon)
         }
 
-        let moduleTextFont: FontConfig?
         if let textFontDescriptor = moduleYaml["textFont"].string {
-            moduleTextFont = FontConfig(descriptor: textFontDescriptor)
-        } else {
-            moduleTextFont = nil
+            let moduleTextFont = FontConfig(descriptor: textFontDescriptor)
+            builder = builder.setTextFont(moduleTextFont)
         }
 
-        let icon = moduleYaml["icon"].string
-
-        let moduleIconFont: FontConfig?
         if let iconFontDescriptor = moduleYaml["iconFont"].string {
-            moduleIconFont = FontConfig(descriptor: iconFontDescriptor)
-        } else {
-            moduleIconFont = nil
+            let moduleIconFont = FontConfig(descriptor: iconFontDescriptor)
+            builder = builder.setIconFont(moduleIconFont)
         }
 
-        var colour: ColourModeConfig? = nil
         if let colourYaml = moduleYaml["colour"].dictionary {
             let lightColourYaml = colourYaml["light"]?.dictionary
             let darkColourYaml = colourYaml["dark"]?.dictionary
@@ -170,17 +159,33 @@ func loadConfig(from yaml: Yaml) -> Config? {
             let darkBg = darkColourYaml?["bg"]?.string
 
             if lightFg != nil || lightBg != nil || darkFg != nil || darkBg != nil {
-                colour = ColourModeConfig(
+                let colour = ColourModeConfig(
                   light: ColourConfig(fg: lightFg ?? globalConfig.colour.light.fg, bg: lightBg ?? globalConfig.colour.light.bg),
                   dark: ColourConfig(fg: darkFg ?? globalConfig.colour.dark.fg, bg: darkBg ?? globalConfig.colour.dark.bg)
                 )
+                builder = builder.setColour(colour)
             }
         }
 
-        let module = ModuleConfig(name: name, alignment: alignment, type: type, icon: icon, textFont: moduleTextFont, iconFont: moduleIconFont, colour: colour, config: moduleConfig)
-        modules.append(module)
-    }
+        switch type {
+        case "text":
+            builder = builder.setConfigFactory(textConfigFactory)
+        case "clock":
+            builder = builder.setConfigFactory(clockConfigFactory)
+        case "power":
+            builder = builder.setConfigFactory(powerConfigFactory)
+        default:
+            print("Unsupported module type")
+        }
 
+        do {
+            builder = try builder.buildConfiguration(from: moduleYaml["config"])
+            let module = try builder.build()
+            modules.append(module)
+        } catch {
+            print("Failed to build module config: \(error)")
+        }
+    }
 
     return Config(global: globalConfig, modules: modules)
 }

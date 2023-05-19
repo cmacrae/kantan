@@ -11,6 +11,91 @@ protocol ModuleConfigurationFactory {
     func configuration(from yaml: Yaml) throws -> ModuleConfiguration
 }
 
+struct ModuleConfigBuilder {
+    private var name: String = ""
+    private var alignment: String = ""
+    private var type: String = ""
+    private var icon: String? = nil
+    private var textFont: FontConfig? = nil
+    private var iconFont: FontConfig? = nil
+    private var colour: ColourModeConfig? = nil
+    private var config: ModuleConfiguration?
+    private var lastDrawnValue: String?
+    private var offset: CGFloat = 0
+    private var configFactory: ModuleConfigurationFactory?
+
+    mutating func setName(_ name: String) -> ModuleConfigBuilder {
+        self.name = name
+        return self
+    }
+
+    mutating func setAlignment(_ alignment: String) -> ModuleConfigBuilder {
+        self.alignment = alignment
+        return self
+    }
+
+    mutating func setType(_ type: String) -> ModuleConfigBuilder {
+        self.type = type
+        return self
+    }
+
+    mutating func setIcon(_ icon: String) -> ModuleConfigBuilder {
+        self.icon = icon
+        return self
+    }
+
+    mutating func setTextFont(_ textFont: FontConfig) -> ModuleConfigBuilder {
+        self.textFont = textFont
+        return self
+    }
+
+    mutating func setIconFont(_ iconFont: FontConfig) -> ModuleConfigBuilder {
+        self.iconFont = iconFont
+        return self
+    }
+
+    mutating func setColour(_ colour: ColourModeConfig) -> ModuleConfigBuilder {
+        self.colour = colour
+        return self
+    }
+
+     mutating func setLastDrawnValue(_ lastDrawnValue: String) -> ModuleConfigBuilder {
+        self.lastDrawnValue = lastDrawnValue
+        return self
+    }
+
+     mutating func setOffset(_ offset: CGFloat) -> ModuleConfigBuilder {
+        self.offset = offset
+        return self
+     }
+
+    mutating func setConfigFactory(_ factory: ModuleConfigurationFactory) -> ModuleConfigBuilder {
+        self.configFactory = factory
+        return self
+    }
+
+    mutating func buildConfiguration(from yaml: Yaml) throws -> ModuleConfigBuilder {
+        guard let factory = self.configFactory else {
+            throw BuilderError.missingConfigurationFactory
+        }
+        self.config = try factory.configuration(from: yaml)
+        return self
+    }
+
+    func build() throws -> ModuleConfig {
+        guard let config = self.config else {
+            throw BuilderError.missingConfiguration
+        }
+        return ModuleConfig(name: name, alignment: alignment, type: type, icon: icon, textFont: textFont, iconFont: iconFont, colour: colour, config: config)
+    }
+}
+
+enum BuilderError: Error {
+    case missingConfigurationFactory
+    case missingConfiguration
+    case unsupportedModuleType
+}
+
 struct ModuleTimer {
     let moduleConfig: ModuleConfig
     var timer: Timer?
