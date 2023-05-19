@@ -7,6 +7,10 @@ protocol ModuleConfiguration: Codable {
     func getNewValue() -> String
 }
 
+protocol ModuleConfigurationFactory {
+    func configuration(from yaml: Yaml) throws -> ModuleConfiguration
+}
+
 struct ModuleTimer {
     let moduleConfig: ModuleConfig
     var timer: Timer?
@@ -52,12 +56,15 @@ struct ModuleConfig: Codable {
         let configDict = try container.decodeIfPresent(ConfigDictionary.self, forKey: .config)?.values
         let configYaml = configDict.map(ModuleConfig.yaml(from:))
 
-        switch type {
-        case "text":
-            config = configYaml.flatMap { try? TextConfig(yaml: $0) }
-        case "clock":
-            config = configYaml.flatMap { try? ClockConfig(yaml: $0) }
-        default:
+        let factories: [String: ModuleConfigurationFactory] = [
+          "text": TextConfigFactory(),
+          "clock": ClockConfigFactory(),
+          "power": PowerConfigFactory()
+        ]
+
+        if let configYaml = configYaml, let factory = factories[type] {
+            config = try factory.configuration(from: configYaml)
+        } else {
             config = nil
         }
 

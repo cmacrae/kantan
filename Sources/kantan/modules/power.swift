@@ -2,6 +2,23 @@ import Foundation
 import Yaml
 import IOKit.ps
 
+struct PowerConfigFactory: ModuleConfigurationFactory {
+    func configuration(from yaml: Yaml) throws -> ModuleConfiguration {
+        guard let showLevel = yaml["showLevel"].bool,
+              let chargingYaml = yaml["charging"].dictionary,
+              let batteryYaml = yaml["battery"].dictionary,
+              let chargingIcon = chargingYaml["icon"]?.string,
+              let batteryIcons = batteryYaml["icons"]?.array?.compactMap({ $0.string }) else {
+            throw DecodingError.dataCorrupted(DecodingError.Context(codingPath: [], debugDescription: "Unable to decode PowerConfig from Yaml"))
+        }
+
+        let chargingConfig = ChargingConfig(icon: chargingIcon)
+        let batteryConfig = BatteryConfig(icons: batteryIcons)
+
+        return PowerConfig(showLevel: showLevel, charging: chargingConfig, battery: batteryConfig)
+    }
+}
+
 struct PowerConfig: ModuleConfiguration {
     var type: String { "power" }
     let showLevel: Bool
@@ -10,24 +27,11 @@ struct PowerConfig: ModuleConfiguration {
 
     var redrawInterval: TimeInterval { 1.0 }
 
-    init(yaml: Yaml) throws {
-        guard let showLevel = yaml["showLevel"].bool else {
-            throw DecodingError.dataCorrupted(DecodingError.Context(codingPath: [], debugDescription: "Unable to decode 'showLevel' from Yaml"))
-        }
-
-        guard let chargingYaml = yaml["charging"].dictionary else {
-            throw DecodingError.dataCorrupted(DecodingError.Context(codingPath: [], debugDescription: "Unable to decode 'charging' from Yaml"))
-        }
-
-        guard let batteryYaml = yaml["battery"].dictionary else {
-            throw DecodingError.dataCorrupted(DecodingError.Context(codingPath: [], debugDescription: "Unable to decode 'battery' from Yaml"))
-        }
-
+    init(showLevel: Bool, charging: ChargingConfig, battery: BatteryConfig) {
         self.showLevel = showLevel
-        self.charging = try ChargingConfig(yaml: Yaml.dictionary(chargingYaml))
-        self.battery = try BatteryConfig(yaml: Yaml.dictionary(batteryYaml))
+        self.charging = charging
+        self.battery = battery
     }
-
 
     func getNewValue() -> String {
         let batteryLevel = getBatteryLevel()
@@ -38,11 +42,7 @@ struct PowerConfig: ModuleConfiguration {
 struct ChargingConfig: Codable {
     let icon: String
 
-    init(yaml: Yaml) throws {
-        guard let icon = yaml["icon"].string else {
-            throw DecodingError.dataCorrupted(DecodingError.Context(codingPath: [], debugDescription: "Unable to decode 'icon' from Yaml"))
-        }
-
+    init(icon: String) {
         self.icon = icon
     }
 }
@@ -50,11 +50,7 @@ struct ChargingConfig: Codable {
 struct BatteryConfig: Codable {
     let icons: [String]
 
-    init(yaml: Yaml) throws {
-        guard let icons = yaml["icons"].array?.compactMap({ $0.string }) else {
-            throw DecodingError.dataCorrupted(DecodingError.Context(codingPath: [], debugDescription: "Unable to decode 'icons' from Yaml"))
-        }
-
+    init(icons: [String]) {
         self.icons = icons
     }
 }

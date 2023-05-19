@@ -127,29 +127,18 @@ func loadConfig(from yaml: Yaml) -> Config? {
         }
 
         let moduleConfig: ModuleConfiguration?
+        let textConfigFactory = TextConfigFactory()
+        let clockConfigFactory = ClockConfigFactory()
+        let powerConfigFactory = PowerConfigFactory()
 
         switch type {
         case "text":
-            if moduleYaml["config"]["value"].string != nil {
-                moduleConfig = try? TextConfig(yaml: moduleYaml["config"])
-            } else {
-                moduleConfig = nil
-            }
+            moduleConfig = try? textConfigFactory.configuration(from: moduleYaml["config"])
         case "clock":
-            if moduleYaml["config"]["format"].string != nil {
-                moduleConfig = try? ClockConfig(yaml: moduleYaml["config"])
-            } else {
-                moduleConfig = nil
-            }
+            moduleConfig = try? clockConfigFactory.configuration(from: moduleYaml["config"])
         case "power":
-            if moduleYaml["config"]["showLevel"].bool != nil,
-               moduleYaml["config"]["charging"]["icon"].string != nil,
-               moduleYaml["config"]["battery"]["icons"].array != nil {
-                moduleConfig = try? PowerConfig(yaml: moduleYaml["config"])
-            } else {
-                moduleConfig = nil
-            }
-        default:
+            moduleConfig = try? powerConfigFactory.configuration(from: moduleYaml["config"])
+       default:
             print("Unsupported module type")
             moduleConfig = nil
         }
