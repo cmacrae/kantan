@@ -161,13 +161,13 @@ class StatusBarController {
 
                 switch module.alignment {
                 case "left":
-                    if let _ = module.icon {
+                    if let _ = icon {
                         iconField.frame.origin = CGPoint(x: leftOffset, y: (self.statusBarView.frame.height - iconField.frame.height) / 2)
                         leftOffset += iconField.frame.width
                     }
 
                     if let _ = textContent {
-                        if let _ = module.icon {
+                        if let _ = icon {
                             leftOffset += iconTextSpacing
                         }
                         textField.frame.origin = CGPoint(x: leftOffset, y: (self.statusBarView.frame.height - textField.frame.height) / 2)
@@ -179,7 +179,7 @@ class StatusBarController {
                         rightOffset += textField.frame.width
                     }
 
-                    if let _ = module.icon {
+                    if let _ = icon {
                         if let _ = textContent {
                             rightOffset += iconTextSpacing
                         }
@@ -189,13 +189,13 @@ class StatusBarController {
                 case "centre":
                     let startingCenterOffset = (self.statusBarWidth - totalWidth) / 2
 
-                    if let _ = module.icon {
+                    if let _ = icon {
                         iconField.frame.origin = CGPoint(x: startingCenterOffset + centerOffset, y: (self.statusBarView.frame.height - iconField.frame.height) / 2)
                         centerOffset += iconField.frame.width
                     }
 
                     if let _ = textContent {
-                        if let _ = module.icon {
+                        if let _ = icon {
                             centerOffset += iconTextSpacing
                         }
                         textField.frame.origin = CGPoint(x: startingCenterOffset + centerOffset, y: (self.statusBarView.frame.height - textField.frame.height) / 2)
