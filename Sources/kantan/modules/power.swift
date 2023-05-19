@@ -2,10 +2,13 @@ import Foundation
 import Yaml
 import IOKit.ps
 
-struct PowerConfig: Codable {
+struct PowerConfig: ModuleConfiguration {
+    var type: String { "power" }
     let showLevel: Bool
     let charging: ChargingConfig
     let battery: BatteryConfig
+
+    var redrawInterval: TimeInterval { 1.0 }
 
     init(yaml: Yaml) throws {
         guard let showLevel = yaml["showLevel"].bool else {
@@ -23,6 +26,12 @@ struct PowerConfig: Codable {
         self.showLevel = showLevel
         self.charging = try ChargingConfig(yaml: Yaml.dictionary(chargingYaml))
         self.battery = try BatteryConfig(yaml: Yaml.dictionary(batteryYaml))
+    }
+
+
+    func getNewValue() -> String {
+        let batteryLevel = getBatteryLevel()
+        return showLevel ? "\(batteryLevel)%" : ""
     }
 }
 

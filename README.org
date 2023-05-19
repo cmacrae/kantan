@@ -6,7 +6,12 @@
 *** DONE Make the window unfocusable
 *** DONE Do not present to the app switcher
 *** DONE Font family for icon & text
-*** TODO Don't draw over fullscreen apps
+*** TODO Make drawing over fullscreen apps optional
+In the case that there's a notch, this is actually useful, since the current behaviour
+is to simply black out that space, so it isn't used for anything.
+
+Perhaps the option should allow for "on", "off", and "when_notch"
+
 *** TODO Introduce native modules
 **** TODO spaces
 **** DONE clock

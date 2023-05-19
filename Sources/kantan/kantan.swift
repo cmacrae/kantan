@@ -6,10 +6,8 @@ class StatusBarController {
     var statusBarWindow: NSWindow
     var statusBarView: NSView
     var statusBarWidth: CGFloat
-    var clockUpdateTimer: Timer?
-    var lastDrawnClockValue: String?
+    var moduleTimers: [ModuleTimer] = []
     var eventObserver: EventObserver
-
 
     init(config: Config, statusBarWindow: NSWindow, statusBarView: NSView, statusBarWidth: CGFloat) {
         self.config = config
@@ -20,23 +18,23 @@ class StatusBarController {
 
         self.applyCurrentAppearance()
 
-    }
-
-    func startClockUpdateTimer() {
-        let timer = Timer(timeInterval: 1, target: self,
-                          selector: #selector(updateClockIfNeeded),
-                          userInfo: nil, repeats: true)
-        RunLoop.current.add(timer, forMode: .common)
-    }
-
-    @objc func updateClockIfNeeded() {
-        if let clockModule = self.config.modules.first(where: { $0.type == "clock" }),
-           let clockConfig = clockModule.config as? ClockConfig {
-            let newClockValue = getClockText(format: clockConfig.format)
-            if newClockValue != lastDrawnClockValue {
-                lastDrawnClockValue = newClockValue
-                self.drawModules(type: "clock")
+        for i in 0..<self.config.modules.count {
+            var moduleTimer = ModuleTimer(moduleConfig: self.config.modules[i])
+            moduleTimer.timer = Timer.scheduledTimer(withTimeInterval: self.config.modules[i].config?.redrawInterval ?? 1.0, repeats: true) { [weak self] _ in
+                guard let self = self else { return }
+                self.updateModuleIfNeeded(&self.config.modules[i])
             }
+            self.moduleTimers.append(moduleTimer)
+        }
+    }
+
+    func updateModuleIfNeeded(_ module: inout ModuleConfig) {
+        guard let config = module.config else { return }
+        
+        let newValue = config.getNewValue()
+        if newValue != module.lastDrawnValue {
+            module.lastDrawnValue = newValue
+            self.drawModules(type: module.type)
         }
     }
 
@@ -51,7 +49,7 @@ class StatusBarController {
 
     func applyCurrentAppearance() {
         // Get the current color configuration for the background
-        let currentBgColour = currentColourConfig(moduleColour: nil, globalColour: self.config.global.colour).bg
+        let currentBgColour = self.currentColourConfig(moduleColour: nil, globalColour: self.config.global.colour).bg
 
         // Update the bar background color
         let barBgColor = NSColor(hex: currentBgColour)
@@ -66,145 +64,149 @@ class StatusBarController {
     }
 
     func drawModules(type: String? = nil) {
-        let padding: CGFloat = CGFloat(self.config.global.padding)
-        let iconTextSpacing: CGFloat = 2
+        DispatchQueue.main.async {
+            let padding: CGFloat = CGFloat(self.config.global.padding)
+            let iconTextSpacing: CGFloat = 2
 
-        var leftOffset: CGFloat = padding
-        var rightOffset: CGFloat = padding
-        var centerOffset: CGFloat = 0
-        var totalWidth: CGFloat = 0
+            var leftOffset: CGFloat = padding
+            var rightOffset: CGFloat = padding
+            var centerOffset: CGFloat = 0
+            var totalWidth: CGFloat = 0
 
+            for i in 0..<self.config.modules.count {
+                let module = self.config.modules[i]
 
-        for module in self.config.modules {
-            // If a type has been specified, only operate on that
-            if let targetType = type, targetType != module.type {
-                continue
-            }
-
-            let currentColour = currentColourConfig(moduleColour: module.colour, globalColour: self.config.global.colour)
-            let fgColor = NSColor(hex: currentColour.fg)
-            let bgColor = NSColor(hex: currentColour.bg)
-
-            let iconField = NSTextField(labelWithAttributedString: NSAttributedString())
-            let textField = NSTextField(labelWithAttributedString: NSAttributedString())
-
-            var icon: String?
-            var textContent: String?
-
-            icon = module.icon
-            // Determine the text content based on the module type
-            switch module.type {
-
-            case "text":
-                if let textConfig = module.config as? TextConfig {
-                    textContent = textConfig.value
+                // If a type has been specified, only operate on that
+                if let targetType = type, targetType != module.type {
+                    continue
                 }
 
-            case "clock":
-                if let clockConfig = module.config as? ClockConfig {
-                    textContent = getClockText(format: clockConfig.format)
-                }
+                let currentColour = self.currentColourConfig(moduleColour: module.colour, globalColour: self.config.global.colour)
+                let fgColor = NSColor(hex: currentColour.fg)
+                let bgColor = NSColor(hex: currentColour.bg)
 
-                self.startClockUpdateTimer()
+                let iconField = NSTextField(labelWithAttributedString: NSAttributedString())
+                let textField = NSTextField(labelWithAttributedString: NSAttributedString())
 
-            case "power":
-                if let powerConfig = module.config as? PowerConfig {
-                    let batteryLevel = getBatteryLevel()
-                    let charging = isCharging()
+                var icon: String?
+                var textContent: String?
 
-                    if charging {
-                        icon = powerConfig.charging.icon
-                        textContent = powerConfig.showLevel ? "\(batteryLevel)%" : ""
-                    } else {
-                        let index = min(batteryLevel / 25, powerConfig.battery.icons.count - 1)
-                        icon = powerConfig.battery.icons[index]
-                        textContent = powerConfig.showLevel ? "\(batteryLevel)%" : ""
+                icon = module.icon
+
+                // Determine the text content based on the module type
+                switch module.type {
+                case "text":
+                    if let textConfig = module.config as? TextConfig {
+                        textContent = textConfig.value
                     }
+
+                case "clock":
+                    if let clockConfig = module.config as? ClockConfig {
+                        textContent = getClockText(format: clockConfig.format)
+                    }
+
+                case "power":
+                    if let powerConfig = module.config as? PowerConfig {
+                        let batteryLevel = getBatteryLevel()
+                        let charging = isCharging()
+
+                        if charging {
+                            icon = powerConfig.charging.icon
+                            textContent = powerConfig.showLevel ? "\(batteryLevel)%" : ""
+                        } else {
+                            let index = min(batteryLevel / 25, powerConfig.battery.icons.count - 1)
+                            icon = powerConfig.battery.icons[index]
+                            textContent = powerConfig.showLevel ? "\(batteryLevel)%" : ""
+                        }
+                    }
+
+                default:
+                    print("Unsupported module type")
+                    continue
                 }
 
-            default:
-                print("Unsupported module type")
-                continue
-            }
+                if let icon = icon {
+                    let iconFontConfig = module.iconFont ?? self.config.global.iconFont!
+                    let fontName = iconFontConfig.name
+                    let fontSize = iconFontConfig.size
+                    let fontSymbolicTraits = iconFontConfig.symbolicTraits
 
-            if let icon = icon {
-                let iconFontConfig = module.iconFont ?? self.config.global.iconFont!
-                let fontName = iconFontConfig.name
-                let fontSize = iconFontConfig.size
-                let fontSymbolicTraits = iconFontConfig.symbolicTraits
+                    let fontDescriptor = NSFontDescriptor(name: fontName, size: fontSize).withSymbolicTraits(fontSymbolicTraits)
+                    let font = NSFont(descriptor: fontDescriptor, size: fontSize) ?? NSFont.systemFont(ofSize: fontSize)
+                    let iconText = NSAttributedString(string: icon, attributes: [.font: font, .foregroundColor: fgColor, .backgroundColor: bgColor])
 
-                let fontDescriptor = NSFontDescriptor(name: fontName, size: fontSize).withSymbolicTraits(fontSymbolicTraits)
-                let font = NSFont(descriptor: fontDescriptor, size: fontSize) ?? NSFont.systemFont(ofSize: fontSize)
-                let iconText = NSAttributedString(string: icon, attributes: [.font: font, .foregroundColor: fgColor, .backgroundColor: bgColor])
+                    iconField.attributedStringValue = iconText
+                    iconField.sizeToFit()
 
-                iconField.attributedStringValue = iconText
-                iconField.sizeToFit()
-
-                totalWidth += iconField.frame.width
-                self.statusBarView.addSubview(iconField)
-            }
-
-            if let textContent = textContent {
-                let textFontConfig = module.textFont ?? self.config.global.textFont!
-                let fontName = textFontConfig.name
-                let fontSize = textFontConfig.size
-                let fontSymbolicTraits = textFontConfig.symbolicTraits
-
-                let fontDescriptor = NSFontDescriptor(name: fontName, size: fontSize).withSymbolicTraits(fontSymbolicTraits)
-                let font = NSFont(descriptor: fontDescriptor, size: fontSize) ?? NSFont.systemFont(ofSize: fontSize)
-                let text = NSAttributedString(string: textContent, attributes: [.font: font, .foregroundColor: fgColor, .backgroundColor: bgColor])
-
-                textField.attributedStringValue = text
-                textField.sizeToFit()
-
-                totalWidth += (module.icon != nil ? iconTextSpacing : 0) + textField.frame.width
-                self.statusBarView.addSubview(textField)
-            }
-
-            switch module.alignment {
-            case "left":
-                if let _ = icon {
-                    iconField.frame.origin = CGPoint(x: leftOffset, y: (self.statusBarView.frame.height - iconField.frame.height) / 2)
-                    leftOffset += iconField.frame.width
+                    totalWidth += iconField.frame.width
+                    self.statusBarView.addSubview(iconField)
                 }
 
-                if let _ = textContent {
+                if let textContent = textContent {
+                    let textFontConfig = module.textFont ?? self.config.global.textFont!
+                    let fontName = textFontConfig.name
+                    let fontSize = textFontConfig.size
+                    let fontSymbolicTraits = textFontConfig.symbolicTraits
+
+                    let fontDescriptor = NSFontDescriptor(name: fontName, size: fontSize).withSymbolicTraits(fontSymbolicTraits)
+                    let font = NSFont(descriptor: fontDescriptor, size: fontSize) ?? NSFont.systemFont(ofSize: fontSize)
+                    let text = NSAttributedString(string: textContent, attributes: [.font: font, .foregroundColor: fgColor, .backgroundColor: bgColor])
+
+                    textField.attributedStringValue = text
+                    textField.sizeToFit()
+
+                    totalWidth += (module.icon != nil ? iconTextSpacing : 0) + textField.frame.width
+                    self.statusBarView.addSubview(textField)
+                }
+
+                switch module.alignment {
+                case "left":
                     if let _ = module.icon {
-                        leftOffset += iconTextSpacing
+                        iconField.frame.origin = CGPoint(x: leftOffset, y: (self.statusBarView.frame.height - iconField.frame.height) / 2)
+                        leftOffset += iconField.frame.width
                     }
-                    textField.frame.origin = CGPoint(x: leftOffset, y: (self.statusBarView.frame.height - textField.frame.height) / 2)
-                    leftOffset += textField.frame.width + padding
-                }
-            case "right":
-                if let _ = textContent {
-                    textField.frame.origin = CGPoint(x: self.statusBarWidth - rightOffset - textField.frame.width, y: (self.statusBarView.frame.height - textField.frame.height) / 2)
-                    rightOffset += textField.frame.width
-                }
 
-                if let _ = icon {
                     if let _ = textContent {
-                        rightOffset += iconTextSpacing
+                        if let _ = module.icon {
+                            leftOffset += iconTextSpacing
+                        }
+                        textField.frame.origin = CGPoint(x: leftOffset, y: (self.statusBarView.frame.height - textField.frame.height) / 2)
+                        leftOffset += textField.frame.width + padding
                     }
-                    iconField.frame.origin = CGPoint(x: self.statusBarWidth - rightOffset - iconField.frame.width, y: (self.statusBarView.frame.height - iconField.frame.height) / 2)
-                    rightOffset += iconField.frame.width + padding
-                }
-            case "centre":
-                let startingCenterOffset = (self.statusBarWidth - totalWidth) / 2
+                case "right":
+                    if let _ = textContent {
+                        textField.frame.origin = CGPoint(x: self.statusBarWidth - rightOffset - textField.frame.width, y: (self.statusBarView.frame.height - textField.frame.height) / 2)
+                        rightOffset += textField.frame.width
+                    }
 
-                if let _ = icon {
-                    iconField.frame.origin = CGPoint(x: startingCenterOffset + centerOffset, y: (self.statusBarView.frame.height - iconField.frame.height) / 2)
-                    centerOffset += iconField.frame.width
-                }
-
-                if let _ = textContent {
                     if let _ = module.icon {
-                        centerOffset += iconTextSpacing
+                        if let _ = textContent {
+                            rightOffset += iconTextSpacing
+                        }
+                        iconField.frame.origin = CGPoint(x: self.statusBarWidth - rightOffset - iconField.frame.width, y: (self.statusBarView.frame.height - iconField.frame.height) / 2)
+                        rightOffset += iconField.frame.width + padding
                     }
-                    textField.frame.origin = CGPoint(x: startingCenterOffset + centerOffset, y: (self.statusBarView.frame.height - textField.frame.height) / 2)
+                case "centre":
+                    let startingCenterOffset = (self.statusBarWidth - totalWidth) / 2
+
+                    if let _ = module.icon {
+                        iconField.frame.origin = CGPoint(x: startingCenterOffset + centerOffset, y: (self.statusBarView.frame.height - iconField.frame.height) / 2)
+                        centerOffset += iconField.frame.width
+                    }
+
+                    if let _ = textContent {
+                        if let _ = module.icon {
+                            centerOffset += iconTextSpacing
+                        }
+                        textField.frame.origin = CGPoint(x: startingCenterOffset + centerOffset, y: (self.statusBarView.frame.height - textField.frame.height) / 2)
+                        centerOffset += textField.frame.width + padding
+                    }
+                default:
+                    print("Invalid alignment")
+                    return
                 }
-            default:
-                print("Invalid alignment")
-                return
+
+                self.config.modules[i] = module
             }
         }
     }
@@ -269,9 +271,9 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         window.makeKeyAndOrderFront(nil)
 
         statusBarController = StatusBarController(config: config,
-                                                      statusBarWindow: window,
-                                                      statusBarView: statusBarView,
-                                                      statusBarWidth: statusBarWidth)
+                                                  statusBarWindow: window,
+                                                  statusBarView: statusBarView,
+                                                  statusBarWidth: statusBarWidth)
 
         statusBarController?.drawModules()
     }
@@ -292,7 +294,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     }
     
     func applicationWillTerminate(_ aNotification: Notification) {
-        statusBarController?.clockUpdateTimer?.invalidate()
+        // statusBarController?.clockUpdateTimer?.invalidate()
     }
 }
 

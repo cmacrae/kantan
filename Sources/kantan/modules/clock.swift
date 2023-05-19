@@ -1,7 +1,19 @@
 import Foundation
 import Yaml
 
-struct ClockConfig: Codable {
+// struct ClockConfig: Codable {
+//     let format: String
+
+//     init(yaml: Yaml) throws {
+//         guard let format = yaml["format"].string else {
+//             throw DecodingError.dataCorrupted(DecodingError.Context(codingPath: [], debugDescription: "Unable to decode clock configuration"))
+//         }
+//         self.format = format
+//     }
+// }
+
+struct ClockConfig: ModuleConfiguration {
+    var type: String { "clock" }
     let format: String
 
     init(yaml: Yaml) throws {
@@ -10,7 +22,15 @@ struct ClockConfig: Codable {
         }
         self.format = format
     }
+    
+    // var redrawInterval: TimeInterval { return 1.0 }
+    var redrawInterval: TimeInterval { 1.0 }
+
+    func getNewValue() -> String {
+        return getClockText(format: format)
+    }
 }
+
 
 func getClockText(format: String) -> String {
     let dateFormatter = DateFormatter()

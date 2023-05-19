@@ -28,7 +28,7 @@ modules:
     alignment: right
     icon: 
     config:
-      format: "H:mm"
+      format: "H:mm:ss"
   - name: power
     type: power
     alignment: right

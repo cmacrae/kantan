@@ -1,6 +1,16 @@
+import Foundation
 import Yaml
 
-protocol ModuleConfiguration: Codable {}
+protocol ModuleConfiguration: Codable {
+    var type: String { get }
+    var redrawInterval: TimeInterval { get }
+    func getNewValue() -> String
+}
+
+struct ModuleTimer {
+    let moduleConfig: ModuleConfig
+    var timer: Timer?
+}
 
 struct ModuleConfig: Codable {
     let name: String
@@ -10,13 +20,15 @@ struct ModuleConfig: Codable {
     let textFont: FontConfig?
     let iconFont: FontConfig?
     let colour: ColourModeConfig?
-    let config: Codable?
+    var config: ModuleConfiguration?
+    var lastDrawnValue: String?
+    var offset: CGFloat = 0
 
     private enum CodingKeys: String, CodingKey {
-        case name, type, alignment, icon, textFont, iconFont, colour, config
+        case name, type, alignment, icon, textFont, iconFont, colour, config, lastDrawnValue
     }
 
-    init(name: String, alignment: String, type: String, icon: String? = nil, textFont: FontConfig? = nil, iconFont: FontConfig? = nil, colour: ColourModeConfig? = nil, config: Codable? = nil) {
+    init(name: String, alignment: String, type: String, icon: String? = nil, textFont: FontConfig? = nil, iconFont: FontConfig? = nil, colour: ColourModeConfig? = nil, config: ModuleConfiguration? = nil) {
         self.name = name
         self.alignment = alignment
         self.type = type
@@ -48,6 +60,8 @@ struct ModuleConfig: Codable {
         default:
             config = nil
         }
+
+        lastDrawnValue = try container.decodeIfPresent(String.self, forKey: .lastDrawnValue)
     }
 
     func encode(to encoder: Encoder) throws {
@@ -60,6 +74,8 @@ struct ModuleConfig: Codable {
         try container.encodeIfPresent(iconFont, forKey: .iconFont)
         try container.encodeIfPresent(colour, forKey: .colour)
         // NOTE: We're not encoding the `config` property here, as it's not directly encodable.
+
+        try container.encodeIfPresent(lastDrawnValue, forKey: .lastDrawnValue)
     }
 
     static func yaml(from dictionary: [String: Any]) -> Yaml {

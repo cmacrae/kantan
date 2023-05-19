@@ -4,7 +4,7 @@ import Yaml
 
 struct Config: Codable {
     let global: GlobalConfig
-    let modules: [ModuleConfig]
+    var modules: [ModuleConfig]
 }
 
 struct GlobalConfig: Codable {
@@ -126,7 +126,8 @@ func loadConfig(from yaml: Yaml) -> Config? {
                 return nil
         }
 
-        let moduleConfig: Codable?
+        let moduleConfig: ModuleConfiguration?
+
         switch type {
         case "text":
             if moduleYaml["config"]["value"].string != nil {
