@@ -28,23 +28,14 @@ struct CommandConfig: ModuleConfiguration {
 
     var redrawInterval: TimeInterval { 1.0 }
 
-    // TODO: blocking implementation - see below
     func getValue(completion: @escaping (String) -> Void) {
-        let result = self.executeCommand()
-        completion(result)
+        DispatchQueue.global(qos: .background).async {
+            let result = self.executeCommand()
+            DispatchQueue.main.async {
+                completion(result)
+            }
+        }
     }
-
-    // FIXME: non-blocking implementation, however due to race conditions
-    //        in current rendering implementation, no otput is displayed
-    // func getValue(completion: @escaping (String) -> Void) {
-    // //     DispatchQueue.global(qos: .background).async {
-    //     DispatchQueue.global(qos: .userInitiated).async {
-    //         let result = self.executeCommand()
-    //         DispatchQueue.main.async {
-    //             completion(result)
-    //         }
-    //     }
-    // }
 
     func getIcon() -> String {
         return ""

@@ -8,7 +8,7 @@ class StatusBarController {
     var statusBarWidth: CGFloat
     var moduleTimers: [ModuleTimer] = []
     var eventObserver: EventObserver
-    var moduleLayout: [String: (textPosition: CGPoint, iconPosition: CGPoint, width: CGFloat)] = [:]
+    var moduleLayout: [String: (textPosition: CGPoint, iconPosition: CGPoint, width: CGFloat, alignment: String)] = [:]
 
     init(config: Config, statusBarWindow: NSWindow, statusBarView: NSView, statusBarWidth: CGFloat) {
         self.config = config
@@ -33,7 +33,6 @@ class StatusBarController {
         }
     }
 
-
     func updateModuleIfNeeded(_ module: ModuleConfig, completion: @escaping (ModuleConfig) -> Void) {
         var mutableModule = module
         guard let config = mutableModule.config else { 
@@ -48,7 +47,7 @@ class StatusBarController {
             if newValue != mutableModule.lastDrawnValue || newIcon != mutableModule.lastDrawnIcon {
                 mutableModule.lastDrawnValue = newValue
                 mutableModule.lastDrawnIcon = newIcon
-                self.drawModules(type: mutableModule.type)
+                self.drawModule(mutableModule)
             }
             completion(mutableModule)
         }
@@ -76,159 +75,187 @@ class StatusBarController {
         // Remove all subviews from the statusBarView
         self.statusBarView.subviews.forEach { $0.removeFromSuperview() }
         self.applyCurrentAppearance()
-        self.drawModules()
+        for module in config.modules {
+            self.drawModule(module)
+        }
     }
 
-    func drawModules(type: String? = nil) {
-        DispatchQueue.main.async {
-            let padding: CGFloat = CGFloat(self.config.global.padding)
+    func buildIconAttributedString(icon: String, fgColor: NSColor, bgColor: NSColor, module: ModuleConfig) -> NSAttributedString {
+        let iconFontConfig = module.iconFont ?? self.config.global.iconFont!
+        let fontName = iconFontConfig.name
+        let fontSize = iconFontConfig.size
+        let fontSymbolicTraits = iconFontConfig.symbolicTraits
+        let fontDescriptor = NSFontDescriptor(name: fontName, size: fontSize).withSymbolicTraits(fontSymbolicTraits)
+        let font = NSFont(descriptor: fontDescriptor, size: fontSize) ?? NSFont.systemFont(ofSize: fontSize)
+        return NSAttributedString(string: icon, attributes: [.font: font, .foregroundColor: fgColor, .backgroundColor: bgColor])
+    }
+
+    func buildTextAttributedString(text: String, fgColor: NSColor, bgColor: NSColor, module: ModuleConfig) -> NSAttributedString {
+        let textFontConfig = module.textFont ?? self.config.global.textFont!
+        let fontName = textFontConfig.name
+        let fontSize = textFontConfig.size
+        let fontSymbolicTraits = textFontConfig.symbolicTraits
+        let fontDescriptor = NSFontDescriptor(name: fontName, size: fontSize).withSymbolicTraits(fontSymbolicTraits)
+        let font = NSFont(descriptor: fontDescriptor, size: fontSize) ?? NSFont.systemFont(ofSize: fontSize)
+        return NSAttributedString(string: text, attributes: [.font: font, .foregroundColor: fgColor, .backgroundColor: bgColor])
+    }
+
+    func drawModule(_ module: ModuleConfig) {
+        DispatchQueue.global(qos: .userInitiated).async {
             let iconTextSpacing: CGFloat = 2
+            var textContent: String?
+            var icon: String? = module.icon
 
-            var leftOffset: CGFloat = padding
-            var rightOffset: CGFloat = padding
-            var centerOffset: CGFloat = 0
-            var totalWidth: CGFloat = 0
+            let valReady = DispatchGroup()
 
-            for i in 0..<self.config.modules.count {
-                let module = self.config.modules[i]
-
-                // If a type has been specified, only operate on that
-                if let targetType = type, targetType != module.type {
-                    continue
+            switch module.type {
+            case "text":
+                if let textConfig = module.config as? TextConfig {
+                    valReady.enter()
+                    textConfig.getValue() { value in
+                        textContent = value
+                        valReady.leave()
+                    }
                 }
+            case "clock":
+                if let clockConfig = module.config as? ClockConfig {
+                    valReady.enter()
+                    clockConfig.getValue() { value in
+                        textContent = value
+                        valReady.leave()
+                    }
+                }
+            case "power":
+                if let powerConfig = module.config as? PowerConfig {
+                    valReady.enter()
+                    icon = powerConfig.getIcon()
+                    powerConfig.getValue() { value in
+                        textContent = value
+                        valReady.leave()
+                    }
+                }
+            case "command":
+                if let commandConfig = module.config as? CommandConfig {
+                    valReady.enter()
+                    commandConfig.getValue() { value in
+                        textContent = value
+                        valReady.leave()
+                    }
+                }
+            default:
+                print("Unsupported module type")
+                return
+            }
 
+            valReady.wait()
+
+            DispatchQueue.main.async {
                 let currentColour = self.currentColourConfig(moduleColour: module.colour, globalColour: self.config.global.colour)
                 let fgColor = NSColor(hex: currentColour.fg)
                 let bgColor = NSColor(hex: currentColour.bg)
 
                 let iconField = NSTextField(labelWithAttributedString: NSAttributedString())
                 let textField = NSTextField(labelWithAttributedString: NSAttributedString())
-
-                var icon: String?
-                var textContent: String?
-
-                icon = module.icon
-
-                // Determine the text content based on the module type
-                switch module.type {
-                case "text":
-                    if let textConfig = module.config as? TextConfig {
-                        textConfig.getValue() { value in textContent = value }
-                    }
-
-                case "clock":
-                    if let clockConfig = module.config as? ClockConfig {
-                        clockConfig.getValue() { value in textContent = value }
-                    }
-
-                case "power":
-                    if let powerConfig = module.config as? PowerConfig {
-                        icon = powerConfig.getIcon()
-                        powerConfig.getValue() { value in textContent = value }
-                    }
-
-                case "command":
-                    if let commandConfig = module.config as? CommandConfig {
-                        commandConfig.getValue() { value in
-                            textContent = value
-                        }
-                    }
-
-                default:
-                    print("Unsupported module type")
-                    continue
-                }
-
+                var totalWidth: CGFloat = 0
+                
                 if let icon = icon {
-                    let iconFontConfig = module.iconFont ?? self.config.global.iconFont!
-                    let fontName = iconFontConfig.name
-                    let fontSize = iconFontConfig.size
-                    let fontSymbolicTraits = iconFontConfig.symbolicTraits
-
-                    let fontDescriptor = NSFontDescriptor(name: fontName, size: fontSize).withSymbolicTraits(fontSymbolicTraits)
-                    let font = NSFont(descriptor: fontDescriptor, size: fontSize) ?? NSFont.systemFont(ofSize: fontSize)
-                    let iconText = NSAttributedString(string: icon, attributes: [.font: font, .foregroundColor: fgColor, .backgroundColor: bgColor])
-
-                    iconField.attributedStringValue = iconText
+                    iconField.attributedStringValue = self.buildIconAttributedString(icon: icon, fgColor: fgColor, bgColor: bgColor, module: module)
                     iconField.sizeToFit()
-
                     totalWidth += iconField.frame.width
-                    self.statusBarView.addSubview(iconField)
                 }
-
-                if let textContent = textContent {
-                    let textFontConfig = module.textFont ?? self.config.global.textFont!
-                    let fontName = textFontConfig.name
-                    let fontSize = textFontConfig.size
-                    let fontSymbolicTraits = textFontConfig.symbolicTraits
-
-                    let fontDescriptor = NSFontDescriptor(name: fontName, size: fontSize).withSymbolicTraits(fontSymbolicTraits)
-                    let font = NSFont(descriptor: fontDescriptor, size: fontSize) ?? NSFont.systemFont(ofSize: fontSize)
-                    let text = NSAttributedString(string: textContent, attributes: [.font: font, .foregroundColor: fgColor, .backgroundColor: bgColor])
-
-                    textField.attributedStringValue = text
+                
+                if let textValue = textContent {
+                    textField.attributedStringValue = self.buildTextAttributedString(text: textValue, fgColor: fgColor, bgColor: bgColor, module: module)
                     textField.sizeToFit()
-
-                    totalWidth += (module.icon != nil ? iconTextSpacing : 0) + textField.frame.width
-                    self.statusBarView.addSubview(textField)
+                    totalWidth += (icon != nil ? iconTextSpacing : 0) + textField.frame.width
                 }
 
-                if let layout = self.moduleLayout[module.name] {
+                // Position the icon and text field according to the module's alignment
+                let layout = self.positionModule(module: module, iconField: iconField, textField: textField, totalWidth: totalWidth)
+                self.moduleLayout[module.name] = layout
+
+                // Set the positions
+                if icon != nil {
                     iconField.frame.origin = layout.iconPosition
-                    textField.frame.origin = layout.textPosition
-                } else {
-                    switch module.alignment {
-                    case "left":
-                        if let _ = icon {
-                            iconField.frame.origin = CGPoint(x: leftOffset, y: (self.statusBarView.frame.height - iconField.frame.height) / 2)
-                            leftOffset += iconField.frame.width
-                        }
-
-                        if let _ = textContent {
-                            if let _ = icon {
-                                leftOffset += iconTextSpacing
-                            }
-                            textField.frame.origin = CGPoint(x: leftOffset, y: (self.statusBarView.frame.height - textField.frame.height) / 2)
-                            leftOffset += textField.frame.width + padding
-                        }
-                    case "right":
-                        if let _ = textContent {
-                            textField.frame.origin = CGPoint(x: self.statusBarWidth - rightOffset - textField.frame.width, y: (self.statusBarView.frame.height - textField.frame.height) / 2)
-                            rightOffset += textField.frame.width
-                        }
-
-                        if let _ = icon {
-                            if let _ = textContent {
-                                rightOffset += iconTextSpacing
-                            }
-                            iconField.frame.origin = CGPoint(x: self.statusBarWidth - rightOffset - iconField.frame.width, y: (self.statusBarView.frame.height - iconField.frame.height) / 2)
-                            rightOffset += iconField.frame.width + padding
-                        }
-                    case "centre":
-                        let startingCenterOffset = (self.statusBarWidth - totalWidth) / 2
-
-                        if let _ = icon {
-                            iconField.frame.origin = CGPoint(x: startingCenterOffset + centerOffset, y: (self.statusBarView.frame.height - iconField.frame.height) / 2)
-                            centerOffset += iconField.frame.width
-                        }
-
-                        if let _ = textContent {
-                            if let _ = icon {
-                                centerOffset += iconTextSpacing
-                            }
-                            textField.frame.origin = CGPoint(x: startingCenterOffset + centerOffset, y: (self.statusBarView.frame.height - textField.frame.height) / 2)
-                            centerOffset += textField.frame.width + padding
-                        }
-                    default:
-                        print("Invalid alignment")
-                        return
-                    }
                 }
 
-                self.moduleLayout[module.name] = (textField.frame.origin, iconField.frame.origin, totalWidth)
-                self.config.modules[i] = module
+                if textContent != nil {
+                    textField.frame.origin = layout.textPosition
+                }
+
+                // Add to the view
+                self.statusBarView.addSubview(iconField)
+                self.statusBarView.addSubview(textField)
             }
         }
+    }
+
+    func positionModule(module: ModuleConfig, iconField: NSTextField, textField: NSTextField, totalWidth: CGFloat) -> (textPosition: CGPoint, iconPosition: CGPoint, width: CGFloat, alignment: String) {
+        let padding: CGFloat = CGFloat(self.config.global.padding)
+        let iconTextSpacing: CGFloat = 2
+
+        var leftOffset: CGFloat = padding
+        var rightOffset: CGFloat = self.statusBarWidth - padding
+        var iconPosition = CGPoint.zero
+        var textPosition = CGPoint.zero
+
+        var icon: String? = module.config?.getIcon()
+        icon = icon?.isEmpty ?? true ? module.icon : icon
+
+
+        // Check if the module position is already in the moduleLayout
+        if let layout = self.moduleLayout[module.name] {
+            return layout
+        }
+
+        switch module.alignment {
+        case "left":
+            // Get the last left-aligned module's information
+            let lastModuleInfo = self.moduleLayout.values.filter { $0.alignment == "left" }.sorted(by: { $0.iconPosition.x < $1.iconPosition.x }).last
+
+            leftOffset += lastModuleInfo?.width ?? 0
+
+            if let _ = icon {
+                iconPosition = CGPoint(x: leftOffset, y: (self.statusBarView.frame.height - iconField.frame.height) / 2)
+                leftOffset += iconField.frame.width
+            }
+
+            if let _ = module.config?.getValue {
+                if let _ = icon {
+                    leftOffset += iconTextSpacing
+                }
+                textPosition = CGPoint(x: leftOffset, y: (self.statusBarView.frame.height - textField.frame.height) / 2)
+                leftOffset += textField.frame.width + padding
+            }
+
+        case "right":
+            // Get the last right-aligned module's information
+            let lastModuleInfo = self.moduleLayout.values.filter { $0.alignment == "right" }.sorted(by: { $0.iconPosition.x > $1.iconPosition.x }).first
+
+            rightOffset -= lastModuleInfo?.width ?? 0
+
+            if let _ = module.config?.getValue {
+                textPosition = CGPoint(x: rightOffset - textField.frame.width, y: (self.statusBarView.frame.height - textField.frame.height) / 2)
+                rightOffset -= textField.frame.width
+            }
+
+            if let _ = icon {
+                if let _ = module.config?.getValue {
+                    rightOffset -= iconTextSpacing
+                }
+                iconPosition = CGPoint(x: rightOffset - iconField.frame.width, y: (self.statusBarView.frame.height - iconField.frame.height) / 2)
+                rightOffset -= iconField.frame.width + padding
+            }
+
+        default:
+            print("Invalid alignment")
+            return (CGPoint.zero, CGPoint.zero, totalWidth, module.alignment)
+        }
+
+        // Store the current module's position information in moduleLayout
+        self.moduleLayout[module.name] = (textPosition, iconPosition, totalWidth, module.alignment)
+
+        return (textPosition, iconPosition, totalWidth, module.alignment)
     }
 }
 
@@ -295,7 +322,9 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                                                   statusBarView: statusBarView,
                                                   statusBarWidth: statusBarWidth)
 
-        statusBarController?.drawModules()
+        for module in config.modules {
+            statusBarController?.drawModule(module)
+        }
     }
 
     override init() {
