@@ -4,7 +4,7 @@ import Yaml
 protocol ModuleConfiguration: Codable {
     var type: String { get }
     var redrawInterval: TimeInterval { get }
-    func getValue() -> String
+    func getValue(completion: @escaping (String) -> Void)
     func getIcon() -> String
 }
 
@@ -152,7 +152,8 @@ struct ModuleConfig: Codable {
         let factories: [String: ModuleConfigurationFactory] = [
           "text": TextConfigFactory(),
           "clock": ClockConfigFactory(),
-          "power": PowerConfigFactory()
+          "power": PowerConfigFactory(),
+          "command": CommandConfigFactory()
         ]
 
         if let configYaml = configYaml, let factory = factories[type] {

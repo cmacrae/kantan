@@ -10,7 +10,6 @@ class StatusBarController {
     var eventObserver: EventObserver
     var moduleLayout: [String: (textPosition: CGPoint, iconPosition: CGPoint, width: CGFloat)] = [:]
 
-
     init(config: Config, statusBarWindow: NSWindow, statusBarView: NSView, statusBarWidth: CGFloat) {
         self.config = config
         self.statusBarWindow = statusBarWindow
@@ -24,24 +23,34 @@ class StatusBarController {
             var moduleTimer = ModuleTimer(moduleConfig: self.config.modules[i])
             moduleTimer.timer = Timer.scheduledTimer(withTimeInterval: self.config.modules[i].config?.redrawInterval ?? 1.0, repeats: true) { [weak self] _ in
                 guard let self = self else { return }
-                self.updateModuleIfNeeded(&self.config.modules[i])
+                self.updateModuleIfNeeded(self.config.modules[i]) { updatedModule in
+                    DispatchQueue.main.async {
+                        self.config.modules[i] = updatedModule
+                    }
+                }
             }
             self.moduleTimers.append(moduleTimer)
         }
     }
 
-    func updateModuleIfNeeded(_ module: inout ModuleConfig) {
-        guard let config = module.config else { return }
-        
-        let newValue = config.getValue()
 
-        let icon = config.getIcon()
-        let newIcon = icon.isEmpty ? module.icon : icon
+    func updateModuleIfNeeded(_ module: ModuleConfig, completion: @escaping (ModuleConfig) -> Void) {
+        var mutableModule = module
+        guard let config = mutableModule.config else { 
+            completion(mutableModule)
+            return
+        }
 
-        if newValue != module.lastDrawnValue || newIcon != module.lastDrawnIcon {
-            module.lastDrawnValue = newValue
-            module.lastDrawnIcon = newIcon
-            self.drawModules(type: module.type)
+        config.getValue() { newValue in 
+            let icon = config.getIcon()
+            let newIcon = icon.isEmpty ? mutableModule.icon : icon
+
+            if newValue != mutableModule.lastDrawnValue || newIcon != mutableModule.lastDrawnIcon {
+                mutableModule.lastDrawnValue = newValue
+                mutableModule.lastDrawnIcon = newIcon
+                self.drawModules(type: mutableModule.type)
+            }
+            completion(mutableModule)
         }
     }
 
@@ -104,18 +113,25 @@ class StatusBarController {
                 switch module.type {
                 case "text":
                     if let textConfig = module.config as? TextConfig {
-                        textContent = textConfig.getValue()
+                        textConfig.getValue() { value in textContent = value }
                     }
 
                 case "clock":
                     if let clockConfig = module.config as? ClockConfig {
-                        textContent = clockConfig.getValue()
+                        clockConfig.getValue() { value in textContent = value }
                     }
 
                 case "power":
                     if let powerConfig = module.config as? PowerConfig {
                         icon = powerConfig.getIcon()
-                        textContent = powerConfig.showLevel ? powerConfig.getValue() : ""
+                        powerConfig.getValue() { value in textContent = value }
+                    }
+
+                case "command":
+                    if let commandConfig = module.config as? CommandConfig {
+                        commandConfig.getValue() { value in
+                            textContent = value
+                        }
                     }
 
                 default:

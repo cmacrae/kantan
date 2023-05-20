@@ -44,5 +44,15 @@ gaps:
 - lid close/open
 - wake from sleep
 - display added/removed/changed
+
 *** TODO Fix bug with omitting power.config.showLevel
 If this is omitted, it doesn't render
+
+*** TODO Fix bug with redraw artifacts
+At the moment, we don't clear the subview when redrawing with the =updateModuleIfNeeded= function.
+This can lead to artifacts being left behind from the previous contents.
+We tried removing the subview, like we do in the =redrawBar= function, but that resulted in flickering.
+Another approach would be to store the view as part of the module state (like we're doing with the positions
+and width). Then we can access that to clear it instead of removing it.
+
+*** TODO Expose redraw interval as a top level option in module config

@@ -33,9 +33,10 @@ struct PowerConfig: ModuleConfiguration {
         self.battery = battery
     }
 
-    func getValue() -> String {
+    func getValue(completion: @escaping (String) -> Void) {
         let batteryLevel = getBatteryLevel()
-        return showLevel ? "\(batteryLevel)%" : ""
+        let value = showLevel ? "\(batteryLevel)%" : ""
+        completion(value)
     }
 
     func getIcon() -> String {

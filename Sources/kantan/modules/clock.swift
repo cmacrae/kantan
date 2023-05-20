@@ -23,8 +23,8 @@ struct ClockConfig: ModuleConfiguration {
     
     var redrawInterval: TimeInterval { 1.0 }
 
-    func getValue() -> String {
-        return getClockText(format: format)
+    func getValue(completion: @escaping (String) -> Void) {
+        completion(getClockText(format: format))
     }
 
     // NOTE: rely on module's 'icon' as we have no special icon to return

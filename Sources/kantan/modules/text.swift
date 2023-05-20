@@ -24,8 +24,8 @@ struct TextConfig: ModuleConfiguration {
 
     var redrawInterval: TimeInterval { 1.0 }
 
-    func getValue() -> String {
-        return self.value
+    func getValue(completion: @escaping (String) -> Void) {
+        completion(self.value)
     }
 
     // NOTE: rely on module's 'icon' as we have no special icon to return

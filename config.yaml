@@ -12,23 +12,27 @@ global:
       bg: "#7c96ab"
 
 modules:
-  - name: left 1
-    type: text
+  - name: user
+    type: command
     alignment: left
     icon: 
     config:
-      value: one
+      command: whoami
+      # command: echo $RANDOM
+      # launcher:
+      #   path: ~/.nix-profile/bin/zsh
+      #   args: [ '-c' ]
   - name: left 2
     type: text
     alignment: left
     config:
-      value: two
+      value: static text
   - name: clock
     type: clock
     alignment: right
     icon: 
     config:
-      format: "H:mm:ss"
+      format: "HH:mm:ss"
   - name: power
     type: power
     alignment: right
