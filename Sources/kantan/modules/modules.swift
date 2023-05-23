@@ -10,6 +10,15 @@ protocol ModuleConfiguration: Codable {
 
 protocol ModuleConfigurationFactory {
     func configuration(from yaml: Yaml) throws -> ModuleConfiguration
+    func defaultConfiguration() -> ModuleConfiguration?
+}
+
+// Define a default configuration so we only need to implement it
+// in modules that actually use it
+extension ModuleConfigurationFactory {
+    func defaultConfiguration() -> ModuleConfiguration? {
+        return nil
+    }
 }
 
 struct ModuleConfigBuilder {
@@ -81,13 +90,18 @@ struct ModuleConfigBuilder {
         return self
     }
 
-    mutating func buildConfiguration(from yaml: Yaml) throws -> ModuleConfigBuilder {
+    mutating func buildConfiguration(from yaml: Yaml?) throws -> ModuleConfigBuilder {
         guard let factory = self.configFactory else {
             throw BuilderError.missingConfigurationFactory
         }
-        self.config = try factory.configuration(from: yaml)
+        if let yaml = yaml {
+            self.config = try factory.configuration(from: yaml)
+        } else {
+            self.config = factory.defaultConfiguration()
+        }
         return self
     }
+
 
     func build() throws -> ModuleConfig {
         guard let config = self.config else {

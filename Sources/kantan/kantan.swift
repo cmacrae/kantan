@@ -282,8 +282,8 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             do {
                 let yaml = try Yaml.load(fileData)
                 config = loadConfig(from: yaml)
-                if let config = config {
-                    print("Loaded config: \(config)") // NOTE: debugging
+                if let _ = config {
+                    // print("Loaded config: \(config)") // NOTE: debugging
                 } else {
                     print("Failed to load config from YAML data") // NOTE: debugging
                 }
