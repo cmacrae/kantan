@@ -47,3 +47,9 @@ modules:
           - 
           - 
           - 
+  - name: todo
+    type: reminders
+    alignment: right
+    icon: 
+    config:
+      list: kantan testing

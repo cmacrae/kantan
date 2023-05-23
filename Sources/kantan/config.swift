@@ -121,6 +121,7 @@ func loadConfig(from yaml: Yaml) -> Config? {
     let clockConfigFactory = ClockConfigFactory()
     let powerConfigFactory = PowerConfigFactory()
     let commandConfigFactory = CommandConfigFactory()
+    let remindersConfigFactory = RemindersConfigFactory()
 
     for moduleYaml in modulesYaml {
         var builder = ModuleConfigBuilder()
@@ -177,6 +178,8 @@ func loadConfig(from yaml: Yaml) -> Config? {
             builder = builder.setConfigFactory(powerConfigFactory)
         case "command":
             builder = builder.setConfigFactory(commandConfigFactory)
+        case "reminders":
+            builder = builder.setConfigFactory(remindersConfigFactory)
         default:
             print("Unsupported module type")
         }

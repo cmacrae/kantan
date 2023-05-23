@@ -142,6 +142,14 @@ class StatusBarController {
                         valReady.leave()
                     }
                 }
+            case "reminders":
+                if let remindersConfig = module.config as? RemindersConfig {
+                    valReady.enter()
+                    remindersConfig.getValue() { value in
+                        textContent = value
+                        valReady.leave()
+                    }
+                }
             default:
                 print("Unsupported module type")
                 return

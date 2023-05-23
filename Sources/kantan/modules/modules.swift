@@ -153,7 +153,8 @@ struct ModuleConfig: Codable {
           "text": TextConfigFactory(),
           "clock": ClockConfigFactory(),
           "power": PowerConfigFactory(),
-          "command": CommandConfigFactory()
+          "command": CommandConfigFactory(),
+          "reminders": RemindersConfigFactory()
         ]
 
         if let configYaml = configYaml, let factory = factories[type] {
