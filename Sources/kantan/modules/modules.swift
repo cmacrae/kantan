@@ -6,6 +6,37 @@ protocol ModuleConfiguration: Codable, Sendable {
     var redrawInterval: TimeInterval { get }
     func getValue(completion: @escaping @Sendable (String) -> Void)
     func getIcon() -> String
+    func getTemplateVariables() -> [String: String]
+}
+
+extension ModuleConfiguration {
+    func getTemplateVariables() -> [String: String] {
+        return [:]
+    }
+}
+
+// MARK: - Interaction Config
+
+struct InteractionConfig: Codable {
+    let hover: HoverConfig?
+    let click: ClickConfig?
+}
+
+struct HoverConfig: Codable {
+    let type: String  // "tooltip"
+    let content: String  // template string e.g. "{level}% — {state}"
+}
+
+struct ClickConfig: Codable {
+    let type: String  // "popup" or "menu"
+    let popup: String?  // built-in popup name
+    let items: [MenuItemConfig]?
+}
+
+struct MenuItemConfig: Codable {
+    let label: String?
+    let command: String?
+    let separator: Bool?
 }
 
 protocol ModuleConfigurationFactory {
@@ -28,6 +59,7 @@ struct ModuleConfigBuilder {
     private var iconFont: FontConfig? = nil
     private var colour: ColourModeConfig? = nil
     private var config: ModuleConfiguration?
+    private var interaction: InteractionConfig? = nil
     private var lastDrawnValue: String?
     private var lastDrawnIcon: String?
     private var offset: CGFloat = 0
@@ -83,6 +115,11 @@ struct ModuleConfigBuilder {
         return self
     }
 
+    mutating func setInteraction(_ interaction: InteractionConfig) -> ModuleConfigBuilder {
+        self.interaction = interaction
+        return self
+    }
+
     mutating func setConfigFactory(_ factory: ModuleConfigurationFactory) -> ModuleConfigBuilder {
         self.configFactory = factory
         return self
@@ -105,7 +142,7 @@ struct ModuleConfigBuilder {
         guard let config = self.config else {
             throw BuilderError.missingConfiguration
         }
-        return ModuleConfig(name: name, alignment: alignment, type: type, icon: icon, textFont: textFont, iconFont: iconFont, colour: colour, config: config)
+        return ModuleConfig(name: name, alignment: alignment, type: type, icon: icon, textFont: textFont, iconFont: iconFont, colour: colour, config: config, interaction: interaction)
     }
 }
 
@@ -129,6 +166,7 @@ struct ModuleConfig: Codable {
     let iconFont: FontConfig?
     let colour: ColourModeConfig?
     var config: ModuleConfiguration?
+    var interaction: InteractionConfig?
     var lastDrawnValue: String?
     var lastDrawnIcon: String?
     var offset: CGFloat = 0
@@ -136,10 +174,10 @@ struct ModuleConfig: Codable {
     var bgOverride: String?
 
     private enum CodingKeys: String, CodingKey {
-        case name, type, alignment, icon, textFont, iconFont, colour, config, lastDrawnValue, lastDrawnIcon
+        case name, type, alignment, icon, textFont, iconFont, colour, config, lastDrawnValue, lastDrawnIcon, interaction
     }
 
-    init(name: String, alignment: String, type: String, icon: String? = nil, textFont: FontConfig? = nil, iconFont: FontConfig? = nil, colour: ColourModeConfig? = nil, config: ModuleConfiguration? = nil) {
+    init(name: String, alignment: String, type: String, icon: String? = nil, textFont: FontConfig? = nil, iconFont: FontConfig? = nil, colour: ColourModeConfig? = nil, config: ModuleConfiguration? = nil, interaction: InteractionConfig? = nil) {
         self.name = name
         self.alignment = alignment
         self.type = type
@@ -148,6 +186,7 @@ struct ModuleConfig: Codable {
         self.iconFont = iconFont
         self.colour = colour
         self.config = config
+        self.interaction = interaction
     }
 
     init(from decoder: Decoder) throws {
@@ -178,6 +217,7 @@ struct ModuleConfig: Codable {
             config = nil
         }
 
+        interaction = try container.decodeIfPresent(InteractionConfig.self, forKey: .interaction)
         lastDrawnValue = try container.decodeIfPresent(String.self, forKey: .lastDrawnValue)
         lastDrawnIcon = try container.decodeIfPresent(String.self, forKey: .lastDrawnIcon)
     }

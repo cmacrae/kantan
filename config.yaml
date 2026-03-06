@@ -22,6 +22,10 @@ modules:
       # launcher:
       #   path: ~/.nix-profile/bin/zsh
       #   args: [ '-c' ]
+    interaction:
+      hover:
+        type: tooltip
+        content: "Logged in as: {value}"
   - name: spaces
     type: workspace
     alignment: left
@@ -40,11 +44,18 @@ modules:
     icon: 
     config:
       format: "HH:mm:ss"
+    interaction:
+      hover:
+        type: tooltip
+        content: "{day}, {date}"
+      click:
+        type: popup
+        popup: calendar
   - name: power
     type: power
     alignment: right
     config:
-      showLevel: true
+      showLevel: false
       charging:
         icon: 
       battery:
@@ -54,6 +65,13 @@ modules:
           - 
           - 
           - 
+    interaction:
+      hover:
+        type: tooltip
+        content: "{level}% — {state}"
+      click:
+        type: popup
+        popup: battery-detail
   - name: todo
     type: reminders
     alignment: right

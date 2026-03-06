@@ -170,6 +170,41 @@ func loadConfig(from yaml: Yaml) -> Config? {
             }
         }
 
+        // Parse interaction config
+        if let interactionYaml = moduleYaml["interaction"].dictionary {
+            var hover: HoverConfig? = nil
+            var click: ClickConfig? = nil
+
+            if let hoverYaml = interactionYaml["hover"]?.dictionary {
+                let hoverType = hoverYaml["type"]?.string ?? "tooltip"
+                let content = hoverYaml["content"]?.string ?? "{value}"
+                hover = HoverConfig(type: hoverType, content: content)
+            }
+
+            if let clickYaml = interactionYaml["click"]?.dictionary {
+                let clickType = clickYaml["type"]?.string ?? "menu"
+                let popup = clickYaml["popup"]?.string
+                var menuItems: [MenuItemConfig]? = nil
+
+                if let itemsYaml = clickYaml["items"]?.array {
+                    menuItems = itemsYaml.compactMap { itemYaml -> MenuItemConfig? in
+                        let isSeparator = itemYaml["separator"].bool ?? false
+                        if isSeparator {
+                            return MenuItemConfig(label: nil, command: nil, separator: true)
+                        }
+                        guard let label = itemYaml["label"].string else { return nil }
+                        let command = itemYaml["command"].string
+                        return MenuItemConfig(label: label, command: command, separator: false)
+                    }
+                }
+
+                click = ClickConfig(type: clickType, popup: popup, items: menuItems)
+            }
+
+            let interaction = InteractionConfig(hover: hover, click: click)
+            builder = builder.setInteraction(interaction)
+        }
+
         switch type {
         case "text":
             builder = builder.setConfigFactory(textConfigFactory)

@@ -12,6 +12,7 @@ class StatusBarController {
     var moduleLayout: [String: (textPosition: CGPoint, iconPosition: CGPoint, width: CGFloat, alignment: String)] = [:]
     var moduleSubviews: [String: [NSView]] = [:]
     var durationTimers: [String: Timer] = [:]
+    let popupManager = PopupManager()
 
     init(config: Config, statusBarWindow: NSWindow, statusBarView: NSView, statusBarWidth: CGFloat) {
         self.config = config
@@ -72,6 +73,12 @@ class StatusBarController {
         moduleLayout.removeAll()
         moduleSubviews.removeAll()
         applyCurrentAppearance()
+
+        // Update popup manager with current global colours
+        let globalColour = currentColourConfig(moduleColour: nil, globalColour: config.global.colour)
+        popupManager.fgColor = NSColor(hex: globalColour.fg)
+        popupManager.bgColor = NSColor(hex: globalColour.bg)
+
         for module in config.modules {
             drawModule(module)
         }
@@ -230,7 +237,17 @@ class StatusBarController {
 
         self.statusBarView.addSubview(iconField)
         self.statusBarView.addSubview(textField)
-        self.moduleSubviews[module.name] = [iconField, textField]
+
+        var subviews: [NSView] = [iconField, textField]
+
+        // Add interactive overlay if interaction config is present
+        if module.interaction != nil {
+            let interactiveView = createInteractiveOverlay(module: module, coveredViews: [iconField, textField])
+            self.statusBarView.addSubview(interactiveView)
+            subviews.append(interactiveView)
+        }
+
+        self.moduleSubviews[module.name] = subviews
     }
 
     func drawWorkspaceModule(_ module: ModuleConfig) {
@@ -312,6 +329,13 @@ class StatusBarController {
             }
         }
 
+        // Add interactive overlay if interaction config is present
+        if module.interaction != nil {
+            let interactiveView = createInteractiveOverlay(module: module, coveredViews: subviews)
+            self.statusBarView.addSubview(interactiveView)
+            subviews.append(interactiveView)
+        }
+
         self.moduleSubviews[module.name] = subviews
 
         // Store layout so subsequent modules position correctly
@@ -322,6 +346,45 @@ class StatusBarController {
             width: totalWidth,
             alignment: module.alignment
         )
+    }
+
+    /// Creates an InteractiveModuleView that covers the given subviews,
+    /// wired up with the module's interaction config and template variables.
+    func createInteractiveOverlay(module: ModuleConfig, coveredViews: [NSView]) -> InteractiveModuleView {
+        // Compute bounding rect of all covered views
+        var minX = CGFloat.greatestFiniteMagnitude
+        var minY = CGFloat.greatestFiniteMagnitude
+        var maxX: CGFloat = 0
+        var maxY: CGFloat = 0
+        for v in coveredViews {
+            minX = min(minX, v.frame.minX)
+            minY = min(minY, v.frame.minY)
+            maxX = max(maxX, v.frame.maxX)
+            maxY = max(maxY, v.frame.maxY)
+        }
+        let coverRect = NSRect(x: minX, y: minY, width: maxX - minX, height: maxY - minY)
+
+        let interactiveView = InteractiveModuleView(frame: coverRect, moduleName: module.name)
+        interactiveView.interaction = module.interaction
+        interactiveView.popupManager = self.popupManager
+
+        // Capture module index for closures
+        let moduleIndex = config.modules.firstIndex(where: { $0.name == module.name })
+
+        interactiveView.currentValue = { [weak self] in
+            guard let self = self, let idx = moduleIndex else { return nil }
+            return self.config.modules[idx].lastDrawnValue
+        }
+        interactiveView.currentIcon = { [weak self] in
+            guard let self = self, let idx = moduleIndex else { return nil }
+            return self.config.modules[idx].lastDrawnIcon ?? self.config.modules[idx].icon
+        }
+        interactiveView.templateVariableProvider = { [weak self] in
+            guard let self = self, let idx = moduleIndex else { return [:] }
+            return self.config.modules[idx].config?.getTemplateVariables() ?? [:]
+        }
+
+        return interactiveView
     }
 
     func positionModule(module: ModuleConfig, iconField: NSTextField, textField: NSTextField, totalWidth: CGFloat) -> (textPosition: CGPoint, iconPosition: CGPoint, width: CGFloat, alignment: String) {
@@ -436,16 +499,21 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
         let statusBarRect = NSRect(x: 0, y: screenSize.height - CGFloat(config.global.height), width: statusBarWidth, height: CGFloat(config.global.height))
 
-        window = NSWindow(contentRect: statusBarRect, styleMask: [.borderless], backing: .buffered, defer: false)
+        // Use NSPanel with .nonactivatingPanel so the bar is interactive
+        // (hover/click) without ever stealing focus from tiling WMs
+        window = NSPanel(contentRect: statusBarRect, styleMask: [.borderless, .nonactivatingPanel], backing: .buffered, defer: false)
 
         window.level = NSWindow.Level(rawValue: Int(CGWindowLevelForKey(.statusWindow)))
         window.collectionBehavior = .canJoinAllSpaces
         window.isOpaque = false
         window.hasShadow = false
         window.backgroundColor = NSColor.clear
-        window.ignoresMouseEvents = true
+        // ignoresMouseEvents = false: modules with interaction config
+        // get hover/click via InteractiveModuleView + NSTrackingArea.
+        // The .nonactivatingPanel style ensures we never steal focus.
+        window.ignoresMouseEvents = false
 
-        statusBarView = NSView(frame: statusBarRect)
+        statusBarView = StatusBarContainerView(frame: statusBarRect)
         statusBarView.wantsLayer = true
         window.contentView = statusBarView
         window.makeKeyAndOrderFront(nil)
