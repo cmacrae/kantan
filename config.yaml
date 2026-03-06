@@ -22,6 +22,13 @@ modules:
       # launcher:
       #   path: ~/.nix-profile/bin/zsh
       #   args: [ '-c' ]
+  - name: spaces
+    type: workspace
+    alignment: left
+    config:
+      type: aerospace
+      defaultIcon: ●
+      activeColour: "#ffffff"
   - name: left 2
     type: text
     alignment: left

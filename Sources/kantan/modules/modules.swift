@@ -132,6 +132,8 @@ struct ModuleConfig: Codable {
     var lastDrawnValue: String?
     var lastDrawnIcon: String?
     var offset: CGFloat = 0
+    var fgOverride: String?
+    var bgOverride: String?
 
     private enum CodingKeys: String, CodingKey {
         case name, type, alignment, icon, textFont, iconFont, colour, config, lastDrawnValue, lastDrawnIcon
@@ -166,7 +168,8 @@ struct ModuleConfig: Codable {
           "clock": ClockConfigFactory(),
           "power": PowerConfigFactory(),
           "command": CommandConfigFactory(),
-          "reminders": RemindersConfigFactory()
+          "reminders": RemindersConfigFactory(),
+          "workspace": WorkspaceConfigFactory()
         ]
 
         if let configYaml = configYaml, let factory = factories[type] {

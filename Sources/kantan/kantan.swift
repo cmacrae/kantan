@@ -11,6 +11,7 @@ class StatusBarController {
     var eventObserver: EventObserver?
     var moduleLayout: [String: (textPosition: CGPoint, iconPosition: CGPoint, width: CGFloat, alignment: String)] = [:]
     var moduleSubviews: [String: [NSView]] = [:]
+    var durationTimers: [String: Timer] = [:]
 
     init(config: Config, statusBarWindow: NSWindow, statusBarView: NSView, statusBarWidth: CGFloat) {
         self.config = config
@@ -20,9 +21,14 @@ class StatusBarController {
 
         self.applyCurrentAppearance()
 
-        self.eventObserver = EventObserver(onRefresh: { [weak self] in
-            self?.refreshAllModules()
-        })
+        self.eventObserver = EventObserver(
+            onRefresh: { [weak self] in
+                self?.refreshAllModules()
+            },
+            onEvent: { [weak self] module, action, userInfo in
+                self?.handleEvent(module: module, action: action, userInfo: userInfo)
+            }
+        )
 
         for i in 0..<self.config.modules.count {
             var moduleTimer = ModuleTimer(moduleConfig: self.config.modules[i])
@@ -39,6 +45,9 @@ class StatusBarController {
     func updateModule(at index: Int) {
         let module = config.modules[index]
         guard let moduleConfig = module.config else { return }
+
+        // Skip getValue() while a timed override is active
+        if durationTimers[module.name] != nil { return }
 
         let icon = moduleConfig.getIcon()
         let newIcon = icon.isEmpty ? module.icon : icon
@@ -93,6 +102,66 @@ class StatusBarController {
         }
     }
 
+    func handleEvent(module moduleName: String, action: String, userInfo: [String: String]) {
+        let indices: [Int]
+        if moduleName == "*" {
+            indices = Array(0..<config.modules.count)
+        } else {
+            indices = config.modules.enumerated()
+                .filter { $0.element.name == moduleName }
+                .map { $0.offset }
+        }
+
+        guard !indices.isEmpty else { return }
+
+        for index in indices {
+            switch action {
+            case "refresh":
+                updateModule(at: index)
+
+            case "set":
+                // Cancel any existing duration timer for this module
+                let name = config.modules[index].name
+                durationTimers[name]?.invalidate()
+                durationTimers[name] = nil
+
+                // Apply overrides
+                if let value = userInfo["value"] {
+                    config.modules[index].lastDrawnValue = value.isEmpty ? nil : value
+                }
+                if let icon = userInfo["icon"] {
+                    config.modules[index].lastDrawnIcon = icon.isEmpty ? nil : icon
+                }
+                if let fg = userInfo["fg"] {
+                    config.modules[index].fgOverride = fg.isEmpty ? nil : fg
+                }
+                if let bg = userInfo["bg"] {
+                    config.modules[index].bgOverride = bg.isEmpty ? nil : bg
+                }
+
+                // Schedule duration timer if specified
+                if let durationStr = userInfo["duration"],
+                   let duration = Double(durationStr), duration > 0 {
+                    let moduleIndex = index
+                    durationTimers[name] = Timer.scheduledTimer(withTimeInterval: duration, repeats: false) { [weak self] _ in
+                        MainActor.assumeIsolated {
+                            guard let self = self else { return }
+                            self.durationTimers[name] = nil
+                            self.config.modules[moduleIndex].fgOverride = nil
+                            self.config.modules[moduleIndex].bgOverride = nil
+                            self.updateModule(at: moduleIndex)
+                        }
+                    }
+                }
+
+                redrawAllModules()
+
+            default:
+                break
+            }
+        }
+    }
+
     func buildIconAttributedString(icon: String, fgColor: NSColor, bgColor: NSColor, module: ModuleConfig) -> NSAttributedString {
         let iconFontConfig = module.iconFont ?? self.config.global.iconFont!
         let fontName = iconFontConfig.name
@@ -119,13 +188,18 @@ class StatusBarController {
         moduleSubviews[module.name] = nil
         moduleLayout.removeValue(forKey: module.name)
 
+        if module.type == "workspace" {
+            drawWorkspaceModule(module)
+            return
+        }
+
         let iconTextSpacing: CGFloat = 2
         let textContent: String? = module.lastDrawnValue
         let icon: String? = module.lastDrawnIcon ?? module.icon
 
         let currentColour = self.currentColourConfig(moduleColour: module.colour, globalColour: self.config.global.colour)
-        let fgColor = NSColor(hex: currentColour.fg)
-        let bgColor = NSColor(hex: currentColour.bg)
+        let fgColor = module.fgOverride.map { NSColor(hex: $0) } ?? NSColor(hex: currentColour.fg)
+        let bgColor = module.bgOverride.map { NSColor(hex: $0) } ?? NSColor(hex: currentColour.bg)
 
         let iconField = NSTextField(labelWithAttributedString: NSAttributedString())
         let textField = NSTextField(labelWithAttributedString: NSAttributedString())
@@ -157,6 +231,97 @@ class StatusBarController {
         self.statusBarView.addSubview(iconField)
         self.statusBarView.addSubview(textField)
         self.moduleSubviews[module.name] = [iconField, textField]
+    }
+
+    func drawWorkspaceModule(_ module: ModuleConfig) {
+        let padding: CGFloat = CGFloat(self.config.global.padding)
+        let segmentSpacing: CGFloat = 6
+        let segments = getWorkspaceSegments()
+
+        guard !segments.isEmpty else { return }
+
+        let currentColour = self.currentColourConfig(moduleColour: module.colour, globalColour: self.config.global.colour)
+        let fgColor = module.fgOverride.map { NSColor(hex: $0) } ?? NSColor(hex: currentColour.fg)
+        let bgColor = module.bgOverride.map { NSColor(hex: $0) } ?? NSColor(hex: currentColour.bg)
+
+        // Determine the active space highlight colour
+        let activeColor: NSColor
+        if let wsConfig = module.config as? WorkspaceConfig,
+           let activeHex = wsConfig.activeColour {
+            activeColor = NSColor(hex: activeHex)
+        } else {
+            activeColor = fgColor
+        }
+        let inactiveColor: NSColor
+        if let wsConfig = module.config as? WorkspaceConfig,
+           let inactiveHex = wsConfig.inactiveColour {
+            inactiveColor = NSColor(hex: inactiveHex)
+        } else {
+            inactiveColor = fgColor.withAlphaComponent(0.4)
+        }
+
+        // Build all segment text fields and measure total width
+        var segmentFields: [(field: NSTextField, segment: WorkspaceSegment)] = []
+        var totalWidth: CGFloat = 0
+
+        for (i, segment) in segments.enumerated() {
+            let color = segment.isActive ? activeColor : inactiveColor
+            let attrStr = self.buildTextAttributedString(
+                text: segment.label, fgColor: color, bgColor: bgColor, module: module)
+            let field = NSTextField(labelWithAttributedString: attrStr)
+            field.sizeToFit()
+            segmentFields.append((field: field, segment: segment))
+            totalWidth += field.frame.width
+            if i < segments.count - 1 {
+                totalWidth += segmentSpacing
+            }
+        }
+
+        totalWidth += padding  // trailing padding for layout accounting
+
+        // Calculate starting position based on alignment and previous modules
+        var xOffset: CGFloat
+
+        switch module.alignment {
+        case "left":
+            let totalPreviousWidth = self.moduleLayout.values
+                .filter { $0.alignment == "left" }
+                .reduce(CGFloat(0)) { $0 + $1.width }
+            xOffset = padding + totalPreviousWidth
+
+        case "right":
+            let totalPreviousWidth = self.moduleLayout.values
+                .filter { $0.alignment == "right" }
+                .reduce(CGFloat(0)) { $0 + $1.width }
+            xOffset = self.statusBarWidth - padding - totalPreviousWidth - totalWidth + padding
+
+        default:
+            xOffset = padding
+        }
+
+        // Position each segment field
+        var subviews: [NSView] = []
+        for (i, entry) in segmentFields.enumerated() {
+            let yPos = (self.statusBarView.frame.height - entry.field.frame.height) / 2
+            entry.field.frame.origin = CGPoint(x: xOffset, y: yPos)
+            self.statusBarView.addSubview(entry.field)
+            subviews.append(entry.field)
+            xOffset += entry.field.frame.width
+            if i < segmentFields.count - 1 {
+                xOffset += segmentSpacing
+            }
+        }
+
+        self.moduleSubviews[module.name] = subviews
+
+        // Store layout so subsequent modules position correctly
+        // Use CGPoint.zero for icon/text positions since workspace uses custom rendering
+        self.moduleLayout[module.name] = (
+            textPosition: CGPoint.zero,
+            iconPosition: CGPoint.zero,
+            width: totalWidth,
+            alignment: module.alignment
+        )
     }
 
     func positionModule(module: ModuleConfig, iconField: NSTextField, textField: NSTextField, totalWidth: CGFloat) -> (textPosition: CGPoint, iconPosition: CGPoint, width: CGFloat, alignment: String) {
@@ -309,6 +474,35 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 @main
 struct Kantan {
     static func main() {
+        let args = CommandLine.arguments
+
+        // CLI trigger mode: kantan trigger <module> <action> [key=value ...]
+        if args.count >= 4 && args[1] == "trigger" {
+            let module = args[2]
+            let action = args[3]
+
+            var userInfo: [String: String] = [
+                "module": module,
+                "action": action,
+            ]
+
+            // Parse key=value pairs from remaining args
+            for i in 4..<args.count {
+                let parts = args[i].split(separator: "=", maxSplits: 1)
+                if parts.count == 2 {
+                    userInfo[String(parts[0])] = String(parts[1])
+                }
+            }
+
+            DistributedNotificationCenter.default().postNotificationName(
+                NSNotification.Name("com.kantan.event"),
+                object: nil,
+                userInfo: userInfo,
+                deliverImmediately: true
+            )
+            return
+        }
+
         let app = NSApplication.shared
         let delegate = AppDelegate()
         app.delegate = delegate

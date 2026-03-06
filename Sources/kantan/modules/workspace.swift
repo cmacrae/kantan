@@ -1,0 +1,252 @@
+import Foundation
+import Yaml
+
+// MARK: - Workspace Segment Data
+
+struct WorkspaceSegment: Sendable {
+    let label: String
+    let isActive: Bool
+}
+
+// Module-level cache for structured workspace data.
+// The drawing pipeline reads this to render per-space indicators.
+nonisolated(unsafe) private var cachedSegments: [WorkspaceSegment] = []
+private let segmentsLock = NSLock()
+
+func getWorkspaceSegments() -> [WorkspaceSegment] {
+    segmentsLock.lock()
+    defer { segmentsLock.unlock() }
+    return cachedSegments
+}
+
+private func setWorkspaceSegments(_ segments: [WorkspaceSegment]) {
+    segmentsLock.lock()
+    defer { segmentsLock.unlock() }
+    cachedSegments = segments
+}
+
+// MARK: - Factory
+
+struct WorkspaceConfigFactory: ModuleConfigurationFactory {
+    func configuration(from yaml: Yaml) throws -> ModuleConfiguration {
+        return WorkspaceConfig(yaml: yaml)
+    }
+
+    func defaultConfiguration() -> ModuleConfiguration? {
+        return WorkspaceConfig(yaml: nil)
+    }
+}
+
+// MARK: - Configuration
+
+struct WorkspaceConfig: ModuleConfiguration {
+    var type: String { "workspace" }
+
+    let providerType: String  // "native" or "aerospace"
+    let icons: [String]
+    let defaultIcon: String
+    let activeColour: String?
+    let inactiveColour: String?
+    let aerospacePath: String?
+
+    // Native spaces use polling; aerospace is event-driven via `kantan trigger`
+    var redrawInterval: TimeInterval {
+        providerType == "aerospace" ? 3600.0 : 0.5
+    }
+
+    init(yaml: Yaml?) {
+        self.providerType = yaml?["type"].string ?? "native"
+        self.icons = yaml?["icons"].array?.compactMap { $0.string } ?? []
+        self.defaultIcon = yaml?["defaultIcon"].string ?? ""
+        self.activeColour = yaml?["activeColour"].string
+        self.inactiveColour = yaml?["inactiveColour"].string
+        self.aerospacePath = yaml?["aerospacePath"].string
+    }
+
+    init(from decoder: Decoder) throws {
+        self.providerType = "native"
+        self.icons = []
+        self.defaultIcon = ""
+        self.activeColour = nil
+        self.inactiveColour = nil
+        self.aerospacePath = nil
+    }
+
+    func encode(to encoder: Encoder) throws {}
+
+    func getValue(completion: @escaping @Sendable (String) -> Void) {
+        let provider = self.providerType
+        let iconList = self.icons
+        let fallbackIcon = self.defaultIcon
+        let aeroPathOverride = self.aerospacePath
+
+        DispatchQueue.global(qos: .userInitiated).async {
+            let spaces: [(index: Int, label: String, isActive: Bool)]
+
+            switch provider {
+            case "aerospace":
+                let resolvedPath = aeroPathOverride ?? Self.resolveExecutable("aerospace")
+                guard let path = resolvedPath else {
+                    completion("")
+                    return
+                }
+                spaces = Self.fetchAerospaceSpaces(path: path)
+            default:
+                spaces = Self.fetchNativeSpaces()
+            }
+
+            let segments = spaces.map { space -> WorkspaceSegment in
+                let icon: String
+                if space.index < iconList.count {
+                    icon = iconList[space.index]
+                } else if !fallbackIcon.isEmpty {
+                    icon = fallbackIcon
+                } else {
+                    icon = space.label
+                }
+                return WorkspaceSegment(label: icon, isActive: space.isActive)
+            }
+
+            setWorkspaceSegments(segments)
+
+            // Return a value string that changes when workspace state changes,
+            // so the drawing pipeline detects the update and redraws.
+            let value = segments.map { ($0.isActive ? ">" : "") + $0.label }
+                .joined(separator: " ")
+            completion(value)
+        }
+    }
+
+    func getIcon() -> String {
+        return ""
+    }
+
+    // MARK: - Native macOS Spaces
+
+    private static func fetchNativeSpaces()
+        -> [(index: Int, label: String, isActive: Bool)]
+    {
+        let cid = CGSMainConnectionID()
+        let activeSpace = CGSGetActiveSpace(cid)
+
+        guard
+            let displaySpaces = CGSCopyManagedDisplaySpaces(cid)
+                as? [[String: Any]]
+        else {
+            return []
+        }
+
+        var result: [(index: Int, label: String, isActive: Bool)] = []
+        var globalIndex = 0
+
+        for display in displaySpaces {
+            guard
+                let spaces = display["Spaces"] as? [[String: Any]]
+            else {
+                continue
+            }
+
+            for space in spaces {
+                guard let spaceID = space["id64"] as? Int else {
+                    continue
+                }
+
+                // Skip fullscreen/system spaces (type 4 = user space)
+                let spaceType = space["type"] as? Int ?? 0
+                if spaceType != 0 && spaceType != 4 {
+                    globalIndex += 1
+                    continue
+                }
+
+                let isActive = spaceID == activeSpace
+                let label = String(globalIndex + 1)
+
+                result.append(
+                    (index: globalIndex, label: label, isActive: isActive))
+                globalIndex += 1
+            }
+        }
+
+        return result
+    }
+
+    // MARK: - Aerospace Spaces
+
+    private static func fetchAerospaceSpaces(path: String)
+        -> [(index: Int, label: String, isActive: Bool)]
+    {
+        guard let spacesData = runCommand(path: path, arguments: ["list-workspaces", "--all", "--json"]),
+              let focusedData = runCommand(path: path, arguments: ["list-workspaces", "--focused", "--json"])
+        else {
+            return []
+        }
+
+        struct AeroWorkspace: Decodable {
+            let workspace: String
+        }
+
+        let decoder = JSONDecoder()
+
+        guard let allSpaces = try? decoder.decode([AeroWorkspace].self, from: spacesData),
+              let focusedSpaces = try? decoder.decode([AeroWorkspace].self, from: focusedData)
+        else {
+            return []
+        }
+
+        let focusedID = focusedSpaces.first?.workspace
+
+        let sorted = allSpaces.sorted { lhs, rhs in
+            let lhsInt = Int(lhs.workspace) ?? Int.max
+            let rhsInt = Int(rhs.workspace) ?? Int.max
+            if lhsInt != rhsInt { return lhsInt < rhsInt }
+            return lhs.workspace < rhs.workspace
+        }
+
+        return sorted.enumerated().map { (index, space) in
+            (
+                index: index,
+                label: space.workspace,
+                isActive: space.workspace == focusedID
+            )
+        }
+    }
+
+    // MARK: - Helpers
+
+    private static func runCommand(path: String, arguments: [String]) -> Data?
+    {
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: path)
+        process.arguments = arguments
+
+        let pipe = Pipe()
+        process.standardOutput = pipe
+        process.standardError = Pipe()
+
+        do {
+            try process.run()
+        } catch {
+            return nil
+        }
+
+        let data = pipe.fileHandleForReading.readDataToEndOfFile()
+        process.waitUntilExit()
+
+        guard process.terminationStatus == 0 else { return nil }
+        return data
+    }
+
+    private static func resolveExecutable(_ name: String) -> String? {
+        guard let pathVar = ProcessInfo.processInfo.environment["PATH"] else {
+            return nil
+        }
+        let fm = FileManager.default
+        for dir in pathVar.split(separator: ":") {
+            let candidate = "\(dir)/\(name)"
+            if fm.isExecutableFile(atPath: candidate) {
+                return candidate
+            }
+        }
+        return nil
+    }
+}
