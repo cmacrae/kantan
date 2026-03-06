@@ -15,6 +15,7 @@ struct CommandConfig: ModuleConfiguration {
     let command: String
     let launchPath: String
     let launchArgs: [String]
+    let timeout: TimeInterval
 
     init(yaml: Yaml) throws {
         guard let command = yaml["command"].string else {
@@ -23,6 +24,7 @@ struct CommandConfig: ModuleConfiguration {
         self.command = command
         self.launchPath = yaml["launcher"]["path"].string ?? "/bin/sh"
         self.launchArgs = yaml["launcher"]["args"].array?.compactMap { $0.string } ?? ["-c"]
+        self.timeout = yaml["timeout"].double ?? 10.0
     }
 
     var redrawInterval: TimeInterval { 1.0 }
@@ -31,41 +33,67 @@ struct CommandConfig: ModuleConfiguration {
         let cmd = self.command
         let path = self.launchPath
         let args = self.launchArgs
-        DispatchQueue.global(qos: .background).async {
-            let result = executeCommand(command: cmd, launchPath: path, launchArgs: args)
+        let timeoutInterval = self.timeout
+
+        DispatchQueue.global(qos: .userInitiated).async {
+            let result = Self.executeCommand(
+                command: cmd,
+                launchPath: path,
+                launchArgs: args,
+                timeout: timeoutInterval
+            )
             completion(result)
         }
-    }
-
-    func getValueSync() -> String {
-        return executeCommand(command: command, launchPath: launchPath, launchArgs: launchArgs)
     }
 
     func getIcon() -> String {
         return ""
     }
-}
 
-private func executeCommand(command: String, launchPath: String, launchArgs: [String]) -> String {
-    let process = Process()
-    process.executableURL = URL(fileURLWithPath: launchPath)
-    process.arguments = launchArgs + [command]
+    private static func executeCommand(
+        command: String,
+        launchPath: String,
+        launchArgs: [String],
+        timeout: TimeInterval
+    ) -> String {
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: launchPath)
+        process.arguments = launchArgs + [command]
 
-    let outpipe = Pipe()
-    process.standardOutput = outpipe
-    process.standardError = outpipe
+        let stdoutPipe = Pipe()
+        let stderrPipe = Pipe()
+        process.standardOutput = stdoutPipe
+        process.standardError = stderrPipe
 
-    do {
-        try process.run()
-    } catch {
-        return "exec failed"
-    }
+        do {
+            try process.run()
+        } catch {
+            return ""
+        }
 
-    let outdata = outpipe.fileHandleForReading.readDataToEndOfFile()
-    if var string = String(data: outdata, encoding: .utf8) {
-        string = string.trimmingCharacters(in: .newlines)
-        return string
-    } else {
-        return "exec failed"
+        let timeoutWorkItem = DispatchWorkItem {
+            if process.isRunning {
+                process.terminate()
+            }
+        }
+        DispatchQueue.global().asyncAfter(
+            deadline: .now() + timeout,
+            execute: timeoutWorkItem
+        )
+
+        let outdata = stdoutPipe.fileHandleForReading.readDataToEndOfFile()
+        process.waitUntilExit()
+        timeoutWorkItem.cancel()
+
+        guard process.terminationStatus == 0 else {
+            return ""
+        }
+
+        if var string = String(data: outdata, encoding: .utf8) {
+            string = string.trimmingCharacters(in: .newlines)
+            return string
+        }
+
+        return ""
     }
 }

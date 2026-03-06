@@ -27,10 +27,6 @@ struct TextConfig: ModuleConfiguration {
         completion(self.value)
     }
 
-    func getValueSync() -> String {
-        return self.value
-    }
-
     func getIcon() -> String {
         return ""
     }

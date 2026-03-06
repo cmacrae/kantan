@@ -8,17 +8,21 @@ class StatusBarController {
     var statusBarView: NSView
     var statusBarWidth: CGFloat
     var moduleTimers: [ModuleTimer] = []
-    var eventObserver: EventObserver
+    var eventObserver: EventObserver?
     var moduleLayout: [String: (textPosition: CGPoint, iconPosition: CGPoint, width: CGFloat, alignment: String)] = [:]
+    var moduleSubviews: [String: [NSView]] = [:]
 
     init(config: Config, statusBarWindow: NSWindow, statusBarView: NSView, statusBarWidth: CGFloat) {
         self.config = config
         self.statusBarWindow = statusBarWindow
         self.statusBarView = statusBarView
         self.statusBarWidth = statusBarWidth
-        self.eventObserver = EventObserver()
 
         self.applyCurrentAppearance()
+
+        self.eventObserver = EventObserver(onRefresh: { [weak self] in
+            self?.refreshAllModules()
+        })
 
         for i in 0..<self.config.modules.count {
             var moduleTimer = ModuleTimer(moduleConfig: self.config.modules[i])
@@ -39,8 +43,6 @@ class StatusBarController {
         let icon = moduleConfig.getIcon()
         let newIcon = icon.isEmpty ? module.icon : icon
 
-        // For async modules (reminders, command), kick off a background fetch
-        // and redraw with whatever value is currently available
         moduleConfig.getValue { [weak self] newValue in
             DispatchQueue.main.async {
                 guard let self = self else { return }
@@ -49,9 +51,20 @@ class StatusBarController {
                     mod.lastDrawnValue = newValue
                     mod.lastDrawnIcon = newIcon
                     self.config.modules[index] = mod
-                    self.drawModule(mod)
+                    self.redrawAllModules()
                 }
             }
+        }
+    }
+
+    /// Redraws all modules from scratch to ensure correct positioning.
+    private func redrawAllModules() {
+        statusBarView.subviews.forEach { $0.removeFromSuperview() }
+        moduleLayout.removeAll()
+        moduleSubviews.removeAll()
+        applyCurrentAppearance()
+        for module in config.modules {
+            drawModule(module)
         }
     }
 
@@ -71,11 +84,12 @@ class StatusBarController {
     }
 
     func redrawBar() {
-        self.statusBarView.subviews.forEach { $0.removeFromSuperview() }
-        self.moduleLayout.removeAll()
-        self.applyCurrentAppearance()
-        for module in config.modules {
-            self.drawModule(module)
+        redrawAllModules()
+    }
+
+    func refreshAllModules() {
+        for i in 0..<config.modules.count {
+            updateModule(at: i)
         }
     }
 
@@ -100,38 +114,14 @@ class StatusBarController {
     }
 
     func drawModule(_ module: ModuleConfig) {
+        // Remove previous subviews for this module
+        moduleSubviews[module.name]?.forEach { $0.removeFromSuperview() }
+        moduleSubviews[module.name] = nil
+        moduleLayout.removeValue(forKey: module.name)
+
         let iconTextSpacing: CGFloat = 2
-        var textContent: String?
-        var icon: String? = module.icon
-
-        let moduleConfig = module.config
-
-        switch module.type {
-        case "text":
-            if let textConfig = moduleConfig as? TextConfig {
-                textContent = textConfig.getValueSync()
-            }
-        case "clock":
-            if let clockConfig = moduleConfig as? ClockConfig {
-                textContent = clockConfig.getValueSync()
-            }
-        case "power":
-            if let powerConfig = moduleConfig as? PowerConfig {
-                icon = powerConfig.getIcon()
-                textContent = powerConfig.getValueSync()
-            }
-        case "command":
-            if let commandConfig = moduleConfig as? CommandConfig {
-                textContent = commandConfig.getValueSync()
-            }
-        case "reminders":
-            if let remindersConfig = moduleConfig as? RemindersConfig {
-                textContent = remindersConfig.lastFetchedValue
-            }
-        default:
-            print("Unsupported module type")
-            return
-        }
+        let textContent: String? = module.lastDrawnValue
+        let icon: String? = module.lastDrawnIcon ?? module.icon
 
         let currentColour = self.currentColourConfig(moduleColour: module.colour, globalColour: self.config.global.colour)
         let fgColor = NSColor(hex: currentColour.fg)
@@ -166,6 +156,7 @@ class StatusBarController {
 
         self.statusBarView.addSubview(iconField)
         self.statusBarView.addSubview(textField)
+        self.moduleSubviews[module.name] = [iconField, textField]
     }
 
     func positionModule(module: ModuleConfig, iconField: NSTextField, textField: NSTextField, totalWidth: CGFloat) -> (textPosition: CGPoint, iconPosition: CGPoint, width: CGFloat, alignment: String) {
@@ -176,9 +167,9 @@ class StatusBarController {
         var rightOffset: CGFloat = self.statusBarWidth - padding
         var iconPosition = CGPoint.zero
         var textPosition = CGPoint.zero
+        var occupiedWidth: CGFloat = 0
 
-        var icon: String? = module.config?.getIcon()
-        icon = icon?.isEmpty ?? true ? module.icon : icon
+        let icon: String? = module.lastDrawnIcon ?? module.icon
 
         if let layout = self.moduleLayout[module.name] {
             return layout
@@ -186,9 +177,12 @@ class StatusBarController {
 
         switch module.alignment {
         case "left":
-            let lastModuleInfo = self.moduleLayout.values.filter { $0.alignment == "left" }.sorted(by: { $0.iconPosition.x < $1.iconPosition.x }).last
+            let totalPreviousWidth = self.moduleLayout.values
+                .filter { $0.alignment == "left" }
+                .reduce(CGFloat(0)) { $0 + $1.width }
 
-            leftOffset += lastModuleInfo?.width ?? 0
+            leftOffset += totalPreviousWidth
+            let startOffset = leftOffset
 
             if let _ = icon {
                 iconPosition = CGPoint(x: leftOffset, y: (self.statusBarView.frame.height - iconField.frame.height) / 2)
@@ -203,10 +197,15 @@ class StatusBarController {
                 leftOffset += textField.frame.width + padding
             }
 
-        case "right":
-            let lastModuleInfo = self.moduleLayout.values.filter { $0.alignment == "right" }.sorted(by: { $0.iconPosition.x > $1.iconPosition.x }).first
+            occupiedWidth = leftOffset - startOffset
 
-            rightOffset -= lastModuleInfo?.width ?? 0
+        case "right":
+            let totalPreviousWidth = self.moduleLayout.values
+                .filter { $0.alignment == "right" }
+                .reduce(CGFloat(0)) { $0 + $1.width }
+
+            rightOffset -= totalPreviousWidth
+            let startOffset = rightOffset
 
             if module.config != nil {
                 textPosition = CGPoint(x: rightOffset - textField.frame.width, y: (self.statusBarView.frame.height - textField.frame.height) / 2)
@@ -221,14 +220,16 @@ class StatusBarController {
                 rightOffset -= iconField.frame.width + padding
             }
 
+            occupiedWidth = startOffset - rightOffset
+
         default:
             print("Invalid alignment")
             return (CGPoint.zero, CGPoint.zero, totalWidth, module.alignment)
         }
 
-        self.moduleLayout[module.name] = (textPosition, iconPosition, totalWidth, module.alignment)
+        self.moduleLayout[module.name] = (textPosition, iconPosition, occupiedWidth, module.alignment)
 
-        return (textPosition, iconPosition, totalWidth, module.alignment)
+        return (textPosition, iconPosition, occupiedWidth, module.alignment)
     }
 }
 
@@ -289,8 +290,8 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                                                   statusBarView: statusBarView,
                                                   statusBarWidth: statusBarWidth)
 
-        for module in config.modules {
-            statusBarController?.drawModule(module)
+        for i in 0..<config.modules.count {
+            statusBarController?.updateModule(at: i)
         }
 
         appearanceObservation = NSApp.observe(\.effectiveAppearance) { [weak self] _, _ in

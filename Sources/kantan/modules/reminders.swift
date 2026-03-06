@@ -2,6 +2,8 @@ import Foundation
 import Yaml
 @preconcurrency import EventKit
 
+nonisolated(unsafe) private let sharedEventStore = EKEventStore()
+
 struct RemindersConfigFactory: ModuleConfigurationFactory {
     func configuration(from yaml: Yaml) throws -> ModuleConfiguration {
         return try RemindersConfig(yaml: yaml)
@@ -10,39 +12,74 @@ struct RemindersConfigFactory: ModuleConfigurationFactory {
 
 struct RemindersConfig: ModuleConfiguration {
     var type: String { "reminders" }
-    let list: String?
-    var redrawInterval: TimeInterval { 5.0 }
+    let lists: [String]?
+    let excludeLists: [String]?
+    let daysAhead: Int
 
-    // Store the last fetched value for synchronous access during drawing
-    nonisolated(unsafe) static var _lastFetchedValues: [String: String] = [:]
+    var redrawInterval: TimeInterval { 30.0 }
 
-    var lastFetchedValue: String {
-        return RemindersConfig._lastFetchedValues[list ?? "All"] ?? "Loading..."
+    init(yaml: Yaml) throws {
+        if let singleList = yaml["list"].string, !singleList.isEmpty {
+            self.lists = [singleList]
+        } else if let multipleLists = yaml["lists"].array?.compactMap({ $0.string }), !multipleLists.isEmpty {
+            self.lists = multipleLists
+        } else {
+            self.lists = nil
+        }
+
+        if let excludes = yaml["excludeLists"].array?.compactMap({ $0.string }), !excludes.isEmpty {
+            self.excludeLists = excludes
+        } else {
+            self.excludeLists = nil
+        }
+
+        self.daysAhead = yaml["daysAhead"].int ?? 7
     }
 
+    init(from decoder: Decoder) throws {
+        lists = nil
+        excludeLists = nil
+        daysAhead = 7
+    }
+
+    func encode(to encoder: Encoder) throws { }
+
     func getValue(completion: @escaping @Sendable (String) -> Void) {
-        let store = EKEventStore()
-        let listName = self.list
+        let store = sharedEventStore
+        let allowLists = self.lists
+        let denyLists = self.excludeLists
+        let days = self.daysAhead
 
         switch EKEventStore.authorizationStatus(for: .reminder) {
         case .fullAccess, .authorized:
-            fetchNextReminder(store: store, listName: listName, completion: completion)
+            Self.fetchNextReminder(
+                store: store,
+                allowLists: allowLists,
+                denyLists: denyLists,
+                daysAhead: days,
+                completion: completion
+            )
         case .notDetermined:
             store.requestFullAccessToReminders { granted, error in
                 if let error = error {
                     print("Error requesting access to reminders: \(error)")
                 }
                 if granted {
-                    let freshStore = EKEventStore()
-                    self.fetchNextReminder(store: freshStore, listName: listName, completion: completion)
+                    Self.fetchNextReminder(
+                        store: store,
+                        allowLists: allowLists,
+                        denyLists: denyLists,
+                        daysAhead: days,
+                        completion: completion
+                    )
                 } else {
-                    completion("Access to reminders denied")
+                    completion("")
                 }
             }
         case .restricted, .denied, .writeOnly:
-            completion("Access to reminders not granted")
+            completion("")
         @unknown default:
-            completion("Unknown authorization status for reminders")
+            completion("")
         }
     }
 
@@ -50,37 +87,50 @@ struct RemindersConfig: ModuleConfiguration {
         return ""
     }
 
-    private func fetchNextReminder(store: EKEventStore, listName: String?, completion: @escaping @Sendable (String) -> Void) {
-        let predicate: NSPredicate
-        if let listName = listName {
-            let calendars = store.calendars(for: .reminder).filter { $0.title == listName }
-            predicate = store.predicateForIncompleteReminders(withDueDateStarting: nil, ending: nil, calendars: calendars)
-        } else {
-            predicate = store.predicateForIncompleteReminders(withDueDateStarting: nil, ending: nil, calendars: nil)
+    private static func fetchNextReminder(
+        store: EKEventStore,
+        allowLists: [String]?,
+        denyLists: [String]?,
+        daysAhead: Int,
+        completion: @escaping @Sendable (String) -> Void
+    ) {
+        var calendars = store.calendars(for: .reminder)
+
+        if let allowLists = allowLists {
+            calendars = calendars.filter { allowLists.contains($0.title) }
         }
+
+        if let denyLists = denyLists {
+            calendars = calendars.filter { !denyLists.contains($0.title) }
+        }
+
+        let now = Date()
+        let endDate = Calendar.current.date(byAdding: .day, value: daysAhead, to: now)
+
+        let predicate = store.predicateForIncompleteReminders(
+            withDueDateStarting: now,
+            ending: endDate,
+            calendars: calendars.isEmpty ? nil : calendars
+        )
+
         store.fetchReminders(matching: predicate) { reminders in
-            guard let reminders = reminders else {
-                completion("Failed to fetch reminders")
+            guard let reminders = reminders, !reminders.isEmpty else {
+                completion("No upcoming reminders")
                 return
             }
-            let nextReminder = reminders
-              .filter { $0.dueDateComponents != nil }
-              .sorted { $0.dueDateComponents!.date! < $1.dueDateComponents!.date! }
-              .first
-            let value = nextReminder?.title ?? "No upcoming reminders"
-            RemindersConfig._lastFetchedValues[listName ?? "All"] = value
+
+            let sorted = reminders
+                .compactMap { reminder -> (EKReminder, Date)? in
+                    guard let components = reminder.dueDateComponents,
+                          let date = components.date else {
+                        return nil
+                    }
+                    return (reminder, date)
+                }
+                .sorted { $0.1 < $1.1 }
+
+            let value = sorted.first?.0.title ?? "No upcoming reminders"
             completion(value)
         }
     }
-
-    init(yaml: Yaml) throws {
-        let yamlList = yaml["list"].string
-        list = yamlList?.isEmpty ?? true ? "All" : yamlList!
-    }
-
-    init(from decoder: Decoder) throws {
-        list = "All"
-    }
-
-    func encode(to encoder: Encoder) throws { }
 }

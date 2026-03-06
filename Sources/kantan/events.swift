@@ -2,9 +2,12 @@ import AppKit
 
 class EventObserver {
     let workspace = NSWorkspace.shared
+    private let onRefresh: @MainActor () -> Void
 
-    init() {
+    init(onRefresh: @escaping @MainActor () -> Void) {
+        self.onRefresh = onRefresh
         let notificationCenter = workspace.notificationCenter
+
         notificationCenter.addObserver(self, selector: #selector(activeSpaceDidChange(_:)), name: NSWorkspace.activeSpaceDidChangeNotification, object: nil)
 
         notificationCenter.addObserver(self, selector: #selector(appSwitched(_:)), name: NSWorkspace.didActivateApplicationNotification, object: nil)
@@ -14,19 +17,30 @@ class EventObserver {
         notificationCenter.addObserver(self, selector: #selector(didWake(_:)), name: NSWorkspace.didWakeNotification, object: nil)
     }
 
+    deinit {
+        workspace.notificationCenter.removeObserver(self)
+    }
+
     @objc func activeSpaceDidChange(_ notification: Notification) {
-        // Handle event
+        triggerRefresh()
     }
 
     @objc func appSwitched(_ notification: Notification) {
-        // Handle event
     }
 
     @objc func willSleep(_ notification: Notification) {
-        // Handle event
     }
 
     @objc func didWake(_ notification: Notification) {
-        // Handle event
+        triggerRefresh()
+    }
+
+    private func triggerRefresh() {
+        let callback = onRefresh
+        DispatchQueue.main.async {
+            MainActor.assumeIsolated {
+                callback()
+            }
+        }
     }
 }
