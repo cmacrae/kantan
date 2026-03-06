@@ -13,7 +13,6 @@ struct CommandConfigFactory: ModuleConfigurationFactory {
 struct CommandConfig: ModuleConfiguration {
     var type: String { "command" }
     let command: String
-    var output: String = ""
     let launchPath: String
     let launchArgs: [String]
 
@@ -28,37 +27,45 @@ struct CommandConfig: ModuleConfiguration {
 
     var redrawInterval: TimeInterval { 1.0 }
 
-    func getValue(completion: @escaping (String) -> Void) {
+    func getValue(completion: @escaping @Sendable (String) -> Void) {
+        let cmd = self.command
+        let path = self.launchPath
+        let args = self.launchArgs
         DispatchQueue.global(qos: .background).async {
-            let result = self.executeCommand()
-            DispatchQueue.main.async {
-                completion(result)
-            }
+            let result = executeCommand(command: cmd, launchPath: path, launchArgs: args)
+            completion(result)
         }
+    }
+
+    func getValueSync() -> String {
+        return executeCommand(command: command, launchPath: launchPath, launchArgs: launchArgs)
     }
 
     func getIcon() -> String {
         return ""
     }
-
-    private func executeCommand() -> String {
-        let process = Process()
-        process.launchPath = self.launchPath
-        process.arguments = self.launchArgs + [self.command]
-
-        let outpipe = Pipe()
-        process.standardOutput = outpipe
-        process.standardError = outpipe
-
-        process.launch()
-
-        let outdata = outpipe.fileHandleForReading.readDataToEndOfFile()
-        if var string = String(data: outdata, encoding: .utf8) {
-            string = string.trimmingCharacters(in: .newlines)
-            return string
-        } else {
-            return "exec failed"
-        }
-    }
 }
 
+private func executeCommand(command: String, launchPath: String, launchArgs: [String]) -> String {
+    let process = Process()
+    process.executableURL = URL(fileURLWithPath: launchPath)
+    process.arguments = launchArgs + [command]
+
+    let outpipe = Pipe()
+    process.standardOutput = outpipe
+    process.standardError = outpipe
+
+    do {
+        try process.run()
+    } catch {
+        return "exec failed"
+    }
+
+    let outdata = outpipe.fileHandleForReading.readDataToEndOfFile()
+    if var string = String(data: outdata, encoding: .utf8) {
+        string = string.trimmingCharacters(in: .newlines)
+        return string
+    } else {
+        return "exec failed"
+    }
+}

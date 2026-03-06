@@ -1,10 +1,10 @@
 import Foundation
 import Yaml
 
-protocol ModuleConfiguration: Codable {
+protocol ModuleConfiguration: Codable, Sendable {
     var type: String { get }
     var redrawInterval: TimeInterval { get }
-    func getValue(completion: @escaping (String) -> Void)
+    func getValue(completion: @escaping @Sendable (String) -> Void)
     func getIcon() -> String
 }
 
@@ -13,8 +13,6 @@ protocol ModuleConfigurationFactory {
     func defaultConfiguration() -> ModuleConfiguration?
 }
 
-// Define a default configuration so we only need to implement it
-// in modules that actually use it
 extension ModuleConfigurationFactory {
     func defaultConfiguration() -> ModuleConfiguration? {
         return nil
@@ -190,7 +188,6 @@ struct ModuleConfig: Codable {
         try container.encodeIfPresent(textFont, forKey: .textFont)
         try container.encodeIfPresent(iconFont, forKey: .iconFont)
         try container.encodeIfPresent(colour, forKey: .colour)
-        // NOTE: We're not encoding the `config` property here, as it's not directly encodable.
 
         try container.encodeIfPresent(lastDrawnValue, forKey: .lastDrawnValue)
         try container.encodeIfPresent(lastDrawnIcon, forKey: .lastDrawnIcon)
@@ -202,7 +199,6 @@ struct ModuleConfig: Codable {
             if let stringValue = value as? String {
                 yamlDict[Yaml.string(key)] = Yaml.string(stringValue)
             }
-            // NOTE: add other types here when needed
         }
         return Yaml.dictionary(yamlDict)
     }

@@ -20,14 +20,17 @@ struct ClockConfig: ModuleConfiguration {
         }
         self.format = format
     }
-    
+
     var redrawInterval: TimeInterval { 1.0 }
 
-    func getValue(completion: @escaping (String) -> Void) {
+    func getValue(completion: @escaping @Sendable (String) -> Void) {
         completion(getClockText(format: format))
     }
 
-    // NOTE: rely on module's 'icon' as we have no special icon to return
+    func getValueSync() -> String {
+        return getClockText(format: format)
+    }
+
     func getIcon() -> String {
         return ""
     }
@@ -38,4 +41,3 @@ func getClockText(format: String) -> String {
     dateFormatter.dateFormat = format
     return dateFormatter.string(from: Date())
 }
-

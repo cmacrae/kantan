@@ -2,32 +2,56 @@
   description = "A beautifully simple status bar for macOS";
 
   inputs = {
-    nixpkgs.url = github:NixOS/nixpkgs/nixos-unstable;
-    flake-utils.url = github:numtide/flake-utils;
+    nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
   };
 
-  outputs = { self, nixpkgs, flake-utils }:
-    flake-utils.lib.eachDefaultSystem (system:
-      let
-        pkgs = nixpkgs.legacyPackages.${system};
-      in rec {
-        devShell = pkgs.mkShell {
-          nativeBuildInputs =
-            with pkgs.swiftPackages;
-            with pkgs.darwin.apple_sdk_11_0.frameworks;
-            [
-              bintools
-              clang
-              sourcekit-lsp
-              swift
-              swiftpm
-              swift-docc
-              xcbuild
-              XCTest
+  outputs =
+    { nixpkgs, ... }:
+    let
+      system = "aarch64-darwin";
+      pkgs = nixpkgs.legacyPackages.${system};
+    in
+    {
+      packages.${system}.default = pkgs.stdenvNoCC.mkDerivation {
+        pname = "kantan";
+        version = "0.1.0";
 
-              Cocoa
-              EventKit
-            ];
+        src = pkgs.lib.cleanSource ./.;
+
+        buildPhase = ''
+          runHook preBuild
+
+          export DEVELOPER_DIR=$(/usr/bin/xcode-select -p)
+          export SDKROOT=$(/usr/bin/xcrun --show-sdk-path)
+          export TOOLCHAINS=default
+          export PATH="$DEVELOPER_DIR/Toolchains/XcodeDefault.xctoolchain/usr/bin:$DEVELOPER_DIR/usr/bin:/usr/bin:$PATH"
+          export HOME="$TMPDIR"
+
+          swift build -c release --disable-sandbox --scratch-path .build
+
+          runHook postBuild
+        '';
+
+        installPhase = ''
+          runHook preInstall
+          mkdir -p $out/bin
+          cp .build/arm64-apple-macosx/release/kantan $out/bin/kantan
+          runHook postInstall
+        '';
+
+        dontFixup = true;
+
+        meta = {
+          description = "A beautifully simple status bar for macOS";
+          platforms = [ "aarch64-darwin" ];
+          mainProgram = "kantan";
         };
-      });
+      };
+
+      devShells.${system}.default = pkgs.mkShell {
+        nativeBuildInputs = with pkgs; [
+          swift-format
+        ];
+      };
+    };
 }

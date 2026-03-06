@@ -33,51 +33,43 @@ struct PowerConfig: ModuleConfiguration {
         self.battery = battery
     }
 
-    func getValue(completion: @escaping (String) -> Void) {
+    func getValue(completion: @escaping @Sendable (String) -> Void) {
+        completion(getValueSync())
+    }
+
+    func getValueSync() -> String {
         let batteryLevel = getBatteryLevel()
-        let value = showLevel ? "\(batteryLevel)%" : ""
-        completion(value)
+        return showLevel ? "\(batteryLevel)%" : ""
     }
 
     func getIcon() -> String {
-        let icon: String
         let batteryLevel = getBatteryLevel()
-        let isCharging = isCharging()
+        let charging = isCharging()
 
-        if isCharging {
-            icon = charging.icon
+        if charging {
+            return self.charging.icon
         } else {
             let index = min(batteryLevel / 25, battery.icons.count - 1)
-            icon = battery.icons[index]
+            return battery.icons[index]
         }
-
-        return icon
     }
 }
 
-struct ChargingConfig: Codable {
+struct ChargingConfig: Codable, Sendable {
     let icon: String
-
-    init(icon: String) {
-        self.icon = icon
-    }
 }
 
-struct BatteryConfig: Codable {
+struct BatteryConfig: Codable, Sendable {
     let icons: [String]
-
-    init(icons: [String]) {
-        self.icons = icons
-    }
 }
 
 func getBatteryLevel() -> Int {
     let snapshot = IOPSCopyPowerSourcesInfo().takeRetainedValue()
     let sources = IOPSCopyPowerSourcesList(snapshot).takeRetainedValue() as! [CFDictionary]
-    
+
     for source in sources {
         if let sourceDict = source as? Dictionary<String, Any> {
-            if let currentCapacity = sourceDict[kIOPSCurrentCapacityKey as String] as? Int, 
+            if let currentCapacity = sourceDict[kIOPSCurrentCapacityKey as String] as? Int,
                let maxCapacity = sourceDict[kIOPSMaxCapacityKey as String] as? Int {
                 let level = (currentCapacity * 100) / maxCapacity
                 return level
@@ -85,14 +77,13 @@ func getBatteryLevel() -> Int {
         }
     }
 
-    // if no battery sources found
     return -1
 }
 
 func isCharging() -> Bool {
     let snapshot = IOPSCopyPowerSourcesInfo().takeRetainedValue()
     let sources = IOPSCopyPowerSourcesList(snapshot).takeRetainedValue() as! [CFDictionary]
-    
+
     for source in sources {
         if let sourceDict = source as? Dictionary<String, Any> {
             if let chargingStatus = sourceDict[kIOPSIsChargingKey as String] as? Bool {
@@ -101,6 +92,5 @@ func isCharging() -> Bool {
         }
     }
 
-    // if no battery sources found
     return false
 }
