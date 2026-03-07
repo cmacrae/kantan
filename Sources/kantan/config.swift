@@ -1,5 +1,6 @@
 import AppKit
 import Foundation
+import SwiftUI
 import Yaml
 
 struct Config: Codable {
@@ -81,6 +82,16 @@ struct FontConfig: Codable {
 
     var symbolicTraits: NSFontDescriptor.SymbolicTraits {
         return weight == .bold ? .bold : []
+    }
+
+    /// Converts this FontConfig to a SwiftUI Font, preserving exact
+    /// NSFontDescriptor behavior (critical for custom icon fonts).
+    var swiftUIFont: Font {
+        let descriptor = NSFontDescriptor(name: name, size: size)
+            .withSymbolicTraits(symbolicTraits)
+        let nsFont = NSFont(descriptor: descriptor, size: size)
+                     ?? NSFont.systemFont(ofSize: size)
+        return Font(nsFont)
     }
 }
 

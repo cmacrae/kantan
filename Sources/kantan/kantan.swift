@@ -1,493 +1,17 @@
 import AppKit
+import SwiftUI
 import Yaml
-
-@MainActor
-class StatusBarController {
-    var config: Config
-    var statusBarWindow: NSWindow
-    var statusBarView: NSView
-    var statusBarWidth: CGFloat
-    var moduleTimers: [ModuleTimer] = []
-    var eventObserver: EventObserver?
-    var moduleLayout: [String: (textPosition: CGPoint, iconPosition: CGPoint, width: CGFloat, alignment: String)] = [:]
-    var moduleSubviews: [String: [NSView]] = [:]
-    var durationTimers: [String: Timer] = [:]
-    let popupManager = PopupManager()
-
-    init(config: Config, statusBarWindow: NSWindow, statusBarView: NSView, statusBarWidth: CGFloat) {
-        self.config = config
-        self.statusBarWindow = statusBarWindow
-        self.statusBarView = statusBarView
-        self.statusBarWidth = statusBarWidth
-
-        self.applyCurrentAppearance()
-
-        self.eventObserver = EventObserver(
-            onRefresh: { [weak self] in
-                self?.refreshAllModules()
-            },
-            onEvent: { [weak self] module, action, userInfo in
-                self?.handleEvent(module: module, action: action, userInfo: userInfo)
-            }
-        )
-
-        for i in 0..<self.config.modules.count {
-            var moduleTimer = ModuleTimer(moduleConfig: self.config.modules[i])
-            moduleTimer.timer = Timer.scheduledTimer(withTimeInterval: self.config.modules[i].config?.redrawInterval ?? 1.0, repeats: true) { [weak self] _ in
-                MainActor.assumeIsolated {
-                    guard let self = self else { return }
-                    self.updateModule(at: i)
-                }
-            }
-            self.moduleTimers.append(moduleTimer)
-        }
-    }
-
-    func updateModule(at index: Int) {
-        let module = config.modules[index]
-        guard let moduleConfig = module.config else { return }
-
-        // Skip getValue() while a timed override is active
-        if durationTimers[module.name] != nil { return }
-
-        let icon = moduleConfig.getIcon()
-        let newIcon = icon.isEmpty ? module.icon : icon
-
-        moduleConfig.getValue { [weak self] newValue in
-            DispatchQueue.main.async {
-                guard let self = self else { return }
-                var mod = self.config.modules[index]
-                if newValue != mod.lastDrawnValue || newIcon != mod.lastDrawnIcon {
-                    mod.lastDrawnValue = newValue
-                    mod.lastDrawnIcon = newIcon
-                    self.config.modules[index] = mod
-                    self.redrawAllModules()
-                }
-            }
-        }
-    }
-
-    /// Redraws all modules from scratch to ensure correct positioning.
-    private func redrawAllModules() {
-        statusBarView.subviews.forEach { $0.removeFromSuperview() }
-        moduleLayout.removeAll()
-        moduleSubviews.removeAll()
-        applyCurrentAppearance()
-
-        // Update popup manager with current global colours and appearance
-        let globalColour = currentColourConfig(moduleColour: nil, globalColour: config.global.colour)
-        popupManager.fgColor = NSColor(hex: globalColour.fg)
-        popupManager.bgColor = NSColor(hex: globalColour.bg)
-        popupManager.appearance = config.global.appearance
-
-        for module in config.modules {
-            drawModule(module)
-        }
-    }
-
-    func currentColourConfig(moduleColour: ColourModeConfig?, globalColour: ColourModeConfig) -> ColourConfig {
-        let appearance = NSApp.effectiveAppearance
-        if appearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua {
-            return moduleColour?.dark ?? globalColour.dark
-        } else {
-            return moduleColour?.light ?? globalColour.light
-        }
-    }
-
-    func applyCurrentAppearance() {
-        let currentBgColour = self.currentColourConfig(moduleColour: nil, globalColour: self.config.global.colour).bg
-        let barBgColor = NSColor(hex: currentBgColour)
-        self.statusBarView.layer?.backgroundColor = barBgColor.cgColor
-    }
-
-    func redrawBar() {
-        redrawAllModules()
-    }
-
-    func refreshAllModules() {
-        for i in 0..<config.modules.count {
-            updateModule(at: i)
-        }
-    }
-
-    func handleEvent(module moduleName: String, action: String, userInfo: [String: String]) {
-        let indices: [Int]
-        if moduleName == "*" {
-            indices = Array(0..<config.modules.count)
-        } else {
-            indices = config.modules.enumerated()
-                .filter { $0.element.name == moduleName }
-                .map { $0.offset }
-        }
-
-        guard !indices.isEmpty else { return }
-
-        for index in indices {
-            switch action {
-            case "refresh":
-                updateModule(at: index)
-
-            case "set":
-                // Cancel any existing duration timer for this module
-                let name = config.modules[index].name
-                durationTimers[name]?.invalidate()
-                durationTimers[name] = nil
-
-                // Apply overrides
-                if let value = userInfo["value"] {
-                    config.modules[index].lastDrawnValue = value.isEmpty ? nil : value
-                }
-                if let icon = userInfo["icon"] {
-                    config.modules[index].lastDrawnIcon = icon.isEmpty ? nil : icon
-                }
-                if let fg = userInfo["fg"] {
-                    config.modules[index].fgOverride = fg.isEmpty ? nil : fg
-                }
-                if let bg = userInfo["bg"] {
-                    config.modules[index].bgOverride = bg.isEmpty ? nil : bg
-                }
-
-                // Schedule duration timer if specified
-                if let durationStr = userInfo["duration"],
-                   let duration = Double(durationStr), duration > 0 {
-                    let moduleIndex = index
-                    durationTimers[name] = Timer.scheduledTimer(withTimeInterval: duration, repeats: false) { [weak self] _ in
-                        MainActor.assumeIsolated {
-                            guard let self = self else { return }
-                            self.durationTimers[name] = nil
-                            self.config.modules[moduleIndex].fgOverride = nil
-                            self.config.modules[moduleIndex].bgOverride = nil
-                            self.updateModule(at: moduleIndex)
-                        }
-                    }
-                }
-
-                redrawAllModules()
-
-            default:
-                break
-            }
-        }
-    }
-
-    func buildIconAttributedString(icon: String, fgColor: NSColor, bgColor: NSColor, module: ModuleConfig) -> NSAttributedString {
-        let iconFontConfig = module.iconFont ?? self.config.global.iconFont!
-        let fontName = iconFontConfig.name
-        let fontSize = iconFontConfig.size
-        let fontSymbolicTraits = iconFontConfig.symbolicTraits
-        let fontDescriptor = NSFontDescriptor(name: fontName, size: fontSize).withSymbolicTraits(fontSymbolicTraits)
-        let font = NSFont(descriptor: fontDescriptor, size: fontSize) ?? NSFont.systemFont(ofSize: fontSize)
-        return NSAttributedString(string: icon, attributes: [.font: font, .foregroundColor: fgColor, .backgroundColor: bgColor])
-    }
-
-    func buildTextAttributedString(text: String, fgColor: NSColor, bgColor: NSColor, module: ModuleConfig) -> NSAttributedString {
-        let textFontConfig = module.textFont ?? self.config.global.textFont!
-        let fontName = textFontConfig.name
-        let fontSize = textFontConfig.size
-        let fontSymbolicTraits = textFontConfig.symbolicTraits
-        let fontDescriptor = NSFontDescriptor(name: fontName, size: fontSize).withSymbolicTraits(fontSymbolicTraits)
-        let font = NSFont(descriptor: fontDescriptor, size: fontSize) ?? NSFont.systemFont(ofSize: fontSize)
-        return NSAttributedString(string: text, attributes: [.font: font, .foregroundColor: fgColor, .backgroundColor: bgColor])
-    }
-
-    func drawModule(_ module: ModuleConfig) {
-        // Remove previous subviews for this module
-        moduleSubviews[module.name]?.forEach { $0.removeFromSuperview() }
-        moduleSubviews[module.name] = nil
-        moduleLayout.removeValue(forKey: module.name)
-
-        if module.type == "workspace" {
-            drawWorkspaceModule(module)
-            return
-        }
-
-        let iconTextSpacing: CGFloat = 2
-        let textContent: String? = module.lastDrawnValue
-        let icon: String? = module.lastDrawnIcon ?? module.icon
-
-        let currentColour = self.currentColourConfig(moduleColour: module.colour, globalColour: self.config.global.colour)
-        let fgColor = module.fgOverride.map { NSColor(hex: $0) } ?? NSColor(hex: currentColour.fg)
-        let bgColor = module.bgOverride.map { NSColor(hex: $0) } ?? NSColor(hex: currentColour.bg)
-
-        // Dim icon when module reports inactive (e.g. bluetooth with no connected devices)
-        let iconFgColor: NSColor
-        if let config = module.config, !config.isActive() {
-            iconFgColor = fgColor.withAlphaComponent(0.4)
-        } else {
-            iconFgColor = fgColor
-        }
-
-        let iconField = NSTextField(labelWithAttributedString: NSAttributedString())
-        let textField = NSTextField(labelWithAttributedString: NSAttributedString())
-        var totalWidth: CGFloat = 0
-
-        if let icon = icon {
-            iconField.attributedStringValue = self.buildIconAttributedString(icon: icon, fgColor: iconFgColor, bgColor: bgColor, module: module)
-            iconField.sizeToFit()
-            totalWidth += iconField.frame.width
-        }
-
-        if let textValue = textContent {
-            textField.attributedStringValue = self.buildTextAttributedString(text: textValue, fgColor: fgColor, bgColor: bgColor, module: module)
-            textField.sizeToFit()
-            totalWidth += (icon != nil ? iconTextSpacing : 0) + textField.frame.width
-        }
-
-        let layout = self.positionModule(module: module, iconField: iconField, textField: textField, totalWidth: totalWidth)
-        self.moduleLayout[module.name] = layout
-
-        if icon != nil {
-            iconField.frame.origin = layout.iconPosition
-        }
-
-        if textContent != nil {
-            textField.frame.origin = layout.textPosition
-        }
-
-        self.statusBarView.addSubview(iconField)
-        self.statusBarView.addSubview(textField)
-
-        var subviews: [NSView] = [iconField, textField]
-
-        // Add interactive overlay if interaction config is present
-        if module.interaction != nil {
-            let interactiveView = createInteractiveOverlay(module: module, coveredViews: [iconField, textField])
-            self.statusBarView.addSubview(interactiveView)
-            subviews.append(interactiveView)
-        }
-
-        self.moduleSubviews[module.name] = subviews
-    }
-
-    func drawWorkspaceModule(_ module: ModuleConfig) {
-        let padding: CGFloat = CGFloat(self.config.global.padding)
-        let segmentSpacing: CGFloat = 6
-        let segments = getWorkspaceSegments()
-
-        guard !segments.isEmpty else { return }
-
-        let currentColour = self.currentColourConfig(moduleColour: module.colour, globalColour: self.config.global.colour)
-        let fgColor = module.fgOverride.map { NSColor(hex: $0) } ?? NSColor(hex: currentColour.fg)
-        let bgColor = module.bgOverride.map { NSColor(hex: $0) } ?? NSColor(hex: currentColour.bg)
-
-        // Determine the active space highlight colour
-        let activeColor: NSColor
-        if let wsConfig = module.config as? WorkspaceConfig,
-           let activeHex = wsConfig.activeColour {
-            activeColor = NSColor(hex: activeHex)
-        } else {
-            activeColor = fgColor
-        }
-        let inactiveColor: NSColor
-        if let wsConfig = module.config as? WorkspaceConfig,
-           let inactiveHex = wsConfig.inactiveColour {
-            inactiveColor = NSColor(hex: inactiveHex)
-        } else {
-            inactiveColor = fgColor.withAlphaComponent(0.4)
-        }
-
-        // Build all segment text fields and measure total width
-        var segmentFields: [(field: NSTextField, segment: WorkspaceSegment)] = []
-        var totalWidth: CGFloat = 0
-
-        for (i, segment) in segments.enumerated() {
-            let color = segment.isActive ? activeColor : inactiveColor
-            let attrStr = self.buildTextAttributedString(
-                text: segment.label, fgColor: color, bgColor: bgColor, module: module)
-            let field = NSTextField(labelWithAttributedString: attrStr)
-            field.sizeToFit()
-            segmentFields.append((field: field, segment: segment))
-            totalWidth += field.frame.width
-            if i < segments.count - 1 {
-                totalWidth += segmentSpacing
-            }
-        }
-
-        totalWidth += padding  // trailing padding for layout accounting
-
-        // Calculate starting position based on alignment and previous modules
-        var xOffset: CGFloat
-
-        switch module.alignment {
-        case "left":
-            let totalPreviousWidth = self.moduleLayout.values
-                .filter { $0.alignment == "left" }
-                .reduce(CGFloat(0)) { $0 + $1.width }
-            xOffset = padding + totalPreviousWidth
-
-        case "right":
-            let totalPreviousWidth = self.moduleLayout.values
-                .filter { $0.alignment == "right" }
-                .reduce(CGFloat(0)) { $0 + $1.width }
-            xOffset = self.statusBarWidth - padding - totalPreviousWidth - totalWidth + padding
-
-        default:
-            xOffset = padding
-        }
-
-        // Position each segment field
-        var subviews: [NSView] = []
-        for (i, entry) in segmentFields.enumerated() {
-            let yPos = (self.statusBarView.frame.height - entry.field.frame.height) / 2
-            entry.field.frame.origin = CGPoint(x: xOffset, y: yPos)
-            self.statusBarView.addSubview(entry.field)
-            subviews.append(entry.field)
-            xOffset += entry.field.frame.width
-            if i < segmentFields.count - 1 {
-                xOffset += segmentSpacing
-            }
-        }
-
-        // Add interactive overlay if interaction config is present
-        if module.interaction != nil {
-            let interactiveView = createInteractiveOverlay(module: module, coveredViews: subviews)
-            self.statusBarView.addSubview(interactiveView)
-            subviews.append(interactiveView)
-        }
-
-        self.moduleSubviews[module.name] = subviews
-
-        // Store layout so subsequent modules position correctly
-        // Use CGPoint.zero for icon/text positions since workspace uses custom rendering
-        self.moduleLayout[module.name] = (
-            textPosition: CGPoint.zero,
-            iconPosition: CGPoint.zero,
-            width: totalWidth,
-            alignment: module.alignment
-        )
-    }
-
-    /// Creates an InteractiveModuleView that covers the given subviews,
-    /// wired up with the module's interaction config and template variables.
-    func createInteractiveOverlay(module: ModuleConfig, coveredViews: [NSView]) -> InteractiveModuleView {
-        // Compute bounding rect of all covered views
-        var minX = CGFloat.greatestFiniteMagnitude
-        var minY = CGFloat.greatestFiniteMagnitude
-        var maxX: CGFloat = 0
-        var maxY: CGFloat = 0
-        for v in coveredViews {
-            minX = min(minX, v.frame.minX)
-            minY = min(minY, v.frame.minY)
-            maxX = max(maxX, v.frame.maxX)
-            maxY = max(maxY, v.frame.maxY)
-        }
-        let coverRect = NSRect(x: minX, y: minY, width: maxX - minX, height: maxY - minY)
-
-        let interactiveView = InteractiveModuleView(frame: coverRect, moduleName: module.name)
-        interactiveView.interaction = module.interaction
-        interactiveView.popupManager = self.popupManager
-
-        // Capture module index for closures
-        let moduleIndex = config.modules.firstIndex(where: { $0.name == module.name })
-
-        interactiveView.currentValue = { [weak self] in
-            guard let self = self, let idx = moduleIndex else { return nil }
-            return self.config.modules[idx].lastDrawnValue
-        }
-        interactiveView.currentIcon = { [weak self] in
-            guard let self = self, let idx = moduleIndex else { return nil }
-            return self.config.modules[idx].lastDrawnIcon ?? self.config.modules[idx].icon
-        }
-        interactiveView.templateVariableProvider = { [weak self] in
-            guard let self = self, let idx = moduleIndex else { return [:] }
-            return self.config.modules[idx].config?.getTemplateVariables() ?? [:]
-        }
-
-        // Wire dynamic menu provider for bluetooth modules
-        if module.type == "bluetooth" {
-            interactiveView.dynamicMenuProvider = {
-                return BluetoothConfig.buildMenuDescriptors()
-            }
-        }
-
-        return interactiveView
-    }
-
-    func positionModule(module: ModuleConfig, iconField: NSTextField, textField: NSTextField, totalWidth: CGFloat) -> (textPosition: CGPoint, iconPosition: CGPoint, width: CGFloat, alignment: String) {
-        let padding: CGFloat = CGFloat(self.config.global.padding)
-        let iconTextSpacing: CGFloat = 2
-
-        var leftOffset: CGFloat = padding
-        var rightOffset: CGFloat = self.statusBarWidth - padding
-        var iconPosition = CGPoint.zero
-        var textPosition = CGPoint.zero
-        var occupiedWidth: CGFloat = 0
-
-        let icon: String? = module.lastDrawnIcon ?? module.icon
-
-        if let layout = self.moduleLayout[module.name] {
-            return layout
-        }
-
-        switch module.alignment {
-        case "left":
-            let totalPreviousWidth = self.moduleLayout.values
-                .filter { $0.alignment == "left" }
-                .reduce(CGFloat(0)) { $0 + $1.width }
-
-            leftOffset += totalPreviousWidth
-            let startOffset = leftOffset
-
-            if let _ = icon {
-                iconPosition = CGPoint(x: leftOffset, y: (self.statusBarView.frame.height - iconField.frame.height) / 2)
-                leftOffset += iconField.frame.width
-            }
-
-            if module.config != nil {
-                if let _ = icon {
-                    leftOffset += iconTextSpacing
-                }
-                textPosition = CGPoint(x: leftOffset, y: (self.statusBarView.frame.height - textField.frame.height) / 2)
-                leftOffset += textField.frame.width + padding
-            }
-
-            occupiedWidth = leftOffset - startOffset
-
-        case "right":
-            let totalPreviousWidth = self.moduleLayout.values
-                .filter { $0.alignment == "right" }
-                .reduce(CGFloat(0)) { $0 + $1.width }
-
-            rightOffset -= totalPreviousWidth
-            let startOffset = rightOffset
-
-            if module.config != nil {
-                textPosition = CGPoint(x: rightOffset - textField.frame.width, y: (self.statusBarView.frame.height - textField.frame.height) / 2)
-                rightOffset -= textField.frame.width
-            }
-
-            if let _ = icon {
-                if module.config != nil {
-                    rightOffset -= iconTextSpacing
-                }
-                iconPosition = CGPoint(x: rightOffset - iconField.frame.width, y: (self.statusBarView.frame.height - iconField.frame.height) / 2)
-                rightOffset -= iconField.frame.width + padding
-            }
-
-            occupiedWidth = startOffset - rightOffset
-
-        default:
-            print("Invalid alignment")
-            return (CGPoint.zero, CGPoint.zero, totalWidth, module.alignment)
-        }
-
-        self.moduleLayout[module.name] = (textPosition, iconPosition, occupiedWidth, module.alignment)
-
-        return (textPosition, iconPosition, occupiedWidth, module.alignment)
-    }
-}
-
 
 @MainActor
 class AppDelegate: NSObject, NSApplicationDelegate {
     var window: NSWindow!
-    var statusBarView: NSView!
-    var config: Config?
-    var statusBarController: StatusBarController?
-    var appearanceObservation: NSKeyValueObservation?
+    var barViewModel: BarViewModel?
+    var themeProvider: ThemeProvider?
 
     func applicationDidFinishLaunching(_ aNotification: Notification) {
         NSApp.setActivationPolicy(.accessory)
+
+        var config: Config?
 
         if let fileData = loadFileContents(filePath: "config.yaml") {
             do {
@@ -524,34 +48,42 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         window.isOpaque = false
         window.hasShadow = false
         window.backgroundColor = NSColor.clear
-        // ignoresMouseEvents = false: modules with interaction config
-        // get hover/click via InteractiveModuleView + NSTrackingArea.
-        // The .nonactivatingPanel style ensures we never steal focus.
         window.ignoresMouseEvents = false
 
-        statusBarView = StatusBarContainerView(frame: statusBarRect)
-        statusBarView.wantsLayer = true
-        window.contentView = statusBarView
-        window.makeKeyAndOrderFront(nil)
+        let theme = ThemeProvider(globalConfig: config.global)
+        let bar = BarViewModel(config: config)
 
-        statusBarController = StatusBarController(config: config,
-                                                  statusBarWindow: window,
-                                                  statusBarView: statusBarView,
-                                                  statusBarWidth: statusBarWidth)
+        // Update popup manager with theme colors and appearance
+        let globalColour = theme.isDarkMode ? config.global.colour.dark : config.global.colour.light
+        bar.popupManager.fgColor = NSColor(hex: globalColour.fg)
+        bar.popupManager.bgColor = NSColor(hex: globalColour.bg)
+        bar.popupManager.appearance = config.global.appearance
+        bar.popupManager.barWindow = window
 
-        for i in 0..<config.modules.count {
-            statusBarController?.updateModule(at: i)
+        let rootView = KantanBarView(barViewModel: bar, themeProvider: theme)
+        let hostingView = NSHostingView(rootView: rootView)
+        hostingView.frame = NSRect(origin: .zero, size: statusBarRect.size)
+
+        if config.global.appearance == .native {
+            let effectView = NSVisualEffectView(frame: NSRect(origin: .zero, size: statusBarRect.size))
+            effectView.material = .headerView
+            effectView.state = .active
+            effectView.blendingMode = .behindWindow
+            effectView.autoresizingMask = [.width, .height]
+
+            hostingView.autoresizingMask = [.width, .height]
+            effectView.addSubview(hostingView)
+            window.contentView = effectView
+        } else {
+            window.contentView = hostingView
         }
+        window.orderFrontRegardless()
 
-        appearanceObservation = NSApp.observe(\.effectiveAppearance) { [weak self] _, _ in
-            MainActor.assumeIsolated {
-                self?.statusBarController?.redrawBar()
-            }
-        }
+        self.barViewModel = bar
+        self.themeProvider = theme
     }
 
     func applicationWillTerminate(_ aNotification: Notification) {
-        appearanceObservation?.invalidate()
     }
 }
 

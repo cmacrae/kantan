@@ -156,10 +156,6 @@ enum BuilderError: Error {
     case unsupportedModuleType
 }
 
-struct ModuleTimer {
-    let moduleConfig: ModuleConfig
-    var timer: Timer?
-}
 
 struct ModuleConfig: Codable {
     let name: String
