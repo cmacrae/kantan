@@ -7,6 +7,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     var window: NSWindow!
     var barViewModel: BarViewModel?
     var themeProvider: ThemeProvider?
+    var barHeight: CGFloat = 0
 
     func applicationDidFinishLaunching(_ aNotification: Notification) {
         NSApp.setActivationPolicy(.accessory)
@@ -29,15 +30,19 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             return
         }
 
-        guard let focusedScreen = NSScreen.deepest else {
-            print("Unable to get focused screen")
+        barHeight = CGFloat(config.global.height)
+
+        guard let screen = NSScreen.screens.first else {
+            print("Unable to get screen")
             return
         }
 
-        let screenSize = focusedScreen.frame.size
-        let statusBarWidth = screenSize.width
-
-        let statusBarRect = NSRect(x: 0, y: screenSize.height - CGFloat(config.global.height), width: statusBarWidth, height: CGFloat(config.global.height))
+        let statusBarRect = NSRect(
+            x: screen.frame.origin.x,
+            y: screen.frame.origin.y + screen.frame.height - barHeight,
+            width: screen.frame.width,
+            height: barHeight
+        )
 
         // Use NSPanel with .nonactivatingPanel so the bar is interactive
         // (hover/click) without ever stealing focus from tiling WMs
@@ -81,6 +86,26 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
         self.barViewModel = bar
         self.themeProvider = theme
+
+        NotificationCenter.default.addObserver(
+            self, selector: #selector(screenDidChange),
+            name: NSApplication.didChangeScreenParametersNotification, object: nil
+        )
+    }
+
+    @objc func screenDidChange(_ notification: Notification) {
+        repositionWindow()
+    }
+
+    func repositionWindow() {
+        guard let screen = NSScreen.screens.first else { return }
+        let newFrame = NSRect(
+            x: screen.frame.origin.x,
+            y: screen.frame.origin.y + screen.frame.height - barHeight,
+            width: screen.frame.width,
+            height: barHeight
+        )
+        window.setFrame(newFrame, display: true)
     }
 
     func applicationWillTerminate(_ aNotification: Notification) {
