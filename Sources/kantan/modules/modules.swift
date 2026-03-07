@@ -208,7 +208,9 @@ struct ModuleConfig: Codable {
           "power": PowerConfigFactory(),
           "command": CommandConfigFactory(),
           "reminders": RemindersConfigFactory(),
-          "workspace": WorkspaceConfigFactory()
+          "workspace": WorkspaceConfigFactory(),
+          "volume": VolumeConfigFactory(),
+          "wifi": WiFiConfigFactory()
         ]
 
         if let configYaml = configYaml, let factory = factories[type] {

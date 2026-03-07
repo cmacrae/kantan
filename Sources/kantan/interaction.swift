@@ -383,6 +383,10 @@ class PopupManager {
             return CalendarPopupView(fgColor: fgColor, bgColor: bgColor)
         case "battery-detail":
             return BatteryDetailPopupView(fgColor: fgColor, bgColor: bgColor)
+        case "volume-detail":
+            return VolumeDetailPopupView(fgColor: fgColor, bgColor: bgColor)
+        case "wifi-detail":
+            return WiFiDetailPopupView(fgColor: fgColor, bgColor: bgColor)
         default:
             return nil
         }
@@ -608,5 +612,164 @@ class BatteryDetailPopupView: NSView {
             return (level, isCharging, isPluggedIn, true)
         }
         return (0, false, false, false)
+    }
+}
+
+// MARK: - Volume Detail Popup View
+
+class VolumeDetailPopupView: NSView {
+    private let padding: CGFloat = 16
+    private let fgColor: NSColor
+    private let bgColor: NSColor
+
+    init(fgColor: NSColor, bgColor: NSColor) {
+        self.fgColor = fgColor
+        self.bgColor = bgColor
+        super.init(frame: .zero)
+        setupView()
+    }
+
+    required init?(coder: NSCoder) {
+        fatalError("init(coder:) has not been implemented")
+    }
+
+    private func setupView() {
+        let status = VolumeConfig.readVolumeStatus()
+        let width: CGFloat = 200
+        var yOffset: CGFloat = padding
+        let dimColor = fgColor.withAlphaComponent(0.5)
+
+        // State label
+        let stateText = status.isMuted ? "Muted" : "Active"
+        let stateLabel = NSTextField(labelWithString: stateText)
+        stateLabel.font = NSFont.systemFont(ofSize: 11)
+        stateLabel.textColor = dimColor
+        stateLabel.frame = NSRect(x: padding, y: yOffset, width: width - padding * 2, height: 16)
+        addSubview(stateLabel)
+        yOffset += 20
+
+        // Level label
+        let levelStr = status.isMuted ? "Muted" : "\(status.level)%"
+        let levelLabel = NSTextField(labelWithString: levelStr)
+        levelLabel.font = NSFont.systemFont(ofSize: 24, weight: .semibold)
+        levelLabel.textColor = fgColor
+        levelLabel.frame = NSRect(x: padding, y: yOffset, width: width - padding * 2, height: 30)
+        addSubview(levelLabel)
+        yOffset += 38
+
+        // Volume bar
+        let barBg = NSView(frame: NSRect(x: padding, y: yOffset, width: width - padding * 2, height: 6))
+        barBg.wantsLayer = true
+        barBg.layer?.cornerRadius = 3
+        barBg.layer?.backgroundColor = fgColor.withAlphaComponent(0.2).cgColor
+        addSubview(barBg)
+
+        if !status.isMuted {
+            let barWidth = (width - padding * 2) * CGFloat(status.volume)
+            let barFill = NSView(frame: NSRect(x: padding, y: yOffset, width: barWidth, height: 6))
+            barFill.wantsLayer = true
+            barFill.layer?.cornerRadius = 3
+            barFill.layer?.backgroundColor = fgColor.cgColor
+            addSubview(barFill)
+        }
+        yOffset += 14
+
+        yOffset += padding
+        frame = NSRect(x: 0, y: 0, width: width, height: yOffset)
+    }
+
+    override var fittingSize: NSSize {
+        return frame.size
+    }
+}
+
+// MARK: - WiFi Detail Popup View
+
+class WiFiDetailPopupView: NSView {
+    private let padding: CGFloat = 16
+    private let fgColor: NSColor
+    private let bgColor: NSColor
+
+    init(fgColor: NSColor, bgColor: NSColor) {
+        self.fgColor = fgColor
+        self.bgColor = bgColor
+        super.init(frame: .zero)
+        setupView()
+    }
+
+    required init?(coder: NSCoder) {
+        fatalError("init(coder:) has not been implemented")
+    }
+
+    private func setupView() {
+        let status = WiFiConfig.readWiFiStatus()
+        let width: CGFloat = 220
+        var yOffset: CGFloat = padding
+        let dimColor = fgColor.withAlphaComponent(0.5)
+
+        // State label
+        let stateText = status.isConnected ? "Connected" : "Disconnected"
+        let stateLabel = NSTextField(labelWithString: stateText)
+        stateLabel.font = NSFont.systemFont(ofSize: 11)
+        stateLabel.textColor = dimColor
+        stateLabel.frame = NSRect(x: padding, y: yOffset, width: width - padding * 2, height: 16)
+        addSubview(stateLabel)
+        yOffset += 20
+
+        // SSID label
+        let ssidStr = status.ssid ?? "Not connected"
+        let ssidLabel = NSTextField(labelWithString: ssidStr)
+        ssidLabel.font = NSFont.systemFont(ofSize: 18, weight: .semibold)
+        ssidLabel.textColor = fgColor
+        ssidLabel.frame = NSRect(x: padding, y: yOffset, width: width - padding * 2, height: 24)
+        addSubview(ssidLabel)
+        yOffset += 32
+
+        if status.isConnected {
+            // Signal strength bar
+            let signalLabel = NSTextField(labelWithString: "Signal")
+            signalLabel.font = NSFont.systemFont(ofSize: 11)
+            signalLabel.textColor = dimColor
+            signalLabel.frame = NSRect(x: padding, y: yOffset, width: 60, height: 16)
+            addSubview(signalLabel)
+            yOffset += 18
+
+            let barBg = NSView(frame: NSRect(x: padding, y: yOffset, width: width - padding * 2, height: 6))
+            barBg.wantsLayer = true
+            barBg.layer?.cornerRadius = 3
+            barBg.layer?.backgroundColor = fgColor.withAlphaComponent(0.2).cgColor
+            addSubview(barBg)
+
+            let barWidth = (width - padding * 2) * CGFloat(status.signalQuality)
+            let barFill = NSView(frame: NSRect(x: padding, y: yOffset, width: barWidth, height: 6))
+            barFill.wantsLayer = true
+            barFill.layer?.cornerRadius = 3
+            let barColor: NSColor
+            if status.signalQuality >= 0.66 {
+                barColor = .systemGreen
+            } else if status.signalQuality >= 0.33 {
+                barColor = .systemYellow
+            } else {
+                barColor = .systemRed
+            }
+            barFill.layer?.backgroundColor = barColor.cgColor
+            addSubview(barFill)
+            yOffset += 14
+
+            // RSSI detail
+            let rssiLabel = NSTextField(labelWithString: "RSSI: \(status.rssi) dBm")
+            rssiLabel.font = NSFont.systemFont(ofSize: 11)
+            rssiLabel.textColor = dimColor
+            rssiLabel.frame = NSRect(x: padding, y: yOffset, width: width - padding * 2, height: 16)
+            addSubview(rssiLabel)
+            yOffset += 18
+        }
+
+        yOffset += padding
+        frame = NSRect(x: 0, y: 0, width: width, height: yOffset)
+    }
+
+    override var fittingSize: NSSize {
+        return frame.size
     }
 }

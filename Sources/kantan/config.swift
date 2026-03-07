@@ -123,6 +123,8 @@ func loadConfig(from yaml: Yaml) -> Config? {
     let commandConfigFactory = CommandConfigFactory()
     let remindersConfigFactory = RemindersConfigFactory()
     let workspaceConfigFactory = WorkspaceConfigFactory()
+    let volumeConfigFactory = VolumeConfigFactory()
+    let wifiConfigFactory = WiFiConfigFactory()
 
     for moduleYaml in modulesYaml {
         var builder = ModuleConfigBuilder()
@@ -218,6 +220,10 @@ func loadConfig(from yaml: Yaml) -> Config? {
             builder = builder.setConfigFactory(remindersConfigFactory)
         case "workspace":
             builder = builder.setConfigFactory(workspaceConfigFactory)
+        case "volume":
+            builder = builder.setConfigFactory(volumeConfigFactory)
+        case "wifi":
+            builder = builder.setConfigFactory(wifiConfigFactory)
         default:
             print("Unsupported module type")
         }
