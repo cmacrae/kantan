@@ -38,13 +38,89 @@ struct WiFiStatus: Sendable {
     }
 }
 
-struct WiFiConfig: ModuleConfiguration {
+/// Event-driven WiFi module using CoreWLAN event monitoring.
+/// Listens for SSID changes, link state changes, and power state changes
+/// via CWWiFiClient delegate. Keeps a 30s poll for RSSI updates only,
+/// since signal strength has no event API.
+final class WiFiConfig: NSObject, ModuleConfiguration, EventDrivenModule, @unchecked Sendable {
     var type: String { "wifi" }
     let showSSID: Bool
     let icons: [String]
     let disconnectedIcon: String
 
-    var redrawInterval: TimeInterval { 5.0 }
+    var redrawInterval: TimeInterval { 0 }
+
+    nonisolated(unsafe) private var onChange: (@Sendable () -> Void)?
+    nonisolated(unsafe) private var rssiTimer: Timer?
+    nonisolated(unsafe) private var wifiClient: CWWiFiClient?
+
+    init(showSSID: Bool, icons: [String], disconnectedIcon: String) {
+        self.showSSID = showSSID
+        self.icons = icons
+        self.disconnectedIcon = disconnectedIcon
+        super.init()
+    }
+
+    required init(from decoder: Decoder) throws {
+        self.showSSID = false
+        self.icons = []
+        self.disconnectedIcon = ""
+        super.init()
+    }
+
+    func encode(to encoder: Encoder) throws {}
+
+    // MARK: - EventDrivenModule
+
+    func startObserving(onChange: @escaping @Sendable () -> Void) {
+        self.onChange = onChange
+
+        let client = CWWiFiClient.shared()
+        client.delegate = self
+        do {
+            try client.startMonitoringEvent(with: .ssidDidChange)
+            try client.startMonitoringEvent(with: .linkDidChange)
+            try client.startMonitoringEvent(with: .powerDidChange)
+        } catch {
+            print("WiFi event monitoring failed: \(error)")
+        }
+        self.wifiClient = client
+
+        // RSSI has no event API — poll at a reduced 30s interval
+        rssiTimer = Timer.scheduledTimer(withTimeInterval: 30.0, repeats: true) { [weak self] _ in
+            self?.onChange?()
+        }
+    }
+
+    func stopObserving() {
+        rssiTimer?.invalidate()
+        rssiTimer = nil
+
+        if let client = wifiClient {
+            do {
+                try client.stopMonitoringAllEvents()
+            } catch {}
+            client.delegate = nil
+        }
+        wifiClient = nil
+        onChange = nil
+    }
+
+    // MARK: - CWEventDelegate
+
+    func ssidDidChangeForWiFiInterface(withName interfaceName: String) {
+        onChange?()
+    }
+
+    func linkDidChangeForWiFiInterface(withName interfaceName: String) {
+        onChange?()
+    }
+
+    func powerStateDidChangeForWiFiInterface(withName interfaceName: String) {
+        onChange?()
+    }
+
+    // MARK: - ModuleConfiguration
 
     func getValue(completion: @escaping @Sendable (String) -> Void) {
         let status = Self.readWiFiStatus()

@@ -19,6 +19,25 @@ extension ModuleConfiguration {
     }
 }
 
+// MARK: - Event-Driven Module
+
+/// Protocol for modules that push updates via system events rather than
+/// relying on timer-based polling. Conforming modules create their own
+/// observers (IOKit, CoreAudio, CoreWLAN, etc.) and call the provided
+/// onChange callback whenever state changes.
+///
+/// `ModuleViewModel` checks for this conformance and skips creating a
+/// polling timer when the module provides event-driven updates.
+protocol EventDrivenModule: AnyObject {
+    /// Start observing system events. Call `onChange` whenever the module's
+    /// value, icon, or state has changed. The callback dispatches to the
+    /// main actor — implementations should call it from any thread.
+    func startObserving(onChange: @escaping @Sendable () -> Void)
+
+    /// Stop observing system events and release resources.
+    func stopObserving()
+}
+
 // MARK: - Interaction Config
 
 struct InteractionConfig: Codable {

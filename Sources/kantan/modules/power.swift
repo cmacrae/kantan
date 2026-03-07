@@ -28,19 +28,63 @@ struct BatteryStatus: Sendable {
     var isAvailable: Bool { level >= 0 }
 }
 
-struct PowerConfig: ModuleConfiguration {
+/// Event-driven battery module using IOKit power source notifications.
+/// Instead of polling every 5s, registers a CFRunLoopSource that fires
+/// only when the system's power state actually changes (plug/unplug,
+/// charge level change, etc.).
+final class PowerConfig: ModuleConfiguration, EventDrivenModule {
     var type: String { "power" }
     let showLevel: Bool
     let charging: ChargingConfig
     let battery: BatteryConfig
 
-    var redrawInterval: TimeInterval { 5.0 }
+    var redrawInterval: TimeInterval { 0 }
+
+    nonisolated(unsafe) private var runLoopSource: CFRunLoopSource?
+    nonisolated(unsafe) private var onChange: (@Sendable () -> Void)?
 
     init(showLevel: Bool, charging: ChargingConfig, battery: BatteryConfig) {
         self.showLevel = showLevel
         self.charging = charging
         self.battery = battery
     }
+
+    required init(from decoder: Decoder) throws {
+        self.showLevel = false
+        self.charging = ChargingConfig(icon: "")
+        self.battery = BatteryConfig(icons: [])
+    }
+
+    func encode(to encoder: Encoder) throws {}
+
+    // MARK: - EventDrivenModule
+
+    func startObserving(onChange: @escaping @Sendable () -> Void) {
+        self.onChange = onChange
+
+        let context = Unmanaged.passUnretained(self).toOpaque()
+        if let source = IOPSNotificationCreateRunLoopSource(
+            { context in
+                guard let context = context else { return }
+                let config = Unmanaged<PowerConfig>.fromOpaque(context).takeUnretainedValue()
+                config.onChange?()
+            },
+            context
+        )?.takeRetainedValue() {
+            self.runLoopSource = source
+            CFRunLoopAddSource(CFRunLoopGetMain(), source, .defaultMode)
+        }
+    }
+
+    func stopObserving() {
+        if let source = runLoopSource {
+            CFRunLoopRemoveSource(CFRunLoopGetMain(), source, .defaultMode)
+            runLoopSource = nil
+        }
+        onChange = nil
+    }
+
+    // MARK: - ModuleConfiguration
 
     func getValue(completion: @escaping @Sendable (String) -> Void) {
         let status = Self.readBatteryStatus()
@@ -79,7 +123,7 @@ struct PowerConfig: ModuleConfiguration {
         return ["level": "\(status.level)", "state": state]
     }
 
-    private static func readBatteryStatus() -> BatteryStatus {
+    static func readBatteryStatus() -> BatteryStatus {
         guard let snapshot = IOPSCopyPowerSourcesInfo()?.takeRetainedValue(),
               let sources = IOPSCopyPowerSourcesList(snapshot)?.takeRetainedValue() as? [CFDictionary] else {
             return .unavailable

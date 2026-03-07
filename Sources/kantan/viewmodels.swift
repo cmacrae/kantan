@@ -27,10 +27,25 @@ class ModuleViewModel: ObservableObject, Identifiable {
         self.id = moduleConfig.name
         self.moduleConfig = moduleConfig
         self.displayIcon = moduleConfig.icon
-        startPolling()
+
+        // Event-driven modules push their own updates; polling modules
+        // use a repeating timer.
+        if let eventModule = moduleConfig.config as? EventDrivenModule {
+            update()
+            eventModule.startObserving { [weak self] in
+                DispatchQueue.main.async {
+                    MainActor.assumeIsolated {
+                        self?.update()
+                    }
+                }
+            }
+        } else {
+            startPolling()
+        }
     }
 
     deinit {
+        (moduleConfig.config as? EventDrivenModule)?.stopObserving()
         timer?.invalidate()
         durationTimer?.invalidate()
     }

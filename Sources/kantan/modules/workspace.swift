@@ -39,6 +39,10 @@ struct WorkspaceConfigFactory: ModuleConfigurationFactory {
 
 // MARK: - Configuration
 
+/// Workspace module. Native macOS spaces are event-driven via
+/// NSWorkspace.activeSpaceDidChangeNotification (handled by EventObserver
+/// which calls refreshAll()). Aerospace workspaces rely on CLI triggers.
+/// Neither mode requires polling.
 struct WorkspaceConfig: ModuleConfiguration {
     var type: String { "workspace" }
 
@@ -49,10 +53,10 @@ struct WorkspaceConfig: ModuleConfiguration {
     let inactiveColour: String?
     let aerospacePath: String?
 
-    // Native spaces use polling; aerospace is event-driven via `kantan trigger`
-    var redrawInterval: TimeInterval {
-        providerType == "aerospace" ? 3600.0 : 0.5
-    }
+    // No polling needed — native uses NSWorkspace notifications via
+    // EventObserver, aerospace uses CLI triggers. Both call refreshAll()
+    // which invokes update() on this module.
+    var redrawInterval: TimeInterval { 3600.0 }
 
     init(yaml: Yaml?) {
         self.providerType = yaml?["type"].string ?? "native"
