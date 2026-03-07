@@ -149,6 +149,7 @@ func loadConfig(from yaml: Yaml) -> Config? {
     let volumeConfigFactory = VolumeConfigFactory()
     let wifiConfigFactory = WiFiConfigFactory()
     let bluetoothConfigFactory = BluetoothConfigFactory()
+    let caffeinateConfigFactory = CaffeinateConfigFactory()
 
     for moduleYaml in modulesYaml {
         var builder = ModuleConfigBuilder()
@@ -250,6 +251,8 @@ func loadConfig(from yaml: Yaml) -> Config? {
             builder = builder.setConfigFactory(wifiConfigFactory)
         case "bluetooth":
             builder = builder.setConfigFactory(bluetoothConfigFactory)
+        case "caffeinate":
+            builder = builder.setConfigFactory(caffeinateConfigFactory)
         default:
             print("Unsupported module type")
         }

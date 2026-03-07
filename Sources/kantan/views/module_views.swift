@@ -78,6 +78,9 @@ struct ModuleContainerView: View {
         case "popup":
             guard let popupName = click.popup else { return }
             popupManager.togglePopup(name: popupName, moduleName: viewModel.id, anchorPoint: anchorPoint)
+        case "toggle":
+            viewModel.moduleConfig.config?.handleToggle()
+            viewModel.update()
         default:
             break
         }

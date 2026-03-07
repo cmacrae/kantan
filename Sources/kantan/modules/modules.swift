@@ -8,6 +8,7 @@ protocol ModuleConfiguration: Codable, Sendable {
     func getIcon() -> String
     func getTemplateVariables() -> [String: String]
     func isActive() -> Bool
+    func handleToggle()
 }
 
 extension ModuleConfiguration {
@@ -17,6 +18,7 @@ extension ModuleConfiguration {
     func isActive() -> Bool {
         return true
     }
+    func handleToggle() {}
 }
 
 // MARK: - Event-Driven Module
@@ -230,7 +232,8 @@ struct ModuleConfig: Codable {
           "workspace": WorkspaceConfigFactory(),
           "volume": VolumeConfigFactory(),
           "wifi": WiFiConfigFactory(),
-          "bluetooth": BluetoothConfigFactory()
+          "bluetooth": BluetoothConfigFactory(),
+          "caffeinate": CaffeinateConfigFactory()
         ]
 
         if let configYaml = configYaml, let factory = factories[type] {
