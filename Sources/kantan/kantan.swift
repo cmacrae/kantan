@@ -8,6 +8,8 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     var barViewModel: BarViewModel?
     var themeProvider: ThemeProvider?
     var barHeight: CGFloat = 0
+    var isMenuBarShowing: Bool = false
+    nonisolated(unsafe) var menuBarMonitor: Any?
 
     func applicationDidFinishLaunching(_ aNotification: Notification) {
         NSApp.setActivationPolicy(.accessory)
@@ -91,6 +93,8 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             self, selector: #selector(screenDidChange),
             name: NSApplication.didChangeScreenParametersNotification, object: nil
         )
+
+        startMenuBarMonitoring()
     }
 
     @objc func screenDidChange(_ notification: Notification) {
@@ -108,7 +112,77 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         window.setFrame(newFrame, display: true)
     }
 
+    // MARK: - Menu Bar Visibility Monitoring
+
+    func startMenuBarMonitoring() {
+        menuBarMonitor = NSEvent.addGlobalMonitorForEvents(matching: .mouseMoved) { [weak self] _ in
+            DispatchQueue.main.async {
+                MainActor.assumeIsolated {
+                    self?.checkMenuBar()
+                }
+            }
+        }
+    }
+
+    func stopMenuBarMonitoring() {
+        if let monitor = menuBarMonitor {
+            NSEvent.removeMonitor(monitor)
+            menuBarMonitor = nil
+        }
+    }
+
+    func checkMenuBar() {
+        guard let screen = NSScreen.screens.first else { return }
+        let mouseY = NSEvent.mouseLocation.y
+        let screenTop = screen.frame.maxY
+        // The system menu bar region height (distance from frame top to visibleFrame top)
+        let menuBarRegion = screen.frame.maxY - screen.visibleFrame.maxY
+
+        if !isMenuBarShowing && mouseY >= screenTop - 4 {
+            // Mouse at the very top edge — menu bar is appearing
+            isMenuBarShowing = true
+            slideOut()
+        } else if isMenuBarShowing && mouseY < screenTop - menuBarRegion {
+            // Mouse moved below the menu bar region — menu bar is hiding
+            isMenuBarShowing = false
+            slideIn()
+        }
+    }
+
+    // MARK: - Slide Animation
+
+    func slideOut() {
+        guard let screen = NSScreen.screens.first else { return }
+        let offScreenFrame = NSRect(
+            x: screen.frame.origin.x,
+            y: screen.frame.origin.y + screen.frame.height,
+            width: screen.frame.width,
+            height: barHeight
+        )
+        NSAnimationContext.runAnimationGroup { context in
+            context.duration = 0.2
+            context.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
+            self.window.animator().setFrame(offScreenFrame, display: true)
+        }
+    }
+
+    func slideIn() {
+        guard let screen = NSScreen.screens.first else { return }
+        let normalFrame = NSRect(
+            x: screen.frame.origin.x,
+            y: screen.frame.origin.y + screen.frame.height - barHeight,
+            width: screen.frame.width,
+            height: barHeight
+        )
+        NSAnimationContext.runAnimationGroup { context in
+            context.duration = 0.2
+            context.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
+            self.window.animator().setFrame(normalFrame, display: true)
+        }
+    }
+
     func applicationWillTerminate(_ aNotification: Notification) {
+        stopMenuBarMonitoring()
     }
 }
 
