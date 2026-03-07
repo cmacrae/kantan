@@ -208,12 +208,20 @@ class StatusBarController {
         let fgColor = module.fgOverride.map { NSColor(hex: $0) } ?? NSColor(hex: currentColour.fg)
         let bgColor = module.bgOverride.map { NSColor(hex: $0) } ?? NSColor(hex: currentColour.bg)
 
+        // Dim icon when module reports inactive (e.g. bluetooth with no connected devices)
+        let iconFgColor: NSColor
+        if let config = module.config, !config.isActive() {
+            iconFgColor = fgColor.withAlphaComponent(0.4)
+        } else {
+            iconFgColor = fgColor
+        }
+
         let iconField = NSTextField(labelWithAttributedString: NSAttributedString())
         let textField = NSTextField(labelWithAttributedString: NSAttributedString())
         var totalWidth: CGFloat = 0
 
         if let icon = icon {
-            iconField.attributedStringValue = self.buildIconAttributedString(icon: icon, fgColor: fgColor, bgColor: bgColor, module: module)
+            iconField.attributedStringValue = self.buildIconAttributedString(icon: icon, fgColor: iconFgColor, bgColor: bgColor, module: module)
             iconField.sizeToFit()
             totalWidth += iconField.frame.width
         }
@@ -382,6 +390,18 @@ class StatusBarController {
         interactiveView.templateVariableProvider = { [weak self] in
             guard let self = self, let idx = moduleIndex else { return [:] }
             return self.config.modules[idx].config?.getTemplateVariables() ?? [:]
+        }
+
+        // Wire dynamic menu provider for bluetooth modules
+        if module.type == "bluetooth" {
+            interactiveView.dynamicMenuProvider = {
+                return BluetoothConfig.buildBluetoothMenu(
+                    target: interactiveView,
+                    connectAction: #selector(InteractiveModuleView.bluetoothConnect(_:)),
+                    disconnectAction: #selector(InteractiveModuleView.bluetoothDisconnect(_:)),
+                    settingsAction: #selector(InteractiveModuleView.bluetoothOpenSettings(_:))
+                )
+            }
         }
 
         return interactiveView

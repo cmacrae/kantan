@@ -34,6 +34,7 @@ class InteractiveModuleView: NSView {
     var templateVariableProvider: (() -> [String: String])?
     var currentValue: (() -> String?)?
     var currentIcon: (() -> String?)?
+    var dynamicMenuProvider: (() -> NSMenu)?
     private var trackingArea: NSTrackingArea?
     weak var popupManager: PopupManager?
 
@@ -84,6 +85,8 @@ class InteractiveModuleView: NSView {
         switch click.type {
         case "menu":
             showMenu(click)
+        case "dynamic-menu":
+            showDynamicMenu()
         case "popup":
             showPopup(click)
         default:
@@ -155,6 +158,35 @@ class InteractiveModuleView: NSView {
             process.standardError = Pipe()
             try? process.run()
         }
+    }
+
+    // MARK: - Dynamic Menu
+
+    private func showDynamicMenu() {
+        guard let menu = dynamicMenuProvider?() else { return }
+        let locationInWindow = convert(NSPoint(x: 0, y: 0), to: nil)
+        guard let screenPoint = window?.convertPoint(toScreen: locationInWindow) else { return }
+        menu.popUp(positioning: nil, at: NSPoint(x: screenPoint.x, y: screenPoint.y), in: nil)
+    }
+
+    // MARK: - Bluetooth Menu Actions
+
+    @objc func bluetoothConnect(_ sender: NSMenuItem) {
+        guard let address = sender.representedObject as? String else { return }
+        DispatchQueue.global(qos: .userInitiated).async {
+            BluetoothConfig.connectDevice(address: address)
+        }
+    }
+
+    @objc func bluetoothDisconnect(_ sender: NSMenuItem) {
+        guard let address = sender.representedObject as? String else { return }
+        DispatchQueue.global(qos: .userInitiated).async {
+            BluetoothConfig.disconnectDevice(address: address)
+        }
+    }
+
+    @objc func bluetoothOpenSettings(_ sender: NSMenuItem) {
+        BluetoothConfig.openBluetoothSettings()
     }
 
     // MARK: - Popup

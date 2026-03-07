@@ -7,11 +7,15 @@ protocol ModuleConfiguration: Codable, Sendable {
     func getValue(completion: @escaping @Sendable (String) -> Void)
     func getIcon() -> String
     func getTemplateVariables() -> [String: String]
+    func isActive() -> Bool
 }
 
 extension ModuleConfiguration {
     func getTemplateVariables() -> [String: String] {
         return [:]
+    }
+    func isActive() -> Bool {
+        return true
     }
 }
 
@@ -210,7 +214,8 @@ struct ModuleConfig: Codable {
           "reminders": RemindersConfigFactory(),
           "workspace": WorkspaceConfigFactory(),
           "volume": VolumeConfigFactory(),
-          "wifi": WiFiConfigFactory()
+          "wifi": WiFiConfigFactory(),
+          "bluetooth": BluetoothConfigFactory()
         ]
 
         if let configYaml = configYaml, let factory = factories[type] {
