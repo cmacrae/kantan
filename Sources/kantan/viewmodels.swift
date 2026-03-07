@@ -82,6 +82,31 @@ class ModuleViewModel: ObservableObject, Identifiable {
         }
     }
 
+    /// Pause all timers and event observers. Called on system sleep.
+    func pause() {
+        if let eventModule = moduleConfig.config as? EventDrivenModule {
+            eventModule.stopObserving()
+        }
+        timer?.invalidate()
+        timer = nil
+    }
+
+    /// Resume timers and event observers. Called on system wake.
+    func resume() {
+        if let eventModule = moduleConfig.config as? EventDrivenModule {
+            eventModule.startObserving { [weak self] in
+                DispatchQueue.main.async {
+                    MainActor.assumeIsolated {
+                        self?.update()
+                    }
+                }
+            }
+        } else {
+            startPolling()
+        }
+        update()
+    }
+
     private func startPolling() {
         update()
         let interval = moduleConfig.config?.redrawInterval ?? 1.0
@@ -121,6 +146,12 @@ class BarViewModel: ObservableObject {
             onRefresh: { [weak self] in
                 self?.refreshAll()
             },
+            onSleep: { [weak self] in
+                self?.pauseAll()
+            },
+            onWake: { [weak self] in
+                self?.resumeAll()
+            },
             onEvent: { [weak self] module, action, userInfo in
                 self?.handleEvent(module: module, action: action, userInfo: userInfo)
             }
@@ -134,6 +165,18 @@ class BarViewModel: ObservableObject {
     func refreshAll() {
         for vm in allModules {
             vm.update()
+        }
+    }
+
+    func pauseAll() {
+        for vm in allModules {
+            vm.pause()
+        }
+    }
+
+    func resumeAll() {
+        for vm in allModules {
+            vm.resume()
         }
     }
 

@@ -3,13 +3,19 @@ import AppKit
 class EventObserver {
     let workspace = NSWorkspace.shared
     private let onRefresh: @MainActor () -> Void
+    private let onSleep: @MainActor () -> Void
+    private let onWake: @MainActor () -> Void
     private let onEvent: @MainActor (String, String, [String: String]) -> Void
 
     init(
         onRefresh: @escaping @MainActor () -> Void,
+        onSleep: @escaping @MainActor () -> Void,
+        onWake: @escaping @MainActor () -> Void,
         onEvent: @escaping @MainActor (String, String, [String: String]) -> Void
     ) {
         self.onRefresh = onRefresh
+        self.onSleep = onSleep
+        self.onWake = onWake
         self.onEvent = onEvent
         let notificationCenter = workspace.notificationCenter
 
@@ -42,10 +48,21 @@ class EventObserver {
     }
 
     @objc func willSleep(_ notification: Notification) {
+        let callback = onSleep
+        DispatchQueue.main.async {
+            MainActor.assumeIsolated {
+                callback()
+            }
+        }
     }
 
     @objc func didWake(_ notification: Notification) {
-        triggerRefresh()
+        let callback = onWake
+        DispatchQueue.main.async {
+            MainActor.assumeIsolated {
+                callback()
+            }
+        }
     }
 
     @objc func kantanEvent(_ notification: Notification) {
