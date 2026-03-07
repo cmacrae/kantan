@@ -7,12 +7,20 @@ struct Config: Codable {
     var modules: [ModuleConfig]
 }
 
+/// Controls whether tooltips, menus, and popups use the native system
+/// appearance ("native") or the kantan-themed appearance ("theme").
+enum AppearanceStyle: String, Codable, Sendable {
+    case native
+    case theme
+}
+
 struct GlobalConfig: Codable {
     let height: Int
     let padding: Int
     let colour: ColourModeConfig
     let iconFont: FontConfig?
     let textFont: FontConfig?
+    let appearance: AppearanceStyle
 }
 
 struct ColourModeConfig: Codable {
@@ -100,6 +108,9 @@ func loadConfig(from yaml: Yaml) -> Config? {
     let globalIconFont = globalIconFontDescriptor.map { FontConfig(descriptor: $0) }
     let globalTextFont = globalTextFontDescriptor.map { FontConfig(descriptor: $0) }
 
+    let appearanceStr = globalYaml["appearance"]?.string ?? "theme"
+    let appearance = AppearanceStyle(rawValue: appearanceStr) ?? .theme
+
     let globalConfig = GlobalConfig(
       height: height,
       padding: padding,
@@ -108,7 +119,8 @@ func loadConfig(from yaml: Yaml) -> Config? {
         dark: ColourConfig(fg: darkFg, bg: darkBg)
       ),
       iconFont: globalIconFont,
-      textFont: globalTextFont
+      textFont: globalTextFont,
+      appearance: appearance
     )
 
     guard let modulesYaml = yaml["modules"].array else {

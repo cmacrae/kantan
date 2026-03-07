@@ -74,10 +74,11 @@ class StatusBarController {
         moduleSubviews.removeAll()
         applyCurrentAppearance()
 
-        // Update popup manager with current global colours
+        // Update popup manager with current global colours and appearance
         let globalColour = currentColourConfig(moduleColour: nil, globalColour: config.global.colour)
         popupManager.fgColor = NSColor(hex: globalColour.fg)
         popupManager.bgColor = NSColor(hex: globalColour.bg)
+        popupManager.appearance = config.global.appearance
 
         for module in config.modules {
             drawModule(module)
@@ -395,12 +396,7 @@ class StatusBarController {
         // Wire dynamic menu provider for bluetooth modules
         if module.type == "bluetooth" {
             interactiveView.dynamicMenuProvider = {
-                return BluetoothConfig.buildBluetoothMenu(
-                    target: interactiveView,
-                    connectAction: #selector(InteractiveModuleView.bluetoothConnect(_:)),
-                    disconnectAction: #selector(InteractiveModuleView.bluetoothDisconnect(_:)),
-                    settingsAction: #selector(InteractiveModuleView.bluetoothOpenSettings(_:))
-                )
+                return BluetoothConfig.buildMenuDescriptors()
             }
         }
 

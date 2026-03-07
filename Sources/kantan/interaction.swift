@@ -1,6 +1,35 @@
 import AppKit
 import IOKit.ps
 
+// MARK: - Menu Item Descriptor
+
+/// A universal descriptor for menu items, used by both native NSMenu and
+/// themed menu panels. Modules provide these; PopupManager renders them
+/// according to the active appearance style.
+struct MenuItemDescriptor {
+    let label: String?
+    let icon: NSView?
+    let isSeparator: Bool
+    let isHeader: Bool
+    let action: (() -> Void)?
+
+    static func item(_ label: String, action: @escaping () -> Void) -> MenuItemDescriptor {
+        MenuItemDescriptor(label: label, icon: nil, isSeparator: false, isHeader: false, action: action)
+    }
+
+    static func item(_ label: String, icon: NSView, action: @escaping () -> Void) -> MenuItemDescriptor {
+        MenuItemDescriptor(label: label, icon: icon, isSeparator: false, isHeader: false, action: action)
+    }
+
+    static func header(_ label: String) -> MenuItemDescriptor {
+        MenuItemDescriptor(label: label, icon: nil, isSeparator: false, isHeader: true, action: nil)
+    }
+
+    static func separator() -> MenuItemDescriptor {
+        MenuItemDescriptor(label: nil, icon: nil, isSeparator: true, isHeader: false, action: nil)
+    }
+}
+
 // MARK: - Status Bar View
 
 /// Custom NSView for the status bar that only responds to mouse events
@@ -8,7 +37,6 @@ import IOKit.ps
 /// to the windows below, preserving tiling WM interaction.
 class StatusBarContainerView: NSView {
     override func hitTest(_ point: NSPoint) -> NSView? {
-        // Only return hits on InteractiveModuleView instances
         for subview in subviews.reversed() {
             if let interactive = subview as? InteractiveModuleView {
                 let localPoint = interactive.convert(point, from: self)
@@ -17,7 +45,6 @@ class StatusBarContainerView: NSView {
                 }
             }
         }
-        // Return nil so events pass through to underlying windows
         return nil
     }
 }
@@ -25,16 +52,16 @@ class StatusBarContainerView: NSView {
 // MARK: - Interactive Module View
 
 /// A transparent hit-test view placed over module subviews to capture
-/// hover and click events. Uses NSTrackingArea for hover detection.
-/// The parent window must be a non-activating NSPanel so interactions
-/// never steal focus from the user's tiling window manager.
+/// hover and click events. Delegates all rendering of tooltips, menus,
+/// and popups to PopupManager.
 class InteractiveModuleView: NSView {
     let moduleName: String
     var interaction: InteractionConfig?
     var templateVariableProvider: (() -> [String: String])?
     var currentValue: (() -> String?)?
     var currentIcon: (() -> String?)?
-    var dynamicMenuProvider: (() -> NSMenu)?
+    /// Provides menu item descriptors for dynamic menus (e.g. bluetooth).
+    var dynamicMenuProvider: (() -> [MenuItemDescriptor])?
     private var trackingArea: NSTrackingArea?
     weak var popupManager: PopupManager?
 
@@ -64,7 +91,6 @@ class InteractiveModuleView: NSView {
 
     override func mouseEntered(with event: NSEvent) {
         guard let hover = interaction?.hover, hover.type == "tooltip" else { return }
-        // Don't show tooltip if a popup or menu is currently active
         guard popupManager?.isPopupActive != true else { return }
         let resolved = resolveTemplate(hover.content)
         let locationInWindow = convert(NSPoint(x: bounds.midX, y: 0), to: nil)
@@ -77,24 +103,27 @@ class InteractiveModuleView: NSView {
     }
 
     override func mouseDown(with event: NSEvent) {
-        // Hide tooltip on click — user is interacting now
         popupManager?.hideTooltip()
 
         guard let click = interaction?.click else { return }
+        let locationInWindow = convert(NSPoint(x: bounds.midX, y: 0), to: nil)
+        guard let screenPoint = window?.convertPoint(toScreen: locationInWindow) else { return }
 
         switch click.type {
         case "menu":
-            showMenu(click)
+            let descriptors = Self.descriptorsFromConfig(click)
+            popupManager?.showMenu(descriptors: descriptors, moduleName: moduleName, anchorPoint: screenPoint)
         case "dynamic-menu":
-            showDynamicMenu()
+            guard let descriptors = dynamicMenuProvider?() else { return }
+            popupManager?.showMenu(descriptors: descriptors, moduleName: moduleName, anchorPoint: screenPoint)
         case "popup":
-            showPopup(click)
+            guard let popupName = click.popup else { return }
+            popupManager?.togglePopup(name: popupName, moduleName: moduleName, anchorPoint: screenPoint)
         default:
             break
         }
     }
 
-    // Ensure this view is the hit target even though it's transparent
     override func hitTest(_ point: NSPoint) -> NSView? {
         let localPoint = convert(point, from: superview)
         if bounds.contains(localPoint) {
@@ -105,10 +134,9 @@ class InteractiveModuleView: NSView {
 
     // MARK: - Template Resolution
 
-    private func resolveTemplate(_ template: String) -> String {
+    func resolveTemplate(_ template: String) -> String {
         var result = template
 
-        // Built-in variables
         if let value = currentValue?() {
             result = result.replacingOccurrences(of: "{value}", with: value)
         }
@@ -116,7 +144,6 @@ class InteractiveModuleView: NSView {
             result = result.replacingOccurrences(of: "{icon}", with: icon)
         }
 
-        // Module-specific variables
         if let vars = templateVariableProvider?() {
             for (key, val) in vars {
                 result = result.replacingOccurrences(of: "{\(key)}", with: val)
@@ -126,83 +153,35 @@ class InteractiveModuleView: NSView {
         return result
     }
 
-    // MARK: - Menu
-
-    private func showMenu(_ config: ClickConfig) {
-        guard let items = config.items, !items.isEmpty else { return }
-
-        let menu = NSMenu()
-        for item in items {
+    /// Convert a ClickConfig's static menu items into MenuItemDescriptors.
+    static func descriptorsFromConfig(_ config: ClickConfig) -> [MenuItemDescriptor] {
+        guard let items = config.items else { return [] }
+        return items.map { item in
             if item.separator == true {
-                menu.addItem(NSMenuItem.separator())
-            } else if let label = item.label {
-                let menuItem = NSMenuItem(title: label, action: #selector(menuItemClicked(_:)), keyEquivalent: "")
-                menuItem.target = self
-                menuItem.representedObject = item.command
-                menu.addItem(menuItem)
+                return .separator()
+            }
+            guard let label = item.label else { return .separator() }
+            let command = item.command
+            return .item(label) {
+                guard let command = command, !command.isEmpty else { return }
+                DispatchQueue.global(qos: .userInitiated).async {
+                    let process = Process()
+                    process.executableURL = URL(fileURLWithPath: "/bin/sh")
+                    process.arguments = ["-c", command]
+                    process.standardOutput = Pipe()
+                    process.standardError = Pipe()
+                    try? process.run()
+                }
             }
         }
-
-        let locationInWindow = convert(NSPoint(x: 0, y: 0), to: nil)
-        guard let screenPoint = window?.convertPoint(toScreen: locationInWindow) else { return }
-        menu.popUp(positioning: nil, at: NSPoint(x: screenPoint.x, y: screenPoint.y), in: nil)
-    }
-
-    @objc private func menuItemClicked(_ sender: NSMenuItem) {
-        guard let command = sender.representedObject as? String, !command.isEmpty else { return }
-        DispatchQueue.global(qos: .userInitiated).async {
-            let process = Process()
-            process.executableURL = URL(fileURLWithPath: "/bin/sh")
-            process.arguments = ["-c", command]
-            process.standardOutput = Pipe()
-            process.standardError = Pipe()
-            try? process.run()
-        }
-    }
-
-    // MARK: - Dynamic Menu
-
-    private func showDynamicMenu() {
-        guard let menu = dynamicMenuProvider?() else { return }
-        let locationInWindow = convert(NSPoint(x: 0, y: 0), to: nil)
-        guard let screenPoint = window?.convertPoint(toScreen: locationInWindow) else { return }
-        menu.popUp(positioning: nil, at: NSPoint(x: screenPoint.x, y: screenPoint.y), in: nil)
-    }
-
-    // MARK: - Bluetooth Menu Actions
-
-    @objc func bluetoothConnect(_ sender: NSMenuItem) {
-        guard let address = sender.representedObject as? String else { return }
-        DispatchQueue.global(qos: .userInitiated).async {
-            BluetoothConfig.connectDevice(address: address)
-        }
-    }
-
-    @objc func bluetoothDisconnect(_ sender: NSMenuItem) {
-        guard let address = sender.representedObject as? String else { return }
-        DispatchQueue.global(qos: .userInitiated).async {
-            BluetoothConfig.disconnectDevice(address: address)
-        }
-    }
-
-    @objc func bluetoothOpenSettings(_ sender: NSMenuItem) {
-        BluetoothConfig.openBluetoothSettings()
-    }
-
-    // MARK: - Popup
-
-    private func showPopup(_ config: ClickConfig) {
-        guard let popupName = config.popup else { return }
-        let locationInWindow = convert(NSPoint(x: bounds.midX, y: 0), to: nil)
-        guard let screenPoint = window?.convertPoint(toScreen: locationInWindow) else { return }
-        popupManager?.togglePopup(name: popupName, moduleName: moduleName, anchorPoint: screenPoint)
     }
 }
 
 // MARK: - Popup Manager
 
-/// Manages popup and tooltip panels. Uses NSPanel with .nonactivatingPanel
-/// so interactions never steal focus from the user's windows.
+/// Centralised manager for all tooltips, menus, and popups.
+/// Renders using either native system controls or kantan-themed panels,
+/// controlled by the `appearance` property.
 @MainActor
 class PopupManager {
     private var activePanel: NSPanel?
@@ -212,31 +191,26 @@ class PopupManager {
     private var tooltipPanel: NSPanel?
     var fgColor: NSColor = .labelColor
     var bgColor: NSColor = .windowBackgroundColor
+    var appearance: AppearanceStyle = .theme
 
-    /// Whether a popup panel is currently showing.
     var isPopupActive: Bool {
         return activePanel != nil
     }
 
     // MARK: - Screen Clamping
 
-    /// Clamps a rect to fit within the visible screen area.
     private func clampToScreen(_ rect: NSRect) -> NSRect {
         guard let screen = NSScreen.main?.visibleFrame else { return rect }
         var clamped = rect
-        // Clamp right edge
         if clamped.maxX > screen.maxX {
             clamped.origin.x = screen.maxX - clamped.width
         }
-        // Clamp left edge
         if clamped.origin.x < screen.minX {
             clamped.origin.x = screen.minX
         }
-        // Clamp bottom edge
         if clamped.origin.y < screen.minY {
             clamped.origin.y = screen.minY
         }
-        // Clamp top edge
         if clamped.maxY > screen.maxY {
             clamped.origin.y = screen.maxY - clamped.height
         }
@@ -246,11 +220,57 @@ class PopupManager {
     // MARK: - Tooltip
 
     func showTooltip(text: String, anchorPoint: NSPoint) {
-        // Don't show tooltip if a popup is active
         guard !isPopupActive else { return }
-
         hideTooltip()
 
+        switch appearance {
+        case .native:
+            showNativeTooltip(text: text, anchorPoint: anchorPoint)
+        case .theme:
+            showThemedTooltip(text: text, anchorPoint: anchorPoint)
+        }
+    }
+
+    private func showNativeTooltip(text: String, anchorPoint: NSPoint) {
+        // Native tooltip: system-styled panel
+        let label = NSTextField(labelWithString: text)
+        label.font = NSFont.systemFont(ofSize: 11)
+        label.textColor = .labelColor
+        label.backgroundColor = .clear
+        label.isBezeled = false
+        label.isEditable = false
+        label.sizeToFit()
+
+        let padding: CGFloat = 8
+        let panelWidth = label.frame.width + padding * 2
+        let panelHeight = label.frame.height + padding * 2
+
+        var panelRect = NSRect(
+            x: anchorPoint.x - panelWidth / 2,
+            y: anchorPoint.y - panelHeight - 4,
+            width: panelWidth,
+            height: panelHeight
+        )
+        panelRect = clampToScreen(panelRect)
+
+        let panel = makeNonActivatingPanel(rect: panelRect)
+        panel.ignoresMouseEvents = true
+
+        let container = NSView(frame: NSRect(origin: .zero, size: panelRect.size))
+        container.wantsLayer = true
+        container.layer?.cornerRadius = 6
+        container.layer?.masksToBounds = true
+        container.layer?.backgroundColor = NSColor.windowBackgroundColor.cgColor
+
+        label.frame.origin = NSPoint(x: padding, y: padding)
+        container.addSubview(label)
+
+        panel.contentView = container
+        panel.orderFrontRegardless()
+        tooltipPanel = panel
+    }
+
+    private func showThemedTooltip(text: String, anchorPoint: NSPoint) {
         let label = NSTextField(labelWithString: text)
         label.font = NSFont.systemFont(ofSize: 11)
         label.textColor = fgColor
@@ -271,18 +291,7 @@ class PopupManager {
         )
         panelRect = clampToScreen(panelRect)
 
-        let panel = NSPanel(
-            contentRect: panelRect,
-            styleMask: [.nonactivatingPanel],
-            backing: .buffered,
-            defer: false
-        )
-        panel.level = .floating
-        panel.isOpaque = false
-        panel.hasShadow = true
-        panel.backgroundColor = .clear
-        panel.isMovable = false
-        panel.collectionBehavior = [.canJoinAllSpaces, .transient]
+        let panel = makeNonActivatingPanel(rect: panelRect)
         panel.ignoresMouseEvents = true
 
         let container = NSView(frame: NSRect(origin: .zero, size: panelRect.size))
@@ -304,30 +313,64 @@ class PopupManager {
         tooltipPanel = nil
     }
 
-    // MARK: - Popup
+    // MARK: - Menu
 
-    func togglePopup(name: String, moduleName: String, anchorPoint: NSPoint) {
-        let popupId = "\(moduleName):\(name)"
+    /// Show a menu from an array of MenuItemDescriptors.
+    /// Renders as native NSMenu or themed panel based on appearance.
+    func showMenu(descriptors: [MenuItemDescriptor], moduleName: String, anchorPoint: NSPoint) {
+        guard !descriptors.isEmpty else { return }
 
-        // If same popup is already showing, dismiss it (toggle off)
-        if popupId == activePopupId, activePanel != nil {
+        switch appearance {
+        case .native:
+            showNativeMenu(descriptors: descriptors, anchorPoint: anchorPoint)
+        case .theme:
+            showThemedMenu(descriptors: descriptors, moduleName: moduleName, anchorPoint: anchorPoint)
+        }
+    }
+
+    private func showNativeMenu(descriptors: [MenuItemDescriptor], anchorPoint: NSPoint) {
+        let menu = NSMenu()
+        let actionTarget = NativeMenuActionTarget()
+        // Hold a reference so ARC doesn't release the target while the menu is open
+        objc_setAssociatedObject(menu, "actionTarget", actionTarget, .OBJC_ASSOCIATION_RETAIN)
+
+        for descriptor in descriptors {
+            if descriptor.isSeparator {
+                menu.addItem(NSMenuItem.separator())
+            } else if descriptor.isHeader {
+                let item = NSMenuItem(title: descriptor.label ?? "", action: nil, keyEquivalent: "")
+                item.isEnabled = false
+                menu.addItem(item)
+            } else if let label = descriptor.label {
+                let item = NSMenuItem(title: label, action: #selector(NativeMenuActionTarget.menuItemClicked(_:)), keyEquivalent: "")
+                item.target = actionTarget
+                item.representedObject = descriptor.action
+                menu.addItem(item)
+            }
+        }
+
+        menu.popUp(positioning: nil, at: anchorPoint, in: nil)
+    }
+
+    private func showThemedMenu(descriptors: [MenuItemDescriptor], moduleName: String, anchorPoint: NSPoint) {
+        let menuId = "\(moduleName):menu"
+
+        if menuId == activePopupId, activePanel != nil {
             dismissPopup()
             return
         }
 
-        // Dismiss any other popup
         dismissPopup()
 
-        // Create popup content with user's colour config
-        guard let contentView = createPopupContent(name: name, fgColor: fgColor, bgColor: bgColor) else { return }
+        let menuView = ThemedMenuView(descriptors: descriptors, fgColor: fgColor, bgColor: bgColor) { [weak self] in
+            self?.dismissPopup()
+        }
 
-        // Size the content
-        contentView.layoutSubtreeIfNeeded()
-        let contentSize = contentView.fittingSize
-        let panelWidth = max(contentSize.width, 200)
-        let panelHeight = max(contentSize.height, 100)
+        menuView.layoutSubtreeIfNeeded()
+        let contentSize = menuView.fittingSize
+        let panelWidth = max(contentSize.width, 160)
+        let panelHeight = max(contentSize.height, 20)
 
-        // Position below the anchor point, clamped to screen
         var panelRect = NSRect(
             x: anchorPoint.x - panelWidth / 2,
             y: anchorPoint.y - panelHeight - 4,
@@ -336,22 +379,56 @@ class PopupManager {
         )
         panelRect = clampToScreen(panelRect)
 
-        let panel = NSPanel(
-            contentRect: panelRect,
-            styleMask: [.nonactivatingPanel, .titled, .fullSizeContentView],
-            backing: .buffered,
-            defer: false
-        )
-        panel.level = .floating
-        panel.isOpaque = false
-        panel.hasShadow = true
-        panel.backgroundColor = .clear
-        panel.titleVisibility = .hidden
-        panel.titlebarAppearsTransparent = true
-        panel.isMovable = false
-        panel.collectionBehavior = [.canJoinAllSpaces, .transient]
+        let panel = makePopupPanel(rect: panelRect)
 
-        // Background container with rounded corners and user's bg colour
+        let container = NSView(frame: NSRect(origin: .zero, size: panelRect.size))
+        container.wantsLayer = true
+        container.layer?.cornerRadius = 10
+        container.layer?.masksToBounds = true
+        container.layer?.backgroundColor = bgColor.cgColor
+
+        menuView.frame = container.bounds
+        menuView.autoresizingMask = [.width, .height]
+        container.addSubview(menuView)
+
+        panel.contentView = container
+        panel.orderFrontRegardless()
+
+        activePanel = panel
+        activePopupId = menuId
+
+        installDismissMonitors()
+    }
+
+    // MARK: - Popup
+
+    func togglePopup(name: String, moduleName: String, anchorPoint: NSPoint) {
+        let popupId = "\(moduleName):\(name)"
+
+        if popupId == activePopupId, activePanel != nil {
+            dismissPopup()
+            return
+        }
+
+        dismissPopup()
+
+        guard let contentView = createPopupContent(name: name, fgColor: fgColor, bgColor: bgColor) else { return }
+
+        contentView.layoutSubtreeIfNeeded()
+        let contentSize = contentView.fittingSize
+        let panelWidth = max(contentSize.width, 200)
+        let panelHeight = max(contentSize.height, 100)
+
+        var panelRect = NSRect(
+            x: anchorPoint.x - panelWidth / 2,
+            y: anchorPoint.y - panelHeight - 4,
+            width: panelWidth,
+            height: panelHeight
+        )
+        panelRect = clampToScreen(panelRect)
+
+        let panel = makePopupPanel(rect: panelRect)
+
         let container = NSView(frame: NSRect(origin: .zero, size: panelRect.size))
         container.wantsLayer = true
         container.layer?.cornerRadius = 10
@@ -368,28 +445,7 @@ class PopupManager {
         activePanel = panel
         activePopupId = popupId
 
-        // Local monitor: clicks within our app's windows.
-        // Skip if the click lands on an InteractiveModuleView — let its
-        // mouseDown handler decide whether to toggle.
-        localMonitor = NSEvent.addLocalMonitorForEvents(matching: [.leftMouseDown, .rightMouseDown]) { [weak self] event in
-            guard let self = self, let panel = self.activePanel else { return event }
-            if event.window === panel { return event }
-
-            // Check if the click is on an InteractiveModuleView — if so,
-            // let mouseDown handle the toggle; don't dismiss here.
-            if let hitView = event.window?.contentView?.hitTest(event.locationInWindow),
-               hitView is InteractiveModuleView {
-                return event
-            }
-
-            self.dismissPopup()
-            return event
-        }
-
-        // Global monitor: clicks outside our app entirely
-        globalMonitor = NSEvent.addGlobalMonitorForEvents(matching: [.leftMouseDown, .rightMouseDown]) { [weak self] _ in
-            self?.dismissPopup()
-        }
+        installDismissMonitors()
     }
 
     func dismissPopup() {
@@ -404,6 +460,64 @@ class PopupManager {
         if let global = globalMonitor {
             NSEvent.removeMonitor(global)
             globalMonitor = nil
+        }
+    }
+
+    // MARK: - Panel Factories
+
+    /// Creates a non-activating floating panel (for tooltips).
+    private func makeNonActivatingPanel(rect: NSRect) -> NSPanel {
+        let panel = NSPanel(
+            contentRect: rect,
+            styleMask: [.nonactivatingPanel],
+            backing: .buffered,
+            defer: false
+        )
+        panel.level = .floating
+        panel.isOpaque = false
+        panel.hasShadow = true
+        panel.backgroundColor = .clear
+        panel.isMovable = false
+        panel.collectionBehavior = [.canJoinAllSpaces, .transient]
+        return panel
+    }
+
+    /// Creates a popup/menu panel (non-activating, titled for full-size content).
+    private func makePopupPanel(rect: NSRect) -> NSPanel {
+        let panel = NSPanel(
+            contentRect: rect,
+            styleMask: [.nonactivatingPanel, .titled, .fullSizeContentView],
+            backing: .buffered,
+            defer: false
+        )
+        panel.level = .floating
+        panel.isOpaque = false
+        panel.hasShadow = true
+        panel.backgroundColor = .clear
+        panel.titleVisibility = .hidden
+        panel.titlebarAppearsTransparent = true
+        panel.isMovable = false
+        panel.collectionBehavior = [.canJoinAllSpaces, .transient]
+        return panel
+    }
+
+    /// Installs local + global click monitors that dismiss the active panel.
+    private func installDismissMonitors() {
+        localMonitor = NSEvent.addLocalMonitorForEvents(matching: [.leftMouseDown, .rightMouseDown]) { [weak self] event in
+            guard let self = self, let panel = self.activePanel else { return event }
+            if event.window === panel { return event }
+
+            if let hitView = event.window?.contentView?.hitTest(event.locationInWindow),
+               hitView is InteractiveModuleView {
+                return event
+            }
+
+            self.dismissPopup()
+            return event
+        }
+
+        globalMonitor = NSEvent.addGlobalMonitorForEvents(matching: [.leftMouseDown, .rightMouseDown]) { [weak self] _ in
+            self?.dismissPopup()
         }
     }
 
@@ -422,6 +536,171 @@ class PopupManager {
         default:
             return nil
         }
+    }
+}
+
+// MARK: - Native Menu Action Target
+
+/// Action target for native NSMenu items. Holds closures keyed to each item.
+class NativeMenuActionTarget: NSObject {
+    @objc func menuItemClicked(_ sender: NSMenuItem) {
+        guard let action = sender.representedObject as? (() -> Void) else { return }
+        action()
+    }
+}
+
+// MARK: - Themed Menu View
+
+/// A kantan-themed menu rendered as an NSView inside a non-activating panel.
+/// Matches the visual style of existing popups (calendar, battery-detail, etc).
+class ThemedMenuView: NSView {
+    private let padding: CGFloat = 8
+    private let itemHeight: CGFloat = 28
+    private let headerHeight: CGFloat = 22
+    private let separatorHeight: CGFloat = 9
+    private let fgColor: NSColor
+    private let bgColor: NSColor
+    private let dismissHandler: () -> Void
+
+    init(descriptors: [MenuItemDescriptor], fgColor: NSColor, bgColor: NSColor, dismissHandler: @escaping () -> Void) {
+        self.fgColor = fgColor
+        self.bgColor = bgColor
+        self.dismissHandler = dismissHandler
+        super.init(frame: .zero)
+        buildMenu(descriptors)
+    }
+
+    required init?(coder: NSCoder) {
+        fatalError("init(coder:) has not been implemented")
+    }
+
+    private func buildMenu(_ descriptors: [MenuItemDescriptor]) {
+        let contentWidth: CGFloat = 220
+        var yOffset: CGFloat = padding
+
+        // Layout items bottom-to-top (AppKit coordinate system)
+        // First, calculate total height
+        var totalHeight: CGFloat = padding * 2
+        for descriptor in descriptors {
+            if descriptor.isSeparator {
+                totalHeight += separatorHeight
+            } else if descriptor.isHeader {
+                totalHeight += headerHeight
+            } else {
+                totalHeight += itemHeight
+            }
+        }
+
+        frame = NSRect(x: 0, y: 0, width: contentWidth, height: totalHeight)
+
+        // Now lay out from top (highest y) down
+        var y = totalHeight - padding
+
+        for descriptor in descriptors {
+            if descriptor.isSeparator {
+                y -= separatorHeight
+                let separator = NSView(frame: NSRect(x: padding, y: y + (separatorHeight - 1) / 2, width: contentWidth - padding * 2, height: 1))
+                separator.wantsLayer = true
+                separator.layer?.backgroundColor = fgColor.withAlphaComponent(0.15).cgColor
+                addSubview(separator)
+            } else if descriptor.isHeader {
+                y -= headerHeight
+                let label = NSTextField(labelWithString: descriptor.label ?? "")
+                label.font = NSFont.systemFont(ofSize: 11, weight: .medium)
+                label.textColor = fgColor.withAlphaComponent(0.5)
+                label.frame = NSRect(x: padding + 8, y: y, width: contentWidth - padding * 2 - 8, height: headerHeight)
+                addSubview(label)
+            } else {
+                y -= itemHeight
+                let itemView = ThemedMenuItemView(
+                    frame: NSRect(x: 0, y: y, width: contentWidth, height: itemHeight),
+                    label: descriptor.label ?? "",
+                    icon: descriptor.icon,
+                    fgColor: fgColor,
+                    bgColor: bgColor,
+                    action: { [weak self] in
+                        self?.dismissHandler()
+                        descriptor.action?()
+                    }
+                )
+                addSubview(itemView)
+            }
+        }
+    }
+
+    override var fittingSize: NSSize {
+        return frame.size
+    }
+}
+
+// MARK: - Themed Menu Item View
+
+/// A single row in a ThemedMenuView. Highlights on hover, fires action on click.
+class ThemedMenuItemView: NSView {
+    private let label: NSTextField
+    private let iconView: NSView?
+    private let fgColor: NSColor
+    private let bgColor: NSColor
+    private let action: () -> Void
+    private var trackingArea: NSTrackingArea?
+
+    init(frame: NSRect, label: String, icon: NSView?, fgColor: NSColor, bgColor: NSColor, action: @escaping () -> Void) {
+        self.fgColor = fgColor
+        self.bgColor = bgColor
+        self.action = action
+
+        let horizontalPad: CGFloat = 16
+        let iconSpace: CGFloat = icon != nil ? 24 : 0
+
+        self.label = NSTextField(labelWithString: label)
+        self.label.font = NSFont.systemFont(ofSize: 13)
+        self.label.textColor = fgColor
+        self.label.sizeToFit()
+        self.label.frame.origin = NSPoint(x: horizontalPad + iconSpace, y: (frame.height - self.label.frame.height) / 2)
+
+        self.iconView = icon
+
+        super.init(frame: frame)
+
+        wantsLayer = true
+        layer?.cornerRadius = 4
+
+        if let icon = icon {
+            icon.frame.origin = NSPoint(x: horizontalPad, y: (frame.height - icon.frame.height) / 2)
+            addSubview(icon)
+        }
+        addSubview(self.label)
+    }
+
+    required init?(coder: NSCoder) {
+        fatalError("init(coder:) has not been implemented")
+    }
+
+    override func updateTrackingAreas() {
+        super.updateTrackingAreas()
+        if let existing = trackingArea {
+            removeTrackingArea(existing)
+        }
+        let area = NSTrackingArea(
+            rect: bounds,
+            options: [.mouseEnteredAndExited, .activeAlways],
+            owner: self,
+            userInfo: nil
+        )
+        addTrackingArea(area)
+        trackingArea = area
+    }
+
+    override func mouseEntered(with event: NSEvent) {
+        layer?.backgroundColor = fgColor.withAlphaComponent(0.1).cgColor
+    }
+
+    override func mouseExited(with event: NSEvent) {
+        layer?.backgroundColor = nil
+    }
+
+    override func mouseUp(with event: NSEvent) {
+        action()
     }
 }
 
