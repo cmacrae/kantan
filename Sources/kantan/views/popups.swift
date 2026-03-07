@@ -73,26 +73,136 @@ struct VolumePopupView: View {
     let fgColor: Color
     let bgColor: Color
 
+    @State private var volume: Double = 0
+    @State private var isMuted: Bool = false
+    @State private var devices: [AudioOutputDevice] = []
+
     var body: some View {
-        let status = VolumeConfig.readVolumeStatus()
+        VStack(alignment: .leading, spacing: 12) {
+            // Mute toggle + volume display
+            HStack(spacing: 8) {
+                Text(isMuted ? "\u{f026}" : "\u{f028}")
+                    .font(.system(size: 14))
+                    .foregroundStyle(fgColor.opacity(isMuted ? 0.4 : 0.8))
+                    .frame(width: 20)
+                    .onTapGesture {
+                        isMuted.toggle()
+                        VolumeConfig.setMuted(isMuted)
+                    }
 
-        VStack(alignment: .leading, spacing: 6) {
-            Text(status.isMuted ? "Muted" : "Active")
-                .font(.system(size: 11))
-                .foregroundStyle(fgColor.opacity(0.5))
+                VolumeSliderView(
+                    value: $volume,
+                    fgColor: fgColor,
+                    onChanged: { newValue in
+                        if isMuted {
+                            isMuted = false
+                            VolumeConfig.setMuted(false)
+                        }
+                        VolumeConfig.setVolume(Float(newValue))
+                    }
+                )
 
-            Text(status.isMuted ? "Muted" : "\(status.level)%")
-                .font(.system(size: 24, weight: .semibold))
-                .foregroundStyle(fgColor)
+                Text(isMuted ? "Muted" : "\(Int(volume * 100))%")
+                    .font(.system(size: 12, weight: .medium))
+                    .foregroundStyle(fgColor.opacity(0.6))
+                    .frame(width: 44, alignment: .trailing)
+            }
 
-            ProgressBarView(
-                value: status.isMuted ? 0 : Double(status.volume),
-                color: nil,
-                fgColor: fgColor
-            )
+            Divider()
+                .background(fgColor.opacity(0.15))
+
+            // Output devices
+            VStack(alignment: .leading, spacing: 4) {
+                Text("Output")
+                    .font(.system(size: 11, weight: .medium))
+                    .foregroundStyle(fgColor.opacity(0.5))
+                    .padding(.horizontal, 4)
+
+                ForEach(devices) { device in
+                    AudioDeviceRowView(device: device, fgColor: fgColor) {
+                        VolumeConfig.setDefaultOutputDevice(device.id)
+                        devices = VolumeConfig.listOutputDevices()
+                        let status = VolumeConfig.readVolumeStatus()
+                        volume = Double(status.volume)
+                        isMuted = status.isMuted
+                    }
+                }
+            }
         }
         .padding(16)
-        .frame(minWidth: 200, alignment: .leading)
+        .frame(minWidth: 260, alignment: .leading)
+        .onAppear {
+            let status = VolumeConfig.readVolumeStatus()
+            volume = Double(status.volume)
+            isMuted = status.isMuted
+            devices = VolumeConfig.listOutputDevices()
+        }
+    }
+}
+
+struct VolumeSliderView: View {
+    @Binding var value: Double
+    let fgColor: Color
+    let onChanged: (Double) -> Void
+
+    var body: some View {
+        GeometryReader { geo in
+            ZStack(alignment: .leading) {
+                RoundedRectangle(cornerRadius: 4)
+                    .fill(fgColor.opacity(0.2))
+
+                RoundedRectangle(cornerRadius: 4)
+                    .fill(fgColor)
+                    .frame(width: geo.size.width * min(max(value, 0), 1))
+            }
+            .contentShape(Rectangle())
+            .gesture(
+                DragGesture(minimumDistance: 0)
+                    .onChanged { gesture in
+                        let newValue = min(max(Double(gesture.location.x / geo.size.width), 0), 1)
+                        value = newValue
+                        onChanged(newValue)
+                    }
+            )
+        }
+        .frame(height: 8)
+    }
+}
+
+struct AudioDeviceRowView: View {
+    let device: AudioOutputDevice
+    let fgColor: Color
+    let onSelect: () -> Void
+    @State private var isHovered: Bool = false
+
+    var body: some View {
+        HStack(spacing: 8) {
+            Text(device.isDefault ? "\u{2713}" : " ")
+                .font(.system(size: 13, weight: .medium).monospaced())
+                .foregroundStyle(fgColor)
+                .frame(width: 16)
+
+            Text(device.name)
+                .font(.system(size: 13))
+                .foregroundStyle(fgColor)
+                .lineLimit(1)
+
+            Spacer()
+
+            if !device.transportLabel.isEmpty {
+                Text(device.transportLabel)
+                    .font(.system(size: 10))
+                    .foregroundStyle(fgColor.opacity(0.4))
+            }
+        }
+        .padding(.horizontal, 8)
+        .padding(.vertical, 6)
+        .background(
+            RoundedRectangle(cornerRadius: 4)
+                .fill(isHovered ? fgColor.opacity(0.1) : .clear)
+        )
+        .onHover { hovering in isHovered = hovering }
+        .onTapGesture { onSelect() }
     }
 }
 
