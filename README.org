@@ -13,15 +13,15 @@ is to simply black out that space, so it isn't used for anything.
 Perhaps the option should allow for "on", "off", and "when_notch"
 
 *** TODO Introduce native modules
-**** TODO spaces
+**** DONE spaces
 **** DONE clock
-**** TODO power
-**** TODO volume
-**** TODO coffee
+**** DONE power
+**** DONE volume
+**** DONE coffee
 **** TODO focus mode
-**** TODO network
+**** DONE network
 **** TODO focused window title
-**** TODO command output
+**** DONE command output
 
 *** TODO Make click-through optional
 *** TODO Make draw-over optional

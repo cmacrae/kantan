@@ -11,22 +11,31 @@ struct MenuItemDescriptor {
     let icon: NSView?
     let isSeparator: Bool
     let isHeader: Bool
+    let isToggle: Bool
+    let isToggleOn: Bool
     let action: (() -> Void)?
+    /// Toggle action that takes a completion callback. Called after async
+    /// state change finishes so the menu can rebuild with fresh state.
+    let toggleAction: ((@escaping () -> Void) -> Void)?
 
     static func item(_ label: String, action: @escaping () -> Void) -> MenuItemDescriptor {
-        MenuItemDescriptor(label: label, icon: nil, isSeparator: false, isHeader: false, action: action)
+        MenuItemDescriptor(label: label, icon: nil, isSeparator: false, isHeader: false, isToggle: false, isToggleOn: false, action: action, toggleAction: nil)
     }
 
     static func item(_ label: String, icon: NSView, action: @escaping () -> Void) -> MenuItemDescriptor {
-        MenuItemDescriptor(label: label, icon: icon, isSeparator: false, isHeader: false, action: action)
+        MenuItemDescriptor(label: label, icon: icon, isSeparator: false, isHeader: false, isToggle: false, isToggleOn: false, action: action, toggleAction: nil)
     }
 
     static func header(_ label: String) -> MenuItemDescriptor {
-        MenuItemDescriptor(label: label, icon: nil, isSeparator: false, isHeader: true, action: nil)
+        MenuItemDescriptor(label: label, icon: nil, isSeparator: false, isHeader: true, isToggle: false, isToggleOn: false, action: nil, toggleAction: nil)
     }
 
     static func separator() -> MenuItemDescriptor {
-        MenuItemDescriptor(label: nil, icon: nil, isSeparator: true, isHeader: false, action: nil)
+        MenuItemDescriptor(label: nil, icon: nil, isSeparator: true, isHeader: false, isToggle: false, isToggleOn: false, action: nil, toggleAction: nil)
+    }
+
+    static func toggle(_ label: String, isOn: Bool, action: @escaping (@escaping () -> Void) -> Void) -> MenuItemDescriptor {
+        MenuItemDescriptor(label: label, icon: nil, isSeparator: false, isHeader: false, isToggle: true, isToggleOn: isOn, action: nil, toggleAction: action)
     }
 }
 
@@ -213,18 +222,18 @@ class PopupManager {
 
     // MARK: - Menu
 
-    func showMenu(descriptors: [MenuItemDescriptor], moduleName: String, anchorPoint: NSPoint, positioningView: NSView? = nil) {
+    func showMenu(descriptors: [MenuItemDescriptor], moduleName: String, anchorPoint: NSPoint, rebuilder: (() -> Void)? = nil) {
         guard !descriptors.isEmpty else { return }
 
         switch appearance {
         case .native:
-            showNativeMenu(descriptors: descriptors, anchorPoint: anchorPoint)
+            showNativeMenu(descriptors: descriptors, anchorPoint: anchorPoint, rebuilder: rebuilder)
         case .theme:
-            showThemedMenu(descriptors: descriptors, moduleName: moduleName, anchorPoint: anchorPoint)
+            showThemedMenu(descriptors: descriptors, moduleName: moduleName, anchorPoint: anchorPoint, rebuilder: rebuilder)
         }
     }
 
-    private func showNativeMenu(descriptors: [MenuItemDescriptor], anchorPoint: NSPoint) {
+    private func showNativeMenu(descriptors: [MenuItemDescriptor], anchorPoint: NSPoint, rebuilder: (() -> Void)?) {
         let menu = NSMenu()
         let actionTarget = NativeMenuActionTarget()
         objc_setAssociatedObject(menu, "actionTarget", actionTarget, .OBJC_ASSOCIATION_RETAIN)
@@ -232,6 +241,18 @@ class PopupManager {
         for descriptor in descriptors {
             if descriptor.isSeparator {
                 menu.addItem(NSMenuItem.separator())
+            } else if descriptor.isToggle {
+                let item = NSMenuItem()
+                let toggleView = MenuToggleView(label: descriptor.label ?? "", isOn: descriptor.isToggleOn) { [weak menu] in
+                    menu?.cancelTracking()
+                    descriptor.toggleAction? {
+                        rebuilder?()
+                    }
+                }
+                let hostingView = NSHostingView(rootView: toggleView)
+                hostingView.frame.size = hostingView.fittingSize
+                item.view = hostingView
+                menu.addItem(item)
             } else if descriptor.isHeader {
                 let item = NSMenuItem(title: descriptor.label ?? "", action: nil, keyEquivalent: "")
                 item.isEnabled = false
@@ -247,7 +268,7 @@ class PopupManager {
         menu.popUp(positioning: nil, at: anchorPoint, in: nil)
     }
 
-    private func showThemedMenu(descriptors: [MenuItemDescriptor], moduleName: String, anchorPoint: NSPoint) {
+    private func showThemedMenu(descriptors: [MenuItemDescriptor], moduleName: String, anchorPoint: NSPoint, rebuilder: (() -> Void)?) {
         let menuId = "\(moduleName):menu"
 
         if menuId == activePopupId, activePanel != nil {
@@ -260,9 +281,9 @@ class PopupManager {
         let fg = Color(nsColor: fgColor)
         let bg = Color(nsColor: bgColor)
 
-        let menuView = SwiftUIThemedMenuView(descriptors: descriptors, fgColor: fg, bgColor: bg) { [weak self] in
+        let menuView = SwiftUIThemedMenuView(descriptors: descriptors, fgColor: fg, bgColor: bg, dismissHandler: { [weak self] in
             self?.dismissPopup()
-        }
+        }, rebuilder: rebuilder)
 
         let hostingView = NSHostingView(rootView: menuView)
         let fittingSize = hostingView.fittingSize
@@ -414,6 +435,27 @@ class PopupManager {
         default:
             return nil
         }
+    }
+}
+
+// MARK: - Menu Toggle View
+
+/// SwiftUI toggle switch embedded in NSMenu items via NSHostingView.
+struct MenuToggleView: View {
+    let label: String
+    @State var isOn: Bool
+    let onToggle: () -> Void
+
+    var body: some View {
+        Toggle(label, isOn: $isOn)
+            .toggleStyle(.switch)
+            .controlSize(.small)
+            .tint(.blue)
+            .padding(.horizontal, 14)
+            .padding(.vertical, 4)
+            .onChange(of: isOn) { _, _ in
+                onToggle()
+            }
     }
 }
 

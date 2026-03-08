@@ -1,3 +1,4 @@
+import AppKit
 import CoreWLAN
 import Foundation
 import Yaml
@@ -33,6 +34,20 @@ struct WiFiStatus: Sendable {
     /// -30 dBm = 1.0 (excellent), -90 dBm = 0.0 (unusable).
     var signalQuality: Float {
         guard isConnected else { return 0 }
+        let clamped = max(-90, min(-30, rssi))
+        return Float(clamped + 90) / 60.0
+    }
+}
+
+struct WiFiNetwork: Sendable, Identifiable {
+    let ssid: String
+    let rssi: Int
+    let isSecure: Bool
+    let isConnected: Bool
+
+    var id: String { ssid }
+
+    var signalQuality: Float {
         let clamped = max(-90, min(-30, rssi))
         return Float(clamped + 90) / 60.0
     }
@@ -229,5 +244,151 @@ final class WiFiConfig: NSObject, ModuleConfiguration, EventDrivenModule, @unche
         }
 
         return nil
+    }
+
+    // MARK: - WiFi Control
+
+    static func setPower(_ enabled: Bool) {
+        let client = CWWiFiClient.shared()
+        guard let interface = client.interface() else { return }
+        do {
+            try interface.setPower(enabled)
+        } catch {
+            print("WiFi setPower failed: \(error)")
+        }
+    }
+
+    static func isPoweredOn() -> Bool {
+        let client = CWWiFiClient.shared()
+        guard let interface = client.interface() else { return false }
+        return interface.powerOn()
+    }
+
+    static func scanForNetworks() -> [WiFiNetwork] {
+        let client = CWWiFiClient.shared()
+        guard let interface = client.interface() else { return [] }
+
+        do {
+            let networks = try interface.scanForNetworks(withSSID: nil)
+            let currentSSID = interface.ssid()
+
+            // Deduplicate by SSID, keeping strongest signal
+            var bestBySSID: [String: CWNetwork] = [:]
+            for network in networks {
+                guard let ssid = network.ssid, !ssid.isEmpty else { continue }
+                if let existing = bestBySSID[ssid] {
+                    if network.rssiValue > existing.rssiValue {
+                        bestBySSID[ssid] = network
+                    }
+                } else {
+                    bestBySSID[ssid] = network
+                }
+            }
+
+            return bestBySSID.values
+                .compactMap { network -> WiFiNetwork? in
+                    guard let ssid = network.ssid else { return nil }
+                    let isConnected = ssid == currentSSID
+                    return WiFiNetwork(
+                        ssid: ssid,
+                        rssi: network.rssiValue,
+                        isSecure: !network.supportsSecurity(.none),
+                        isConnected: isConnected
+                    )
+                }
+                .filter { !$0.isConnected }
+                .sorted { $0.rssi > $1.rssi }
+        } catch {
+            print("WiFi scan failed: \(error)")
+            return []
+        }
+    }
+
+    static func connectToNetwork(ssid: String) {
+        let client = CWWiFiClient.shared()
+        guard let interface = client.interface() else { return }
+
+        do {
+            let networks = try interface.scanForNetworks(withSSID: ssid.data(using: .utf8))
+            guard let network = networks.first else { return }
+            try interface.associate(to: network, password: nil)
+        } catch {
+            print("WiFi connect failed: \(error)")
+        }
+    }
+
+    static func openWiFiSettings() {
+        if let url = URL(string: "x-apple.systempreferences:com.apple.wifi-settings-extension") {
+            NSWorkspace.shared.open(url)
+        }
+    }
+
+    // MARK: - Dynamic Menu
+
+    static func buildMenuDescriptors() -> [MenuItemDescriptor] {
+        let status = readWiFiStatus()
+        let powered = isPoweredOn()
+        var descriptors: [MenuItemDescriptor] = []
+
+        descriptors.append(.toggle("Wi-Fi", isOn: powered) { completion in
+            DispatchQueue.global(qos: .userInitiated).async {
+                WiFiConfig.setPower(!powered)
+                // Brief delay for radio state to settle
+                Thread.sleep(forTimeInterval: 0.5)
+                DispatchQueue.main.async { completion() }
+            }
+        })
+        descriptors.append(.separator())
+
+        if powered {
+            if status.isConnected, let ssid = status.ssid {
+                let indicator = makeIndicatorView(isConnected: true)
+                let signal = Int(status.signalQuality * 100)
+                descriptors.append(.item("\(ssid) (\(signal)%)", icon: indicator) {})
+            } else {
+                let indicator = makeIndicatorView(isConnected: false)
+                descriptors.append(.item("Not Connected", icon: indicator) {})
+            }
+
+            descriptors.append(.separator())
+
+            // Scan for available networks (blocking, ~2-4s)
+            let networks = scanForNetworks()
+            if !networks.isEmpty {
+                descriptors.append(.header("Other Networks"))
+                for network in networks.prefix(15) {
+                    let ssid = network.ssid
+                    let signal = Int(network.signalQuality * 100)
+                    let label = network.isSecure ? "\(ssid) (\(signal)%) \u{f023}" : "\(ssid) (\(signal)%)"
+                    descriptors.append(.item(label) {
+                        DispatchQueue.global(qos: .userInitiated).async {
+                            WiFiConfig.connectToNetwork(ssid: ssid)
+                        }
+                    })
+                }
+                descriptors.append(.separator())
+            }
+        }
+
+        descriptors.append(.item("Wi-Fi Settings\u{2026}") {
+            WiFiConfig.openWiFiSettings()
+        })
+
+        return descriptors
+    }
+
+    private static func makeIndicatorView(isConnected: Bool) -> NSView {
+        let size: CGFloat = 10
+        let view = NSView(frame: NSRect(x: 0, y: 0, width: size, height: size))
+        view.wantsLayer = true
+        view.layer?.cornerRadius = size / 2
+        if isConnected {
+            view.layer?.backgroundColor = NSColor.controlAccentColor.cgColor
+        } else {
+            view.layer?.backgroundColor = NSColor.clear.cgColor
+            view.layer?.borderColor = NSColor.tertiaryLabelColor.cgColor
+            view.layer?.borderWidth = 1.5
+        }
+        return view
     }
 }

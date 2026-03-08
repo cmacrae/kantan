@@ -3,6 +3,8 @@ global:
   padding: 10
   textFont: "Helvetica Neue"
   iconFont: "FontAwesome:Regular:15"
+  appearance: native
+  # appearance: theme
   colour:
     light:
       bg: "#bfccb5"
@@ -12,20 +14,20 @@ global:
       bg: "#7c96ab"
 
 modules:
-  - name: user
-    type: command
-    alignment: left
-    icon: 
-    config:
-      command: whoami
-      # command: echo $RANDOM
-      # launcher:
-      #   path: ~/.nix-profile/bin/zsh
-      #   args: [ '-c' ]
-    interaction:
-      hover:
-        type: tooltip
-        content: "Logged in as: {value}"
+  # - name: user
+  #   type: command
+  #   alignment: left
+  #   icon: 
+  #   config:
+  #     command: whoami
+  #     # command: echo $RANDOM
+  #     # launcher:
+  #     #   path: ~/.nix-profile/bin/zsh
+  #     #   args: [ '-c' ]
+  #   interaction:
+  #     hover:
+  #       type: tooltip
+  #       content: "Logged in as: {value}"
   - name: spaces
     type: workspace
     alignment: left
@@ -33,24 +35,74 @@ modules:
       type: aerospace
       defaultIcon: ●
       activeColour: "#ffffff"
-  - name: left 2
-    type: text
-    alignment: left
-    config:
-      value: static text
-  - name: clock
-    type: clock
+  # - name: left 2
+  #   type: text
+  #   alignment: left
+  #   config:
+  #     value: static text
+
+  - name: caffeine
+    type: caffeinate
     alignment: right
-    icon: 
-    config:
-      format: "HH:mm:ss"
+    icon: 
     interaction:
       hover:
         type: tooltip
-        content: "{day}, {date}"
+        content: "Caffiene: {status}"
+      click:
+        type: toggle
+  - name: todo
+    type: reminders
+    alignment: right
+    icon: 
+    config:
+      list: kantan testing
+  - name: bluetooth
+    type: bluetooth
+    alignment: right
+    config:
+      showCount: false
+      icon: 
+      disabledIcon: 
+    interaction:
+      hover:
+        type: tooltip
+        content: "{devices} ({count})"
+      click:
+        type: dynamic-menu
+  - name: volume
+    type: volume
+    alignment: right
+    config:
+      showLevel: false
+      mutedIcon: 
+      icons:
+        - 
+        - 
+        - 
+    interaction:
+      hover:
+        type: tooltip
+        content: "Volume: {level}% — {state}"
       click:
         type: popup
-        popup: calendar
+        popup: volume-detail
+  - name: wifi
+    type: wifi
+    alignment: right
+    config:
+      showSSID: false
+      disconnectedIcon: 直
+      icons:
+        - 
+        - 
+        - 
+    interaction:
+      hover:
+        type: tooltip
+        content: "{ssid} — {signal} ({rssi})"
+      click:
+        type: dynamic-menu
   - name: power
     type: power
     alignment: right
@@ -72,9 +124,16 @@ modules:
       click:
         type: popup
         popup: battery-detail
-  - name: todo
-    type: reminders
+  - name: clock
+    type: clock
     alignment: right
-    icon: 
+    # icon: 
     config:
-      list: kantan testing
+      format: "HH:mm"
+    interaction:
+      hover:
+        type: tooltip
+        content: "{day}, {date}"
+      click:
+        type: popup
+        popup: calendar

@@ -3,6 +3,13 @@ import Foundation
 import IOBluetooth
 import Yaml
 
+// Private IOBluetooth SPI for power control (same approach as blueutil)
+@_silgen_name("IOBluetoothPreferenceGetControllerPowerState")
+func IOBluetoothPreferenceGetControllerPowerState() -> CInt
+
+@_silgen_name("IOBluetoothPreferenceSetControllerPowerState")
+func IOBluetoothPreferenceSetControllerPowerState(_ state: CInt)
+
 struct BluetoothConfigFactory: ModuleConfigurationFactory {
     func configuration(from yaml: Yaml) throws -> ModuleConfiguration {
         let showCount = yaml["showCount"].bool ?? false
@@ -156,11 +163,29 @@ struct BluetoothConfig: ModuleConfiguration {
         }
     }
 
+    static func isPoweredOn() -> Bool {
+        return IOBluetoothPreferenceGetControllerPowerState() != 0
+    }
+
+    static func setPower(_ enabled: Bool) {
+        IOBluetoothPreferenceSetControllerPowerState(enabled ? 1 : 0)
+    }
+
     /// Build menu item descriptors for the bluetooth device menu.
     /// Used by PopupManager to render as either native or themed menu.
     static func buildMenuDescriptors() -> [MenuItemDescriptor] {
         let status = readBluetoothStatus()
         var descriptors: [MenuItemDescriptor] = []
+
+        descriptors.append(.toggle("Bluetooth", isOn: status.isPoweredOn) { completion in
+            DispatchQueue.global(qos: .userInitiated).async {
+                BluetoothConfig.setPower(!status.isPoweredOn)
+                // Brief delay for radio state to settle
+                Thread.sleep(forTimeInterval: 0.5)
+                DispatchQueue.main.async { completion() }
+            }
+        })
+        descriptors.append(.separator())
 
         let connected = status.connectedDevices
         if !connected.isEmpty {

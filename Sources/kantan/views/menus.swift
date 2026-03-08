@@ -9,6 +9,7 @@ struct SwiftUIThemedMenuView: View {
     let fgColor: Color
     let bgColor: Color
     let dismissHandler: () -> Void
+    let rebuilder: (() -> Void)?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -18,6 +19,18 @@ struct SwiftUIThemedMenuView: View {
                         .background(fgColor.opacity(0.15))
                         .padding(.horizontal, 8)
                         .padding(.vertical, 4)
+                } else if descriptor.isToggle {
+                    SwiftUIMenuToggleView(
+                        label: descriptor.label ?? "",
+                        isOn: descriptor.isToggleOn,
+                        fgColor: fgColor,
+                        action: {
+                            dismissHandler()
+                            descriptor.toggleAction? {
+                                rebuilder?()
+                            }
+                        }
+                    )
                 } else if descriptor.isHeader {
                     Text(descriptor.label ?? "")
                         .font(.system(size: 11, weight: .medium))
@@ -74,6 +87,28 @@ struct SwiftUIMenuItemView: View {
         .onTapGesture {
             action()
         }
+    }
+}
+
+// MARK: - Menu Toggle View
+
+struct SwiftUIMenuToggleView: View {
+    let label: String
+    @State var isOn: Bool
+    let fgColor: Color
+    let action: () -> Void
+
+    var body: some View {
+        Toggle(label, isOn: $isOn)
+            .toggleStyle(.switch)
+            .controlSize(.small)
+            .tint(.blue)
+            .foregroundStyle(fgColor)
+            .padding(.horizontal, 14)
+            .frame(height: 26)
+            .onChange(of: isOn) { _, _ in
+                action()
+            }
     }
 }
 

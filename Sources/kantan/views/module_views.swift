@@ -72,8 +72,9 @@ struct ModuleContainerView: View {
             popupManager.showMenu(descriptors: descriptors, moduleName: viewModel.id, anchorPoint: anchorPoint)
         case "dynamic-menu":
             if viewModel.moduleConfig.type == "bluetooth" {
-                let descriptors = BluetoothConfig.buildMenuDescriptors()
-                popupManager.showMenu(descriptors: descriptors, moduleName: viewModel.id, anchorPoint: anchorPoint)
+                showDynamicMenu(builder: BluetoothConfig.buildMenuDescriptors, moduleName: viewModel.id, anchorPoint: anchorPoint)
+            } else if viewModel.moduleConfig.type == "wifi" {
+                showDynamicMenu(builder: WiFiConfig.buildMenuDescriptors, moduleName: viewModel.id, anchorPoint: anchorPoint)
             }
         case "popup":
             guard let popupName = click.popup else { return }
@@ -83,6 +84,16 @@ struct ModuleContainerView: View {
             viewModel.update()
         default:
             break
+        }
+    }
+
+    /// Show a dynamic menu with a rebuilder that re-fetches descriptors
+    /// after toggle state changes (e.g. WiFi/Bluetooth power toggle).
+    /// The rebuilder is self-referencing so repeated toggles work.
+    private func showDynamicMenu(builder: @escaping () -> [MenuItemDescriptor], moduleName: String, anchorPoint: NSPoint) {
+        let descriptors = builder()
+        popupManager.showMenu(descriptors: descriptors, moduleName: moduleName, anchorPoint: anchorPoint) {
+            self.showDynamicMenu(builder: builder, moduleName: moduleName, anchorPoint: anchorPoint)
         }
     }
 
