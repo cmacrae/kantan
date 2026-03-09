@@ -119,9 +119,5 @@ modules:
     alignment: right
     config:
       format: "HH:mm"
-    interaction:
-      hover:
-        type: tooltip
-        content: "{day}, {date}"
     mask:
       name: Clock

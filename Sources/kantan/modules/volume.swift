@@ -34,26 +34,6 @@ struct VolumeStatus: Sendable {
     var level: Int { max(0, min(100, Int(volume * 100))) }
 }
 
-struct AudioOutputDevice: Sendable, Identifiable {
-    let id: AudioDeviceID
-    let name: String
-    let transportType: UInt32
-    let isDefault: Bool
-
-    var transportLabel: String {
-        switch transportType {
-        case kAudioDeviceTransportTypeBuiltIn: return "Built-in"
-        case kAudioDeviceTransportTypeBluetooth,
-             kAudioDeviceTransportTypeBluetoothLE: return "Bluetooth"
-        case kAudioDeviceTransportTypeUSB: return "USB"
-        case kAudioDeviceTransportTypeHDMI: return "HDMI"
-        case kAudioDeviceTransportTypeDisplayPort: return "DisplayPort"
-        case kAudioDeviceTransportTypeAirPlay: return "AirPlay"
-        default: return ""
-        }
-    }
-}
-
 /// Event-driven volume module using CoreAudio property listeners.
 /// Registers listeners for volume changes, mute state changes, and
 /// default output device changes — updates fire instantly instead of
@@ -205,17 +185,6 @@ final class VolumeConfig: ModuleConfiguration, EventDrivenModule {
         return icons[max(0, index)]
     }
 
-    func getTemplateVariables() -> [String: String] {
-        let status = Self.readVolumeStatus()
-        let state: String
-        if status.isMuted {
-            state = "muted"
-        } else {
-            state = "active"
-        }
-        return ["level": "\(status.level)", "state": state]
-    }
-
     // MARK: - CoreAudio
 
     private static func defaultOutputDeviceID() -> AudioDeviceID {
@@ -231,123 +200,6 @@ final class VolumeConfig: ModuleConfiguration, EventDrivenModule {
             &addr, 0, nil, &size, &deviceID
         )
         return status == noErr ? deviceID : 0
-    }
-
-    // MARK: - Audio Output Device Control
-
-    static func listOutputDevices() -> [AudioOutputDevice] {
-        let defaultID = defaultOutputDeviceID()
-
-        var devicesAddr = AudioObjectPropertyAddress(
-            mSelector: kAudioHardwarePropertyDevices,
-            mScope: kAudioObjectPropertyScopeGlobal,
-            mElement: kAudioObjectPropertyElementMain
-        )
-
-        var dataSize: UInt32 = 0
-        var status = AudioObjectGetPropertyDataSize(
-            AudioObjectID(kAudioObjectSystemObject),
-            &devicesAddr, 0, nil, &dataSize
-        )
-        guard status == noErr, dataSize > 0 else { return [] }
-
-        let deviceCount = Int(dataSize) / MemoryLayout<AudioDeviceID>.size
-        var deviceIDs = [AudioDeviceID](repeating: 0, count: deviceCount)
-
-        status = AudioObjectGetPropertyData(
-            AudioObjectID(kAudioObjectSystemObject),
-            &devicesAddr, 0, nil, &dataSize, &deviceIDs
-        )
-        guard status == noErr else { return [] }
-
-        var devices: [AudioOutputDevice] = []
-        for deviceID in deviceIDs {
-            // Check for output streams
-            var streamsAddr = AudioObjectPropertyAddress(
-                mSelector: kAudioDevicePropertyStreams,
-                mScope: kAudioDevicePropertyScopeOutput,
-                mElement: kAudioObjectPropertyElementMain
-            )
-            var streamsSize: UInt32 = 0
-            let streamsStatus = AudioObjectGetPropertyDataSize(deviceID, &streamsAddr, 0, nil, &streamsSize)
-            guard streamsStatus == noErr, streamsSize > 0 else { continue }
-
-            // Read device name
-            var nameAddr = AudioObjectPropertyAddress(
-                mSelector: kAudioObjectPropertyName,
-                mScope: kAudioObjectPropertyScopeGlobal,
-                mElement: kAudioObjectPropertyElementMain
-            )
-            var name: CFString = "" as CFString
-            var nameSize = UInt32(MemoryLayout<CFString>.size)
-            AudioObjectGetPropertyData(deviceID, &nameAddr, 0, nil, &nameSize, &name)
-
-            // Read transport type
-            var transportAddr = AudioObjectPropertyAddress(
-                mSelector: kAudioDevicePropertyTransportType,
-                mScope: kAudioObjectPropertyScopeGlobal,
-                mElement: kAudioObjectPropertyElementMain
-            )
-            var transport: UInt32 = 0
-            var transportSize = UInt32(MemoryLayout<UInt32>.size)
-            AudioObjectGetPropertyData(deviceID, &transportAddr, 0, nil, &transportSize, &transport)
-
-            devices.append(AudioOutputDevice(
-                id: deviceID,
-                name: name as String,
-                transportType: transport,
-                isDefault: deviceID == defaultID
-            ))
-        }
-
-        // Sort: default device first
-        return devices.sorted { $0.isDefault && !$1.isDefault }
-    }
-
-    static func setDefaultOutputDevice(_ deviceID: AudioDeviceID) {
-        var addr = AudioObjectPropertyAddress(
-            mSelector: kAudioHardwarePropertyDefaultOutputDevice,
-            mScope: kAudioObjectPropertyScopeGlobal,
-            mElement: kAudioObjectPropertyElementMain
-        )
-        var id = deviceID
-        AudioObjectSetPropertyData(
-            AudioObjectID(kAudioObjectSystemObject),
-            &addr, 0, nil,
-            UInt32(MemoryLayout<AudioDeviceID>.size), &id
-        )
-    }
-
-    static func setVolume(_ volume: Float) {
-        let deviceID = defaultOutputDeviceID()
-        guard deviceID != 0 else { return }
-
-        var volumeAddr = AudioObjectPropertyAddress(
-            mSelector: kAudioHardwareServiceDeviceProperty_VirtualMainVolume,
-            mScope: kAudioDevicePropertyScopeOutput,
-            mElement: kAudioObjectPropertyElementMain
-        )
-        var vol = volume
-        AudioObjectSetPropertyData(
-            deviceID, &volumeAddr, 0, nil,
-            UInt32(MemoryLayout<Float32>.size), &vol
-        )
-    }
-
-    static func setMuted(_ muted: Bool) {
-        let deviceID = defaultOutputDeviceID()
-        guard deviceID != 0 else { return }
-
-        var muteAddr = AudioObjectPropertyAddress(
-            mSelector: kAudioDevicePropertyMute,
-            mScope: kAudioDevicePropertyScopeOutput,
-            mElement: kAudioObjectPropertyElementMain
-        )
-        var muteValue: UInt32 = muted ? 1 : 0
-        AudioObjectSetPropertyData(
-            deviceID, &muteAddr, 0, nil,
-            UInt32(MemoryLayout<UInt32>.size), &muteValue
-        )
     }
 
     static func readVolumeStatus() -> VolumeStatus {

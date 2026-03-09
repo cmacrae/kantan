@@ -39,23 +39,6 @@ struct ClockConfig: ModuleConfiguration {
         return ""
     }
 
-    func getTemplateVariables() -> [String: String] {
-        let now = Date()
-        let dayFmt = DateFormatter()
-        dayFmt.dateFormat = "EEEE"
-        let dateFmt = DateFormatter()
-        dateFmt.dateFormat = "d MMMM yyyy"
-        if let tz = timezone, let timeZone = TimeZone(identifier: tz) {
-            dayFmt.timeZone = timeZone
-            dateFmt.timeZone = timeZone
-        }
-        let formatter = Self.cachedFormatter(format: format, timezone: timezone)
-        return [
-            "day": dayFmt.string(from: now),
-            "date": dateFmt.string(from: now),
-            "time": formatter.string(from: now),
-        ]
-    }
 
     private static func formatterKey(format: String, timezone: String?) -> String {
         return "\(format)|\(timezone ?? "system")"

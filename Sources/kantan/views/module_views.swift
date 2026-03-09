@@ -72,11 +72,7 @@ struct ModuleContainerView: View {
             let descriptors = descriptorsFromClickConfig(click)
             popupManager.showMenu(descriptors: descriptors, moduleName: viewModel.id, anchorPoint: anchorPoint)
         case "dynamic-menu":
-            if viewModel.moduleConfig.type == "bluetooth" {
-                showDynamicMenu(builder: BluetoothConfig.buildMenuDescriptors, moduleName: viewModel.id, anchorPoint: anchorPoint)
-            } else if viewModel.moduleConfig.type == "wifi" {
-                showDynamicMenu(builder: WiFiConfig.buildMenuDescriptors, moduleName: viewModel.id, anchorPoint: anchorPoint)
-            }
+            break
         case "popup":
             guard let popupName = click.popup else { return }
             popupManager.togglePopup(name: popupName, moduleName: viewModel.id, anchorPoint: anchorPoint)

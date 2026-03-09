@@ -425,18 +425,7 @@ class PopupManager {
     // MARK: - SwiftUI Popup Content
 
     private func createSwiftUIPopup(name: String, fgColor: Color, bgColor: Color) -> AnyView? {
-        switch name {
-        case "battery-detail":
-            return AnyView(BatteryPopupView(fgColor: fgColor, bgColor: bgColor))
-        case "volume-detail":
-            return AnyView(VolumePopupView(fgColor: fgColor, bgColor: bgColor))
-        case "wifi-detail":
-            return AnyView(WiFiPopupView(fgColor: fgColor, bgColor: bgColor))
-        case "calendar":
-            return AnyView(CalendarPopupView(fgColor: fgColor, bgColor: bgColor))
-        default:
-            return nil
-        }
+        return nil
     }
 }
 

@@ -107,21 +107,6 @@ final class PowerConfig: ModuleConfiguration, EventDrivenModule {
         return battery.icons[max(0, index)]
     }
 
-    func getTemplateVariables() -> [String: String] {
-        let status = Self.readBatteryStatus()
-        guard status.isAvailable else {
-            return ["level": "—", "state": "unavailable"]
-        }
-        let state: String
-        if status.isCharging {
-            state = "charging"
-        } else if status.isPluggedIn {
-            state = "plugged in"
-        } else {
-            state = "battery"
-        }
-        return ["level": "\(status.level)", "state": state]
-    }
 
     static func readBatteryStatus() -> BatteryStatus {
         guard let snapshot = IOPSCopyPowerSourcesInfo()?.takeRetainedValue(),
