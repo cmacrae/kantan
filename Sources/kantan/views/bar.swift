@@ -17,12 +17,12 @@ struct ModuleGroupView: View {
         HStack(spacing: 0) {
             ForEach(modules) { vm in
                 ModuleContainerView(viewModel: vm, popupManager: popupManager)
-                    .padding(.horizontal, isMasked ? 0 : CGFloat(themeProvider.globalConfig.padding))
+                    .padding(.horizontal, isMasked ? 0 : CGFloat(themeProvider.config.padding))
             }
         }
         .frame(maxWidth: isMasked ? .infinity : nil)
         .fixedSize(horizontal: !isMasked, vertical: false)
-        .frame(height: CGFloat(themeProvider.globalConfig.height))
+        .frame(height: CGFloat(themeProvider.config.height))
         .environmentObject(themeProvider)
     }
 }

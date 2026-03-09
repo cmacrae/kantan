@@ -154,15 +154,67 @@ struct StandardModuleView: View {
                     .foregroundStyle(textColor)
             }
         }
+        .padding(.horizontal, moduleShape != nil ? 6 : 0)
+        .padding(.vertical, modulePadding)
+        .frame(maxHeight: expandsToBarHeight ? .infinity : nil)
+        .background(shapeBackground)
     }
 
     private var textColor: Color {
-        themeProvider.fgColor(for: viewModel)
+        themeProvider.textFgColor(for: viewModel)
     }
 
     private var iconColor: Color {
-        let base = themeProvider.fgColor(for: viewModel)
+        let base = themeProvider.iconFgColor(for: viewModel)
         return viewModel.isActive ? base : base.opacity(0.4)
+    }
+
+    private var moduleShape: ModuleShape? {
+        themeProvider.shape(for: viewModel)
+    }
+
+    private var modulePadding: CGFloat {
+        guard let shape = moduleShape else { return 0 }
+        switch shape {
+        case .pill, .box: return 3
+        case .underline, .overline: return 0
+        }
+    }
+
+    private var expandsToBarHeight: Bool {
+        guard let shape = moduleShape else { return false }
+        switch shape {
+        case .underline, .overline: return true
+        case .pill, .box: return false
+        }
+    }
+
+    private var moduleBgColor: Color {
+        themeProvider.bgColor(for: viewModel)
+    }
+
+    @ViewBuilder
+    private var shapeBackground: some View {
+        if let shape = moduleShape {
+            switch shape {
+            case .pill:
+                Capsule().fill(moduleBgColor)
+            case .box:
+                RoundedRectangle(cornerRadius: 4).fill(moduleBgColor)
+            case .underline:
+                VStack(spacing: 0) {
+                    Spacer(minLength: 0)
+                    Rectangle().fill(moduleBgColor).frame(height: 2)
+                }
+                .frame(maxHeight: .infinity)
+            case .overline:
+                VStack(spacing: 0) {
+                    Rectangle().fill(moduleBgColor).frame(height: 2)
+                    Spacer(minLength: 0)
+                }
+                .frame(maxHeight: .infinity)
+            }
+        }
     }
 }
 
@@ -192,7 +244,7 @@ struct WorkspaceModuleView: View {
            let activeHex = wsConfig.activeColour {
             return Color(nsColor: NSColor(hex: activeHex))
         }
-        return themeProvider.fgColor(for: viewModel)
+        return themeProvider.textFgColor(for: viewModel)
     }
 
     private var inactiveColor: Color {
@@ -200,6 +252,6 @@ struct WorkspaceModuleView: View {
            let inactiveHex = wsConfig.inactiveColour {
             return Color(nsColor: NSColor(hex: inactiveHex))
         }
-        return themeProvider.fgColor(for: viewModel).opacity(0.4)
+        return themeProvider.textFgColor(for: viewModel).opacity(0.4)
     }
 }

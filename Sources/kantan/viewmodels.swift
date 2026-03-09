@@ -304,15 +304,15 @@ class BarViewModel: ObservableObject {
 @MainActor
 class ThemeProvider: ObservableObject {
     @Published var isDarkMode: Bool = true
-    let globalConfig: GlobalConfig
+    let config: Config
     private var appearanceObservation: NSKeyValueObservation?
 
     var isNative: Bool {
-        globalConfig.appearance == .native
+        config.appearance == .native
     }
 
-    init(globalConfig: GlobalConfig) {
-        self.globalConfig = globalConfig
+    init(config: Config) {
+        self.config = config
         self.isDarkMode = NSApp.effectiveAppearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
         observeAppearance()
     }
@@ -326,20 +326,58 @@ class ThemeProvider: ObservableObject {
         }
     }
 
+    // MARK: - Style Resolution Helpers
+
+    private func resolveGlobalStyleMode() -> StyleModeConfig {
+        if isDarkMode {
+            return config.style.dark!
+        } else {
+            return config.style.light!
+        }
+    }
+
+    private func resolveModuleStyleMode(_ style: StyleConfig?) -> StyleModeConfig? {
+        guard let style = style else { return nil }
+        return isDarkMode ? style.dark : style.light
+    }
+
     // MARK: - Color Resolution
 
     func globalColors() -> (fg: Color, bg: Color) {
-        let config = isDarkMode ? globalConfig.colour.dark : globalConfig.colour.light
-        return (Color(nsColor: NSColor(hex: config.fg)), Color(nsColor: NSColor(hex: config.bg)))
+        let mode = resolveGlobalStyleMode()
+        return (Color(nsColor: NSColor(hex: mode.fg!)), Color(nsColor: NSColor(hex: mode.bg!)))
     }
 
-    func fgColor(for vm: ModuleViewModel) -> Color {
+    func textFgColor(for vm: ModuleViewModel) -> Color {
         if let override = vm.fgOverride {
             return Color(nsColor: NSColor(hex: override))
         }
         if isNative { return Color(nsColor: .labelColor) }
-        let config = resolveColourConfig(moduleColour: vm.moduleConfig.colour)
-        return Color(nsColor: NSColor(hex: config.fg))
+
+        let moduleMode = resolveModuleStyleMode(vm.moduleConfig.style)
+        let globalMode = resolveGlobalStyleMode()
+
+        // Resolution: module.text.fg -> module.fg -> global.text.fg -> global.fg
+        if let fg = moduleMode?.text?.fg { return Color(nsColor: NSColor(hex: fg)) }
+        if let fg = moduleMode?.fg { return Color(nsColor: NSColor(hex: fg)) }
+        if let fg = globalMode.text?.fg { return Color(nsColor: NSColor(hex: fg)) }
+        return Color(nsColor: NSColor(hex: globalMode.fg!))
+    }
+
+    func iconFgColor(for vm: ModuleViewModel) -> Color {
+        if let override = vm.fgOverride {
+            return Color(nsColor: NSColor(hex: override))
+        }
+        if isNative { return Color(nsColor: .labelColor) }
+
+        let moduleMode = resolveModuleStyleMode(vm.moduleConfig.style)
+        let globalMode = resolveGlobalStyleMode()
+
+        // Resolution: module.icon.fg -> module.fg -> global.icon.fg -> global.fg
+        if let fg = moduleMode?.icon?.fg { return Color(nsColor: NSColor(hex: fg)) }
+        if let fg = moduleMode?.fg { return Color(nsColor: NSColor(hex: fg)) }
+        if let fg = globalMode.icon?.fg { return Color(nsColor: NSColor(hex: fg)) }
+        return Color(nsColor: NSColor(hex: globalMode.fg!))
     }
 
     func bgColor(for vm: ModuleViewModel) -> Color {
@@ -347,33 +385,35 @@ class ThemeProvider: ObservableObject {
             return Color(nsColor: NSColor(hex: override))
         }
         if isNative { return .clear }
-        let config = resolveColourConfig(moduleColour: vm.moduleConfig.colour)
-        return Color(nsColor: NSColor(hex: config.bg))
+
+        let moduleMode = resolveModuleStyleMode(vm.moduleConfig.style)
+        let globalMode = resolveGlobalStyleMode()
+
+        // Resolution: module.bg -> global.bg
+        if let bg = moduleMode?.bg { return Color(nsColor: NSColor(hex: bg)) }
+        return Color(nsColor: NSColor(hex: globalMode.bg!))
     }
 
     func barBgColor() -> Color {
         if isNative { return .clear }
-        let config = isDarkMode ? globalConfig.colour.dark : globalConfig.colour.light
-        return Color(nsColor: NSColor(hex: config.bg))
+        let mode = resolveGlobalStyleMode()
+        return Color(nsColor: NSColor(hex: mode.bg!))
     }
 
-    private func resolveColourConfig(moduleColour: ColourModeConfig?) -> ColourConfig {
-        if isDarkMode {
-            return moduleColour?.dark ?? globalConfig.colour.dark
-        } else {
-            return moduleColour?.light ?? globalConfig.colour.light
-        }
+    func shape(for vm: ModuleViewModel) -> ModuleShape? {
+        let moduleMode = resolveModuleStyleMode(vm.moduleConfig.style)
+        return moduleMode?.shape
     }
 
     // MARK: - Font Resolution
 
     func iconFont(for vm: ModuleViewModel) -> Font {
-        let config = vm.moduleConfig.iconFont ?? globalConfig.iconFont!
-        return config.swiftUIFont
+        let fontConfig = vm.moduleConfig.iconFont ?? config.iconFont!
+        return fontConfig.swiftUIFont
     }
 
     func textFont(for vm: ModuleViewModel) -> Font {
-        let config = vm.moduleConfig.textFont ?? globalConfig.textFont!
-        return config.swiftUIFont
+        let fontConfig = vm.moduleConfig.textFont ?? config.textFont!
+        return fontConfig.swiftUIFont
     }
 }

@@ -1,4 +1,5 @@
 import AppKit
+import Combine
 import SwiftUI
 import Yaml
 
@@ -12,6 +13,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     var isMenuBarShowing: Bool = false
     nonisolated(unsafe) var menuBarMonitor: Any?
     nonisolated(unsafe) var repositionTimer: Timer?
+    var bgColorCancellable: AnyCancellable?
 
     func applicationDidFinishLaunching(_ aNotification: Notification) {
         NSApp.setActivationPolicy(.accessory)
@@ -34,7 +36,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             return
         }
 
-        barHeight = CGFloat(config.global.height)
+        barHeight = CGFloat(config.height)
 
         guard let screen = NSScreen.screens.first else {
             print("Unable to get screen")
@@ -60,9 +62,9 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         bgPanel.backgroundColor = NSColor.clear
         bgPanel.ignoresMouseEvents = true
 
-        let theme = ThemeProvider(globalConfig: config.global)
+        let theme = ThemeProvider(config: config)
 
-        if config.global.appearance == .native {
+        if config.appearance == .native {
             let effectView = NSVisualEffectView(frame: NSRect(origin: .zero, size: bgRect.size))
             effectView.material = .headerView
             effectView.state = .active
@@ -72,10 +74,17 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         } else {
             let bgView = NSView(frame: NSRect(origin: .zero, size: bgRect.size))
             bgView.wantsLayer = true
-            let globalColour = theme.isDarkMode ? config.global.colour.dark : config.global.colour.light
-            bgView.layer?.backgroundColor = NSColor(hex: globalColour.bg).cgColor
+            let globalStyle = theme.isDarkMode ? config.style.dark! : config.style.light!
+            bgView.layer?.backgroundColor = NSColor(hex: globalStyle.bg!).cgColor
             bgView.autoresizingMask = [.width, .height]
             bgPanel.contentView = bgView
+
+            // Reactively update bar background when light/dark mode changes
+            bgColorCancellable = theme.$isDarkMode.sink { [weak self] isDark in
+                guard let self = self, let view = self.bgPanel.contentView else { return }
+                let mode = isDark ? config.style.dark! : config.style.light!
+                view.layer?.backgroundColor = NSColor(hex: mode.bg!).cgColor
+            }
         }
 
         bgPanel.orderFrontRegardless()
@@ -83,10 +92,8 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         // MARK: Module Group Panels
         let bar = BarViewModel(config: config)
 
-        let globalColour = theme.isDarkMode ? config.global.colour.dark : config.global.colour.light
-        bar.popupManager.fgColor = NSColor(hex: globalColour.fg)
-        bar.popupManager.bgColor = NSColor(hex: globalColour.bg)
-        bar.popupManager.appearance = config.global.appearance
+        bar.popupManager.themeProvider = theme
+        bar.popupManager.appearance = config.appearance
 
         let moduleGroupLevel = NSWindow.Level(rawValue: statusWindowLevel.rawValue + 1)
         // Right groups are reversed so the last group (rightmost in config)
@@ -370,6 +377,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationWillTerminate(_ aNotification: Notification) {
         stopMenuBarMonitoring()
         repositionTimer?.invalidate()
+        bgColorCancellable?.cancel()
     }
 }
 

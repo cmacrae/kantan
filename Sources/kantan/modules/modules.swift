@@ -97,7 +97,7 @@ struct ModuleConfigBuilder {
     private var icon: String? = nil
     private var textFont: FontConfig? = nil
     private var iconFont: FontConfig? = nil
-    private var colour: ColourModeConfig? = nil
+    private var style: StyleConfig? = nil
     private var config: ModuleConfiguration?
     private var interaction: InteractionConfig? = nil
     private var mask: MaskConfig? = nil
@@ -136,8 +136,8 @@ struct ModuleConfigBuilder {
         return self
     }
 
-    mutating func setColour(_ colour: ColourModeConfig) -> ModuleConfigBuilder {
-        self.colour = colour
+    mutating func setStyle(_ style: StyleConfig) -> ModuleConfigBuilder {
+        self.style = style
         return self
     }
 
@@ -188,7 +188,7 @@ struct ModuleConfigBuilder {
         guard let config = self.config else {
             throw BuilderError.missingConfiguration
         }
-        return ModuleConfig(name: name, alignment: alignment, type: type, icon: icon, textFont: textFont, iconFont: iconFont, colour: colour, config: config, interaction: interaction, mask: mask)
+        return ModuleConfig(name: name, alignment: alignment, type: type, icon: icon, textFont: textFont, iconFont: iconFont, style: style, config: config, interaction: interaction, mask: mask)
     }
 }
 
@@ -206,7 +206,7 @@ struct ModuleConfig: Codable {
     let icon: String?
     let textFont: FontConfig?
     let iconFont: FontConfig?
-    let colour: ColourModeConfig?
+    let style: StyleConfig?
     var config: ModuleConfiguration?
     var interaction: InteractionConfig?
     var mask: MaskConfig?
@@ -217,17 +217,17 @@ struct ModuleConfig: Codable {
     var bgOverride: String?
 
     private enum CodingKeys: String, CodingKey {
-        case name, type, alignment, icon, textFont, iconFont, colour, config, lastDrawnValue, lastDrawnIcon, interaction, mask
+        case name, type, alignment, icon, textFont, iconFont, style, config, lastDrawnValue, lastDrawnIcon, interaction, mask
     }
 
-    init(name: String, alignment: String, type: String, icon: String? = nil, textFont: FontConfig? = nil, iconFont: FontConfig? = nil, colour: ColourModeConfig? = nil, config: ModuleConfiguration? = nil, interaction: InteractionConfig? = nil, mask: MaskConfig? = nil) {
+    init(name: String, alignment: String, type: String, icon: String? = nil, textFont: FontConfig? = nil, iconFont: FontConfig? = nil, style: StyleConfig? = nil, config: ModuleConfiguration? = nil, interaction: InteractionConfig? = nil, mask: MaskConfig? = nil) {
         self.name = name
         self.alignment = alignment
         self.type = type
         self.icon = icon
         self.textFont = textFont
         self.iconFont = iconFont
-        self.colour = colour
+        self.style = style
         self.config = config
         self.interaction = interaction
         self.mask = mask
@@ -241,7 +241,6 @@ struct ModuleConfig: Codable {
         icon = try container.decodeIfPresent(String.self, forKey: .icon)
         textFont = try container.decodeIfPresent(FontConfig.self, forKey: .textFont)
         iconFont = try container.decodeIfPresent(FontConfig.self, forKey: .iconFont)
-        colour = try container.decodeIfPresent(ColourModeConfig.self, forKey: .colour)
 
         let configDict = try container.decodeIfPresent(ConfigDictionary.self, forKey: .config)?.values
         let configYaml = configDict.map(ModuleConfig.yaml(from:))
@@ -266,6 +265,9 @@ struct ModuleConfig: Codable {
             config = nil
         }
 
+        // Per-module style is parsed from YAML in loadConfig, not decoded here
+        style = nil
+
         interaction = try container.decodeIfPresent(InteractionConfig.self, forKey: .interaction)
         mask = try container.decodeIfPresent(MaskConfig.self, forKey: .mask)
         lastDrawnValue = try container.decodeIfPresent(String.self, forKey: .lastDrawnValue)
@@ -280,7 +282,6 @@ struct ModuleConfig: Codable {
         try container.encodeIfPresent(icon, forKey: .icon)
         try container.encodeIfPresent(textFont, forKey: .textFont)
         try container.encodeIfPresent(iconFont, forKey: .iconFont)
-        try container.encodeIfPresent(colour, forKey: .colour)
         try container.encodeIfPresent(mask, forKey: .mask)
 
         try container.encodeIfPresent(lastDrawnValue, forKey: .lastDrawnValue)

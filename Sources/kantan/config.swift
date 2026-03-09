@@ -3,8 +3,38 @@ import Foundation
 import SwiftUI
 import Yaml
 
+// MARK: - Style Types
+
+enum ModuleShape: String, Codable, Sendable {
+    case pill, box, underline, overline
+}
+
+struct ElementStyle: Codable, Sendable {
+    let fg: String?
+}
+
+struct StyleModeConfig: Codable, Sendable {
+    let fg: String?
+    let bg: String?
+    let text: ElementStyle?
+    let icon: ElementStyle?
+    let shape: ModuleShape?
+}
+
+struct StyleConfig: Codable, Sendable {
+    let light: StyleModeConfig?
+    let dark: StyleModeConfig?
+}
+
+// MARK: - Config
+
 struct Config: Codable {
-    let global: GlobalConfig
+    let appearance: AppearanceStyle
+    let style: StyleConfig
+    let height: Int
+    let padding: Int
+    let iconFont: FontConfig?
+    let textFont: FontConfig?
     var modules: [ModuleConfig]
 }
 
@@ -13,25 +43,6 @@ struct Config: Codable {
 enum AppearanceStyle: String, Codable, Sendable {
     case native
     case theme
-}
-
-struct GlobalConfig: Codable {
-    let height: Int
-    let padding: Int
-    let colour: ColourModeConfig
-    let iconFont: FontConfig?
-    let textFont: FontConfig?
-    let appearance: AppearanceStyle
-}
-
-struct ColourModeConfig: Codable {
-    let light: ColourConfig
-    let dark: ColourConfig
-}
-
-struct ColourConfig: Codable {
-    let fg: String
-    let bg: String
 }
 
 struct FontConfig: Codable {
@@ -98,41 +109,76 @@ struct FontConfig: Codable {
 // NOTE: ModuleConfig & ModuleConfiguration:
 //       see modules/modules.swift
 
-// Load configuration from a YAML object
-func loadConfig(from yaml: Yaml) -> Config? {
-    guard let globalYaml = yaml["global"].dictionary,
-          let height = globalYaml["height"]?.int,
-          let padding = globalYaml["padding"]?.int,
-          let colourYaml = globalYaml["colour"]?.dictionary,
-          let lightColourYaml = colourYaml["light"]?.dictionary,
-          let darkColourYaml = colourYaml["dark"]?.dictionary,
-          let lightFg = lightColourYaml["fg"]?.string,
-          let lightBg = lightColourYaml["bg"]?.string,
-          let darkFg = darkColourYaml["fg"]?.string,
-          let darkBg = darkColourYaml["bg"]?.string else {
-        print("Failed to load global config") // NOTE: debugging
+// MARK: - Style Parsing Helpers
+
+func parseStyleModeConfig(from yaml: Yaml) -> StyleModeConfig? {
+    guard let dict = yaml.dictionary else { return nil }
+
+    let fg = dict["fg"]?.string
+    let bg = dict["bg"]?.string
+
+    var text: ElementStyle? = nil
+    if let textDict = dict["text"]?.dictionary {
+        text = ElementStyle(fg: textDict["fg"]?.string)
+    }
+
+    var icon: ElementStyle? = nil
+    if let iconDict = dict["icon"]?.dictionary {
+        icon = ElementStyle(fg: iconDict["fg"]?.string)
+    }
+
+    var shape: ModuleShape? = nil
+    if let shapeStr = dict["shape"]?.string {
+        shape = ModuleShape(rawValue: shapeStr)
+    }
+
+    // Return nil only if everything is nil
+    if fg == nil && bg == nil && text == nil && icon == nil && shape == nil {
         return nil
     }
 
-    let globalIconFontDescriptor = globalYaml["iconFont"]?.string
-    let globalTextFontDescriptor = globalYaml["textFont"]?.string
-    let globalIconFont = globalIconFontDescriptor.map { FontConfig(descriptor: $0) }
-    let globalTextFont = globalTextFontDescriptor.map { FontConfig(descriptor: $0) }
+    return StyleModeConfig(fg: fg, bg: bg, text: text, icon: icon, shape: shape)
+}
 
-    let appearanceStr = globalYaml["appearance"]?.string ?? "theme"
+func parseStyleConfig(from yaml: Yaml) -> StyleConfig? {
+    guard let dict = yaml.dictionary else { return nil }
+
+    let light = dict["light"].flatMap { parseStyleModeConfig(from: $0) }
+    let dark = dict["dark"].flatMap { parseStyleModeConfig(from: $0) }
+
+    if light == nil && dark == nil { return nil }
+
+    return StyleConfig(light: light, dark: dark)
+}
+
+// MARK: - Load Configuration
+
+func loadConfig(from yaml: Yaml) -> Config? {
+    // Top-level keys (flattened — no "global" wrapper)
+    guard let height = yaml["height"].int,
+          let padding = yaml["padding"].int else {
+        print("Failed to load config: missing height or padding")
+        return nil
+    }
+
+    guard let styleYaml = yaml["style"].dictionary,
+          let lightYaml = styleYaml["light"],
+          let darkYaml = styleYaml["dark"],
+          let lightMode = parseStyleModeConfig(from: lightYaml),
+          let darkMode = parseStyleModeConfig(from: darkYaml),
+          lightMode.fg != nil, lightMode.bg != nil,
+          darkMode.fg != nil, darkMode.bg != nil else {
+        print("Failed to load config: style.light and style.dark must have fg and bg")
+        return nil
+    }
+
+    let style = StyleConfig(light: lightMode, dark: darkMode)
+
+    let iconFont = yaml["iconFont"].string.map { FontConfig(descriptor: $0) }
+    let textFont = yaml["textFont"].string.map { FontConfig(descriptor: $0) }
+
+    let appearanceStr = yaml["appearance"].string ?? "theme"
     let appearance = AppearanceStyle(rawValue: appearanceStr) ?? .theme
-
-    let globalConfig = GlobalConfig(
-      height: height,
-      padding: padding,
-      colour: ColourModeConfig(
-        light: ColourConfig(fg: lightFg, bg: lightBg),
-        dark: ColourConfig(fg: darkFg, bg: darkBg)
-      ),
-      iconFont: globalIconFont,
-      textFont: globalTextFont,
-      appearance: appearance
-    )
 
     guard let modulesYaml = yaml["modules"].array else {
         print("Failed to load modules config from YAML")
@@ -180,22 +226,9 @@ func loadConfig(from yaml: Yaml) -> Config? {
             builder = builder.setIconFont(moduleIconFont)
         }
 
-        if let colourYaml = moduleYaml["colour"].dictionary {
-            let lightColourYaml = colourYaml["light"]?.dictionary
-            let darkColourYaml = colourYaml["dark"]?.dictionary
-
-            let lightFg = lightColourYaml?["fg"]?.string
-            let lightBg = lightColourYaml?["bg"]?.string
-            let darkFg = darkColourYaml?["fg"]?.string
-            let darkBg = darkColourYaml?["bg"]?.string
-
-            if lightFg != nil || lightBg != nil || darkFg != nil || darkBg != nil {
-                let colour = ColourModeConfig(
-                  light: ColourConfig(fg: lightFg ?? globalConfig.colour.light.fg, bg: lightBg ?? globalConfig.colour.light.bg),
-                  dark: ColourConfig(fg: darkFg ?? globalConfig.colour.dark.fg, bg: darkBg ?? globalConfig.colour.dark.bg)
-                )
-                builder = builder.setColour(colour)
-            }
+        // Parse per-module style
+        if let moduleStyle = parseStyleConfig(from: moduleYaml["style"]) {
+            builder = builder.setStyle(moduleStyle)
         }
 
         // Parse interaction config
@@ -291,13 +324,20 @@ func loadConfig(from yaml: Yaml) -> Config? {
         }
     }
 
-    return Config(global: globalConfig, modules: modules)
+    return Config(
+        appearance: appearance,
+        style: style,
+        height: height,
+        padding: padding,
+        iconFont: iconFont,
+        textFont: textFont,
+        modules: modules
+    )
 }
 
 // Convenience function to load data from a file
 func loadFileContents(filePath: String) -> String? {
     let fileURL = URL(fileURLWithPath: filePath)
-    // NOTE: Debugging
     print("Loading file from: \(fileURL.path)")
 
     do {

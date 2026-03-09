@@ -1,17 +1,15 @@
-global:
-  height: 35
-  padding: 10
-  textFont: "Helvetica Neue"
-  iconFont: "FontAwesome:Regular:15"
-  appearance: native
-  # appearance: theme
-  colour:
-    light:
-      bg: "#bfccb5"
-      fg: "#65647c"
-    dark:
-      fg: "#f7f5eb"
-      bg: "#7c96ab"
+height: 35
+padding: 10
+textFont: "Helvetica Neue"
+iconFont: "FontAwesome:Regular:15"
+appearance: theme
+style:
+  light:
+    bg: "#303446"
+    fg: "#c6d0f5"
+  dark:
+    fg: "#cdd6f4"
+    bg: "#1e1e2e"
 
 modules:
   # - name: user
@@ -20,10 +18,6 @@ modules:
   #   icon: 
   #   config:
   #     command: whoami
-  #     # command: echo $RANDOM
-  #     # launcher:
-  #     #   path: ~/.nix-profile/bin/zsh
-  #     #   args: [ '-c' ]
   #   interaction:
   #     hover:
   #       type: tooltip
@@ -40,6 +34,11 @@ modules:
     type: caffeinate
     alignment: right
     icon: 
+    style:
+      light:
+        fg: "#e5c890"
+      dark:
+        fg: "#f9e2af"
     interaction:
       hover:
         type: tooltip
@@ -51,6 +50,19 @@ modules:
     type: reminders
     alignment: right
     icon: 
+    style:
+      light:
+        icon:
+          fg: "#ca9ee6"
+        fg: "#c6d0f5"
+        shape: box
+        bg: "#414559"
+      dark:
+        icon:
+          fg: "#cba6f7"
+        fg: "#cdd6f4"
+        shape: box
+        bg: "#313244"
     config:
       list: kantan testing
 
@@ -61,6 +73,11 @@ modules:
       showCount: false
       icon: 
       disabledIcon: 
+    style:
+      light:
+        fg: "#8caaee"
+      dark:
+        fg: "#89b4fa"
     mask:
       name: Bluetooth
 
@@ -110,7 +127,7 @@ modules:
   - name: control-centre
     type: icon
     alignment: right
-    icon: ""
+    icon: 
     mask:
       name: ControlCenter
 

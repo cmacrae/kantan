@@ -74,17 +74,22 @@ class PopupManager {
     private var activePanel: NSPanel?
     private var activePopupId: String?
     private var tooltipPanel: NSPanel?
-    var fgColor: NSColor = .labelColor
-    var bgColor: NSColor = .windowBackgroundColor
+    weak var themeProvider: ThemeProvider?
     var appearance: AppearanceStyle = .theme
     var modulePanels: [String: NSWindow] = [:]
 
     var effectiveFgColor: NSColor {
-        appearance == .native ? .labelColor : fgColor
+        if appearance == .native { return .labelColor }
+        guard let tp = themeProvider else { return .labelColor }
+        let mode = tp.isDarkMode ? tp.config.style.dark : tp.config.style.light
+        return NSColor(hex: mode!.fg!)
     }
 
     var effectiveBgColor: NSColor {
-        appearance == .native ? .windowBackgroundColor : bgColor
+        if appearance == .native { return .windowBackgroundColor }
+        guard let tp = themeProvider else { return .windowBackgroundColor }
+        let mode = tp.isDarkMode ? tp.config.style.dark : tp.config.style.light
+        return NSColor(hex: mode!.bg!)
     }
 
     var isPopupActive: Bool {
@@ -182,7 +187,7 @@ class PopupManager {
     private func showThemedTooltip(text: String, anchorPoint: NSPoint) {
         let label = NSTextField(labelWithString: text)
         label.font = NSFont.systemFont(ofSize: 11)
-        label.textColor = fgColor
+        label.textColor = effectiveFgColor
         label.backgroundColor = .clear
         label.isBezeled = false
         label.isEditable = false
@@ -207,7 +212,7 @@ class PopupManager {
         container.wantsLayer = true
         container.layer?.cornerRadius = 6
         container.layer?.masksToBounds = true
-        container.layer?.backgroundColor = bgColor.cgColor
+        container.layer?.backgroundColor = effectiveBgColor.cgColor
 
         label.frame.origin = NSPoint(x: padding, y: padding)
         container.addSubview(label)
@@ -280,8 +285,8 @@ class PopupManager {
 
         dismissPopup()
 
-        let fg = Color(nsColor: fgColor)
-        let bg = Color(nsColor: bgColor)
+        let fg = Color(nsColor: effectiveFgColor)
+        let bg = Color(nsColor: effectiveBgColor)
 
         let menuView = SwiftUIThemedMenuView(descriptors: descriptors, fgColor: fg, bgColor: bg, dismissHandler: { [weak self] in
             self?.dismissPopup()
@@ -417,7 +422,7 @@ class PopupManager {
             container.wantsLayer = true
             container.layer?.cornerRadius = 10
             container.layer?.masksToBounds = true
-            container.layer?.backgroundColor = bgColor.cgColor
+            container.layer?.backgroundColor = effectiveBgColor.cgColor
             return container
         }
     }
@@ -458,5 +463,3 @@ class NativeMenuActionTarget: NSObject {
         action()
     }
 }
-
-
