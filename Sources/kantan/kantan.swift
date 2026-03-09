@@ -10,9 +10,12 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     var barViewModel: BarViewModel?
     var themeProvider: ThemeProvider?
     var barHeight: CGFloat = 0
+    var autohideConfig: AutohideConfig = .default
     var isMenuBarShowing: Bool = false
+    var isHoveringTopEdge: Bool = false
     nonisolated(unsafe) var menuBarMonitor: Any?
     nonisolated(unsafe) var repositionTimer: Timer?
+    nonisolated(unsafe) var autohideDelayTimer: Timer?
     var bgColorCancellable: AnyCancellable?
     var visibilityCancellables: [AnyCancellable] = []
 
@@ -38,6 +41,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         }
 
         barHeight = CGFloat(config.height)
+        autohideConfig = config.autohide
 
         guard let screen = NSScreen.screens.first else {
             print("Unable to get screen")
@@ -192,7 +196,9 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             name: NSApplication.didChangeScreenParametersNotification, object: nil
         )
 
-        startMenuBarMonitoring()
+        if autohideConfig.enabled {
+            startMenuBarMonitoring()
+        }
     }
 
     @objc func screenDidChange(_ notification: Notification) {
@@ -305,15 +311,41 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     func checkMenuBar() {
         guard let screen = NSScreen.screens.first else { return }
         let mouseY = NSEvent.mouseLocation.y
+        let mouseX = NSEvent.mouseLocation.x
         let screenTop = screen.frame.maxY
         let menuBarRegion = screen.frame.maxY - screen.visibleFrame.maxY
 
-        if !isMenuBarShowing && mouseY >= screenTop - 4 {
-            isMenuBarShowing = true
-            slideOut()
-        } else if isMenuBarShowing && mouseY < screenTop - menuBarRegion {
-            isMenuBarShowing = false
-            slideIn()
+        // Only trigger when the mouse is within this screen's horizontal bounds
+        let inScreenX = mouseX >= screen.frame.minX && mouseX <= screen.frame.maxX
+        let atTopEdge = mouseY >= screenTop - 4 && inScreenX
+
+        if !isMenuBarShowing && atTopEdge {
+            if !isHoveringTopEdge {
+                isHoveringTopEdge = true
+                if autohideConfig.delay <= 0 {
+                    isMenuBarShowing = true
+                    slideOut()
+                } else {
+                    autohideDelayTimer?.invalidate()
+                    autohideDelayTimer = Timer.scheduledTimer(withTimeInterval: autohideConfig.delay, repeats: false) { [weak self] _ in
+                        MainActor.assumeIsolated {
+                            guard let self = self, self.isHoveringTopEdge else { return }
+                            self.isMenuBarShowing = true
+                            self.slideOut()
+                        }
+                    }
+                }
+            }
+        } else if !atTopEdge {
+            if isHoveringTopEdge {
+                isHoveringTopEdge = false
+                autohideDelayTimer?.invalidate()
+                autohideDelayTimer = nil
+            }
+            if isMenuBarShowing && mouseY < screenTop - menuBarRegion {
+                isMenuBarShowing = false
+                slideIn()
+            }
         }
     }
 
@@ -324,84 +356,38 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     func slideOut() {
-        let slideDistance = barHeight
-
-        NSAnimationContext.runAnimationGroup { context in
+        let panels = allPanels
+        NSAnimationContext.runAnimationGroup({ context in
             context.duration = 0.2
             context.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
-            for panel in allPanels {
-                var frame = panel.frame
-                frame.origin.y += slideDistance
-                panel.animator().setFrame(frame, display: true)
+            for panel in panels {
+                panel.animator().alphaValue = 0
             }
-        }
+        }, completionHandler: {
+            DispatchQueue.main.async {
+                MainActor.assumeIsolated {
+                    for panel in panels {
+                        panel.orderOut(nil)
+                    }
+                }
+            }
+        })
     }
 
     func slideIn() {
-        guard let screen = NSScreen.screens.first else { return }
-        let statusBarY = screen.frame.origin.y + screen.frame.height - barHeight
+        // Reposition panels to their correct locations before showing
+        repositionAllPanels()
 
-        // Re-detect native items for masked module positions
-        let nativeItems = MenuBarItemDetector.detectItems()
-
-        // First pass: compute masked panel positions and available space
-        var leftX = screen.frame.origin.x
-        var rightX = screen.frame.origin.x + screen.frame.width
-        var maskedFrames: [String: NSRect] = [:]
-
-        for entry in groupPanels {
-            guard entry.group.modules.count == 1,
-                  let mask = entry.group.modules[0].moduleConfig.mask else { continue }
-
-            guard let nativeItem = MenuBarItemDetector.resolveItem(for: mask, from: nativeItems) else {
-                entry.panel.orderOut(nil)
-                continue
-            }
-
-            let nativeRect = MenuBarItemDetector.appKitRect(from: nativeItem.cgRect, screenHeight: screen.frame.height)
-            let panelFrame = NSRect(x: nativeRect.origin.x, y: statusBarY, width: nativeRect.width, height: barHeight)
-            maskedFrames[entry.group.id] = panelFrame
-
-            if entry.group.alignment == "right" {
-                rightX = min(rightX, nativeRect.origin.x)
-            } else {
-                leftX = max(leftX, nativeRect.origin.x + nativeRect.width)
-            }
+        for panel in allPanels {
+            panel.alphaValue = 0
+            panel.orderFrontRegardless()
         }
 
-        // Animate all panels to their correct positions
         NSAnimationContext.runAnimationGroup { context in
             context.duration = 0.2
             context.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
-
-            // Background panel
-            let bgFrame = NSRect(x: screen.frame.origin.x, y: statusBarY, width: screen.frame.width, height: barHeight)
-            bgPanel.animator().setFrame(bgFrame, display: true)
-
-            // Group panels
-            for entry in groupPanels {
-                if let frame = maskedFrames[entry.group.id] {
-                    if !entry.panel.isVisible {
-                        entry.panel.setFrame(frame, display: false)
-                        entry.panel.orderFrontRegardless()
-                    }
-                    entry.panel.animator().setFrame(frame, display: true)
-                    continue
-                }
-
-                let fittingWidth = entry.hostingView.fittingSize.width
-
-                let panelX: CGFloat
-                if entry.group.alignment == "left" {
-                    panelX = leftX
-                    leftX += fittingWidth
-                } else {
-                    rightX -= fittingWidth
-                    panelX = rightX
-                }
-
-                let panelFrame = NSRect(x: panelX, y: statusBarY, width: fittingWidth, height: barHeight)
-                entry.panel.animator().setFrame(panelFrame, display: true)
+            for panel in self.allPanels {
+                panel.animator().alphaValue = 1
             }
         }
     }
@@ -409,6 +395,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationWillTerminate(_ aNotification: Notification) {
         stopMenuBarMonitoring()
         repositionTimer?.invalidate()
+        autohideDelayTimer?.invalidate()
         bgColorCancellable?.cancel()
         visibilityCancellables.removeAll()
     }

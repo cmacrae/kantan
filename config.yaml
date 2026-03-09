@@ -1,8 +1,10 @@
-height: 35
+height: 33
 padding: 10
-textFont: "Helvetica Neue"
+textFont: "Helvetica Neue:13"
 iconFont: "FontAwesome:Regular:15"
 appearance: theme
+# autohide:
+#   enabled: false
 style:
   light:
     bg: "#303446"

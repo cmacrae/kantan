@@ -26,6 +26,15 @@ struct StyleConfig: Codable, Sendable {
     let dark: StyleModeConfig?
 }
 
+// MARK: - Autohide
+
+struct AutohideConfig: Codable, Sendable {
+    let enabled: Bool
+    let delay: Double
+
+    static let `default` = AutohideConfig(enabled: true, delay: 0.0)
+}
+
 // MARK: - Config
 
 struct Config: Codable {
@@ -36,6 +45,7 @@ struct Config: Codable {
     let iconTextSpacing: Int
     let iconFont: FontConfig?
     let textFont: FontConfig?
+    let autohide: AutohideConfig
     var modules: [ModuleConfig]
 }
 
@@ -182,6 +192,22 @@ func loadConfig(from yaml: Yaml) -> Config? {
 
     let appearanceStr = yaml["appearance"].string ?? "theme"
     let appearance = AppearanceStyle(rawValue: appearanceStr) ?? .theme
+
+    let autohide: AutohideConfig
+    if let autohideYaml = yaml["autohide"].dictionary {
+        let enable = autohideYaml["enabled"]?.bool ?? true
+        let delay: Double
+        if let d = autohideYaml["delay"]?.double {
+            delay = max(0.0, min(5.0, d))
+        } else if let d = autohideYaml["delay"]?.int {
+            delay = max(0.0, min(5.0, Double(d)))
+        } else {
+            delay = AutohideConfig.default.delay
+        }
+        autohide = AutohideConfig(enabled: enable, delay: delay)
+    } else {
+        autohide = AutohideConfig.default
+    }
 
     guard let modulesYaml = yaml["modules"].array else {
         print("Failed to load modules config from YAML")
@@ -335,6 +361,7 @@ func loadConfig(from yaml: Yaml) -> Config? {
         iconTextSpacing: iconTextSpacing,
         iconFont: iconFont,
         textFont: textFont,
+        autohide: autohide,
         modules: modules
     )
 }
