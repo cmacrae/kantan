@@ -185,20 +185,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                 .store(in: &visibilityCancellables)
         }
 
-        // Reposition panels periodically for the first 2 seconds to catch
-        // async module content loading (getValue completions, event-driven updates).
-        // Each hosting view's fittingSize changes as SwiftUI renders content.
-        var repositionCount = 0
-        repositionTimer = Timer.scheduledTimer(withTimeInterval: 0.1, repeats: true) { [weak self] _ in
-            MainActor.assumeIsolated {
-                self?.repositionAllPanels()
-                repositionCount += 1
-                if repositionCount >= 20 {
-                    self?.repositionTimer?.invalidate()
-                    self?.repositionTimer = nil
-                }
-            }
-        }
+        restartRepositionTimer()
 
         NotificationCenter.default.addObserver(
             self, selector: #selector(screenDidChange),
@@ -210,10 +197,10 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
     @objc func screenDidChange(_ notification: Notification) {
         repositionAllPanels()
+        restartRepositionTimer()
+    }
 
-        // Restart periodic repositioning to let macOS settle its menu bar
-        // items after a display configuration change. Native items may not
-        // be at their final positions when the notification first fires.
+    func restartRepositionTimer() {
         repositionTimer?.invalidate()
         var repositionCount = 0
         repositionTimer = Timer.scheduledTimer(withTimeInterval: 0.1, repeats: true) { [weak self] _ in

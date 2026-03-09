@@ -76,6 +76,13 @@ modules:
       click:
         type: menu
 
+  - name: focus
+    type: icon
+    alignment: right
+    icon: 
+    mask:
+      name: FocusModes
+
   - name: bluetooth
     type: bluetooth
     alignment: right

@@ -21,6 +21,11 @@ struct MenuBarItemDetector {
 
     /// Query native menu bar items on the primary screen.
     /// Returns items sorted right-to-left (index 0 = rightmost).
+    ///
+    /// Uses CGWindowListCopyWindowInfo for position/bounds detection.
+    /// Note: on macOS 15 (Sequoia), all status bar items — including third-party
+    /// ones — are reported under "Control Centre" with the same PID/bundleId.
+    /// System items can still be identified via plist preferred-position lookup.
     static func detectItems(excludingOwner: String = "kantan") -> [NativeMenuBarItem] {
         let windowList = CGWindowListCopyWindowInfo([.optionOnScreenOnly], kCGNullWindowID) as? [[String: Any]] ?? []
         let statusLevel = Int(CGWindowLevelForKey(.statusWindow))
@@ -59,12 +64,14 @@ struct MenuBarItemDetector {
     }
 
     /// Resolve a MaskConfig to a specific native menu bar item.
-    /// Supports index-based lookup (mask.index) and name-based lookup (mask.name).
+    ///
+    /// Resolution chain (highest to lowest priority):
+    /// 1. `mask.index` — direct index lookup
+    /// 2. `mask.name` — system plist lookup, then owner name fallback
     ///
     /// Name-based lookup reads `NSStatusItem Preferred Position <Name>` from the
-    /// `com.apple.controlcenter` defaults. The value is the distance in points from
-    /// the effective right edge of the menu bar to the item's right edge. We match
-    /// this against each detected window's computed rightEdgeDist.
+    /// `com.apple.controlcenter` defaults. If that fails, falls back to case-insensitive
+    /// matching against the window owner name (process name).
     ///
     /// User-friendly aliases are supported (e.g. "ControlCenter" → "BentoBox-0",
     /// "Volume" → "Sound"). The raw plist names also work directly.
@@ -74,11 +81,13 @@ struct MenuBarItemDetector {
     /// rightEdgeDist=0 (the rightmost position, occupied by the clock when
     /// the menu bar clock is visible).
     static func resolveItem(for mask: MaskConfig, from items: [NativeMenuBarItem]) -> NativeMenuBarItem? {
+        // 1. Index-based lookup
         if let index = mask.index {
             guard index >= 0 && index < items.count else { return nil }
             return items[index]
         }
 
+        // 2. Name-based lookup
         guard let name = mask.name else { return nil }
 
         // Resolve aliases to plist identifiers
@@ -117,7 +126,8 @@ struct MenuBarItemDetector {
             }
         }
 
-        return nil
+        // Fallback: match against window owner name (case-insensitive).
+        return items.first { $0.owner.lowercased() == name.lowercased() }
     }
 
     /// Convert CG rect to AppKit screen coordinates.
