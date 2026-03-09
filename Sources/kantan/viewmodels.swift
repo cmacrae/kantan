@@ -418,4 +418,10 @@ class ThemeProvider: ObservableObject {
         let fontConfig = vm.moduleConfig.textFont ?? config.textFont!
         return fontConfig.swiftUIFont
     }
+
+    // MARK: - Layout
+
+    func iconTextSpacing() -> CGFloat {
+        CGFloat(config.iconTextSpacing)
+    }
 }

@@ -33,6 +33,7 @@ struct Config: Codable {
     let style: StyleConfig
     let height: Int
     let padding: Int
+    let iconTextSpacing: Int
     let iconFont: FontConfig?
     let textFont: FontConfig?
     var modules: [ModuleConfig]
@@ -173,6 +174,8 @@ func loadConfig(from yaml: Yaml) -> Config? {
     }
 
     let style = StyleConfig(light: lightMode, dark: darkMode)
+
+    let iconTextSpacing = yaml["iconTextSpacing"].int ?? 5
 
     let iconFont = yaml["iconFont"].string.map { FontConfig(descriptor: $0) }
     let textFont = yaml["textFont"].string.map { FontConfig(descriptor: $0) }
@@ -329,6 +332,7 @@ func loadConfig(from yaml: Yaml) -> Config? {
         style: style,
         height: height,
         padding: padding,
+        iconTextSpacing: iconTextSpacing,
         iconFont: iconFont,
         textFont: textFont,
         modules: modules

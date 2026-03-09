@@ -155,7 +155,7 @@ struct StandardModuleView: View {
     @EnvironmentObject var themeProvider: ThemeProvider
 
     var body: some View {
-        HStack(spacing: 2) {
+        HStack(spacing: themeProvider.iconTextSpacing()) {
             if let icon = viewModel.displayIcon, !icon.isEmpty {
                 Text(icon)
                     .font(themeProvider.iconFont(for: viewModel))
