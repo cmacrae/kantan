@@ -77,7 +77,7 @@ class PopupManager {
     var fgColor: NSColor = .labelColor
     var bgColor: NSColor = .windowBackgroundColor
     var appearance: AppearanceStyle = .theme
-    weak var barWindow: NSWindow?
+    var modulePanels: [String: NSWindow] = [:]
 
     var effectiveFgColor: NSColor {
         appearance == .native ? .labelColor : fgColor
@@ -95,11 +95,13 @@ class PopupManager {
 
     /// Convert a point from SwiftUI .global coordinate space (window-local,
     /// Y-down from top-left) to macOS screen coordinates (Y-up from bottom-left).
-    func screenPoint(from swiftUIPoint: NSPoint) -> NSPoint {
-        guard let windowFrame = barWindow?.frame else { return swiftUIPoint }
+    /// Uses the module's own panel for coordinate conversion.
+    func screenPoint(from swiftUIPoint: NSPoint, forModule moduleId: String) -> NSPoint {
+        guard let panel = modulePanels[moduleId] else { return swiftUIPoint }
+        let panelFrame = panel.frame
         return NSPoint(
-            x: windowFrame.origin.x + swiftUIPoint.x,
-            y: windowFrame.origin.y + windowFrame.height - swiftUIPoint.y
+            x: panelFrame.origin.x + swiftUIPoint.x,
+            y: panelFrame.origin.y + panelFrame.height - swiftUIPoint.y
         )
     }
 
@@ -467,3 +469,5 @@ class NativeMenuActionTarget: NSObject {
         action()
     }
 }
+
+

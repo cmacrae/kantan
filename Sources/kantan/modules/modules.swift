@@ -53,7 +53,7 @@ struct HoverConfig: Codable {
 }
 
 struct ClickConfig: Codable {
-    let type: String  // "popup" or "menu"
+    let type: String  // "popup", "menu", "dynamic-menu", "toggle", "passthrough"
     let popup: String?  // built-in popup name
     let items: [MenuItemConfig]?
 }
@@ -62,6 +62,21 @@ struct MenuItemConfig: Codable {
     let label: String?
     let command: String?
     let separator: Bool?
+}
+
+struct MaskConfig: Codable {
+    let index: Int?
+    let name: String?
+
+    init(index: Int) {
+        self.index = index
+        self.name = nil
+    }
+
+    init(name: String) {
+        self.index = nil
+        self.name = name
+    }
 }
 
 protocol ModuleConfigurationFactory {
@@ -85,6 +100,7 @@ struct ModuleConfigBuilder {
     private var colour: ColourModeConfig? = nil
     private var config: ModuleConfiguration?
     private var interaction: InteractionConfig? = nil
+    private var mask: MaskConfig? = nil
     private var lastDrawnValue: String?
     private var lastDrawnIcon: String?
     private var offset: CGFloat = 0
@@ -145,6 +161,11 @@ struct ModuleConfigBuilder {
         return self
     }
 
+    mutating func setMask(_ mask: MaskConfig) -> ModuleConfigBuilder {
+        self.mask = mask
+        return self
+    }
+
     mutating func setConfigFactory(_ factory: ModuleConfigurationFactory) -> ModuleConfigBuilder {
         self.configFactory = factory
         return self
@@ -167,7 +188,7 @@ struct ModuleConfigBuilder {
         guard let config = self.config else {
             throw BuilderError.missingConfiguration
         }
-        return ModuleConfig(name: name, alignment: alignment, type: type, icon: icon, textFont: textFont, iconFont: iconFont, colour: colour, config: config, interaction: interaction)
+        return ModuleConfig(name: name, alignment: alignment, type: type, icon: icon, textFont: textFont, iconFont: iconFont, colour: colour, config: config, interaction: interaction, mask: mask)
     }
 }
 
@@ -188,6 +209,7 @@ struct ModuleConfig: Codable {
     let colour: ColourModeConfig?
     var config: ModuleConfiguration?
     var interaction: InteractionConfig?
+    var mask: MaskConfig?
     var lastDrawnValue: String?
     var lastDrawnIcon: String?
     var offset: CGFloat = 0
@@ -195,10 +217,10 @@ struct ModuleConfig: Codable {
     var bgOverride: String?
 
     private enum CodingKeys: String, CodingKey {
-        case name, type, alignment, icon, textFont, iconFont, colour, config, lastDrawnValue, lastDrawnIcon, interaction
+        case name, type, alignment, icon, textFont, iconFont, colour, config, lastDrawnValue, lastDrawnIcon, interaction, mask
     }
 
-    init(name: String, alignment: String, type: String, icon: String? = nil, textFont: FontConfig? = nil, iconFont: FontConfig? = nil, colour: ColourModeConfig? = nil, config: ModuleConfiguration? = nil, interaction: InteractionConfig? = nil) {
+    init(name: String, alignment: String, type: String, icon: String? = nil, textFont: FontConfig? = nil, iconFont: FontConfig? = nil, colour: ColourModeConfig? = nil, config: ModuleConfiguration? = nil, interaction: InteractionConfig? = nil, mask: MaskConfig? = nil) {
         self.name = name
         self.alignment = alignment
         self.type = type
@@ -208,6 +230,7 @@ struct ModuleConfig: Codable {
         self.colour = colour
         self.config = config
         self.interaction = interaction
+        self.mask = mask
     }
 
     init(from decoder: Decoder) throws {
@@ -233,7 +256,8 @@ struct ModuleConfig: Codable {
           "volume": VolumeConfigFactory(),
           "wifi": WiFiConfigFactory(),
           "bluetooth": BluetoothConfigFactory(),
-          "caffeinate": CaffeinateConfigFactory()
+          "caffeinate": CaffeinateConfigFactory(),
+          "icon": IconConfigFactory()
         ]
 
         if let configYaml = configYaml, let factory = factories[type] {
@@ -243,6 +267,7 @@ struct ModuleConfig: Codable {
         }
 
         interaction = try container.decodeIfPresent(InteractionConfig.self, forKey: .interaction)
+        mask = try container.decodeIfPresent(MaskConfig.self, forKey: .mask)
         lastDrawnValue = try container.decodeIfPresent(String.self, forKey: .lastDrawnValue)
         lastDrawnIcon = try container.decodeIfPresent(String.self, forKey: .lastDrawnIcon)
     }
@@ -256,6 +281,7 @@ struct ModuleConfig: Codable {
         try container.encodeIfPresent(textFont, forKey: .textFont)
         try container.encodeIfPresent(iconFont, forKey: .iconFont)
         try container.encodeIfPresent(colour, forKey: .colour)
+        try container.encodeIfPresent(mask, forKey: .mask)
 
         try container.encodeIfPresent(lastDrawnValue, forKey: .lastDrawnValue)
         try container.encodeIfPresent(lastDrawnIcon, forKey: .lastDrawnIcon)

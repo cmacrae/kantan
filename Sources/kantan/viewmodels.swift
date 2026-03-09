@@ -118,6 +118,17 @@ class ModuleViewModel: ObservableObject, Identifiable {
     }
 }
 
+// MARK: - Module Group
+
+/// A contiguous group of modules sharing the same passthrough status.
+/// Each group gets its own NSPanel in the multi-panel architecture.
+struct ModuleGroup: Identifiable {
+    let id: String
+    let modules: [ModuleViewModel]
+    let isPassthrough: Bool
+    let alignment: String
+}
+
 // MARK: - Bar View Model
 
 /// Central coordinator that replaces StatusBarController.
@@ -160,6 +171,72 @@ class BarViewModel: ObservableObject {
 
     var allModules: [ModuleViewModel] {
         leftModules + rightModules
+    }
+
+    var leftGroups: [ModuleGroup] { buildGroups(from: leftModules, alignment: "left") }
+    var rightGroups: [ModuleGroup] { buildGroups(from: rightModules, alignment: "right") }
+
+    private func isModulePassthrough(_ vm: ModuleViewModel) -> Bool {
+        vm.moduleConfig.mask != nil || vm.moduleConfig.interaction?.click?.type == "passthrough"
+    }
+
+    private func buildGroups(from modules: [ModuleViewModel], alignment: String) -> [ModuleGroup] {
+        guard !modules.isEmpty else { return [] }
+        var groups: [ModuleGroup] = []
+        var current: [ModuleViewModel] = []
+        var currentPassthrough = false
+
+        for vm in modules {
+            let isMasked = vm.moduleConfig.mask != nil
+            let pt = isModulePassthrough(vm)
+
+            if isMasked {
+                // Flush any accumulated non-masked modules
+                if !current.isEmpty {
+                    groups.append(ModuleGroup(
+                        id: "\(alignment)-\(groups.count)",
+                        modules: current,
+                        isPassthrough: currentPassthrough,
+                        alignment: alignment
+                    ))
+                    current = []
+                }
+                // Masked module gets its own group
+                groups.append(ModuleGroup(
+                    id: "\(alignment)-\(groups.count)",
+                    modules: [vm],
+                    isPassthrough: true,
+                    alignment: alignment
+                ))
+            } else {
+                if current.isEmpty {
+                    currentPassthrough = pt
+                    current.append(vm)
+                } else if pt == currentPassthrough {
+                    current.append(vm)
+                } else {
+                    groups.append(ModuleGroup(
+                        id: "\(alignment)-\(groups.count)",
+                        modules: current,
+                        isPassthrough: currentPassthrough,
+                        alignment: alignment
+                    ))
+                    current = [vm]
+                    currentPassthrough = pt
+                }
+            }
+        }
+
+        if !current.isEmpty {
+            groups.append(ModuleGroup(
+                id: "\(alignment)-\(groups.count)",
+                modules: current,
+                isPassthrough: currentPassthrough,
+                alignment: alignment
+            ))
+        }
+
+        return groups
     }
 
     func refreshAll() {

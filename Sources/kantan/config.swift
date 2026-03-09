@@ -150,6 +150,7 @@ func loadConfig(from yaml: Yaml) -> Config? {
     let wifiConfigFactory = WiFiConfigFactory()
     let bluetoothConfigFactory = BluetoothConfigFactory()
     let caffeinateConfigFactory = CaffeinateConfigFactory()
+    let iconConfigFactory = IconConfigFactory()
 
     for moduleYaml in modulesYaml {
         var builder = ModuleConfigBuilder()
@@ -232,6 +233,28 @@ func loadConfig(from yaml: Yaml) -> Config? {
             builder = builder.setInteraction(interaction)
         }
 
+        // Parse mask config (index or name, mutually exclusive)
+        if let maskYaml = moduleYaml["mask"].dictionary {
+            if let index = maskYaml["index"]?.int {
+                builder = builder.setMask(MaskConfig(index: index))
+            } else if let name = maskYaml["name"]?.string {
+                builder = builder.setMask(MaskConfig(name: name))
+            }
+
+            // Default to passthrough if no explicit click type was set
+            if moduleYaml["interaction"]["click"]["type"].string == nil {
+                // Preserve any existing hover config
+                var hover: HoverConfig? = nil
+                if let hoverYaml = moduleYaml["interaction"]["hover"].dictionary {
+                    let hoverType = hoverYaml["type"]?.string ?? "tooltip"
+                    let hoverContent = hoverYaml["content"]?.string ?? "{value}"
+                    hover = HoverConfig(type: hoverType, content: hoverContent)
+                }
+                let click = ClickConfig(type: "passthrough", popup: nil, items: nil)
+                builder = builder.setInteraction(InteractionConfig(hover: hover, click: click))
+            }
+        }
+
         switch type {
         case "text":
             builder = builder.setConfigFactory(textConfigFactory)
@@ -253,6 +276,8 @@ func loadConfig(from yaml: Yaml) -> Config? {
             builder = builder.setConfigFactory(bluetoothConfigFactory)
         case "caffeinate":
             builder = builder.setConfigFactory(caffeinateConfigFactory)
+        case "icon":
+            builder = builder.setConfigFactory(iconConfigFactory)
         default:
             print("Unsupported module type")
         }

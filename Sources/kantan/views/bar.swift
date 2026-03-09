@@ -1,29 +1,28 @@
 import SwiftUI
 
-// MARK: - Bar View
+// MARK: - Module Group View
 
-/// Root SwiftUI view for the kantan status bar.
-/// Renders left-aligned and right-aligned modules in an HStack.
-struct KantanBarView: View {
-    @ObservedObject var barViewModel: BarViewModel
+/// Renders a single group of modules in an HStack.
+/// Each group gets its own NSPanel in the multi-panel architecture.
+struct ModuleGroupView: View {
+    let modules: [ModuleViewModel]
+    let popupManager: PopupManager
     @ObservedObject var themeProvider: ThemeProvider
+
+    private var isMasked: Bool {
+        modules.count == 1 && modules[0].moduleConfig.mask != nil
+    }
 
     var body: some View {
         HStack(spacing: 0) {
-            ForEach(barViewModel.leftModules) { vm in
-                ModuleContainerView(viewModel: vm, popupManager: barViewModel.popupManager)
-            }
-
-            Spacer()
-
-            ForEach(barViewModel.rightModules) { vm in
-                ModuleContainerView(viewModel: vm, popupManager: barViewModel.popupManager)
+            ForEach(modules) { vm in
+                ModuleContainerView(viewModel: vm, popupManager: popupManager)
+                    .padding(.horizontal, isMasked ? 0 : CGFloat(themeProvider.globalConfig.padding))
             }
         }
-        .frame(maxWidth: .infinity)
+        .frame(maxWidth: isMasked ? .infinity : nil)
+        .fixedSize(horizontal: !isMasked, vertical: false)
         .frame(height: CGFloat(themeProvider.globalConfig.height))
-        .background(themeProvider.barBgColor())
-        .background(.black.opacity(0.001)) // click-through for non-interactive areas
         .environmentObject(themeProvider)
     }
 }

@@ -35,11 +35,6 @@ modules:
       type: aerospace
       defaultIcon: ●
       activeColour: "#ffffff"
-  # - name: left 2
-  #   type: text
-  #   alignment: left
-  #   config:
-  #     value: static text
 
   - name: caffeine
     type: caffeinate
@@ -51,12 +46,14 @@ modules:
         content: "Caffiene: {status}"
       click:
         type: toggle
+
   - name: todo
     type: reminders
     alignment: right
     icon: 
     config:
       list: kantan testing
+
   - name: bluetooth
     type: bluetooth
     alignment: right
@@ -64,12 +61,9 @@ modules:
       showCount: false
       icon: 
       disabledIcon: 
-    interaction:
-      hover:
-        type: tooltip
-        content: "{devices} ({count})"
-      click:
-        type: dynamic-menu
+    mask:
+      name: Bluetooth
+
   - name: volume
     type: volume
     alignment: right
@@ -80,13 +74,9 @@ modules:
         - 
         - 
         - 
-    interaction:
-      hover:
-        type: tooltip
-        content: "Volume: {level}% — {state}"
-      click:
-        type: popup
-        popup: volume-detail
+    mask:
+      name: Volume
+
   - name: wifi
     type: wifi
     alignment: right
@@ -97,12 +87,9 @@ modules:
         - 
         - 
         - 
-    interaction:
-      hover:
-        type: tooltip
-        content: "{ssid} — {signal} ({rssi})"
-      click:
-        type: dynamic-menu
+    mask:
+      name: WiFi
+
   - name: power
     type: power
     alignment: right
@@ -117,23 +104,24 @@ modules:
           - 
           - 
           - 
-    interaction:
-      hover:
-        type: tooltip
-        content: "{level}% — {state}"
-      click:
-        type: popup
-        popup: battery-detail
+    mask:
+      name: Battery
+
+  - name: control-centre
+    type: icon
+    alignment: right
+    icon: ""
+    mask:
+      name: ControlCenter
+
   - name: clock
     type: clock
     alignment: right
-    # icon: 
     config:
       format: "HH:mm"
     interaction:
       hover:
         type: tooltip
         content: "{day}, {date}"
-      click:
-        type: popup
-        popup: calendar
+    mask:
+      name: Clock

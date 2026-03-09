@@ -22,11 +22,12 @@ struct ModuleContainerView: View {
                 StandardModuleView(viewModel: viewModel)
             }
         }
-        .padding(.horizontal, CGFloat(themeProvider.globalConfig.padding))
         .background(
             GeometryReader { geo in
                 Color.clear
-                    .onAppear { moduleFrame = geo.frame(in: .global) }
+                    .onAppear {
+                        moduleFrame = geo.frame(in: .global)
+                    }
                     .onChange(of: geo.frame(in: .global)) { _, newValue in
                         moduleFrame = newValue
                     }
@@ -51,7 +52,7 @@ struct ModuleContainerView: View {
 
     private var anchorPoint: NSPoint {
         let swiftUIPoint = NSPoint(x: moduleFrame.midX, y: moduleFrame.maxY)
-        return popupManager.screenPoint(from: swiftUIPoint)
+        return popupManager.screenPoint(from: swiftUIPoint, forModule: viewModel.id)
     }
 
     private func showTooltipIfConfigured() {

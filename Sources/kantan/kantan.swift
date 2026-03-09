@@ -4,12 +4,14 @@ import Yaml
 
 @MainActor
 class AppDelegate: NSObject, NSApplicationDelegate {
-    var window: NSWindow!
+    var bgPanel: NSPanel!
+    var groupPanels: [(panel: NSPanel, hostingView: NSHostingView<ModuleGroupView>, group: ModuleGroup)] = []
     var barViewModel: BarViewModel?
     var themeProvider: ThemeProvider?
     var barHeight: CGFloat = 0
     var isMenuBarShowing: Bool = false
     nonisolated(unsafe) var menuBarMonitor: Any?
+    nonisolated(unsafe) var repositionTimer: Timer?
 
     func applicationDidFinishLaunching(_ aNotification: Notification) {
         NSApp.setActivationPolicy(.accessory)
@@ -39,55 +41,144 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             return
         }
 
-        let statusBarRect = NSRect(
+        let statusBarY = screen.frame.origin.y + screen.frame.height - barHeight
+        let statusWindowLevel = NSWindow.Level(rawValue: Int(CGWindowLevelForKey(.statusWindow)))
+
+        // MARK: Background Panel — full-width, ignoresMouseEvents
+        let bgRect = NSRect(
             x: screen.frame.origin.x,
-            y: screen.frame.origin.y + screen.frame.height - barHeight,
+            y: statusBarY,
             width: screen.frame.width,
             height: barHeight
         )
 
-        // Use NSPanel with .nonactivatingPanel so the bar is interactive
-        // (hover/click) without ever stealing focus from tiling WMs
-        window = NSPanel(contentRect: statusBarRect, styleMask: [.borderless, .nonactivatingPanel], backing: .buffered, defer: false)
-
-        window.level = NSWindow.Level(rawValue: Int(CGWindowLevelForKey(.statusWindow)))
-        window.collectionBehavior = .canJoinAllSpaces
-        window.isOpaque = false
-        window.hasShadow = false
-        window.backgroundColor = NSColor.clear
-        window.ignoresMouseEvents = false
+        bgPanel = NSPanel(contentRect: bgRect, styleMask: [.borderless, .nonactivatingPanel], backing: .buffered, defer: false)
+        bgPanel.level = statusWindowLevel
+        bgPanel.collectionBehavior = .canJoinAllSpaces
+        bgPanel.isOpaque = false
+        bgPanel.hasShadow = false
+        bgPanel.backgroundColor = NSColor.clear
+        bgPanel.ignoresMouseEvents = true
 
         let theme = ThemeProvider(globalConfig: config.global)
-        let bar = BarViewModel(config: config)
-
-        // Update popup manager with theme colors and appearance
-        let globalColour = theme.isDarkMode ? config.global.colour.dark : config.global.colour.light
-        bar.popupManager.fgColor = NSColor(hex: globalColour.fg)
-        bar.popupManager.bgColor = NSColor(hex: globalColour.bg)
-        bar.popupManager.appearance = config.global.appearance
-        bar.popupManager.barWindow = window
-
-        let rootView = KantanBarView(barViewModel: bar, themeProvider: theme)
-        let hostingView = NSHostingView(rootView: rootView)
-        hostingView.frame = NSRect(origin: .zero, size: statusBarRect.size)
 
         if config.global.appearance == .native {
-            let effectView = NSVisualEffectView(frame: NSRect(origin: .zero, size: statusBarRect.size))
+            let effectView = NSVisualEffectView(frame: NSRect(origin: .zero, size: bgRect.size))
             effectView.material = .headerView
             effectView.state = .active
             effectView.blendingMode = .behindWindow
             effectView.autoresizingMask = [.width, .height]
-
-            hostingView.autoresizingMask = [.width, .height]
-            effectView.addSubview(hostingView)
-            window.contentView = effectView
+            bgPanel.contentView = effectView
         } else {
-            window.contentView = hostingView
+            let bgView = NSView(frame: NSRect(origin: .zero, size: bgRect.size))
+            bgView.wantsLayer = true
+            let globalColour = theme.isDarkMode ? config.global.colour.dark : config.global.colour.light
+            bgView.layer?.backgroundColor = NSColor(hex: globalColour.bg).cgColor
+            bgView.autoresizingMask = [.width, .height]
+            bgPanel.contentView = bgView
         }
-        window.orderFrontRegardless()
+
+        bgPanel.orderFrontRegardless()
+
+        // MARK: Module Group Panels
+        let bar = BarViewModel(config: config)
+
+        let globalColour = theme.isDarkMode ? config.global.colour.dark : config.global.colour.light
+        bar.popupManager.fgColor = NSColor(hex: globalColour.fg)
+        bar.popupManager.bgColor = NSColor(hex: globalColour.bg)
+        bar.popupManager.appearance = config.global.appearance
+
+        let moduleGroupLevel = NSWindow.Level(rawValue: statusWindowLevel.rawValue + 1)
+        // Right groups are reversed so the last group (rightmost in config)
+        // gets positioned at the far right edge of the screen
+        let allGroups = bar.leftGroups + bar.rightGroups.reversed()
+
+        // Detect native menu bar items for masked module positioning
+        let nativeItems = MenuBarItemDetector.detectItems()
+
+        // First pass: determine space occupied by masked modules
+        var leftX = screen.frame.origin.x
+        var rightX = screen.frame.origin.x + screen.frame.width
+
+        for group in allGroups {
+            guard group.modules.count == 1,
+                  let mask = group.modules[0].moduleConfig.mask,
+                  let nativeItem = MenuBarItemDetector.resolveItem(for: mask, from: nativeItems) else { continue }
+            if group.alignment == "right" {
+                rightX = min(rightX, CGFloat(nativeItem.cgRect.origin.x))
+            } else {
+                leftX = max(leftX, CGFloat(nativeItem.cgRect.origin.x + nativeItem.cgRect.width))
+            }
+        }
+
+        // Second pass: create panels for all groups
+        for group in allGroups {
+            let groupView = ModuleGroupView(
+                modules: group.modules,
+                popupManager: bar.popupManager,
+                themeProvider: theme
+            )
+            let hostingView = NSHostingView(rootView: groupView)
+
+            let panelRect: NSRect
+            if group.modules.count == 1,
+               let mask = group.modules[0].moduleConfig.mask,
+               let nativeItem = MenuBarItemDetector.resolveItem(for: mask, from: nativeItems) {
+                // Masked module: position at native item coordinates
+                let nativeRect = MenuBarItemDetector.appKitRect(from: nativeItem.cgRect, screenHeight: screen.frame.height)
+                panelRect = NSRect(x: nativeRect.origin.x, y: statusBarY, width: nativeRect.width, height: barHeight)
+            } else {
+                // Non-masked: sequential positioning
+                let fittingWidth = hostingView.fittingSize.width
+                let panelX: CGFloat
+                if group.alignment == "left" {
+                    panelX = leftX
+                    leftX += fittingWidth
+                } else {
+                    rightX -= fittingWidth
+                    panelX = rightX
+                }
+                panelRect = NSRect(x: panelX, y: statusBarY, width: fittingWidth, height: barHeight)
+            }
+
+            let panel = NSPanel(contentRect: panelRect, styleMask: [.borderless, .nonactivatingPanel], backing: .buffered, defer: false)
+            panel.level = moduleGroupLevel
+            panel.collectionBehavior = .canJoinAllSpaces
+            panel.isOpaque = false
+            panel.hasShadow = false
+            panel.backgroundColor = NSColor.clear
+            panel.ignoresMouseEvents = group.isPassthrough
+
+            hostingView.frame = NSRect(origin: .zero, size: panelRect.size)
+            hostingView.autoresizingMask = [.width, .height]
+            panel.contentView = hostingView
+            panel.orderFrontRegardless()
+
+            // Register each module in the group with the popup manager
+            for vm in group.modules {
+                bar.popupManager.modulePanels[vm.id] = panel
+            }
+
+            groupPanels.append((panel: panel, hostingView: hostingView, group: group))
+        }
 
         self.barViewModel = bar
         self.themeProvider = theme
+
+        // Reposition panels periodically for the first 2 seconds to catch
+        // async module content loading (getValue completions, event-driven updates).
+        // Each hosting view's fittingSize changes as SwiftUI renders content.
+        var repositionCount = 0
+        repositionTimer = Timer.scheduledTimer(withTimeInterval: 0.1, repeats: true) { [weak self] _ in
+            MainActor.assumeIsolated {
+                self?.repositionAllPanels()
+                repositionCount += 1
+                if repositionCount >= 20 {
+                    self?.repositionTimer?.invalidate()
+                    self?.repositionTimer = nil
+                }
+            }
+        }
 
         NotificationCenter.default.addObserver(
             self, selector: #selector(screenDidChange),
@@ -98,18 +189,67 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     @objc func screenDidChange(_ notification: Notification) {
-        repositionWindow()
+        repositionAllPanels()
     }
 
-    func repositionWindow() {
+    func repositionAllPanels() {
         guard let screen = NSScreen.screens.first else { return }
-        let newFrame = NSRect(
+        let statusBarY = screen.frame.origin.y + screen.frame.height - barHeight
+
+        // Background panel — full width
+        let bgFrame = NSRect(
             x: screen.frame.origin.x,
-            y: screen.frame.origin.y + screen.frame.height - barHeight,
+            y: statusBarY,
             width: screen.frame.width,
             height: barHeight
         )
-        window.setFrame(newFrame, display: true)
+        bgPanel.setFrame(bgFrame, display: true)
+
+        // Re-detect native items for current positions
+        let nativeItems = MenuBarItemDetector.detectItems()
+
+        // First pass: position masked panels and compute the space they occupy
+        // so non-masked panels don't overlap with them
+        var leftX = screen.frame.origin.x
+        var rightX = screen.frame.origin.x + screen.frame.width
+
+        for entry in groupPanels {
+            guard entry.group.modules.count == 1,
+                  let mask = entry.group.modules[0].moduleConfig.mask,
+                  let nativeItem = MenuBarItemDetector.resolveItem(for: mask, from: nativeItems) else { continue }
+
+            let nativeRect = MenuBarItemDetector.appKitRect(from: nativeItem.cgRect, screenHeight: screen.frame.height)
+            let panelFrame = NSRect(x: nativeRect.origin.x, y: statusBarY, width: nativeRect.width, height: barHeight)
+            entry.panel.setFrame(panelFrame, display: true)
+
+            // Shrink the available space for sequential panels
+            if entry.group.alignment == "right" {
+                rightX = min(rightX, nativeRect.origin.x)
+            } else {
+                leftX = max(leftX, nativeRect.origin.x + nativeRect.width)
+            }
+        }
+
+        // Second pass: position non-masked panels sequentially
+        for entry in groupPanels {
+            if entry.group.modules.count == 1 && entry.group.modules[0].moduleConfig.mask != nil {
+                continue
+            }
+
+            let fittingWidth = entry.hostingView.fittingSize.width
+
+            let panelX: CGFloat
+            if entry.group.alignment == "left" {
+                panelX = leftX
+                leftX += fittingWidth
+            } else {
+                rightX -= fittingWidth
+                panelX = rightX
+            }
+
+            let panelFrame = NSRect(x: panelX, y: statusBarY, width: fittingWidth, height: barHeight)
+            entry.panel.setFrame(panelFrame, display: true)
+        }
     }
 
     // MARK: - Menu Bar Visibility Monitoring
@@ -135,15 +275,12 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         guard let screen = NSScreen.screens.first else { return }
         let mouseY = NSEvent.mouseLocation.y
         let screenTop = screen.frame.maxY
-        // The system menu bar region height (distance from frame top to visibleFrame top)
         let menuBarRegion = screen.frame.maxY - screen.visibleFrame.maxY
 
         if !isMenuBarShowing && mouseY >= screenTop - 4 {
-            // Mouse at the very top edge — menu bar is appearing
             isMenuBarShowing = true
             slideOut()
         } else if isMenuBarShowing && mouseY < screenTop - menuBarRegion {
-            // Mouse moved below the menu bar region — menu bar is hiding
             isMenuBarShowing = false
             slideIn()
         }
@@ -151,38 +288,88 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
     // MARK: - Slide Animation
 
+    private var allPanels: [NSPanel] {
+        [bgPanel] + groupPanels.map { $0.panel }
+    }
+
     func slideOut() {
-        guard let screen = NSScreen.screens.first else { return }
-        let offScreenFrame = NSRect(
-            x: screen.frame.origin.x,
-            y: screen.frame.origin.y + screen.frame.height,
-            width: screen.frame.width,
-            height: barHeight
-        )
+        let slideDistance = barHeight
+
         NSAnimationContext.runAnimationGroup { context in
             context.duration = 0.2
             context.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
-            self.window.animator().setFrame(offScreenFrame, display: true)
+            for panel in allPanels {
+                var frame = panel.frame
+                frame.origin.y += slideDistance
+                panel.animator().setFrame(frame, display: true)
+            }
         }
     }
 
     func slideIn() {
         guard let screen = NSScreen.screens.first else { return }
-        let normalFrame = NSRect(
-            x: screen.frame.origin.x,
-            y: screen.frame.origin.y + screen.frame.height - barHeight,
-            width: screen.frame.width,
-            height: barHeight
-        )
+        let statusBarY = screen.frame.origin.y + screen.frame.height - barHeight
+
+        // Re-detect native items for masked module positions
+        let nativeItems = MenuBarItemDetector.detectItems()
+
+        // First pass: compute masked panel positions and available space
+        var leftX = screen.frame.origin.x
+        var rightX = screen.frame.origin.x + screen.frame.width
+        var maskedFrames: [String: NSRect] = [:]
+
+        for entry in groupPanels {
+            guard entry.group.modules.count == 1,
+                  let mask = entry.group.modules[0].moduleConfig.mask,
+                  let nativeItem = MenuBarItemDetector.resolveItem(for: mask, from: nativeItems) else { continue }
+
+            let nativeRect = MenuBarItemDetector.appKitRect(from: nativeItem.cgRect, screenHeight: screen.frame.height)
+            let panelFrame = NSRect(x: nativeRect.origin.x, y: statusBarY, width: nativeRect.width, height: barHeight)
+            maskedFrames[entry.group.id] = panelFrame
+
+            if entry.group.alignment == "right" {
+                rightX = min(rightX, nativeRect.origin.x)
+            } else {
+                leftX = max(leftX, nativeRect.origin.x + nativeRect.width)
+            }
+        }
+
+        // Animate all panels to their correct positions
         NSAnimationContext.runAnimationGroup { context in
             context.duration = 0.2
             context.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
-            self.window.animator().setFrame(normalFrame, display: true)
+
+            // Background panel
+            let bgFrame = NSRect(x: screen.frame.origin.x, y: statusBarY, width: screen.frame.width, height: barHeight)
+            bgPanel.animator().setFrame(bgFrame, display: true)
+
+            // Group panels
+            for entry in groupPanels {
+                if let frame = maskedFrames[entry.group.id] {
+                    entry.panel.animator().setFrame(frame, display: true)
+                    continue
+                }
+
+                let fittingWidth = entry.hostingView.fittingSize.width
+
+                let panelX: CGFloat
+                if entry.group.alignment == "left" {
+                    panelX = leftX
+                    leftX += fittingWidth
+                } else {
+                    rightX -= fittingWidth
+                    panelX = rightX
+                }
+
+                let panelFrame = NSRect(x: panelX, y: statusBarY, width: fittingWidth, height: barHeight)
+                entry.panel.animator().setFrame(panelFrame, display: true)
+            }
         }
     }
 
     func applicationWillTerminate(_ aNotification: Notification) {
         stopMenuBarMonitoring()
+        repositionTimer?.invalidate()
     }
 }
 

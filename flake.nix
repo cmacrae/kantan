@@ -16,7 +16,15 @@
         pname = "kantan";
         version = "0.1.0";
 
-        src = pkgs.lib.cleanSource ./.;
+        src = pkgs.lib.cleanSourceWith {
+          src = ./.;
+          filter =
+            name: type:
+            let
+              baseName = baseNameOf (toString name);
+            in
+            pkgs.lib.cleanSourceFilter name type && baseName != "config.yaml" && baseName != "README.org";
+        };
 
         buildPhase = ''
           runHook preBuild
