@@ -13,6 +13,10 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     var autohideConfig: AutohideConfig = .default
     var isMenuBarShowing: Bool = false
     var isHoveringTopEdge: Bool = false
+    /// Set when the cursor arrives from an adjacent display. Suppresses the
+    /// top-edge hide trigger until the mouse descends below the trigger zone,
+    /// preventing a re-hide when the user moves back from an upper screen.
+    var enteredFromAbove: Bool = false
     nonisolated(unsafe) var menuBarMonitor: Any?
     nonisolated(unsafe) var repositionTimer: Timer?
     nonisolated(unsafe) var autohideDelayTimer: Timer?
@@ -310,14 +314,32 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
     func checkMenuBar() {
         guard let screen = NSScreen.screens.first else { return }
-        let mouseY = NSEvent.mouseLocation.y
-        let mouseX = NSEvent.mouseLocation.x
+        let mouseLocation = NSEvent.mouseLocation
+        let mouseX = mouseLocation.x
+        let mouseY = mouseLocation.y
         let screenTop = screen.frame.maxY
         let menuBarRegion = screen.frame.maxY - screen.visibleFrame.maxY
 
-        // Only trigger when the mouse is within this screen's horizontal bounds
-        let inScreenX = mouseX >= screen.frame.minX && mouseX <= screen.frame.maxX
-        let atTopEdge = mouseY >= screenTop - 4 && inScreenX
+        // Mouse must be within the kantan screen's bounds. When a display
+        // sits above this one, the cursor can exceed screenTop — that means
+        // the user moved to the other display, not that they're hovering
+        // kantan's top edge.
+        let onScreen = mouseX >= screen.frame.minX && mouseX <= screen.frame.maxX
+                    && mouseY >= screen.frame.minY && mouseY < screenTop
+        let inTriggerZone = onScreen && mouseY >= screenTop - 4
+
+        // Track when the cursor arrives from off-screen (e.g. an adjacent
+        // display above). Suppress the hide trigger until the mouse has
+        // descended fully below the trigger zone — otherwise returning
+        // from an upper display would immediately re-hide the bar.
+        if !onScreen {
+            enteredFromAbove = true
+        } else if enteredFromAbove && !inTriggerZone {
+            // Mouse is back on-screen AND below the trigger zone — clear
+            enteredFromAbove = false
+        }
+
+        let atTopEdge = inTriggerZone && !enteredFromAbove
 
         if !isMenuBarShowing && atTopEdge {
             if !isHoveringTopEdge {
@@ -342,7 +364,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                 autohideDelayTimer?.invalidate()
                 autohideDelayTimer = nil
             }
-            if isMenuBarShowing && mouseY < screenTop - menuBarRegion {
+            if isMenuBarShowing && (!onScreen || mouseY < screenTop - menuBarRegion) {
                 isMenuBarShowing = false
                 slideIn()
             }
@@ -365,7 +387,11 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             }
         }, completionHandler: {
             DispatchQueue.main.async {
-                MainActor.assumeIsolated {
+                MainActor.assumeIsolated { [weak self] in
+                    // Guard against a slideIn that started during the
+                    // animation. If the menu bar is no longer showing
+                    // (i.e. slideIn was called), don't yank the panels.
+                    guard let self = self, self.isMenuBarShowing else { return }
                     for panel in panels {
                         panel.orderOut(nil)
                     }
