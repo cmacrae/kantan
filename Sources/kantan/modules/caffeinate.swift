@@ -53,7 +53,7 @@ final class CaffeinateState: @unchecked Sendable {
     private func activate() {
         guard !isActive else { return }
         let result = IOPMAssertionCreateWithName(
-            kIOPMAssertionTypePreventUserIdleSystemSleep as CFString,
+            kIOPMAssertionTypePreventUserIdleDisplaySleep as CFString,
             IOPMAssertionLevel(kIOPMAssertionLevelOn),
             "Kantan Caffeinate" as CFString,
             &assertionID
