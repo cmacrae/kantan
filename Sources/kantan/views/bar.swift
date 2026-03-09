@@ -16,8 +16,10 @@ struct ModuleGroupView: View {
     var body: some View {
         HStack(spacing: 0) {
             ForEach(modules) { vm in
-                ModuleContainerView(viewModel: vm, popupManager: popupManager)
-                    .padding(.horizontal, isMasked ? 0 : CGFloat(themeProvider.config.padding))
+                if vm.shouldDisplay {
+                    ModuleContainerView(viewModel: vm, popupManager: popupManager)
+                        .padding(.horizontal, isMasked ? 0 : CGFloat(themeProvider.config.padding))
+                }
             }
         }
         .frame(maxWidth: isMasked ? .infinity : nil)

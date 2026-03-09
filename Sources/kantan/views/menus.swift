@@ -19,6 +19,18 @@ struct SwiftUIThemedMenuView: View {
                         .background(fgColor.opacity(0.15))
                         .padding(.horizontal, 8)
                         .padding(.vertical, 4)
+                } else if descriptor.isCheck {
+                    SwiftUIMenuCheckView(
+                        label: descriptor.label ?? "",
+                        isChecked: descriptor.isChecked,
+                        fgColor: fgColor,
+                        action: {
+                            dismissHandler()
+                            descriptor.toggleAction? {
+                                rebuilder?()
+                            }
+                        }
+                    )
                 } else if descriptor.isToggle {
                     SwiftUIMenuToggleView(
                         label: descriptor.label ?? "",
@@ -109,6 +121,31 @@ struct SwiftUIMenuToggleView: View {
             .onChange(of: isOn) { _, _ in
                 action()
             }
+    }
+}
+
+struct SwiftUIMenuCheckView: View {
+    let label: String
+    let isChecked: Bool
+    let fgColor: Color
+    let action: () -> Void
+
+    var body: some View {
+        HStack(spacing: 8) {
+            Image(systemName: isChecked ? "checkmark.circle.fill" : "circle")
+                .foregroundStyle(isChecked ? fgColor.opacity(0.4) : fgColor)
+                .imageScale(.medium)
+            Text(label)
+                .strikethrough(isChecked)
+                .foregroundStyle(isChecked ? fgColor.opacity(0.4) : fgColor)
+            Spacer()
+        }
+        .padding(.horizontal, 14)
+        .frame(height: 26)
+        .contentShape(Rectangle())
+        .onTapGesture {
+            action()
+        }
     }
 }
 

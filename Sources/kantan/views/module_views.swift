@@ -15,36 +15,38 @@ struct ModuleContainerView: View {
     }
 
     var body: some View {
-        Group {
-            if viewModel.moduleConfig.type == "workspace" {
-                WorkspaceModuleView(viewModel: viewModel)
-            } else {
-                StandardModuleView(viewModel: viewModel)
+        if viewModel.shouldDisplay {
+            Group {
+                if viewModel.moduleConfig.type == "workspace" {
+                    WorkspaceModuleView(viewModel: viewModel)
+                } else {
+                    StandardModuleView(viewModel: viewModel)
+                }
             }
-        }
-        .background(
-            GeometryReader { geo in
-                Color.clear
-                    .onAppear {
-                        moduleFrame = geo.frame(in: .global)
-                    }
-                    .onChange(of: geo.frame(in: .global)) { _, newValue in
-                        moduleFrame = newValue
-                    }
+            .background(
+                GeometryReader { geo in
+                    Color.clear
+                        .onAppear {
+                            moduleFrame = geo.frame(in: .global)
+                        }
+                        .onChange(of: geo.frame(in: .global)) { _, newValue in
+                            moduleFrame = newValue
+                        }
+                }
+            )
+            .contentShape(hasInteraction ? Rectangle() : .rect)
+            .allowsHitTesting(hasInteraction)
+            .onHover { hovering in
+                guard hasInteraction else { return }
+                if hovering {
+                    showTooltipIfConfigured()
+                } else {
+                    popupManager.hideTooltip()
+                }
             }
-        )
-        .contentShape(hasInteraction ? Rectangle() : .rect)
-        .allowsHitTesting(hasInteraction)
-        .onHover { hovering in
-            guard hasInteraction else { return }
-            if hovering {
-                showTooltipIfConfigured()
-            } else {
-                popupManager.hideTooltip()
+            .onTapGesture {
+                handleClick()
             }
-        }
-        .onTapGesture {
-            handleClick()
         }
     }
 
@@ -69,10 +71,21 @@ struct ModuleContainerView: View {
 
         switch click.type {
         case "menu":
-            let descriptors = descriptorsFromClickConfig(click)
-            popupManager.showMenu(descriptors: descriptors, moduleName: viewModel.id, anchorPoint: anchorPoint)
+            if let descriptors = viewModel.moduleConfig.config?.getMenuDescriptors(), !descriptors.isEmpty {
+                showDynamicMenu(
+                    builder: { self.viewModel.moduleConfig.config?.getMenuDescriptors() ?? [] },
+                    moduleName: viewModel.id,
+                    anchorPoint: anchorPoint
+                )
+            } else {
+                let descriptors = descriptorsFromClickConfig(click)
+                popupManager.showMenu(descriptors: descriptors, moduleName: viewModel.id, anchorPoint: anchorPoint)
+            }
         case "dynamic-menu":
             break
+        case "complete":
+            viewModel.moduleConfig.config?.handleToggle()
+            viewModel.update()
         case "popup":
             guard let popupName = click.popup else { return }
             popupManager.togglePopup(name: popupName, moduleName: viewModel.id, anchorPoint: anchorPoint)

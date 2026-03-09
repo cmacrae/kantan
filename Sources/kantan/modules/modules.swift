@@ -8,7 +8,9 @@ protocol ModuleConfiguration: Codable, Sendable {
     func getIcon() -> String
     func getTemplateVariables() -> [String: String]
     func isActive() -> Bool
+    func shouldDisplay() -> Bool
     func handleToggle()
+    func getMenuDescriptors() -> [MenuItemDescriptor]?
 }
 
 extension ModuleConfiguration {
@@ -18,7 +20,11 @@ extension ModuleConfiguration {
     func isActive() -> Bool {
         return true
     }
+    func shouldDisplay() -> Bool {
+        return true
+    }
     func handleToggle() {}
+    func getMenuDescriptors() -> [MenuItemDescriptor]? { return nil }
 }
 
 // MARK: - Event-Driven Module

@@ -14,6 +14,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     nonisolated(unsafe) var menuBarMonitor: Any?
     nonisolated(unsafe) var repositionTimer: Timer?
     var bgColorCancellable: AnyCancellable?
+    var visibilityCancellables: [AnyCancellable] = []
 
     func applicationDidFinishLaunching(_ aNotification: Notification) {
         NSApp.setActivationPolicy(.accessory)
@@ -171,6 +172,18 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
         self.barViewModel = bar
         self.themeProvider = theme
+
+        // Reposition panels when module visibility changes (e.g. reminders
+        // hiding when empty). Debounce to coalesce rapid changes.
+        for vm in bar.allModules {
+            vm.$shouldDisplay
+                .removeDuplicates()
+                .debounce(for: .milliseconds(50), scheduler: RunLoop.main)
+                .sink { [weak self] _ in
+                    self?.repositionAllPanels()
+                }
+                .store(in: &visibilityCancellables)
+        }
 
         // Reposition panels periodically for the first 2 seconds to catch
         // async module content loading (getValue completions, event-driven updates).
@@ -378,6 +391,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         stopMenuBarMonitoring()
         repositionTimer?.invalidate()
         bgColorCancellable?.cancel()
+        visibilityCancellables.removeAll()
     }
 }
 

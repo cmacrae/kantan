@@ -64,7 +64,17 @@ modules:
         shape: box
         bg: "#313244"
     config:
-      list: kantan testing
+      lists:
+        - name: kantan testing
+          icon: 
+          lookahead: 10m
+          overdue: true
+          undated: false
+          completedRetention: 1h
+          maxChars: 30
+    interaction:
+      click:
+        type: menu
 
   - name: bluetooth
     type: bluetooth

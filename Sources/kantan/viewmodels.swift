@@ -14,6 +14,7 @@ class ModuleViewModel: ObservableObject, Identifiable {
     @Published var displayValue: String?
     @Published var displayIcon: String?
     @Published var isActive: Bool = true
+    @Published var shouldDisplay: Bool = true
     @Published var templateVariables: [String: String] = [:]
 
     // CLI trigger overrides
@@ -63,6 +64,7 @@ class ModuleViewModel: ObservableObject, Identifiable {
                 self.displayValue = newValue
                 self.displayIcon = newIcon
                 self.isActive = config.isActive()
+                self.shouldDisplay = config.shouldDisplay()
                 self.templateVariables = config.getTemplateVariables()
             }
         }

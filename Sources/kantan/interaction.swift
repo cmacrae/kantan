@@ -13,29 +13,37 @@ struct MenuItemDescriptor {
     let isHeader: Bool
     let isToggle: Bool
     let isToggleOn: Bool
+    let isCheck: Bool
+    let isChecked: Bool
     let action: (() -> Void)?
     /// Toggle action that takes a completion callback. Called after async
     /// state change finishes so the menu can rebuild with fresh state.
     let toggleAction: ((@escaping () -> Void) -> Void)?
 
     static func item(_ label: String, action: @escaping () -> Void) -> MenuItemDescriptor {
-        MenuItemDescriptor(label: label, icon: nil, isSeparator: false, isHeader: false, isToggle: false, isToggleOn: false, action: action, toggleAction: nil)
+        MenuItemDescriptor(label: label, icon: nil, isSeparator: false, isHeader: false, isToggle: false, isToggleOn: false, isCheck: false, isChecked: false, action: action, toggleAction: nil)
     }
 
     static func item(_ label: String, icon: NSView, action: @escaping () -> Void) -> MenuItemDescriptor {
-        MenuItemDescriptor(label: label, icon: icon, isSeparator: false, isHeader: false, isToggle: false, isToggleOn: false, action: action, toggleAction: nil)
+        MenuItemDescriptor(label: label, icon: icon, isSeparator: false, isHeader: false, isToggle: false, isToggleOn: false, isCheck: false, isChecked: false, action: action, toggleAction: nil)
     }
 
     static func header(_ label: String) -> MenuItemDescriptor {
-        MenuItemDescriptor(label: label, icon: nil, isSeparator: false, isHeader: true, isToggle: false, isToggleOn: false, action: nil, toggleAction: nil)
+        MenuItemDescriptor(label: label, icon: nil, isSeparator: false, isHeader: true, isToggle: false, isToggleOn: false, isCheck: false, isChecked: false, action: nil, toggleAction: nil)
     }
 
     static func separator() -> MenuItemDescriptor {
-        MenuItemDescriptor(label: nil, icon: nil, isSeparator: true, isHeader: false, isToggle: false, isToggleOn: false, action: nil, toggleAction: nil)
+        MenuItemDescriptor(label: nil, icon: nil, isSeparator: true, isHeader: false, isToggle: false, isToggleOn: false, isCheck: false, isChecked: false, action: nil, toggleAction: nil)
     }
 
     static func toggle(_ label: String, isOn: Bool, action: @escaping (@escaping () -> Void) -> Void) -> MenuItemDescriptor {
-        MenuItemDescriptor(label: label, icon: nil, isSeparator: false, isHeader: false, isToggle: true, isToggleOn: isOn, action: nil, toggleAction: action)
+        MenuItemDescriptor(label: label, icon: nil, isSeparator: false, isHeader: false, isToggle: true, isToggleOn: isOn, isCheck: false, isChecked: false, action: nil, toggleAction: action)
+    }
+
+    /// A checkable item with a circle/checkmark indicator (like Reminders.app).
+    /// The action takes a completion callback for menu rebuilding.
+    static func check(_ label: String, isChecked: Bool, action: @escaping (@escaping () -> Void) -> Void) -> MenuItemDescriptor {
+        MenuItemDescriptor(label: label, icon: nil, isSeparator: false, isHeader: false, isToggle: false, isToggleOn: false, isCheck: true, isChecked: isChecked, action: nil, toggleAction: action)
     }
 }
 
@@ -248,6 +256,18 @@ class PopupManager {
         for descriptor in descriptors {
             if descriptor.isSeparator {
                 menu.addItem(NSMenuItem.separator())
+            } else if descriptor.isCheck {
+                let item = NSMenuItem()
+                let checkView = MenuCheckView(label: descriptor.label ?? "", isChecked: descriptor.isChecked) { [weak menu] in
+                    menu?.cancelTracking()
+                    descriptor.toggleAction? {
+                        rebuilder?()
+                    }
+                }
+                let hostingView = NSHostingView(rootView: checkView)
+                hostingView.frame.size = hostingView.fittingSize
+                item.view = hostingView
+                menu.addItem(item)
             } else if descriptor.isToggle {
                 let item = NSMenuItem()
                 let toggleView = MenuToggleView(label: descriptor.label ?? "", isOn: descriptor.isToggleOn) { [weak menu] in
@@ -452,6 +472,30 @@ struct MenuToggleView: View {
             .onChange(of: isOn) { _, _ in
                 onToggle()
             }
+    }
+}
+
+struct MenuCheckView: View {
+    let label: String
+    let isChecked: Bool
+    let onTap: () -> Void
+
+    var body: some View {
+        HStack(spacing: 8) {
+            Image(systemName: isChecked ? "checkmark.circle.fill" : "circle")
+                .foregroundStyle(isChecked ? .secondary : .primary)
+                .imageScale(.medium)
+            Text(label)
+                .strikethrough(isChecked)
+                .foregroundStyle(isChecked ? .secondary : .primary)
+            Spacer()
+        }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 4)
+        .contentShape(Rectangle())
+        .onTapGesture {
+            onTap()
+        }
     }
 }
 
