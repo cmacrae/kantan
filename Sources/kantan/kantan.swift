@@ -210,6 +210,22 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
     @objc func screenDidChange(_ notification: Notification) {
         repositionAllPanels()
+
+        // Restart periodic repositioning to let macOS settle its menu bar
+        // items after a display configuration change. Native items may not
+        // be at their final positions when the notification first fires.
+        repositionTimer?.invalidate()
+        var repositionCount = 0
+        repositionTimer = Timer.scheduledTimer(withTimeInterval: 0.1, repeats: true) { [weak self] _ in
+            MainActor.assumeIsolated {
+                self?.repositionAllPanels()
+                repositionCount += 1
+                if repositionCount >= 20 {
+                    self?.repositionTimer?.invalidate()
+                    self?.repositionTimer = nil
+                }
+            }
+        }
     }
 
     func repositionAllPanels() {
@@ -235,12 +251,20 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
         for entry in groupPanels {
             guard entry.group.modules.count == 1,
-                  let mask = entry.group.modules[0].moduleConfig.mask,
-                  let nativeItem = MenuBarItemDetector.resolveItem(for: mask, from: nativeItems) else { continue }
+                  let mask = entry.group.modules[0].moduleConfig.mask else { continue }
+
+            guard let nativeItem = MenuBarItemDetector.resolveItem(for: mask, from: nativeItems) else {
+                // Mask resolution failed — hide panel to avoid stale positioning
+                entry.panel.orderOut(nil)
+                continue
+            }
 
             let nativeRect = MenuBarItemDetector.appKitRect(from: nativeItem.cgRect, screenHeight: screen.frame.height)
             let panelFrame = NSRect(x: nativeRect.origin.x, y: statusBarY, width: nativeRect.width, height: barHeight)
             entry.panel.setFrame(panelFrame, display: true)
+            if !entry.panel.isVisible {
+                entry.panel.orderFrontRegardless()
+            }
 
             // Shrink the available space for sequential panels
             if entry.group.alignment == "right" {
@@ -340,8 +364,12 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
         for entry in groupPanels {
             guard entry.group.modules.count == 1,
-                  let mask = entry.group.modules[0].moduleConfig.mask,
-                  let nativeItem = MenuBarItemDetector.resolveItem(for: mask, from: nativeItems) else { continue }
+                  let mask = entry.group.modules[0].moduleConfig.mask else { continue }
+
+            guard let nativeItem = MenuBarItemDetector.resolveItem(for: mask, from: nativeItems) else {
+                entry.panel.orderOut(nil)
+                continue
+            }
 
             let nativeRect = MenuBarItemDetector.appKitRect(from: nativeItem.cgRect, screenHeight: screen.frame.height)
             let panelFrame = NSRect(x: nativeRect.origin.x, y: statusBarY, width: nativeRect.width, height: barHeight)
@@ -366,6 +394,10 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             // Group panels
             for entry in groupPanels {
                 if let frame = maskedFrames[entry.group.id] {
+                    if !entry.panel.isVisible {
+                        entry.panel.setFrame(frame, display: false)
+                        entry.panel.orderFrontRegardless()
+                    }
                     entry.panel.animator().setFrame(frame, display: true)
                     continue
                 }

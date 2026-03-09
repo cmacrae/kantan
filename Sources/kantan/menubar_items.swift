@@ -63,8 +63,8 @@ struct MenuBarItemDetector {
     ///
     /// Name-based lookup reads `NSStatusItem Preferred Position <Name>` from the
     /// `com.apple.controlcenter` defaults. The value is the distance in points from
-    /// the right screen edge to the item's left edge. We match this against each
-    /// detected window's computed rightEdgeDist.
+    /// the effective right edge of the menu bar to the item's right edge. We match
+    /// this against each detected window's computed rightEdgeDist.
     ///
     /// User-friendly aliases are supported (e.g. "ControlCenter" → "BentoBox-0",
     /// "Volume" → "Sound"). The raw plist names also work directly.
@@ -86,7 +86,7 @@ struct MenuBarItemDetector {
 
         // Special case: Clock has no preferred position in the plist.
         // When the clock is enabled, it occupies the rightmost position
-        // (rightEdgeDist=0) — the item at index 0 in our sorted array.
+        // — the item at index 0 in our right-to-left sorted array.
         if plistName == "Clock" {
             if let defaults = UserDefaults(suiteName: "com.apple.controlcenter"),
                let clockVisible = defaults.object(forKey: "NSStatusItem VisibleCC Clock") as? Int,
@@ -97,16 +97,20 @@ struct MenuBarItemDetector {
             return nil
         }
 
-        // Standard lookup via preferred position
-        guard let screen = NSScreen.screens.first else { return nil }
-        let screenWidth = screen.frame.width
+        // Standard lookup via preferred position.
+        // macOS stores the preferred position as the distance from the
+        // effective right edge of the menu bar (which may extend past the
+        // screen boundary — the rightmost item often overflows by a few px)
+        // to the right edge of the item. We compute the effective right edge
+        // from the detected items themselves rather than using screenWidth.
+        let effectiveRightEdge = items.map { Double($0.cgRect.origin.x + $0.cgRect.width) }.max() ?? 0
 
         if let defaults = UserDefaults(suiteName: "com.apple.controlcenter") {
             let key = "NSStatusItem Preferred Position \(plistName)"
             if let preferredPos = defaults.object(forKey: key) as? Double {
                 for item in items {
-                    let rightEdgeDist = Double(screenWidth) - Double(item.cgRect.origin.x) - Double(item.cgRect.width)
-                    if abs(rightEdgeDist - preferredPos) < 1.0 {
+                    let rightEdgeDist = effectiveRightEdge - Double(item.cgRect.origin.x) - Double(item.cgRect.width)
+                    if abs(rightEdgeDist - preferredPos) < 3.0 {
                         return item
                     }
                 }
