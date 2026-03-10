@@ -31,6 +31,30 @@ class DisplayInstance {
         self.config = config
     }
 
+    /// Check whether a module should appear on this display based on its
+    /// per-module `displays` config. `nil` means show everywhere.
+    private func moduleMatchesDisplay(_ vm: ModuleViewModel, screen: NSScreen) -> Bool {
+        guard let displays = vm.moduleConfig.displays else { return true }
+        switch displays {
+        case .all:
+            return true
+        case .main:
+            return screen == NSScreen.main || (NSScreen.main == nil && screen == NSScreen.screens.first)
+        case .named(let names):
+            return names.contains(screen.localizedName)
+        }
+    }
+
+    /// Filter groups to only include modules targeted at the given screen.
+    /// Groups that become empty after filtering are removed entirely.
+    private func filterGroups(_ groups: [ModuleGroup], for screen: NSScreen) -> [ModuleGroup] {
+        return groups.compactMap { group in
+            let filtered = group.modules.filter { moduleMatchesDisplay($0, screen: screen) }
+            guard !filtered.isEmpty else { return nil }
+            return ModuleGroup(id: group.id, modules: filtered, isPassthrough: group.isPassthrough, alignment: group.alignment)
+        }
+    }
+
     /// Find the current NSScreen matching this instance's screenName.
     func resolveScreen() -> NSScreen? {
         for screen in NSScreen.screens {
@@ -130,7 +154,7 @@ class DisplayInstance {
 
         // Module group panels — positioned within gap-adjusted area
         let moduleGroupLevel = NSWindow.Level(rawValue: statusWindowLevel.rawValue + 1)
-        let allGroups = bar.leftGroups + bar.rightGroups.reversed()
+        let allGroups = filterGroups(bar.leftGroups + bar.rightGroups.reversed(), for: screen)
 
         let nativeItems = MenuBarItemDetector.detectItems(for: screen)
 

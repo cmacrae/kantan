@@ -107,6 +107,7 @@ struct ModuleConfigBuilder {
     private var config: ModuleConfiguration?
     private var interaction: InteractionConfig? = nil
     private var mask: MaskConfig? = nil
+    private var displays: DisplaysConfig? = nil
     private var lastDrawnValue: String?
     private var lastDrawnIcon: String?
     private var offset: CGFloat = 0
@@ -172,6 +173,11 @@ struct ModuleConfigBuilder {
         return self
     }
 
+    mutating func setDisplays(_ displays: DisplaysConfig) -> ModuleConfigBuilder {
+        self.displays = displays
+        return self
+    }
+
     mutating func setConfigFactory(_ factory: ModuleConfigurationFactory) -> ModuleConfigBuilder {
         self.configFactory = factory
         return self
@@ -194,7 +200,7 @@ struct ModuleConfigBuilder {
         guard let config = self.config else {
             throw BuilderError.missingConfiguration
         }
-        return ModuleConfig(name: name, alignment: alignment, type: type, icon: icon, textFont: textFont, iconFont: iconFont, style: style, config: config, interaction: interaction, mask: mask)
+        return ModuleConfig(name: name, alignment: alignment, type: type, icon: icon, textFont: textFont, iconFont: iconFont, style: style, config: config, interaction: interaction, mask: mask, displays: displays)
     }
 }
 
@@ -216,6 +222,7 @@ struct ModuleConfig: Codable {
     var config: ModuleConfiguration?
     var interaction: InteractionConfig?
     var mask: MaskConfig?
+    var displays: DisplaysConfig?
     var lastDrawnValue: String?
     var lastDrawnIcon: String?
     var offset: CGFloat = 0
@@ -226,7 +233,7 @@ struct ModuleConfig: Codable {
         case name, type, alignment, icon, textFont, iconFont, style, config, lastDrawnValue, lastDrawnIcon, interaction, mask
     }
 
-    init(name: String, alignment: String, type: String, icon: String? = nil, textFont: FontConfig? = nil, iconFont: FontConfig? = nil, style: StyleConfig? = nil, config: ModuleConfiguration? = nil, interaction: InteractionConfig? = nil, mask: MaskConfig? = nil) {
+    init(name: String, alignment: String, type: String, icon: String? = nil, textFont: FontConfig? = nil, iconFont: FontConfig? = nil, style: StyleConfig? = nil, config: ModuleConfiguration? = nil, interaction: InteractionConfig? = nil, mask: MaskConfig? = nil, displays: DisplaysConfig? = nil) {
         self.name = name
         self.alignment = alignment
         self.type = type
@@ -237,6 +244,7 @@ struct ModuleConfig: Codable {
         self.config = config
         self.interaction = interaction
         self.mask = mask
+        self.displays = displays
     }
 
     init(from decoder: Decoder) throws {

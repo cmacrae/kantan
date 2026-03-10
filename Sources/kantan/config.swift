@@ -382,6 +382,21 @@ func loadConfig(from yaml: Yaml) -> Config? {
             }
         }
 
+        // Parse per-module displays config
+        if let displaysStr = moduleYaml["displays"].string {
+            switch displaysStr.lowercased() {
+            case "all":
+                builder = builder.setDisplays(.all)
+            default:
+                builder = builder.setDisplays(.main)
+            }
+        } else if let displaysArray = moduleYaml["displays"].array {
+            let names = displaysArray.compactMap { $0.string }
+            if !names.isEmpty {
+                builder = builder.setDisplays(.named(names))
+            }
+        }
+
         switch type {
         case "text":
             builder = builder.setConfigFactory(textConfigFactory)
