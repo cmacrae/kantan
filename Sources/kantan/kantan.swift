@@ -67,7 +67,39 @@ class DisplayInstance {
         bgPanel.backgroundColor = NSColor.clear
         bgPanel.ignoresMouseEvents = true
 
-        if config.appearance == .native {
+        if config.blur > 0 {
+            // Blur + tinted theme color: NSVisualEffectView for blur,
+            // semi-transparent color overlay to preserve theme appearance.
+            // blur 1 = most transparent (heavy blur), 6 = most opaque (subtle blur)
+            let tintOpacity = CGFloat(config.blur) / 7.0  // 1→0.14, 3→0.43, 6→0.86
+
+            let effectView = NSVisualEffectView(frame: NSRect(origin: .zero, size: bgRect.size))
+            effectView.material = .fullScreenUI
+            effectView.state = .active
+            effectView.blendingMode = .behindWindow
+            effectView.wantsLayer = true
+            effectView.layer?.cornerRadius = radius
+            effectView.layer?.masksToBounds = true
+            effectView.autoresizingMask = [.width, .height]
+
+            // Color overlay on top of the blur
+            let globalStyle = theme.isDarkMode ? config.style.dark! : config.style.light!
+            let tintView = NSView(frame: NSRect(origin: .zero, size: bgRect.size))
+            tintView.wantsLayer = true
+            tintView.layer?.backgroundColor = NSColor(hex: globalStyle.bg!).withAlphaComponent(tintOpacity).cgColor
+            tintView.autoresizingMask = [.width, .height]
+            effectView.addSubview(tintView)
+
+            bgPanel.contentView = effectView
+
+            bgColorCancellable = theme.$isDarkMode.sink { [weak self] isDark in
+                guard let self = self,
+                      let effectView = self.bgPanel.contentView as? NSVisualEffectView,
+                      let tintView = effectView.subviews.first else { return }
+                let mode = isDark ? config.style.dark! : config.style.light!
+                tintView.layer?.backgroundColor = NSColor(hex: mode.bg!).withAlphaComponent(tintOpacity).cgColor
+            }
+        } else if config.appearance == .native {
             let effectView = NSVisualEffectView(frame: NSRect(origin: .zero, size: bgRect.size))
             effectView.material = .headerView
             effectView.state = .active

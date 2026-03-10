@@ -65,6 +65,7 @@ struct Config {
     let iconFont: FontConfig?
     let textFont: FontConfig?
     let cornerRadius: CGFloat
+    let blur: Int
     let gaps: GapsConfig
     let autohide: AutohideConfig
     let displays: DisplaysConfig
@@ -219,6 +220,13 @@ func loadConfig(from yaml: Yaml) -> Config? {
         cornerRadius = max(0, CGFloat(cr))
     } else {
         cornerRadius = 0
+    }
+
+    let blur: Int
+    if let b = yaml["blur"].int {
+        blur = max(0, min(6, b))
+    } else {
+        blur = 0
     }
 
     let gaps: GapsConfig
@@ -419,6 +427,7 @@ func loadConfig(from yaml: Yaml) -> Config? {
         iconFont: iconFont,
         textFont: textFont,
         cornerRadius: cornerRadius,
+        blur: blur,
         gaps: gaps,
         autohide: autohide,
         displays: displays,
