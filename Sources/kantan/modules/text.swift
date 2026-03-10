@@ -3,9 +3,6 @@ import Yaml
 
 struct TextConfigFactory: ModuleConfigurationFactory {
     func configuration(from yaml: Yaml, configDir: String?) throws -> ModuleConfiguration {
-        guard let _ = yaml["value"].string else {
-            throw DecodingError.dataCorrupted(DecodingError.Context(codingPath: [], debugDescription: "Unable to decode TextConfig from Yaml"))
-        }
         return try TextConfig(yaml: yaml)
     }
 }
@@ -28,9 +25,5 @@ struct TextConfig: ModuleConfiguration {
 
     func getValue(completion: @escaping @Sendable (String) -> Void) {
         completion(self.value)
-    }
-
-    func getIcon() -> String {
-        return ""
     }
 }

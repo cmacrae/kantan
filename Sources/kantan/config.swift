@@ -82,18 +82,25 @@ enum AppearanceStyle: String, Codable, Sendable {
 struct FontConfig: Codable {
     let descriptor: String
 
+    private static let defaultSize: CGFloat = 14
+
+    /// Components of the descriptor string, parsed once and cached.
+    private var components: [String] {
+        descriptor.components(separatedBy: ":")
+    }
+
     var name: String {
-        guard let firstComponent = descriptor.components(separatedBy: ":").first else {
+        guard let firstComponent = components.first else {
             return "HelveticaNeue"
         }
         return firstComponent
     }
 
     var weight: NSFont.Weight {
-        guard descriptor.components(separatedBy: ":").count > 1 else {
+        guard components.count > 1 else {
             return .regular
         }
-        let weightString = descriptor.components(separatedBy: ":")[1]
+        let weightString = components[1]
         switch weightString.lowercased() {
         case "ultralight":
             return .ultraLight
@@ -119,10 +126,10 @@ struct FontConfig: Codable {
     }
 
     var size: CGFloat {
-        guard descriptor.components(separatedBy: ":").count > 2 else {
-            return CGFloat(14)
+        guard components.count > 2 else {
+            return Self.defaultSize
         }
-        return CGFloat(Double(descriptor.components(separatedBy: ":")[2]) ?? 14)
+        return Double(components[2]).map { CGFloat($0) } ?? Self.defaultSize
     }
 
     var symbolicTraits: NSFontDescriptor.SymbolicTraits {
@@ -139,9 +146,6 @@ struct FontConfig: Codable {
         return Font(nsFont)
     }
 }
-
-// NOTE: ModuleConfig & ModuleConfiguration:
-//       see modules/modules.swift
 
 // MARK: - Style Parsing Helpers
 
@@ -183,6 +187,31 @@ func parseStyleConfig(from yaml: Yaml) -> StyleConfig? {
     if light == nil && dark == nil { return nil }
 
     return StyleConfig(light: light, dark: dark)
+}
+
+// MARK: - Config Parsing Helpers
+
+/// Parse a displays config value from YAML, falling back to a default.
+func parseDisplaysConfig(from yaml: Yaml?, default defaultValue: DisplaysConfig = .main) -> DisplaysConfig {
+    guard let yaml = yaml else { return defaultValue }
+    if let displaysStr = yaml.string {
+        switch displaysStr.lowercased() {
+        case "all":
+            return .all
+        default:
+            return .main
+        }
+    } else if let displaysArray = yaml.array {
+        let names = displaysArray.compactMap { $0.string }
+        return names.isEmpty ? defaultValue : .named(names)
+    }
+    return defaultValue
+}
+
+/// Clamp a YAML int value to a non-negative CGFloat, returning 0 if nil.
+func clampedCGFloat(_ yaml: Yaml?) -> CGFloat {
+    guard let value = yaml?.int else { return 0 }
+    return max(0, CGFloat(value))
 }
 
 // MARK: - Load Configuration
@@ -231,11 +260,12 @@ func loadConfig(from yaml: Yaml, configDir: String? = nil) -> Config? {
 
     let gaps: GapsConfig
     if let gapsYaml = yaml["gaps"].dictionary {
-        let top = gapsYaml["top"]?.int.map { max(0, CGFloat($0)) } ?? 0
-        let bottom = gapsYaml["bottom"]?.int.map { max(0, CGFloat($0)) } ?? 0
-        let left = gapsYaml["left"]?.int.map { max(0, CGFloat($0)) } ?? 0
-        let right = gapsYaml["right"]?.int.map { max(0, CGFloat($0)) } ?? 0
-        gaps = GapsConfig(top: top, bottom: bottom, left: left, right: right)
+        gaps = GapsConfig(
+            top: clampedCGFloat(gapsYaml["top"]),
+            bottom: clampedCGFloat(gapsYaml["bottom"]),
+            left: clampedCGFloat(gapsYaml["left"]),
+            right: clampedCGFloat(gapsYaml["right"])
+        )
     } else {
         gaps = .default
     }
@@ -243,20 +273,7 @@ func loadConfig(from yaml: Yaml, configDir: String? = nil) -> Config? {
     let appearanceStr = yaml["appearance"].string ?? "theme"
     let appearance = AppearanceStyle(rawValue: appearanceStr) ?? .theme
 
-    let displays: DisplaysConfig
-    if let displaysStr = yaml["displays"].string {
-        switch displaysStr.lowercased() {
-        case "all":
-            displays = .all
-        default:
-            displays = .main
-        }
-    } else if let displaysArray = yaml["displays"].array {
-        let names = displaysArray.compactMap { $0.string }
-        displays = names.isEmpty ? .main : .named(names)
-    } else {
-        displays = .main
-    }
+    let displays = parseDisplaysConfig(from: yaml["displays"])
 
     let autohide: AutohideConfig
     if let autohideYaml = yaml["autohide"].dictionary {
@@ -317,27 +334,27 @@ func parseModuleConfig(from moduleYaml: Yaml, configDir: String? = nil) -> Modul
         return nil
     }
 
-    builder = builder.setName(name)
-    builder = builder.setAlignment(alignment)
-    builder = builder.setType(type)
+    builder.setName(name)
+    builder.setAlignment(alignment)
+    builder.setType(type)
 
     if let icon = moduleYaml["icon"].string {
-        builder = builder.setIcon(fixYamlUnicodeEscapes(icon))
+        builder.setIcon(fixYamlUnicodeEscapes(icon))
     }
 
     if let textFontDescriptor = moduleYaml["textFont"].string {
         let moduleTextFont = FontConfig(descriptor: textFontDescriptor)
-        builder = builder.setTextFont(moduleTextFont)
+        builder.setTextFont(moduleTextFont)
     }
 
     if let iconFontDescriptor = moduleYaml["iconFont"].string {
         let moduleIconFont = FontConfig(descriptor: iconFontDescriptor)
-        builder = builder.setIconFont(moduleIconFont)
+        builder.setIconFont(moduleIconFont)
     }
 
     // Parse per-module style
     if let moduleStyle = parseStyleConfig(from: moduleYaml["style"]) {
-        builder = builder.setStyle(moduleStyle)
+        builder.setStyle(moduleStyle)
     }
 
     // Parse interaction config
@@ -402,15 +419,15 @@ func parseModuleConfig(from moduleYaml: Yaml, configDir: String? = nil) -> Modul
         }
 
         let interaction = InteractionConfig(hover: hover, click: click)
-        builder = builder.setInteraction(interaction)
+        builder.setInteraction(interaction)
     }
 
     // Parse mask config (index or name, mutually exclusive)
     if let maskYaml = moduleYaml["mask"].dictionary {
         if let index = maskYaml["index"]?.int {
-            builder = builder.setMask(MaskConfig(index: index))
+            builder.setMask(MaskConfig(index: index))
         } else if let name = maskYaml["name"]?.string {
-            builder = builder.setMask(MaskConfig(name: name))
+            builder.setMask(MaskConfig(name: name))
         }
 
         // Default to passthrough if no explicit click type was set
@@ -423,48 +440,30 @@ func parseModuleConfig(from moduleYaml: Yaml, configDir: String? = nil) -> Modul
                 hover = HoverConfig(type: hoverType, content: hoverContent)
             }
             let click = ClickConfig(type: "passthrough", popup: nil, items: nil, popupConfig: nil)
-            builder = builder.setInteraction(InteractionConfig(hover: hover, click: click))
+            builder.setInteraction(InteractionConfig(hover: hover, click: click))
         }
     }
 
     // Parse per-module displays config
-    if let displaysStr = moduleYaml["displays"].string {
-        switch displaysStr.lowercased() {
-        case "all":
-            builder = builder.setDisplays(.all)
-        default:
-            builder = builder.setDisplays(.main)
+    let moduleDisplays = parseDisplaysConfig(from: moduleYaml["displays"])
+    if case .main = moduleDisplays {
+        // Only set if not the default (.main), to avoid overriding unset state
+        if moduleYaml["displays"].string != nil || moduleYaml["displays"].array != nil {
+            builder.setDisplays(moduleDisplays)
         }
-    } else if let displaysArray = moduleYaml["displays"].array {
-        let names = displaysArray.compactMap { $0.string }
-        if !names.isEmpty {
-            builder = builder.setDisplays(.named(names))
-        }
+    } else {
+        builder.setDisplays(moduleDisplays)
     }
 
-    let factories: [String: ModuleConfigurationFactory] = [
-        "text": TextConfigFactory(),
-        "clock": ClockConfigFactory(),
-        "power": PowerConfigFactory(),
-        "command": CommandConfigFactory(),
-        "reminders": RemindersConfigFactory(),
-        "workspace": WorkspaceConfigFactory(),
-        "volume": VolumeConfigFactory(),
-        "wifi": WiFiConfigFactory(),
-        "bluetooth": BluetoothConfigFactory(),
-        "caffeinate": CaffeinateConfigFactory(),
-        "icon": IconConfigFactory(),
-    ]
-
-    guard let factory = factories[type] else {
+    guard let factory = moduleFactories[type] else {
         print("Unsupported module type: \(type)")
         return nil
     }
 
-    builder = builder.setConfigFactory(factory)
+    builder.setConfigFactory(factory)
 
     do {
-        builder = try builder.buildConfiguration(from: moduleYaml["config"], configDir: configDir)
+        try builder.buildConfiguration(from: moduleYaml["config"], configDir: configDir)
         return try builder.build()
     } catch {
         print("Failed to build module config: \(error)")
@@ -584,7 +583,6 @@ func mergeModules(base: [ModuleConfig], extra: [ModuleConfig]) -> [ModuleConfig]
     return baseLeft + extraLeft + extraRight + baseRight
 }
 
-// Convenience function to load data from a file
 /// Fix YamlSwift bug: `String(describing: UnicodeScalar(n))` produces
 /// `Optional("\u{XXXX}")` instead of the actual character for `\uXXXX`
 /// escapes in double-quoted YAML strings. This unwraps the Optional
@@ -623,7 +621,6 @@ func fixYamlUnicodeEscapes(_ s: String) -> String {
 
 func loadFileContents(filePath: String) -> String? {
     let fileURL = URL(fileURLWithPath: filePath)
-    print("Loading file from: \(fileURL.path)")
 
     do {
         let fileData = try String(contentsOf: fileURL, encoding: .utf8)
@@ -634,14 +631,11 @@ func loadFileContents(filePath: String) -> String? {
     }
 }
 
-// Convenience extension to convert hex strings to NSColor
 extension NSColor {
     convenience init(hex: String, defaultColor: NSColor = NSColor.clear) {
         let hex = hex.trimmingCharacters(in: CharacterSet.alphanumerics.inverted)
-        let scanner = Scanner(string: hex)
-        var rgbValue: UInt64 = 0
 
-        if scanner.scanHexInt64(&rgbValue) {
+        if let rgbValue = UInt64(hex, radix: 16) {
             let r = CGFloat((rgbValue & 0xFF0000) >> 16) / 255.0
             let g = CGFloat((rgbValue & 0x00FF00) >> 8) / 255.0
             let b = CGFloat(rgbValue & 0x0000FF) / 255.0

@@ -3,12 +3,8 @@ import SwiftUI
 
 // MARK: - Menu Item Descriptor
 
-/// A universal descriptor for menu items, used by both native NSMenu and
-/// themed menu panels. Modules provide these; PopupManager renders them
-/// according to the active appearance style.
 struct MenuItemDescriptor {
     let label: String?
-    let icon: NSView?
     let iconGlyph: String?
     let isSeparator: Bool
     let isHeader: Bool
@@ -17,38 +13,56 @@ struct MenuItemDescriptor {
     let isCheck: Bool
     let isChecked: Bool
     let action: (() -> Void)?
-    /// Toggle action that takes a completion callback. Called after async
-    /// state change finishes so the menu can rebuild with fresh state.
     let toggleAction: ((@escaping () -> Void) -> Void)?
 
-    static func item(_ label: String, action: @escaping () -> Void) -> MenuItemDescriptor {
-        MenuItemDescriptor(label: label, icon: nil, iconGlyph: nil, isSeparator: false, isHeader: false, isToggle: false, isToggleOn: false, isCheck: false, isChecked: false, action: action, toggleAction: nil)
+    init(
+        label: String? = nil,
+        iconGlyph: String? = nil,
+        isSeparator: Bool = false,
+        isHeader: Bool = false,
+        isToggle: Bool = false,
+        isToggleOn: Bool = false,
+        isCheck: Bool = false,
+        isChecked: Bool = false,
+        action: (() -> Void)? = nil,
+        toggleAction: ((@escaping () -> Void) -> Void)? = nil
+    ) {
+        self.label = label
+        self.iconGlyph = iconGlyph
+        self.isSeparator = isSeparator
+        self.isHeader = isHeader
+        self.isToggle = isToggle
+        self.isToggleOn = isToggleOn
+        self.isCheck = isCheck
+        self.isChecked = isChecked
+        self.action = action
+        self.toggleAction = toggleAction
     }
 
-    static func item(_ label: String, icon: NSView, action: @escaping () -> Void) -> MenuItemDescriptor {
-        MenuItemDescriptor(label: label, icon: icon, iconGlyph: nil, isSeparator: false, isHeader: false, isToggle: false, isToggleOn: false, isCheck: false, isChecked: false, action: action, toggleAction: nil)
+    static func item(_ label: String, action: @escaping () -> Void) -> MenuItemDescriptor {
+        MenuItemDescriptor(label: label, action: action)
     }
 
     static func item(_ label: String, iconGlyph: String?, action: @escaping () -> Void) -> MenuItemDescriptor {
-        MenuItemDescriptor(label: label, icon: nil, iconGlyph: iconGlyph, isSeparator: false, isHeader: false, isToggle: false, isToggleOn: false, isCheck: false, isChecked: false, action: action, toggleAction: nil)
+        MenuItemDescriptor(label: label, iconGlyph: iconGlyph, action: action)
     }
 
     static func header(_ label: String) -> MenuItemDescriptor {
-        MenuItemDescriptor(label: label, icon: nil, iconGlyph: nil, isSeparator: false, isHeader: true, isToggle: false, isToggleOn: false, isCheck: false, isChecked: false, action: nil, toggleAction: nil)
+        MenuItemDescriptor(label: label, isHeader: true)
     }
 
     static func separator() -> MenuItemDescriptor {
-        MenuItemDescriptor(label: nil, icon: nil, iconGlyph: nil, isSeparator: true, isHeader: false, isToggle: false, isToggleOn: false, isCheck: false, isChecked: false, action: nil, toggleAction: nil)
+        MenuItemDescriptor(isSeparator: true)
     }
 
     static func toggle(_ label: String, isOn: Bool, action: @escaping (@escaping () -> Void) -> Void) -> MenuItemDescriptor {
-        MenuItemDescriptor(label: label, icon: nil, iconGlyph: nil, isSeparator: false, isHeader: false, isToggle: true, isToggleOn: isOn, isCheck: false, isChecked: false, action: nil, toggleAction: action)
+        MenuItemDescriptor(label: label, isToggle: true, isToggleOn: isOn, toggleAction: action)
     }
 
     /// A checkable item with a circle/checkmark indicator (like Reminders.app).
     /// The action takes a completion callback for menu rebuilding.
     static func check(_ label: String, isChecked: Bool, action: @escaping (@escaping () -> Void) -> Void) -> MenuItemDescriptor {
-        MenuItemDescriptor(label: label, icon: nil, iconGlyph: nil, isSeparator: false, isHeader: false, isToggle: false, isToggleOn: false, isCheck: true, isChecked: isChecked, action: nil, toggleAction: action)
+        MenuItemDescriptor(label: label, isCheck: true, isChecked: isChecked, toggleAction: action)
     }
 }
 
@@ -79,9 +93,6 @@ class PopupPanel: NSPanel, NSWindowDelegate {
 
 // MARK: - Native Menu Target
 
-/// Action target for native NSMenu items. Holds a closure that fires
-/// when the menu item is selected. Stored as `representedObject` on the
-/// NSMenuItem to prevent premature deallocation during menu tracking.
 class NativeMenuTarget: NSObject {
     let handler: () -> Void
     init(handler: @escaping () -> Void) {
@@ -105,27 +116,28 @@ class PopupManager {
     private var tooltipPanel: NSPanel?
     weak var themeProvider: ThemeProvider?
     var appearance: AppearanceStyle = .theme
-    var modulePanels: [String: NSWindow] = [:]
 
     /// Whether we're in native appearance mode (use system colors throughout).
     var isNative: Bool { appearance == .native }
 
     var effectiveFgColor: NSColor {
         if isNative { return .labelColor }
-        guard let tp = themeProvider else { return .labelColor }
-        let mode = tp.isDarkMode ? tp.config.style.dark : tp.config.style.light
-        return NSColor(hex: mode!.fg!)
+        guard let tp = themeProvider,
+              let mode = tp.isDarkMode ? tp.config.style.dark : tp.config.style.light,
+              let fg = mode.fg else { return .labelColor }
+        return NSColor(hex: fg)
     }
 
     var effectiveBgColor: NSColor {
         if isNative { return .windowBackgroundColor }
-        guard let tp = themeProvider else { return .windowBackgroundColor }
-        let mode = tp.isDarkMode ? tp.config.style.dark : tp.config.style.light
-        return NSColor(hex: mode!.bg!)
+        guard let tp = themeProvider,
+              let mode = tp.isDarkMode ? tp.config.style.dark : tp.config.style.light,
+              let bg = mode.bg else { return .windowBackgroundColor }
+        return NSColor(hex: bg)
     }
 
     var isPopupActive: Bool {
-        return activePanel != nil
+        activePanel != nil
     }
 
     // MARK: - Coordinate Conversion
@@ -226,12 +238,7 @@ class PopupManager {
 
         let menuId = "\(moduleName):menu"
 
-        if menuId == activePopupId, activePanel != nil {
-            dismissPopup()
-            return
-        }
-
-        dismissPopup()
+        if dismissIfActive(menuId) { return }
 
         if isNative {
             // Native NSMenu left-aligns at the anchor point. Use the
@@ -358,69 +365,26 @@ class PopupManager {
         let panelWidth = max(fittingSize.width, 160)
         let panelHeight = max(fittingSize.height, 20)
 
-        var panelRect = NSRect(
+        let panelRect = NSRect(
             x: anchorPoint.x - panelWidth / 2,
             y: anchorPoint.y - panelHeight - 4,
             width: panelWidth,
             height: panelHeight
         )
-        panelRect = clampToScreen(panelRect)
 
-        let panel = makePopupPanel(rect: panelRect)
-
-        let container = makePopupContainer(size: panelRect.size)
-        hostingView.frame = container.bounds
-        hostingView.autoresizingMask = [.width, .height]
-        container.addSubview(hostingView)
-
-        panel.contentView = container
-        panel.makeKeyAndOrderFront(nil)
-
-        activePanel = panel
-        activePopupId = "\(moduleName):menu"
+        presentPopupPanel(hostingView: hostingView, panelRect: panelRect, popupId: "\(moduleName):menu")
     }
 
     // MARK: - Popup
 
-    func togglePopup(name: String, moduleName: String, anchorPoint: NSPoint, positioningView: NSView? = nil) {
-        let popupId = "\(moduleName):\(name)"
-
+    /// Returns true if the popup was already showing (and was dismissed).
+    private func dismissIfActive(_ popupId: String) -> Bool {
         if popupId == activePopupId, activePanel != nil {
             dismissPopup()
-            return
+            return true
         }
-
         dismissPopup()
-
-        let fg = Color(nsColor: effectiveFgColor)
-
-        guard let popupView = createSwiftUIPopup(name: name, fgColor: fg, isNative: isNative) else { return }
-
-        let hostingView = NSHostingView(rootView: popupView)
-        let fittingSize = hostingView.fittingSize
-        let panelWidth = max(fittingSize.width, 200)
-        let panelHeight = max(fittingSize.height, 100)
-
-        var panelRect = NSRect(
-            x: anchorPoint.x - panelWidth / 2,
-            y: anchorPoint.y - panelHeight - 4,
-            width: panelWidth,
-            height: panelHeight
-        )
-        panelRect = clampToScreen(panelRect)
-
-        let panel = makePopupPanel(rect: panelRect)
-
-        let container = makePopupContainer(size: panelRect.size)
-        hostingView.frame = container.bounds
-        hostingView.autoresizingMask = [.width, .height]
-        container.addSubview(hostingView)
-
-        panel.contentView = container
-        panel.makeKeyAndOrderFront(nil)
-
-        activePanel = panel
-        activePopupId = popupId
+        return false
     }
 
     func dismissPopup() {
@@ -431,6 +395,15 @@ class PopupManager {
 
     // MARK: - Panel Factories
 
+    private func configurePanel(_ panel: NSPanel) {
+        panel.level = .floating
+        panel.isOpaque = false
+        panel.hasShadow = true
+        panel.backgroundColor = .clear
+        panel.isMovable = false
+        panel.collectionBehavior = [.canJoinAllSpaces, .transient]
+    }
+
     private func makeNonActivatingPanel(rect: NSRect) -> NSPanel {
         let panel = NSPanel(
             contentRect: rect,
@@ -438,12 +411,7 @@ class PopupManager {
             backing: .buffered,
             defer: false
         )
-        panel.level = .floating
-        panel.isOpaque = false
-        panel.hasShadow = true
-        panel.backgroundColor = .clear
-        panel.isMovable = false
-        panel.collectionBehavior = [.canJoinAllSpaces, .transient]
+        configurePanel(panel)
         return panel
     }
 
@@ -454,12 +422,7 @@ class PopupManager {
             backing: .buffered,
             defer: false
         )
-        panel.level = .floating
-        panel.isOpaque = false
-        panel.hasShadow = true
-        panel.backgroundColor = .clear
-        panel.isMovable = false
-        panel.collectionBehavior = [.canJoinAllSpaces, .transient]
+        configurePanel(panel)
         panel.onResignKey = { [weak self] in
             self?.dismissPopup()
         }
@@ -491,10 +454,23 @@ class PopupManager {
         return effect
     }
 
-    // MARK: - SwiftUI Popup Content
+    /// Present a SwiftUI hosting view in a popup panel, clamped to screen bounds.
+    /// Shared by showThemedMenu and showUserPopup to avoid duplicating the
+    /// panel-creation and container-setup pattern.
+    private func presentPopupPanel(hostingView: NSView, panelRect: NSRect, popupId: String) {
+        let clamped = clampToScreen(panelRect)
+        let panel = makePopupPanel(rect: clamped)
 
-    private func createSwiftUIPopup(name: String, fgColor: Color, isNative: Bool) -> AnyView? {
-        return nil
+        let container = makePopupContainer(size: clamped.size)
+        hostingView.frame = container.bounds
+        hostingView.autoresizingMask = [.width, .height]
+        container.addSubview(hostingView)
+
+        panel.contentView = container
+        panel.makeKeyAndOrderFront(nil)
+
+        activePanel = panel
+        activePopupId = popupId
     }
 
     // MARK: - User-Defined Popup
@@ -504,12 +480,7 @@ class PopupManager {
                        fgColor: Color, iconFont: Font?) {
         let popupId = "\(moduleName):user-popup"
 
-        if popupId == activePopupId, activePanel != nil {
-            dismissPopup()
-            return
-        }
-
-        dismissPopup()
+        if dismissIfActive(popupId) { return }
 
         let popupView = UserPopupView(
             config: config,
@@ -525,26 +496,14 @@ class PopupManager {
         let panelWidth = max(fittingSize.width, CGFloat(config.width ?? 240))
         let panelHeight = max(fittingSize.height, 40)
 
-        var panelRect = NSRect(
+        let panelRect = NSRect(
             x: anchorPoint.x - panelWidth / 2,
             y: anchorPoint.y - panelHeight - 4,
             width: panelWidth,
             height: panelHeight
         )
-        panelRect = clampToScreen(panelRect)
 
-        let panel = makePopupPanel(rect: panelRect)
-
-        let container = makePopupContainer(size: panelRect.size)
-        hostingView.frame = container.bounds
-        hostingView.autoresizingMask = [.width, .height]
-        container.addSubview(hostingView)
-
-        panel.contentView = container
-        panel.makeKeyAndOrderFront(nil)
-
-        activePanel = panel
-        activePopupId = popupId
+        presentPopupPanel(hostingView: hostingView, panelRect: panelRect, popupId: popupId)
     }
 }
 
@@ -558,7 +517,6 @@ struct UserPopupView: View {
     let iconFont: Font?
     let dismissHandler: () -> Void
 
-    /// Resolved foreground: system .primary in native mode, theme color otherwise.
     private var resolvedFg: Color {
         isNative ? .primary : fgColor
     }
@@ -677,14 +635,7 @@ struct PopupActionRow: View {
         .onTapGesture {
             dismissHandler()
             guard let command = command, !command.isEmpty else { return }
-            DispatchQueue.global(qos: .userInitiated).async {
-                let process = Process()
-                process.executableURL = URL(fileURLWithPath: "/bin/sh")
-                process.arguments = ["-c", command]
-                process.standardOutput = Pipe()
-                process.standardError = Pipe()
-                try? process.run()
-            }
+            runShellCommand(command)
         }
     }
 }

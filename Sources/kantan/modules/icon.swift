@@ -19,8 +19,4 @@ struct IconConfig: ModuleConfiguration {
     func getValue(completion: @escaping @Sendable (String) -> Void) {
         completion("")
     }
-
-    func getIcon() -> String {
-        return ""
-    }
 }

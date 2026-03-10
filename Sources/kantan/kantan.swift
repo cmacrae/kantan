@@ -5,16 +5,13 @@ import Yaml
 
 // MARK: - Display Instance
 
-/// Encapsulates all per-display state: panels, autohide tracking, and
-/// repositioning. One instance is created for each screen kantan runs on.
 @MainActor
 class DisplayInstance {
     let screenName: String
-    var bgPanel: NSPanel!
+    var bgPanel: NSPanel?
     var groupPanels: [(panel: NSPanel, hostingView: NSHostingView<ModuleGroupView>, group: ModuleGroup)] = []
     var bgColorCancellable: AnyCancellable?
 
-    // Autohide state (independent per display)
     var isMenuBarShowing: Bool = false
     var isHoveringTopEdge: Bool = false
     var enteredFromAbove: Bool = false
@@ -22,8 +19,6 @@ class DisplayInstance {
 
     private let barHeight: CGFloat
     private let config: Config
-    private weak var bar: BarViewModel?
-    private weak var theme: ThemeProvider?
 
     init(screenName: String, barHeight: CGFloat, config: Config) {
         self.screenName = screenName
@@ -48,34 +43,31 @@ class DisplayInstance {
     /// Filter groups to only include modules targeted at the given screen.
     /// Groups that become empty after filtering are removed entirely.
     private func filterGroups(_ groups: [ModuleGroup], for screen: NSScreen) -> [ModuleGroup] {
-        return groups.compactMap { group in
+        groups.compactMap { group in
             let filtered = group.modules.filter { moduleMatchesDisplay($0, screen: screen) }
             guard !filtered.isEmpty else { return nil }
             return ModuleGroup(id: group.id, modules: filtered, isPassthrough: group.isPassthrough, alignment: group.alignment)
         }
     }
 
-    /// Find the current NSScreen matching this instance's screenName.
     func resolveScreen() -> NSScreen? {
-        for screen in NSScreen.screens {
-            if screen.localizedName == screenName {
-                return screen
-            }
-        }
-        return nil
+        NSScreen.screens.first { $0.localizedName == screenName }
     }
 
-    /// Create all panels for the given screen.
-    func createPanels(for screen: NSScreen, bar: BarViewModel, theme: ThemeProvider) {
-        self.bar = bar
-        self.theme = theme
+    private func resolveStyleMode(isDark: Bool) -> StyleModeConfig {
+        if isDark {
+            return config.style.dark ?? config.style.light ?? StyleModeConfig(fg: "FFFFFF", bg: "000000", text: nil, icon: nil, shape: nil)
+        } else {
+            return config.style.light ?? config.style.dark ?? StyleModeConfig(fg: "FFFFFF", bg: "000000", text: nil, icon: nil, shape: nil)
+        }
+    }
 
+    func createPanels(for screen: NSScreen, bar: BarViewModel, theme: ThemeProvider) {
         let gaps = config.gaps
         let radius = config.cornerRadius
         let statusBarY = screen.frame.origin.y + screen.frame.height - barHeight - gaps.top
         let statusWindowLevel = NSWindow.Level(rawValue: Int(CGWindowLevelForKey(.statusWindow)))
 
-        // Background panel — inset by gaps, with corner radius
         let bgRect = NSRect(
             x: screen.frame.origin.x + gaps.left,
             y: statusBarY,
@@ -83,19 +75,18 @@ class DisplayInstance {
             height: barHeight
         )
 
-        bgPanel = NSPanel(contentRect: bgRect, styleMask: [.borderless, .nonactivatingPanel], backing: .buffered, defer: false)
-        bgPanel.level = statusWindowLevel
-        bgPanel.collectionBehavior = .canJoinAllSpaces
-        bgPanel.isOpaque = false
-        bgPanel.hasShadow = false
-        bgPanel.backgroundColor = NSColor.clear
-        bgPanel.ignoresMouseEvents = true
+        let panel = NSPanel(contentRect: bgRect, styleMask: [.borderless, .nonactivatingPanel], backing: .buffered, defer: false)
+        panel.level = statusWindowLevel
+        panel.collectionBehavior = .canJoinAllSpaces
+        panel.isOpaque = false
+        panel.hasShadow = false
+        panel.backgroundColor = NSColor.clear
+        panel.ignoresMouseEvents = true
+        bgPanel = panel
 
         if config.blur > 0 {
-            // Blur + tinted theme color: NSVisualEffectView for blur,
-            // semi-transparent color overlay to preserve theme appearance.
             // blur 1 = most transparent (heavy blur), 6 = most opaque (subtle blur)
-            let tintOpacity = CGFloat(config.blur) / 7.0  // 1→0.14, 3→0.43, 6→0.86
+            let tintOpacity = CGFloat(config.blur) / 7.0
 
             let effectView = NSVisualEffectView(frame: NSRect(origin: .zero, size: bgRect.size))
             effectView.material = .fullScreenUI
@@ -106,22 +97,22 @@ class DisplayInstance {
             effectView.layer?.masksToBounds = true
             effectView.autoresizingMask = [.width, .height]
 
-            // Color overlay on top of the blur
-            let globalStyle = theme.isDarkMode ? config.style.dark! : config.style.light!
+            let globalStyle = resolveStyleMode(isDark: theme.isDarkMode)
             let tintView = NSView(frame: NSRect(origin: .zero, size: bgRect.size))
             tintView.wantsLayer = true
-            tintView.layer?.backgroundColor = NSColor(hex: globalStyle.bg!).withAlphaComponent(tintOpacity).cgColor
+            tintView.layer?.backgroundColor = NSColor(hex: globalStyle.bg ?? "000000").withAlphaComponent(tintOpacity).cgColor
             tintView.autoresizingMask = [.width, .height]
             effectView.addSubview(tintView)
 
-            bgPanel.contentView = effectView
+            panel.contentView = effectView
 
             bgColorCancellable = theme.$isDarkMode.sink { [weak self] isDark in
                 guard let self = self,
-                      let effectView = self.bgPanel.contentView as? NSVisualEffectView,
+                      let bgPanel = self.bgPanel,
+                      let effectView = bgPanel.contentView as? NSVisualEffectView,
                       let tintView = effectView.subviews.first else { return }
-                let mode = isDark ? config.style.dark! : config.style.light!
-                tintView.layer?.backgroundColor = NSColor(hex: mode.bg!).withAlphaComponent(tintOpacity).cgColor
+                let mode = self.resolveStyleMode(isDark: isDark)
+                tintView.layer?.backgroundColor = NSColor(hex: mode.bg ?? "000000").withAlphaComponent(tintOpacity).cgColor
             }
         } else if config.appearance == .native {
             let effectView = NSVisualEffectView(frame: NSRect(origin: .zero, size: bgRect.size))
@@ -132,33 +123,33 @@ class DisplayInstance {
             effectView.layer?.cornerRadius = radius
             effectView.layer?.masksToBounds = true
             effectView.autoresizingMask = [.width, .height]
-            bgPanel.contentView = effectView
+            panel.contentView = effectView
         } else {
             let bgView = NSView(frame: NSRect(origin: .zero, size: bgRect.size))
             bgView.wantsLayer = true
-            let globalStyle = theme.isDarkMode ? config.style.dark! : config.style.light!
-            bgView.layer?.backgroundColor = NSColor(hex: globalStyle.bg!).cgColor
+            let globalStyle = resolveStyleMode(isDark: theme.isDarkMode)
+            bgView.layer?.backgroundColor = NSColor(hex: globalStyle.bg ?? "000000").cgColor
             bgView.layer?.cornerRadius = radius
             bgView.layer?.masksToBounds = true
             bgView.autoresizingMask = [.width, .height]
-            bgPanel.contentView = bgView
+            panel.contentView = bgView
 
             bgColorCancellable = theme.$isDarkMode.sink { [weak self] isDark in
-                guard let self = self, let view = self.bgPanel.contentView else { return }
-                let mode = isDark ? config.style.dark! : config.style.light!
-                view.layer?.backgroundColor = NSColor(hex: mode.bg!).cgColor
+                guard let self = self,
+                      let bgPanel = self.bgPanel,
+                      let view = bgPanel.contentView else { return }
+                let mode = self.resolveStyleMode(isDark: isDark)
+                view.layer?.backgroundColor = NSColor(hex: mode.bg ?? "000000").cgColor
             }
         }
 
-        bgPanel.orderFrontRegardless()
+        panel.orderFrontRegardless()
 
-        // Module group panels — positioned within gap-adjusted area
         let moduleGroupLevel = NSWindow.Level(rawValue: statusWindowLevel.rawValue + 1)
         let allGroups = filterGroups(bar.leftGroups + bar.rightGroups.reversed(), for: screen)
 
         let nativeItems = MenuBarItemDetector.detectItems(for: screen)
 
-        // First pass: determine space occupied by masked modules
         var leftX = screen.frame.origin.x + gaps.left
         var rightX = screen.frame.origin.x + screen.frame.width - gaps.right
 
@@ -174,7 +165,6 @@ class DisplayInstance {
             }
         }
 
-        // Second pass: create panels for all groups
         for group in allGroups {
             let groupView = ModuleGroupView(
                 modules: group.modules,
@@ -202,35 +192,29 @@ class DisplayInstance {
                 panelRect = NSRect(x: panelX, y: statusBarY, width: fittingWidth, height: barHeight)
             }
 
-            let panel = NSPanel(contentRect: panelRect, styleMask: [.borderless, .nonactivatingPanel], backing: .buffered, defer: false)
-            panel.level = moduleGroupLevel
-            panel.collectionBehavior = .canJoinAllSpaces
-            panel.isOpaque = false
-            panel.hasShadow = false
-            panel.backgroundColor = NSColor.clear
-            panel.ignoresMouseEvents = group.isPassthrough
+            let groupPanel = NSPanel(contentRect: panelRect, styleMask: [.borderless, .nonactivatingPanel], backing: .buffered, defer: false)
+            groupPanel.level = moduleGroupLevel
+            groupPanel.collectionBehavior = .canJoinAllSpaces
+            groupPanel.isOpaque = false
+            groupPanel.hasShadow = false
+            groupPanel.backgroundColor = NSColor.clear
+            groupPanel.ignoresMouseEvents = group.isPassthrough
 
             hostingView.frame = NSRect(origin: .zero, size: panelRect.size)
             hostingView.autoresizingMask = [.width, .height]
-            panel.contentView = hostingView
-            panel.orderFrontRegardless()
+            groupPanel.contentView = hostingView
+            groupPanel.orderFrontRegardless()
 
-            for vm in group.modules {
-                bar.popupManager.modulePanels[vm.id] = panel
-            }
-
-            groupPanels.append((panel: panel, hostingView: hostingView, group: group))
+            groupPanels.append((panel: groupPanel, hostingView: hostingView, group: group))
         }
     }
 
-    /// Reposition all panels to match the current screen geometry and
-    /// native menu bar item positions.
     func repositionPanels() {
-        guard let screen = resolveScreen() else { return }
+        guard let screen = resolveScreen(),
+              let bgPanel = bgPanel else { return }
         let gaps = config.gaps
         let statusBarY = screen.frame.origin.y + screen.frame.height - barHeight - gaps.top
 
-        // Background panel — inset by gaps
         let bgFrame = NSRect(
             x: screen.frame.origin.x + gaps.left,
             y: statusBarY,
@@ -239,10 +223,8 @@ class DisplayInstance {
         )
         bgPanel.setFrame(bgFrame, display: true)
 
-        // Re-detect native items for current positions on this screen
         let nativeItems = MenuBarItemDetector.detectItems(for: screen)
 
-        // First pass: position masked panels
         var leftX = screen.frame.origin.x + gaps.left
         var rightX = screen.frame.origin.x + screen.frame.width - gaps.right
 
@@ -269,7 +251,6 @@ class DisplayInstance {
             }
         }
 
-        // Second pass: position non-masked panels sequentially
         for entry in groupPanels {
             if entry.group.modules.count == 1 && entry.group.modules[0].moduleConfig.mask != nil {
                 continue
@@ -294,8 +275,7 @@ class DisplayInstance {
     // MARK: - Autohide
 
     /// Check whether the mouse is in this display's trigger zone and
-    /// update autohide state accordingly. Called from the global mouse
-    /// monitor for each display instance.
+    /// update autohide state accordingly.
     func checkMenuBar(mouseLocation: NSPoint, autohideConfig: AutohideConfig) {
         guard let screen = resolveScreen() else { return }
         let mouseX = mouseLocation.x
@@ -387,7 +367,8 @@ class DisplayInstance {
     func slideIn() {
         repositionPanels()
 
-        for panel in allPanels {
+        let panels = allPanels
+        for panel in panels {
             panel.alphaValue = 0
             panel.orderFrontRegardless()
         }
@@ -395,13 +376,12 @@ class DisplayInstance {
         NSAnimationContext.runAnimationGroup { context in
             context.duration = 0.2
             context.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
-            for panel in self.allPanels {
+            for panel in panels {
                 panel.animator().alphaValue = 1
             }
         }
     }
 
-    /// Remove all panels from screen and release resources.
     func teardown() {
         autohideDelayTimer?.invalidate()
         autohideDelayTimer = nil
@@ -416,7 +396,6 @@ class DisplayInstance {
 }
 
 // MARK: - App Delegate
-
 
 @MainActor
 class AppDelegate: NSObject, NSApplicationDelegate {
@@ -466,7 +445,6 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             return
         }
 
-        // Merge modules from modules.d directory
         let extraModules = loadModulesFromDirectory(path: modulesDirPath)
         config.modules = mergeModules(base: config.modules, extra: extraModules)
 
@@ -474,6 +452,20 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         barHeight = CGFloat(config.height)
         autohideConfig = config.autohide
 
+        buildBar(with: config)
+
+        NotificationCenter.default.addObserver(
+            self, selector: #selector(screenDidChange),
+            name: NSApplication.didChangeScreenParametersNotification, object: nil
+        )
+
+        startWatchingConfig(path: configPath)
+        startWatchingModulesDir(path: modulesDirPath)
+    }
+
+    // MARK: - Bar Lifecycle
+
+    private func buildBar(with config: Config) {
         let theme = ThemeProvider(config: config)
         let bar = BarViewModel(config: config)
         bar.popupManager.themeProvider = theme
@@ -482,7 +474,6 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         self.barViewModel = bar
         self.themeProvider = theme
 
-        // Create display instances for target screens
         let targetScreens = resolveTargetScreens(config.displays)
         for screen in targetScreens {
             let instance = DisplayInstance(screenName: screen.localizedName, barHeight: barHeight, config: config)
@@ -490,7 +481,6 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             displayInstances.append(instance)
         }
 
-        // Reposition panels when module visibility changes
         for vm in bar.allModules {
             vm.$shouldDisplay
                 .removeDuplicates()
@@ -503,28 +493,32 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
         restartRepositionTimer()
 
-        NotificationCenter.default.addObserver(
-            self, selector: #selector(screenDidChange),
-            name: NSApplication.didChangeScreenParametersNotification, object: nil
-        )
-
         if autohideConfig.enabled {
             startMenuBarMonitoring()
         }
-
-        startWatchingConfig(path: configPath)
-        startWatchingModulesDir(path: modulesDirPath)
     }
+
+    private func teardownBar() {
+        stopMenuBarMonitoring()
+        repositionTimer?.invalidate()
+        repositionTimer = nil
+        visibilityCancellables.removeAll()
+        for instance in displayInstances {
+            instance.teardown()
+        }
+        displayInstances.removeAll()
+        barViewModel = nil
+        themeProvider = nil
+    }
+
     // MARK: - Screen Resolution
 
-    /// Resolve which screens to display on based on the config.
     func resolveTargetScreens(_ displays: DisplaysConfig) -> [NSScreen] {
         switch displays {
         case .main:
             if let main = NSScreen.main {
                 return [main]
             }
-            // Fall back to first screen if main isn't available
             if let first = NSScreen.screens.first {
                 return [first]
             }
@@ -532,9 +526,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         case .all:
             return NSScreen.screens
         case .named(let names):
-            return NSScreen.screens.filter { screen in
-                names.contains(screen.localizedName)
-            }
+            return NSScreen.screens.filter { names.contains($0.localizedName) }
         }
     }
 
@@ -547,20 +539,17 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         let targetNames = Set(targetScreens.map { $0.localizedName })
         let existingNames = Set(displayInstances.map { $0.screenName })
 
-        // Remove instances for screens no longer targeted
         for instance in displayInstances where !targetNames.contains(instance.screenName) {
             instance.teardown()
         }
         displayInstances.removeAll { !targetNames.contains($0.screenName) }
 
-        // Add instances for newly targeted screens
         for screen in targetScreens where !existingNames.contains(screen.localizedName) {
             let instance = DisplayInstance(screenName: screen.localizedName, barHeight: barHeight, config: config)
             instance.createPanels(for: screen, bar: bar, theme: theme)
             displayInstances.append(instance)
         }
 
-        // Reposition existing instances
         repositionAllDisplays()
         restartRepositionTimer()
     }
@@ -617,6 +606,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     // MARK: - Config Hot-Reload
 
     func startWatchingConfig(path: String) {
+        configFileSource?.cancel()
         let fd = open(path, O_EVTONLY)
         guard fd >= 0 else {
             print("Unable to open config file for watching: \(path)")
@@ -634,8 +624,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                 guard let self = self else { return }
                 let flags = source.data
                 if flags.contains(.delete) || flags.contains(.rename) {
-                    // Editor did atomic save (write to tmp + rename).
-                    // Close old fd, wait briefly, re-open at same path.
+                    // Editor did atomic save (write to tmp + rename)
                     source.cancel()
                     self.configFileSource = nil
                     DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
@@ -660,6 +649,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     func startWatchingModulesDir(path: String) {
+        modulesDirSource?.cancel()
         guard FileManager.default.fileExists(atPath: path) else { return }
 
         let fd = open(path, O_EVTONLY)
@@ -711,7 +701,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             let yaml = try Yaml.load(fileData)
             newConfig = loadConfig(from: yaml, configDir: configDir)
         } catch {
-            print("Hot-reload: failed to parse config — \(error)")
+            print("Hot-reload: failed to parse config -- \(error)")
             return
         }
 
@@ -720,7 +710,6 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             return
         }
 
-        // Merge modules from modules.d directory
         if let dir = modulesDirPath {
             let extraModules = loadModulesFromDirectory(path: dir)
             newConfig.modules = mergeModules(base: newConfig.modules, extra: extraModules)
@@ -728,53 +717,13 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
         print("Hot-reload: config changed, rebuilding bar")
 
-        // Tear down current state
-        stopMenuBarMonitoring()
-        repositionTimer?.invalidate()
-        repositionTimer = nil
-        visibilityCancellables.removeAll()
-        for instance in displayInstances {
-            instance.teardown()
-        }
-        displayInstances.removeAll()
-        barViewModel = nil
-        themeProvider = nil
+        teardownBar()
 
-        // Rebuild with new config
         self.config = newConfig
         barHeight = CGFloat(newConfig.height)
         autohideConfig = newConfig.autohide
 
-        let theme = ThemeProvider(config: newConfig)
-        let bar = BarViewModel(config: newConfig)
-        bar.popupManager.themeProvider = theme
-        bar.popupManager.appearance = newConfig.appearance
-
-        self.barViewModel = bar
-        self.themeProvider = theme
-
-        let targetScreens = resolveTargetScreens(newConfig.displays)
-        for screen in targetScreens {
-            let instance = DisplayInstance(screenName: screen.localizedName, barHeight: barHeight, config: newConfig)
-            instance.createPanels(for: screen, bar: bar, theme: theme)
-            displayInstances.append(instance)
-        }
-
-        for vm in bar.allModules {
-            vm.$shouldDisplay
-                .removeDuplicates()
-                .debounce(for: .milliseconds(50), scheduler: RunLoop.main)
-                .sink { [weak self] _ in
-                    self?.repositionAllDisplays()
-                }
-                .store(in: &visibilityCancellables)
-        }
-
-        restartRepositionTimer()
-
-        if autohideConfig.enabled {
-            startMenuBarMonitoring()
-        }
+        buildBar(with: newConfig)
     }
 
     func applicationWillTerminate(_ aNotification: Notification) {
@@ -783,12 +732,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         modulesDirSource?.cancel()
         modulesDirSource = nil
         reloadDebounceTimer?.invalidate()
-        stopMenuBarMonitoring()
-        repositionTimer?.invalidate()
-        visibilityCancellables.removeAll()
-        for instance in displayInstances {
-            instance.teardown()
-        }
+        teardownBar()
     }
 }
 
@@ -800,7 +744,6 @@ struct Kantan {
     static func main() {
         let args = CommandLine.arguments
 
-        // Parse --config and --modules-dir flags
         var positionalArgs: [String] = [args[0]]
         var i = 1
         while i < args.count {
@@ -827,7 +770,6 @@ struct Kantan {
             }
         }
 
-        // CLI trigger mode: kantan trigger <module> <action> [key=value ...]
         if positionalArgs.count >= 4 && positionalArgs[1] == "trigger" {
             let module = positionalArgs[2]
             let action = positionalArgs[3]
@@ -837,7 +779,6 @@ struct Kantan {
                 "action": action,
             ]
 
-            // Parse key=value pairs from remaining args
             for j in 4..<positionalArgs.count {
                 let parts = positionalArgs[j].split(separator: "=", maxSplits: 1)
                 if parts.count == 2 {
@@ -857,7 +798,6 @@ struct Kantan {
         let app = NSApplication.shared
         let delegate = AppDelegate()
         app.delegate = delegate
-        app.setActivationPolicy(.regular)
         app.run()
     }
 }

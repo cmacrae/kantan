@@ -3,9 +3,6 @@ import SwiftUI
 
 // MARK: - Module View Model
 
-/// Bridges the imperative ModuleConfiguration protocol to SwiftUI's
-/// reactive model. Wraps getValue(completion:) in a timer and publishes
-/// state changes that SwiftUI views observe.
 @MainActor
 class ModuleViewModel: ObservableObject, Identifiable {
     let id: String
@@ -17,13 +14,12 @@ class ModuleViewModel: ObservableObject, Identifiable {
     @Published var shouldDisplay: Bool = true
     @Published var templateVariables: [String: String] = [:]
 
-    // CLI trigger overrides (these take absolute priority)
     @Published var fgOverride: String?
     @Published var bgOverride: String?
 
-    // Dynamic style from module JSON output (lower priority than CLI overrides)
     @Published var dynamicStyle: DynamicStyleOverride?
 
+    private var updateGeneration: UInt64 = 0
     nonisolated(unsafe) private var timer: Timer?
     nonisolated(unsafe) private var durationTimer: Timer?
 
@@ -32,17 +28,9 @@ class ModuleViewModel: ObservableObject, Identifiable {
         self.moduleConfig = moduleConfig
         self.displayIcon = moduleConfig.icon
 
-        // Event-driven modules push their own updates; polling modules
-        // use a repeating timer.
         if let eventModule = moduleConfig.config as? EventDrivenModule {
             update()
-            eventModule.startObserving { [weak self] in
-                DispatchQueue.main.async {
-                    MainActor.assumeIsolated {
-                        self?.update()
-                    }
-                }
-            }
+            startEventObservation(eventModule)
         } else {
             startPolling()
         }
@@ -58,12 +46,16 @@ class ModuleViewModel: ObservableObject, Identifiable {
         guard durationTimer == nil else { return }
         guard let config = moduleConfig.config else { return }
 
+        updateGeneration &+= 1
+        let gen = updateGeneration
+
         let icon = config.getIcon()
         let newIcon = icon.isEmpty ? moduleConfig.icon : icon
 
         config.getValue { [weak self] newValue in
             DispatchQueue.main.async {
-                guard let self = self else { return }
+                guard let self else { return }
+                guard self.updateGeneration == gen else { return }
                 self.displayValue = newValue
                 self.displayIcon = newIcon
                 self.isActive = config.isActive()
@@ -74,12 +66,11 @@ class ModuleViewModel: ObservableObject, Identifiable {
         }
     }
 
-    /// Apply a timed override from CLI trigger, resetting after duration.
     func scheduleDurationReset(_ duration: Double) {
         durationTimer?.invalidate()
         durationTimer = Timer.scheduledTimer(withTimeInterval: duration, repeats: false) { [weak self] _ in
             MainActor.assumeIsolated {
-                guard let self = self else { return }
+                guard let self else { return }
                 self.durationTimer = nil
                 self.fgOverride = nil
                 self.bgOverride = nil
@@ -88,7 +79,6 @@ class ModuleViewModel: ObservableObject, Identifiable {
         }
     }
 
-    /// Pause all timers and event observers. Called on system sleep.
     func pause() {
         if let eventModule = moduleConfig.config as? EventDrivenModule {
             eventModule.stopObserving()
@@ -97,27 +87,28 @@ class ModuleViewModel: ObservableObject, Identifiable {
         timer = nil
     }
 
-    /// Resume timers and event observers. Called on system wake.
     func resume() {
         if let eventModule = moduleConfig.config as? EventDrivenModule {
-            eventModule.startObserving { [weak self] in
-                DispatchQueue.main.async {
-                    MainActor.assumeIsolated {
-                        self?.update()
-                    }
-                }
-            }
+            startEventObservation(eventModule)
         } else {
             startPolling()
         }
         update()
     }
 
+    private func startEventObservation(_ eventModule: EventDrivenModule) {
+        eventModule.startObserving { [weak self] in
+            DispatchQueue.main.async {
+                MainActor.assumeIsolated {
+                    self?.update()
+                }
+            }
+        }
+    }
+
     private func startPolling() {
         update()
         let interval = moduleConfig.config?.redrawInterval ?? 1.0
-        // interval == 0 means event-only: initial fetch, then rely on
-        // `kantan trigger <name> refresh` for updates. No repeating timer.
         guard interval > 0 else { return }
         timer = Timer.scheduledTimer(withTimeInterval: interval, repeats: true) { [weak self] _ in
             MainActor.assumeIsolated {
@@ -129,8 +120,6 @@ class ModuleViewModel: ObservableObject, Identifiable {
 
 // MARK: - Module Group
 
-/// A contiguous group of modules sharing the same passthrough status.
-/// Each group gets its own NSPanel in the multi-panel architecture.
 struct ModuleGroup: Identifiable {
     let id: String
     let modules: [ModuleViewModel]
@@ -140,27 +129,38 @@ struct ModuleGroup: Identifiable {
 
 // MARK: - Bar View Model
 
-/// Central coordinator that replaces StatusBarController.
-/// Owns all ModuleViewModels and wires the EventObserver for CLI triggers.
 @MainActor
 class BarViewModel: ObservableObject {
-    @Published var leftModules: [ModuleViewModel] = []
-    @Published var rightModules: [ModuleViewModel] = []
+    let leftModules: [ModuleViewModel]
+    let rightModules: [ModuleViewModel]
     let config: Config
     let popupManager = PopupManager()
-    var eventObserver: EventObserver?
+    private var eventObserver: EventObserver?
+
+    let allModules: [ModuleViewModel]
+    let leftGroups: [ModuleGroup]
+    let rightGroups: [ModuleGroup]
 
     init(config: Config) {
         self.config = config
 
+        var left: [ModuleViewModel] = []
+        var right: [ModuleViewModel] = []
+
         for moduleConfig in config.modules {
             let vm = ModuleViewModel(moduleConfig: moduleConfig)
             if moduleConfig.alignment == "right" {
-                rightModules.append(vm)
+                right.append(vm)
             } else {
-                leftModules.append(vm)
+                left.append(vm)
             }
         }
+
+        self.leftModules = left
+        self.rightModules = right
+        self.allModules = left + right
+        self.leftGroups = BarViewModel.buildGroups(from: left, alignment: "left")
+        self.rightGroups = BarViewModel.buildGroups(from: right, alignment: "right")
 
         eventObserver = EventObserver(
             onRefresh: { [weak self] in
@@ -178,18 +178,7 @@ class BarViewModel: ObservableObject {
         )
     }
 
-    var allModules: [ModuleViewModel] {
-        leftModules + rightModules
-    }
-
-    var leftGroups: [ModuleGroup] { buildGroups(from: leftModules, alignment: "left") }
-    var rightGroups: [ModuleGroup] { buildGroups(from: rightModules, alignment: "right") }
-
-    private func isModulePassthrough(_ vm: ModuleViewModel) -> Bool {
-        vm.moduleConfig.mask != nil || vm.moduleConfig.interaction?.click?.type == "passthrough"
-    }
-
-    private func buildGroups(from modules: [ModuleViewModel], alignment: String) -> [ModuleGroup] {
+    private static func buildGroups(from modules: [ModuleViewModel], alignment: String) -> [ModuleGroup] {
         guard !modules.isEmpty else { return [] }
         var groups: [ModuleGroup] = []
         var current: [ModuleViewModel] = []
@@ -197,10 +186,9 @@ class BarViewModel: ObservableObject {
 
         for vm in modules {
             let isMasked = vm.moduleConfig.mask != nil
-            let pt = isModulePassthrough(vm)
+            let pt = vm.moduleConfig.isPassthrough
 
             if isMasked {
-                // Flush any accumulated non-masked modules
                 if !current.isEmpty {
                     groups.append(ModuleGroup(
                         id: "\(alignment)-\(groups.count)",
@@ -210,7 +198,6 @@ class BarViewModel: ObservableObject {
                     ))
                     current = []
                 }
-                // Masked module gets its own group
                 groups.append(ModuleGroup(
                     id: "\(alignment)-\(groups.count)",
                     modules: [vm],
@@ -308,8 +295,9 @@ class BarViewModel: ObservableObject {
 
 // MARK: - Theme Provider
 
-/// Provides resolved colors and fonts to SwiftUI views based on the
-/// current system appearance (light/dark) and user config.
+private let defaultStyleMode = StyleModeConfig(fg: "FFFFFF", bg: "000000", text: nil, icon: nil, shape: nil)
+private let defaultFontConfig = FontConfig(descriptor: "HelveticaNeue:regular:14")
+
 @MainActor
 class ThemeProvider: ObservableObject {
     @Published var isDarkMode: Bool = true
@@ -328,9 +316,8 @@ class ThemeProvider: ObservableObject {
 
     private func observeAppearance() {
         appearanceObservation = NSApp.observe(\.effectiveAppearance) { [weak self] _, _ in
-            MainActor.assumeIsolated {
-                guard let self = self else { return }
-                self.isDarkMode = NSApp.effectiveAppearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
+            DispatchQueue.main.async {
+                self?.isDarkMode = NSApp.effectiveAppearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
             }
         }
     }
@@ -339,9 +326,9 @@ class ThemeProvider: ObservableObject {
 
     private func resolveGlobalStyleMode() -> StyleModeConfig {
         if isDarkMode {
-            return config.style.dark!
+            return config.style.dark ?? config.style.light ?? defaultStyleMode
         } else {
-            return config.style.light!
+            return config.style.light ?? config.style.dark ?? defaultStyleMode
         }
     }
 
@@ -354,56 +341,42 @@ class ThemeProvider: ObservableObject {
 
     func globalColors() -> (fg: Color, bg: Color) {
         let mode = resolveGlobalStyleMode()
-        return (Color(nsColor: NSColor(hex: mode.fg!)), Color(nsColor: NSColor(hex: mode.bg!)))
+        return (Color(nsColor: NSColor(hex: mode.fg ?? "FFFFFF")), Color(nsColor: NSColor(hex: mode.bg ?? "000000")))
+    }
+
+    private func elementFgColor(
+        for vm: ModuleViewModel,
+        dynamicFg: KeyPath<DynamicStyleOverride, String?>,
+        elementFg: KeyPath<StyleModeConfig, ElementStyle?>
+    ) -> Color {
+        if let override = vm.fgOverride {
+            return Color(nsColor: NSColor(hex: override))
+        }
+        if let ds = vm.dynamicStyle {
+            if let fg = ds[keyPath: dynamicFg] { return Color(nsColor: NSColor(hex: fg)) }
+            if let fg = ds.fg { return Color(nsColor: NSColor(hex: fg)) }
+        }
+        if isNative { return Color(nsColor: .labelColor) }
+        let moduleMode = resolveModuleStyleMode(vm.moduleConfig.style)
+        let globalMode = resolveGlobalStyleMode()
+        if let fg = moduleMode?[keyPath: elementFg]?.fg { return Color(nsColor: NSColor(hex: fg)) }
+        if let fg = moduleMode?.fg { return Color(nsColor: NSColor(hex: fg)) }
+        if let fg = globalMode[keyPath: elementFg]?.fg { return Color(nsColor: NSColor(hex: fg)) }
+        return Color(nsColor: NSColor(hex: globalMode.fg ?? "FFFFFF"))
     }
 
     func textFgColor(for vm: ModuleViewModel) -> Color {
-        if let override = vm.fgOverride {
-            return Color(nsColor: NSColor(hex: override))
-        }
-        // Dynamic style: text.fg -> fg (granular overrides general)
-        if let ds = vm.dynamicStyle {
-            if let fg = ds.textFg { return Color(nsColor: NSColor(hex: fg)) }
-            if let fg = ds.fg { return Color(nsColor: NSColor(hex: fg)) }
-        }
-        if isNative { return Color(nsColor: .labelColor) }
-
-        let moduleMode = resolveModuleStyleMode(vm.moduleConfig.style)
-        let globalMode = resolveGlobalStyleMode()
-
-        // Resolution: module.text.fg -> module.fg -> global.text.fg -> global.fg
-        if let fg = moduleMode?.text?.fg { return Color(nsColor: NSColor(hex: fg)) }
-        if let fg = moduleMode?.fg { return Color(nsColor: NSColor(hex: fg)) }
-        if let fg = globalMode.text?.fg { return Color(nsColor: NSColor(hex: fg)) }
-        return Color(nsColor: NSColor(hex: globalMode.fg!))
+        elementFgColor(for: vm, dynamicFg: \.textFg, elementFg: \.text)
     }
 
     func iconFgColor(for vm: ModuleViewModel) -> Color {
-        if let override = vm.fgOverride {
-            return Color(nsColor: NSColor(hex: override))
-        }
-        // Dynamic style: icon.fg -> fg (granular overrides general)
-        if let ds = vm.dynamicStyle {
-            if let fg = ds.iconFg { return Color(nsColor: NSColor(hex: fg)) }
-            if let fg = ds.fg { return Color(nsColor: NSColor(hex: fg)) }
-        }
-        if isNative { return Color(nsColor: .labelColor) }
-
-        let moduleMode = resolveModuleStyleMode(vm.moduleConfig.style)
-        let globalMode = resolveGlobalStyleMode()
-
-        // Resolution: module.icon.fg -> module.fg -> global.icon.fg -> global.fg
-        if let fg = moduleMode?.icon?.fg { return Color(nsColor: NSColor(hex: fg)) }
-        if let fg = moduleMode?.fg { return Color(nsColor: NSColor(hex: fg)) }
-        if let fg = globalMode.icon?.fg { return Color(nsColor: NSColor(hex: fg)) }
-        return Color(nsColor: NSColor(hex: globalMode.fg!))
+        elementFgColor(for: vm, dynamicFg: \.iconFg, elementFg: \.icon)
     }
 
     func bgColor(for vm: ModuleViewModel) -> Color {
         if let override = vm.bgOverride {
             return Color(nsColor: NSColor(hex: override))
         }
-        // Dynamic style: bg
         if let ds = vm.dynamicStyle, let bg = ds.bg, !bg.isEmpty {
             return Color(nsColor: NSColor(hex: bg))
         }
@@ -412,15 +385,14 @@ class ThemeProvider: ObservableObject {
         let moduleMode = resolveModuleStyleMode(vm.moduleConfig.style)
         let globalMode = resolveGlobalStyleMode()
 
-        // Resolution: module.bg -> global.bg
         if let bg = moduleMode?.bg { return Color(nsColor: NSColor(hex: bg)) }
-        return Color(nsColor: NSColor(hex: globalMode.bg!))
+        return Color(nsColor: NSColor(hex: globalMode.bg ?? "000000"))
     }
 
     func barBgColor() -> Color {
         if isNative { return .clear }
         let mode = resolveGlobalStyleMode()
-        return Color(nsColor: NSColor(hex: mode.bg!))
+        return Color(nsColor: NSColor(hex: mode.bg ?? "000000"))
     }
 
     func shape(for vm: ModuleViewModel) -> ModuleShape? {
@@ -431,18 +403,18 @@ class ThemeProvider: ObservableObject {
     // MARK: - Font Resolution
 
     func iconFont(for vm: ModuleViewModel) -> Font {
-        let fontConfig = vm.moduleConfig.iconFont ?? config.iconFont!
+        let fontConfig = vm.moduleConfig.iconFont ?? config.iconFont ?? defaultFontConfig
         return fontConfig.swiftUIFont
     }
 
     func textFont(for vm: ModuleViewModel) -> Font {
-        let fontConfig = vm.moduleConfig.textFont ?? config.textFont!
+        let fontConfig = vm.moduleConfig.textFont ?? config.textFont ?? defaultFontConfig
         return fontConfig.swiftUIFont
     }
 
     // MARK: - Layout
 
-    func iconTextSpacing() -> CGFloat {
+    var iconTextSpacing: CGFloat {
         CGFloat(config.iconTextSpacing)
     }
 }

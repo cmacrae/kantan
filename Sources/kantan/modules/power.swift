@@ -57,6 +57,10 @@ final class PowerConfig: ModuleConfiguration, EventDrivenModule {
 
     func encode(to encoder: Encoder) throws {}
 
+    deinit {
+        stopObserving()
+    }
+
     // MARK: - EventDrivenModule
 
     func startObserving(onChange: @escaping @Sendable () -> Void) {
@@ -103,7 +107,9 @@ final class PowerConfig: ModuleConfiguration, EventDrivenModule {
         if status.isCharging || status.isPluggedIn {
             return charging.icon
         }
-        let index = min(status.level / 25, battery.icons.count - 1)
+        guard !battery.icons.isEmpty else { return "" }
+        let step = max(1, 100 / battery.icons.count)
+        let index = min(status.level / step, battery.icons.count - 1)
         return battery.icons[max(0, index)]
     }
 

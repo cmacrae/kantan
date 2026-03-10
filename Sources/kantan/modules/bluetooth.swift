@@ -43,7 +43,7 @@ struct BluetoothStatus: Sendable {
     var hasConnectedDevices: Bool { connectedCount > 0 }
 }
 
-struct BluetoothConfig: ModuleConfiguration {
+final class BluetoothConfig: ModuleConfiguration, @unchecked Sendable {
     var type: String { "bluetooth" }
     let showCount: Bool
     let icon: String
@@ -51,18 +51,51 @@ struct BluetoothConfig: ModuleConfiguration {
 
     var redrawInterval: TimeInterval { 5.0 }
 
-    func getValue(completion: @escaping @Sendable (String) -> Void) {
+    nonisolated(unsafe) private var _cachedStatus: (connected: [String], total: Int)?
+    private let _statusLock = NSLock()
+
+    init(showCount: Bool, icon: String, disabledIcon: String) {
+        self.showCount = showCount
+        self.icon = icon
+        self.disabledIcon = disabledIcon
+    }
+
+    required init(from decoder: Decoder) throws {
+        self.showCount = false
+        self.icon = ""
+        self.disabledIcon = ""
+    }
+
+    func encode(to encoder: Encoder) throws {}
+
+    private func getCachedStatus() -> (connected: [String], total: Int) {
+        _statusLock.lock()
+        defer { _statusLock.unlock() }
+        return _cachedStatus ?? (connected: [], total: 0)
+    }
+
+    private func refreshCache() {
         let status = Self.readBluetoothStatus()
-        if showCount && status.hasConnectedDevices {
-            completion("\(status.connectedCount)")
+        let connectedNames = status.connectedDevices.map { $0.name }
+        let total = status.isPoweredOn ? status.pairedDevices.count : -1
+        _statusLock.lock()
+        _cachedStatus = (connected: connectedNames, total: total)
+        _statusLock.unlock()
+    }
+
+    func getValue(completion: @escaping @Sendable (String) -> Void) {
+        refreshCache()
+        let cached = getCachedStatus()
+        if showCount && !cached.connected.isEmpty {
+            completion("\(cached.connected.count)")
         } else {
             completion("")
         }
     }
 
     func getIcon() -> String {
-        let status = Self.readBluetoothStatus()
-        if !status.isPoweredOn {
+        let cached = getCachedStatus()
+        if cached.total < 0 {
             return disabledIcon
         }
         return icon
@@ -71,11 +104,10 @@ struct BluetoothConfig: ModuleConfiguration {
     /// Returns false when Bluetooth is on but no devices are connected,
     /// causing drawModule() to dim the icon (like inactive workspace indicators).
     func isActive() -> Bool {
-        let status = Self.readBluetoothStatus()
-        if !status.isPoweredOn { return false }
-        return status.hasConnectedDevices
+        let cached = getCachedStatus()
+        if cached.total < 0 { return false }
+        return !cached.connected.isEmpty
     }
-
 
     // MARK: - IOBluetooth
 

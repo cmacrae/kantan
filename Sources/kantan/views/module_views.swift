@@ -11,12 +11,12 @@ struct WindowReader: NSViewRepresentable {
 
     func makeNSView(context: Context) -> WindowReaderView {
         let view = WindowReaderView()
-        view.onWindowChange = { [self] win in self.window = win }
+        view.onWindowChange = { self.window = $0 }
         return view
     }
 
     func updateNSView(_ nsView: WindowReaderView, context: Context) {
-        nsView.onWindowChange = { [self] win in self.window = win }
+        nsView.onWindowChange = { self.window = $0 }
         if let win = nsView.window {
             self.window = win
         }
@@ -48,39 +48,37 @@ struct ModuleContainerView: View {
     }
 
     var body: some View {
-        if viewModel.shouldDisplay {
-            Group {
-                if viewModel.moduleConfig.type == "workspace" {
-                    WorkspaceModuleView(viewModel: viewModel)
-                } else {
-                    StandardModuleView(viewModel: viewModel)
-                }
+        Group {
+            if viewModel.moduleConfig.type == "workspace" {
+                WorkspaceModuleView(viewModel: viewModel)
+            } else {
+                StandardModuleView(viewModel: viewModel)
             }
-            .background(
-                GeometryReader { geo in
-                    Color.clear
-                        .onAppear {
-                            moduleFrame = geo.frame(in: .global)
-                        }
-                        .onChange(of: geo.frame(in: .global)) { _, newValue in
-                            moduleFrame = newValue
-                        }
-                }
-            )
-            .background(WindowReader(window: $hostWindow))
-            .contentShape(hasInteraction ? Rectangle() : .rect)
-            .allowsHitTesting(hasInteraction)
-            .onHover { hovering in
-                guard hasInteraction else { return }
-                if hovering {
-                    showTooltipIfConfigured()
-                } else {
-                    popupManager.hideTooltip()
-                }
+        }
+        .background(
+            GeometryReader { geo in
+                Color.clear
+                    .onAppear {
+                        moduleFrame = geo.frame(in: .global)
+                    }
+                    .onChange(of: geo.frame(in: .global)) { _, newValue in
+                        moduleFrame = newValue
+                    }
             }
-            .onTapGesture {
-                handleClick()
+        )
+        .background(WindowReader(window: $hostWindow))
+        .contentShape(hasInteraction ? Rectangle() : .rect)
+        .allowsHitTesting(hasInteraction)
+        .onHover { hovering in
+            guard hasInteraction else { return }
+            if hovering {
+                showTooltipIfConfigured()
+            } else {
+                popupManager.hideTooltip()
             }
+        }
+        .onTapGesture {
+            handleClick()
         }
     }
 
@@ -113,8 +111,6 @@ struct ModuleContainerView: View {
         switch click.type {
         case "menu":
             if click.items != nil {
-                // YAML items defined — build from config (dynamic: true entries
-                // splice in getMenuDescriptors() at their position).
                 showDynamicMenu(
                     builder: { self.descriptorsFromClickConfig(click) },
                     moduleName: viewModel.id,
@@ -122,7 +118,6 @@ struct ModuleContainerView: View {
                     moduleMinX: moduleScreenMinX
                 )
             } else if let descriptors = viewModel.moduleConfig.config?.getMenuDescriptors(), !descriptors.isEmpty {
-                // No YAML items — module provides its own full menu (e.g. wifi, bluetooth).
                 showDynamicMenu(
                     builder: { self.viewModel.moduleConfig.config?.getMenuDescriptors() ?? [] },
                     moduleName: viewModel.id,
@@ -150,8 +145,6 @@ struct ModuleContainerView: View {
                     fgColor: fg,
                     iconFont: iconFont
                 )
-            } else if let popupName = click.popup {
-                popupManager.togglePopup(name: popupName, moduleName: viewModel.id, anchorPoint: anchorPoint)
             }
         case "toggle":
             viewModel.moduleConfig.config?.handleToggle()
@@ -214,14 +207,7 @@ struct ModuleContainerView: View {
             let iconGlyph = item.icon
             result.append(.item(resolved, iconGlyph: iconGlyph) {
                 guard let command = command, !command.isEmpty else { return }
-                DispatchQueue.global(qos: .userInitiated).async {
-                    let process = Process()
-                    process.executableURL = URL(fileURLWithPath: "/bin/sh")
-                    process.arguments = ["-c", command]
-                    process.standardOutput = Pipe()
-                    process.standardError = Pipe()
-                    try? process.run()
-                }
+                runShellCommand(command)
             })
         }
         return result
@@ -236,7 +222,7 @@ struct StandardModuleView: View {
     @EnvironmentObject var themeProvider: ThemeProvider
 
     var body: some View {
-        HStack(spacing: themeProvider.iconTextSpacing()) {
+        HStack(spacing: themeProvider.iconTextSpacing) {
             if let icon = viewModel.displayIcon, !icon.isEmpty {
                 Text(icon)
                     .font(themeProvider.iconFont(for: viewModel))

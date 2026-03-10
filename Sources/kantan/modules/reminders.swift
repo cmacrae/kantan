@@ -92,6 +92,7 @@ final class RemindersConfig: ModuleConfiguration, EventDrivenModule, @unchecked 
     nonisolated(unsafe) private var _cachedIncomplete: [EKReminder] = []
     nonisolated(unsafe) private var _cachedCompleted: [EKReminder] = []
     nonisolated(unsafe) private var _displayedReminderID: String?
+    private let _cacheLock = NSLock()
 
     init(yaml: Yaml) throws {
         guard let listsYaml = yaml["lists"].array, !listsYaml.isEmpty else {
@@ -120,6 +121,7 @@ final class RemindersConfig: ModuleConfiguration, EventDrivenModule, @unchecked 
     }
 
     /// Find the list config for the currently displayed reminder.
+    /// Callers must hold _cacheLock.
     private func displayedListConfig() -> ReminderListConfig? {
         guard let id = _displayedReminderID,
               let reminder = _cachedIncomplete.first(where: { $0.calendarItemIdentifier == id }) else {
@@ -175,7 +177,9 @@ final class RemindersConfig: ModuleConfiguration, EventDrivenModule, @unchecked 
     // MARK: - ModuleConfiguration
 
     func shouldDisplay() -> Bool {
-        _hasReminders
+        _cacheLock.lock()
+        defer { _cacheLock.unlock() }
+        return _hasReminders
     }
 
     func getValue(completion: @escaping @Sendable (String) -> Void) {
@@ -190,7 +194,12 @@ final class RemindersConfig: ModuleConfiguration, EventDrivenModule, @unchecked 
             ) { [weak self] incomplete, completed in
                 self?.updateCache(incomplete: incomplete, completed: completed)
                 let title = incomplete.first?.title ?? ""
-                let chars = self?.displayedListConfig()?.maxChars ?? 30
+                var chars = 30
+                if let self = self {
+                    self._cacheLock.lock()
+                    chars = self.displayedListConfig()?.maxChars ?? 30
+                    self._cacheLock.unlock()
+                }
                 completion(truncate(title, maxChars: chars))
             }
         case .notDetermined:
@@ -205,7 +214,12 @@ final class RemindersConfig: ModuleConfiguration, EventDrivenModule, @unchecked 
                     ) { [weak self] incomplete, completed in
                         self?.updateCache(incomplete: incomplete, completed: completed)
                         let title = incomplete.first?.title ?? ""
-                        let chars = self?.displayedListConfig()?.maxChars ?? 30
+                        var chars = 30
+                        if let self = self {
+                            self._cacheLock.lock()
+                            chars = self.displayedListConfig()?.maxChars ?? 30
+                            self._cacheLock.unlock()
+                        }
                         completion(truncate(title, maxChars: chars))
                     }
                 } else {
@@ -223,6 +237,8 @@ final class RemindersConfig: ModuleConfiguration, EventDrivenModule, @unchecked 
     }
 
     func getIcon() -> String {
+        _cacheLock.lock()
+        defer { _cacheLock.unlock() }
         return displayedListConfig()?.icon ?? ""
     }
 
@@ -233,6 +249,8 @@ final class RemindersConfig: ModuleConfiguration, EventDrivenModule, @unchecked 
     }
 
     private func completeDisplayedReminder() {
+        _cacheLock.lock()
+        defer { _cacheLock.unlock() }
         guard let store = eventStore,
               let id = _displayedReminderID,
               let reminder = _cachedIncomplete.first(where: { $0.calendarItemIdentifier == id }) else {
@@ -255,6 +273,8 @@ final class RemindersConfig: ModuleConfiguration, EventDrivenModule, @unchecked 
     }
 
     private func completeReminder(_ reminder: EKReminder) {
+        _cacheLock.lock()
+        defer { _cacheLock.unlock() }
         guard let store = eventStore else { return }
         let retention = listConfig(for: reminder)?.completedRetention ?? 0
         reminder.isCompleted = true
@@ -277,6 +297,8 @@ final class RemindersConfig: ModuleConfiguration, EventDrivenModule, @unchecked 
     }
 
     private func uncompleteReminder(_ reminder: EKReminder) {
+        _cacheLock.lock()
+        defer { _cacheLock.unlock() }
         guard let store = eventStore else { return }
         reminder.isCompleted = false
         reminder.completionDate = nil
@@ -294,6 +316,8 @@ final class RemindersConfig: ModuleConfiguration, EventDrivenModule, @unchecked 
     // MARK: - Menu Descriptors
 
     func getMenuDescriptors() -> [MenuItemDescriptor]? {
+        _cacheLock.lock()
+        defer { _cacheLock.unlock() }
         guard !_cachedIncomplete.isEmpty || !_cachedCompleted.isEmpty else { return nil }
 
         var descriptors: [MenuItemDescriptor] = []
@@ -327,7 +351,9 @@ final class RemindersConfig: ModuleConfiguration, EventDrivenModule, @unchecked 
 
         descriptors.append(.separator())
         descriptors.append(.item("Open Reminders...") {
-            NSWorkspace.shared.open(URL(string: "x-apple-reminderkit://")!)
+            if let url = URL(string: "x-apple-reminderkit://") {
+                NSWorkspace.shared.open(url)
+            }
         })
 
         return descriptors
@@ -336,6 +362,8 @@ final class RemindersConfig: ModuleConfiguration, EventDrivenModule, @unchecked 
     // MARK: - Cache
 
     private func updateCache(incomplete: [EKReminder], completed: [EKReminder]) {
+        _cacheLock.lock()
+        defer { _cacheLock.unlock() }
         _cachedIncomplete = incomplete
         _cachedCompleted = completed
         _hasReminders = !incomplete.isEmpty
@@ -343,6 +371,8 @@ final class RemindersConfig: ModuleConfiguration, EventDrivenModule, @unchecked 
     }
 
     private func clearCache() {
+        _cacheLock.lock()
+        defer { _cacheLock.unlock() }
         _cachedIncomplete = []
         _cachedCompleted = []
         _hasReminders = false

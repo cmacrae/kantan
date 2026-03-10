@@ -2,9 +2,6 @@ import SwiftUI
 
 // MARK: - Themed Menu (SwiftUI)
 
-/// SwiftUI menu rendered inside an NSVisualEffectView(.menu) panel.
-/// Uses native system colors (.primary/.secondary) in native mode;
-/// applies the user's theme foreground color in theme mode.
 struct SwiftUIThemedMenuView: View {
     let descriptors: [MenuItemDescriptor]
     let isNative: Bool
@@ -12,7 +9,6 @@ struct SwiftUIThemedMenuView: View {
     let dismissHandler: () -> Void
     let rebuilder: (() -> Void)?
 
-    /// Resolved foreground: system .primary in native mode, theme color otherwise.
     private var resolvedFg: Color {
         isNative ? .primary : fgColor
     }
@@ -59,7 +55,6 @@ struct SwiftUIThemedMenuView: View {
                 } else {
                     SwiftUIMenuItemView(
                         label: descriptor.label ?? "",
-                        icon: descriptor.icon,
                         iconGlyph: descriptor.iconGlyph,
                         isNative: isNative,
                         fgColor: fgColor,
@@ -80,7 +75,6 @@ struct SwiftUIThemedMenuView: View {
 
 struct SwiftUIMenuItemView: View {
     let label: String
-    let icon: NSView?
     var iconGlyph: String? = nil
     let isNative: Bool
     let fgColor: Color
@@ -98,9 +92,6 @@ struct SwiftUIMenuItemView: View {
                     .font(.system(size: 13))
                     .foregroundStyle(isHovered && isNative ? .white : resolvedFg)
                     .frame(width: 16, alignment: .center)
-            } else if let icon = icon {
-                NSViewWrapper(nsView: icon)
-                    .frame(width: 10, height: 10)
             }
             Text(label)
                 .font(.system(size: 13))
@@ -176,20 +167,5 @@ struct SwiftUIMenuCheckView: View {
         .onTapGesture {
             action()
         }
-    }
-}
-
-// MARK: - NSView Wrapper
-
-/// Bridges an NSView into SwiftUI for embedding AppKit icon views
-/// (e.g. bluetooth indicator circles) in SwiftUI menus.
-struct NSViewWrapper: NSViewRepresentable {
-    let nsView: NSView
-
-    func makeNSView(context: Context) -> NSView {
-        return nsView
-    }
-
-    func updateNSView(_ nsView: NSView, context: Context) {
     }
 }

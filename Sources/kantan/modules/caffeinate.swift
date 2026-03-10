@@ -22,8 +22,6 @@ struct CaffeinateConfig: ModuleConfiguration {
         completion("")
     }
 
-    func getIcon() -> String { "" }
-
     func isActive() -> Bool {
         state.isActive
     }
@@ -43,15 +41,24 @@ struct CaffeinateConfig: ModuleConfiguration {
 }
 
 final class CaffeinateState: @unchecked Sendable {
-    private(set) var isActive: Bool = false
+    private let lock = NSLock()
+    private var _isActive: Bool = false
     private var assertionID: IOPMAssertionID = 0
 
-    func toggle() {
-        if isActive { deactivate() } else { activate() }
+    var isActive: Bool {
+        lock.lock()
+        defer { lock.unlock() }
+        return _isActive
     }
 
-    private func activate() {
-        guard !isActive else { return }
+    func toggle() {
+        lock.lock()
+        defer { lock.unlock() }
+        if _isActive { _deactivate() } else { _activate() }
+    }
+
+    private func _activate() {
+        guard !_isActive else { return }
         let result = IOPMAssertionCreateWithName(
             kIOPMAssertionTypePreventUserIdleDisplaySleep as CFString,
             IOPMAssertionLevel(kIOPMAssertionLevelOn),
@@ -59,21 +66,21 @@ final class CaffeinateState: @unchecked Sendable {
             &assertionID
         )
         if result == kIOReturnSuccess {
-            isActive = true
+            _isActive = true
         }
     }
 
-    private func deactivate() {
-        guard isActive else { return }
+    private func _deactivate() {
+        guard _isActive else { return }
         let result = IOPMAssertionRelease(assertionID)
         if result == kIOReturnSuccess {
-            isActive = false
+            _isActive = false
             assertionID = 0
         }
     }
 
     deinit {
-        if isActive {
+        if _isActive {
             IOPMAssertionRelease(assertionID)
         }
     }

@@ -3,9 +3,6 @@ import Yaml
 
 struct ClockConfigFactory: ModuleConfigurationFactory {
     func configuration(from yaml: Yaml, configDir: String?) throws -> ModuleConfiguration {
-        guard let _ = yaml["format"].string else {
-            throw DecodingError.dataCorrupted(DecodingError.Context(codingPath: [], debugDescription: "Unable to decode clock configuration"))
-        }
         return try ClockConfig(yaml: yaml)
     }
 }
@@ -35,11 +32,6 @@ struct ClockConfig: ModuleConfiguration {
         completion(formatter.string(from: Date()))
     }
 
-    func getIcon() -> String {
-        return ""
-    }
-
-
     private static func formatterKey(format: String, timezone: String?) -> String {
         return "\(format)|\(timezone ?? "system")"
     }
@@ -61,6 +53,14 @@ struct ClockConfig: ModuleConfiguration {
         let key = formatterKey(format: format, timezone: timezone)
         _lock.lock()
         defer { _lock.unlock() }
-        return _formatters[key]!
+        guard let formatter = _formatters[key] else {
+            // Defensive: create formatter if somehow missing
+            let f = DateFormatter()
+            f.dateFormat = format
+            if let tz = timezone.flatMap(TimeZone.init(identifier:)) { f.timeZone = tz }
+            _formatters[key] = f
+            return f
+        }
+        return formatter
     }
 }

@@ -3,9 +3,7 @@ import Yaml
 
 // MARK: - Structured Command Output Cache
 
-/// Thread-safe storage for JSON output mode data. Uses the same pattern as
-/// workspace segment caching — module-level vars with lock guards, keyed
-/// by command string to support multiple command modules.
+/// Cached JSON output data, keyed by command string to support multiple command modules.
 nonisolated(unsafe) private var commandDataCache: [String: CommandOutputData] = [:]
 private let commandDataLock = NSLock()
 
@@ -37,9 +35,6 @@ private func setCommandData(_ data: CommandOutputData, for key: String) {
 
 struct CommandConfigFactory: ModuleConfigurationFactory {
     func configuration(from yaml: Yaml, configDir: String?) throws -> ModuleConfiguration {
-        guard let _ = yaml["command"].string else {
-            throw DecodingError.dataCorrupted(DecodingError.Context(codingPath: [], debugDescription: "Unable to decode CommandConfig from Yaml"))
-        }
         return try CommandConfig(yaml: yaml, configDir: configDir)
     }
 }
@@ -171,14 +166,7 @@ struct CommandConfig: ModuleConfiguration {
             let command = item["command"] as? String
             return .item(label, iconGlyph: iconGlyph) {
                 guard let command = command, !command.isEmpty else { return }
-                DispatchQueue.global(qos: .userInitiated).async {
-                    let process = Process()
-                    process.executableURL = URL(fileURLWithPath: "/bin/sh")
-                    process.arguments = ["-c", command]
-                    process.standardOutput = Pipe()
-                    process.standardError = Pipe()
-                    try? process.run()
-                }
+                runShellCommand(command)
             }
         }
     }
@@ -254,9 +242,8 @@ struct CommandConfig: ModuleConfiguration {
         process.arguments = launchArgs + [command]
 
         let stdoutPipe = Pipe()
-        let stderrPipe = Pipe()
         process.standardOutput = stdoutPipe
-        process.standardError = stderrPipe
+        process.standardError = FileHandle.nullDevice
 
         do {
             try process.run()

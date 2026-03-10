@@ -1,7 +1,7 @@
 import AppKit
 
-class EventObserver {
-    let workspace = NSWorkspace.shared
+final class EventObserver {
+    private let workspace = NSWorkspace.shared
     private let onRefresh: @MainActor () -> Void
     private let onSleep: @MainActor () -> Void
     private let onWake: @MainActor () -> Void
@@ -21,8 +21,6 @@ class EventObserver {
 
         notificationCenter.addObserver(self, selector: #selector(activeSpaceDidChange(_:)), name: NSWorkspace.activeSpaceDidChangeNotification, object: nil)
 
-        notificationCenter.addObserver(self, selector: #selector(appSwitched(_:)), name: NSWorkspace.didActivateApplicationNotification, object: nil)
-
         notificationCenter.addObserver(self, selector: #selector(willSleep(_:)), name: NSWorkspace.willSleepNotification, object: nil)
 
         notificationCenter.addObserver(self, selector: #selector(didWake(_:)), name: NSWorkspace.didWakeNotification, object: nil)
@@ -40,51 +38,30 @@ class EventObserver {
         DistributedNotificationCenter.default().removeObserver(self)
     }
 
-    @objc func activeSpaceDidChange(_ notification: Notification) {
-        triggerRefresh()
-    }
-
-    @objc func appSwitched(_ notification: Notification) {
-    }
-
-    @objc func willSleep(_ notification: Notification) {
-        let callback = onSleep
-        DispatchQueue.main.async {
-            MainActor.assumeIsolated {
-                callback()
-            }
+    private func dispatchToMain(_ callback: @escaping @MainActor () -> Void) {
+        Task { @MainActor in
+            callback()
         }
     }
 
-    @objc func didWake(_ notification: Notification) {
-        let callback = onWake
-        DispatchQueue.main.async {
-            MainActor.assumeIsolated {
-                callback()
-            }
-        }
+    @objc private func activeSpaceDidChange(_ notification: Notification) {
+        dispatchToMain(onRefresh)
     }
 
-    @objc func kantanEvent(_ notification: Notification) {
+    @objc private func willSleep(_ notification: Notification) {
+        dispatchToMain(onSleep)
+    }
+
+    @objc private func didWake(_ notification: Notification) {
+        dispatchToMain(onWake)
+    }
+
+    @objc private func kantanEvent(_ notification: Notification) {
         guard let userInfo = notification.userInfo as? [String: String],
               let module = userInfo["module"],
               let action = userInfo["action"] else {
             return
         }
-        let callback = onEvent
-        DispatchQueue.main.async {
-            MainActor.assumeIsolated {
-                callback(module, action, userInfo)
-            }
-        }
-    }
-
-    private func triggerRefresh() {
-        let callback = onRefresh
-        DispatchQueue.main.async {
-            MainActor.assumeIsolated {
-                callback()
-            }
-        }
+        dispatchToMain { [onEvent] in onEvent(module, action, userInfo) }
     }
 }

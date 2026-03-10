@@ -7,9 +7,8 @@ struct VolumeConfigFactory: ModuleConfigurationFactory {
     func configuration(from yaml: Yaml, configDir: String?) throws -> ModuleConfiguration {
         let showLevel = yaml["showLevel"].bool ?? false
 
-        guard let iconsYaml = yaml["icons"].array,
-              let icons = Optional(iconsYaml.compactMap({ $0.string })),
-              !icons.isEmpty else {
+        let icons = yaml["icons"].array?.compactMap { $0.string } ?? []
+        guard !icons.isEmpty else {
             throw DecodingError.dataCorrupted(
                 DecodingError.Context(
                     codingPath: [],
@@ -59,6 +58,10 @@ final class VolumeConfig: ModuleConfiguration, EventDrivenModule {
         self.showLevel = false
         self.icons = []
         self.mutedIcon = ""
+    }
+
+    deinit {
+        stopObserving()
     }
 
     func encode(to encoder: Encoder) throws {}
@@ -155,12 +158,15 @@ final class VolumeConfig: ModuleConfiguration, EventDrivenModule {
 
     /// Called from the CoreAudio callback when any listened property changes.
     fileprivate func handlePropertyChange(propertySelector: AudioObjectPropertySelector) {
-        if propertySelector == kAudioHardwarePropertyDefaultOutputDevice {
-            // Default device changed — re-register per-device listeners
-            removeDeviceListeners()
-            addDeviceListeners()
+        DispatchQueue.main.async { [weak self] in
+            guard let self = self else { return }
+            if propertySelector == kAudioHardwarePropertyDefaultOutputDevice {
+                // Default device changed — re-register per-device listeners
+                self.removeDeviceListeners()
+                self.addDeviceListeners()
+            }
+            self.onChange?()
         }
-        onChange?()
     }
 
     // MARK: - ModuleConfiguration

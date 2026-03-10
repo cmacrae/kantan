@@ -169,10 +169,6 @@ struct WorkspaceConfig: ModuleConfiguration {
         }
     }
 
-    func getIcon() -> String {
-        return ""
-    }
-
     // MARK: - Native macOS Spaces
 
     private static func fetchNativeSpaces()
@@ -227,8 +223,8 @@ struct WorkspaceConfig: ModuleConfiguration {
     private static func fetchAerospaceSpaces(path: String)
         -> [(index: Int, label: String, isActive: Bool)]
     {
-        guard let spacesData = runCommand(path: path, arguments: ["list-workspaces", "--all", "--json"]),
-              let focusedData = runCommand(path: path, arguments: ["list-workspaces", "--focused", "--json"])
+        guard let spacesData = runCommandSync(path: path, arguments: ["list-workspaces", "--all", "--json"]),
+              let focusedData = runCommandSync(path: path, arguments: ["list-workspaces", "--focused", "--json"])
         else {
             return []
         }
@@ -264,29 +260,6 @@ struct WorkspaceConfig: ModuleConfiguration {
     }
 
     // MARK: - Helpers
-
-    private static func runCommand(path: String, arguments: [String]) -> Data?
-    {
-        let process = Process()
-        process.executableURL = URL(fileURLWithPath: path)
-        process.arguments = arguments
-
-        let pipe = Pipe()
-        process.standardOutput = pipe
-        process.standardError = Pipe()
-
-        do {
-            try process.run()
-        } catch {
-            return nil
-        }
-
-        let data = pipe.fileHandleForReading.readDataToEndOfFile()
-        process.waitUntilExit()
-
-        guard process.terminationStatus == 0 else { return nil }
-        return data
-    }
 
     private static func resolveExecutable(_ name: String) -> String? {
         guard let pathVar = ProcessInfo.processInfo.environment["PATH"] else {

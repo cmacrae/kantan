@@ -4,10 +4,10 @@ import Yaml
 /// Dynamic style overrides returned by modules (e.g. command JSON output).
 /// Takes priority over static YAML style config when present.
 struct DynamicStyleOverride: Sendable {
-    let fg: String?       // sets both icon + text foreground
-    let bg: String?       // background color
-    let iconFg: String?   // icon-specific foreground (overrides fg)
-    let textFg: String?   // text-specific foreground (overrides fg)
+    let fg: String?
+    let bg: String?
+    let iconFg: String?
+    let textFg: String?
 }
 
 protocol ModuleConfiguration: Codable, Sendable {
@@ -24,36 +24,23 @@ protocol ModuleConfiguration: Codable, Sendable {
 }
 
 extension ModuleConfiguration {
-    func getTemplateVariables() -> [String: String] {
-        return [:]
-    }
-    func isActive() -> Bool {
-        return true
-    }
-    func shouldDisplay() -> Bool {
-        return true
-    }
+    func getIcon() -> String { "" }
+    func getTemplateVariables() -> [String: String] { [:] }
+    func isActive() -> Bool { true }
+    func shouldDisplay() -> Bool { true }
     func handleToggle() {}
-    func getMenuDescriptors() -> [MenuItemDescriptor]? { return nil }
-    func getDynamicStyle() -> DynamicStyleOverride? { return nil }
+    func getMenuDescriptors() -> [MenuItemDescriptor]? { nil }
+    func getDynamicStyle() -> DynamicStyleOverride? { nil }
 }
 
 // MARK: - Event-Driven Module
 
-/// Protocol for modules that push updates via system events rather than
-/// relying on timer-based polling. Conforming modules create their own
-/// observers (IOKit, CoreAudio, CoreWLAN, etc.) and call the provided
-/// onChange callback whenever state changes.
-///
-/// `ModuleViewModel` checks for this conformance and skips creating a
-/// polling timer when the module provides event-driven updates.
+/// Modules that push updates via system events rather than timer-based
+/// polling. Conforming modules create their own observers (IOKit,
+/// CoreAudio, CoreWLAN, etc.) and call the provided onChange callback
+/// whenever state changes.
 protocol EventDrivenModule: AnyObject {
-    /// Start observing system events. Call `onChange` whenever the module's
-    /// value, icon, or state has changed. The callback dispatches to the
-    /// main actor — implementations should call it from any thread.
     func startObserving(onChange: @escaping @Sendable () -> Void)
-
-    /// Stop observing system events and release resources.
     func stopObserving()
 }
 
@@ -65,13 +52,13 @@ struct InteractionConfig: Codable {
 }
 
 struct HoverConfig: Codable {
-    let type: String  // "tooltip"
-    let content: String  // template string e.g. "{level}% — {state}"
+    let type: String
+    let content: String
 }
 
 struct ClickConfig: Codable {
-    let type: String  // "popup", "menu", "dynamic-menu", "toggle", "passthrough"
-    let popup: String?  // built-in popup name
+    let type: String
+    let popup: String?
     let items: [MenuItemConfig]?
     let popupConfig: PopupConfig?
 }
@@ -83,13 +70,13 @@ struct PopupConfig: Codable, Sendable {
 }
 
 struct PopupRowConfig: Codable, Sendable {
-    let type: String        // "header", "text", "separator", "action"
-    let content: String?    // for header type
-    let icon: String?       // icon glyph
-    let label: String?      // left text
-    let value: String?      // right text (template)
-    let command: String?    // for action rows
-    let style: String?      // "secondary" for dimmed
+    let type: String
+    let content: String?
+    let icon: String?
+    let label: String?
+    let value: String?
+    let command: String?
+    let style: String?
 }
 
 struct MenuItemConfig: Codable {
@@ -122,10 +109,26 @@ protocol ModuleConfigurationFactory {
 }
 
 extension ModuleConfigurationFactory {
-    func defaultConfiguration() -> ModuleConfiguration? {
-        return nil
-    }
+    func defaultConfiguration() -> ModuleConfiguration? { nil }
 }
+
+/// Registry of module type names to their configuration factories.
+/// Immutable after initialization; concurrency-safe by construction.
+nonisolated(unsafe) let moduleFactories: [String: ModuleConfigurationFactory] = [
+    "text": TextConfigFactory(),
+    "clock": ClockConfigFactory(),
+    "power": PowerConfigFactory(),
+    "command": CommandConfigFactory(),
+    "reminders": RemindersConfigFactory(),
+    "workspace": WorkspaceConfigFactory(),
+    "volume": VolumeConfigFactory(),
+    "wifi": WiFiConfigFactory(),
+    "bluetooth": BluetoothConfigFactory(),
+    "caffeinate": CaffeinateConfigFactory(),
+    "icon": IconConfigFactory(),
+]
+
+// MARK: - Module Config Builder
 
 struct ModuleConfigBuilder {
     private var name: String = ""
@@ -139,82 +142,21 @@ struct ModuleConfigBuilder {
     private var interaction: InteractionConfig? = nil
     private var mask: MaskConfig? = nil
     private var displays: DisplaysConfig? = nil
-    private var lastDrawnValue: String?
-    private var lastDrawnIcon: String?
-    private var offset: CGFloat = 0
     private var configFactory: ModuleConfigurationFactory?
 
-    mutating func setName(_ name: String) -> ModuleConfigBuilder {
-        self.name = name
-        return self
-    }
+    mutating func setName(_ name: String) { self.name = name }
+    mutating func setAlignment(_ alignment: String) { self.alignment = alignment }
+    mutating func setType(_ type: String) { self.type = type }
+    mutating func setIcon(_ icon: String) { self.icon = icon }
+    mutating func setTextFont(_ textFont: FontConfig) { self.textFont = textFont }
+    mutating func setIconFont(_ iconFont: FontConfig) { self.iconFont = iconFont }
+    mutating func setStyle(_ style: StyleConfig) { self.style = style }
+    mutating func setInteraction(_ interaction: InteractionConfig) { self.interaction = interaction }
+    mutating func setMask(_ mask: MaskConfig) { self.mask = mask }
+    mutating func setDisplays(_ displays: DisplaysConfig) { self.displays = displays }
+    mutating func setConfigFactory(_ factory: ModuleConfigurationFactory) { self.configFactory = factory }
 
-    mutating func setAlignment(_ alignment: String) -> ModuleConfigBuilder {
-        self.alignment = alignment
-        return self
-    }
-
-    mutating func setType(_ type: String) -> ModuleConfigBuilder {
-        self.type = type
-        return self
-    }
-
-    mutating func setIcon(_ icon: String) -> ModuleConfigBuilder {
-        self.icon = icon
-        return self
-    }
-
-    mutating func setTextFont(_ textFont: FontConfig) -> ModuleConfigBuilder {
-        self.textFont = textFont
-        return self
-    }
-
-    mutating func setIconFont(_ iconFont: FontConfig) -> ModuleConfigBuilder {
-        self.iconFont = iconFont
-        return self
-    }
-
-    mutating func setStyle(_ style: StyleConfig) -> ModuleConfigBuilder {
-        self.style = style
-        return self
-    }
-
-    mutating func setLastDrawnValue(_ lastDrawnValue: String) -> ModuleConfigBuilder {
-        self.lastDrawnValue = lastDrawnValue
-        return self
-    }
-
-    mutating func setLastDrawnIcon(_ lastDrawnIcon: String) -> ModuleConfigBuilder {
-        self.lastDrawnIcon = lastDrawnIcon
-        return self
-    }
-
-    mutating func setOffset(_ offset: CGFloat) -> ModuleConfigBuilder {
-        self.offset = offset
-        return self
-    }
-
-    mutating func setInteraction(_ interaction: InteractionConfig) -> ModuleConfigBuilder {
-        self.interaction = interaction
-        return self
-    }
-
-    mutating func setMask(_ mask: MaskConfig) -> ModuleConfigBuilder {
-        self.mask = mask
-        return self
-    }
-
-    mutating func setDisplays(_ displays: DisplaysConfig) -> ModuleConfigBuilder {
-        self.displays = displays
-        return self
-    }
-
-    mutating func setConfigFactory(_ factory: ModuleConfigurationFactory) -> ModuleConfigBuilder {
-        self.configFactory = factory
-        return self
-    }
-
-    mutating func buildConfiguration(from yaml: Yaml?, configDir: String? = nil) throws -> ModuleConfigBuilder {
+    mutating func buildConfiguration(from yaml: Yaml?, configDir: String? = nil) throws {
         guard let factory = self.configFactory else {
             throw BuilderError.missingConfigurationFactory
         }
@@ -223,9 +165,7 @@ struct ModuleConfigBuilder {
         } else {
             self.config = factory.defaultConfiguration()
         }
-        return self
     }
-
 
     func build() throws -> ModuleConfig {
         guard let config = self.config else {
@@ -238,9 +178,9 @@ struct ModuleConfigBuilder {
 enum BuilderError: Error {
     case missingConfigurationFactory
     case missingConfiguration
-    case unsupportedModuleType
 }
 
+// MARK: - Module Config
 
 struct ModuleConfig: Codable {
     let name: String
@@ -250,18 +190,17 @@ struct ModuleConfig: Codable {
     let textFont: FontConfig?
     let iconFont: FontConfig?
     let style: StyleConfig?
-    var config: ModuleConfiguration?
-    var interaction: InteractionConfig?
-    var mask: MaskConfig?
+    let config: ModuleConfiguration?
+    let interaction: InteractionConfig?
+    let mask: MaskConfig?
     var displays: DisplaysConfig?
-    var lastDrawnValue: String?
-    var lastDrawnIcon: String?
-    var offset: CGFloat = 0
-    var fgOverride: String?
-    var bgOverride: String?
+
+    var isPassthrough: Bool {
+        mask != nil || interaction?.click?.type == "passthrough"
+    }
 
     private enum CodingKeys: String, CodingKey {
-        case name, type, alignment, icon, textFont, iconFont, style, config, lastDrawnValue, lastDrawnIcon, interaction, mask
+        case name, type, alignment, icon, textFont, iconFont, style, config, interaction, mask
     }
 
     init(name: String, alignment: String, type: String, icon: String? = nil, textFont: FontConfig? = nil, iconFont: FontConfig? = nil, style: StyleConfig? = nil, config: ModuleConfiguration? = nil, interaction: InteractionConfig? = nil, mask: MaskConfig? = nil, displays: DisplaysConfig? = nil) {
@@ -290,33 +229,15 @@ struct ModuleConfig: Codable {
         let configDict = try container.decodeIfPresent(ConfigDictionary.self, forKey: .config)?.values
         let configYaml = configDict.map(ModuleConfig.yaml(from:))
 
-        let factories: [String: ModuleConfigurationFactory] = [
-          "text": TextConfigFactory(),
-          "clock": ClockConfigFactory(),
-          "power": PowerConfigFactory(),
-          "command": CommandConfigFactory(),
-          "reminders": RemindersConfigFactory(),
-          "workspace": WorkspaceConfigFactory(),
-          "volume": VolumeConfigFactory(),
-          "wifi": WiFiConfigFactory(),
-          "bluetooth": BluetoothConfigFactory(),
-          "caffeinate": CaffeinateConfigFactory(),
-          "icon": IconConfigFactory()
-        ]
-
-        if let configYaml = configYaml, let factory = factories[type] {
+        if let configYaml = configYaml, let factory = moduleFactories[type] {
             config = try factory.configuration(from: configYaml, configDir: nil)
         } else {
             config = nil
         }
 
-        // Per-module style is parsed from YAML in loadConfig, not decoded here
         style = nil
-
         interaction = try container.decodeIfPresent(InteractionConfig.self, forKey: .interaction)
         mask = try container.decodeIfPresent(MaskConfig.self, forKey: .mask)
-        lastDrawnValue = try container.decodeIfPresent(String.self, forKey: .lastDrawnValue)
-        lastDrawnIcon = try container.decodeIfPresent(String.self, forKey: .lastDrawnIcon)
     }
 
     func encode(to encoder: Encoder) throws {
@@ -328,9 +249,6 @@ struct ModuleConfig: Codable {
         try container.encodeIfPresent(textFont, forKey: .textFont)
         try container.encodeIfPresent(iconFont, forKey: .iconFont)
         try container.encodeIfPresent(mask, forKey: .mask)
-
-        try container.encodeIfPresent(lastDrawnValue, forKey: .lastDrawnValue)
-        try container.encodeIfPresent(lastDrawnIcon, forKey: .lastDrawnIcon)
     }
 
     static func yaml(from dictionary: [String: Any]) -> Yaml {
@@ -342,7 +260,6 @@ struct ModuleConfig: Codable {
         }
         return Yaml.dictionary(yamlDict)
     }
-
 }
 
 struct ConfigDictionary: Decodable {
@@ -356,4 +273,52 @@ struct ConfigDictionary: Decodable {
             }
         }
     }
+}
+
+// MARK: - Shell Command Utility
+
+/// Run a shell command asynchronously (fire-and-forget).
+func runShellCommand(_ command: String) {
+    DispatchQueue.global(qos: .userInitiated).async {
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: "/bin/sh")
+        process.arguments = ["-c", command]
+        process.standardOutput = FileHandle.nullDevice
+        process.standardError = FileHandle.nullDevice
+        try? process.run()
+    }
+}
+
+/// Run a command synchronously and return its stdout.
+/// Returns nil on launch failure or non-zero exit.
+func runCommandSync(path: String, arguments: [String], timeout: TimeInterval? = nil) -> Data? {
+    let process = Process()
+    process.executableURL = URL(fileURLWithPath: path)
+    process.arguments = arguments
+
+    let stdoutPipe = Pipe()
+    process.standardOutput = stdoutPipe
+    process.standardError = FileHandle.nullDevice
+
+    do {
+        try process.run()
+    } catch {
+        return nil
+    }
+
+    var timeoutWorkItem: DispatchWorkItem?
+    if let timeout = timeout {
+        let item = DispatchWorkItem {
+            if process.isRunning { process.terminate() }
+        }
+        DispatchQueue.global().asyncAfter(deadline: .now() + timeout, execute: item)
+        timeoutWorkItem = item
+    }
+
+    let data = stdoutPipe.fileHandleForReading.readDataToEndOfFile()
+    process.waitUntilExit()
+    timeoutWorkItem?.cancel()
+
+    guard process.terminationStatus == 0 else { return nil }
+    return data
 }

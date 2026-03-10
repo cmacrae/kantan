@@ -7,9 +7,8 @@ struct WiFiConfigFactory: ModuleConfigurationFactory {
     func configuration(from yaml: Yaml, configDir: String?) throws -> ModuleConfiguration {
         let showSSID = yaml["showSSID"].bool ?? false
 
-        guard let iconsYaml = yaml["icons"].array,
-              let icons = Optional(iconsYaml.compactMap({ $0.string })),
-              !icons.isEmpty else {
+        let icons = yaml["icons"].array?.compactMap { $0.string } ?? []
+        guard !icons.isEmpty else {
             throw DecodingError.dataCorrupted(
                 DecodingError.Context(
                     codingPath: [],
@@ -106,8 +105,6 @@ final class WiFiConfig: NSObject, ModuleConfiguration, EventDrivenModule, @unche
         wifiClient = nil
         onChange = nil
     }
-
-    // MARK: - CWEventDelegate
 
     func ssidDidChangeForWiFiInterface(withName interfaceName: String) {
         onChange?()
