@@ -239,8 +239,21 @@ class DisplayInstance {
         let screenTop = screen.frame.maxY
         let menuBarRegion = screen.frame.maxY - screen.visibleFrame.maxY
 
-        let onScreen = mouseX >= screen.frame.minX && mouseX <= screen.frame.maxX
-                    && mouseY >= screen.frame.minY && mouseY < screenTop
+        // When the cursor is at or beyond screenTop and within this screen's X range,
+        // check if there's actually a screen above. If not, the cursor is physically
+        // clamped at the top edge and should be treated as on-screen.
+        let atPhysicalTop = mouseY >= screenTop
+                         && mouseX >= screen.frame.minX && mouseX <= screen.frame.maxX
+        let hasScreenAbove = atPhysicalTop && NSScreen.screens.contains(where: { other in
+            other !== screen
+            && other.frame.minY >= screenTop - 1
+            && mouseX >= other.frame.minX && mouseX <= other.frame.maxX
+        })
+        let clampedAtTop = atPhysicalTop && !hasScreenAbove
+
+        let onScreen = (mouseX >= screen.frame.minX && mouseX <= screen.frame.maxX
+                    && mouseY >= screen.frame.minY && mouseY < screenTop)
+                    || clampedAtTop
         let inTriggerZone = onScreen && mouseY >= screenTop - 4
 
         if !onScreen {
