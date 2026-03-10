@@ -19,18 +19,27 @@ struct MenuBarItemDetector {
         "Microphone": "AudioVideoModule",
     ]
 
-    /// Query native menu bar items on the primary screen.
+    /// Query native menu bar items on a given screen.
     /// Returns items sorted right-to-left (index 0 = rightmost).
     ///
     /// Uses CGWindowListCopyWindowInfo for position/bounds detection.
-    /// Note: on macOS 15 (Sequoia), all status bar items — including third-party
-    /// ones — are reported under "Control Centre" with the same PID/bundleId.
-    /// System items can still be identified via plist preferred-position lookup.
-    static func detectItems(excludingOwner: String = "kantan") -> [NativeMenuBarItem] {
+    /// CG coordinates have origin at top-left of the primary display.
+    /// We convert the target NSScreen's frame to CG space and filter
+    /// items whose position falls within that screen's bounds.
+    static func detectItems(for screen: NSScreen, excludingOwner: String = "kantan") -> [NativeMenuBarItem] {
         let windowList = CGWindowListCopyWindowInfo([.optionOnScreenOnly], kCGNullWindowID) as? [[String: Any]] ?? []
         let statusLevel = Int(CGWindowLevelForKey(.statusWindow))
 
-        var items: [(x: CGFloat, w: CGFloat, h: CGFloat, owner: String)] = []
+        // Convert NSScreen frame to CG coordinates.
+        // CG origin = top-left of primary. NSScreen origin = bottom-left of primary.
+        // Primary screen's frame.maxY gives the total height of the primary display
+        // in the NSScreen coordinate system.
+        let primaryHeight = NSScreen.screens.first?.frame.height ?? screen.frame.height
+        let cgScreenTop = primaryHeight - screen.frame.maxY
+        let cgScreenLeft = screen.frame.minX
+        let cgScreenRight = screen.frame.maxX
+
+        var items: [(x: CGFloat, y: CGFloat, w: CGFloat, h: CGFloat, owner: String)] = []
 
         for window in windowList {
             let level = window[kCGWindowLayer as String] as? Int ?? -999
@@ -40,15 +49,18 @@ struct MenuBarItemDetector {
             guard owner != excludingOwner else { continue }
 
             let bounds = window[kCGWindowBounds as String] as? [String: Any] ?? [:]
-            let x = (bounds["X"] as? NSNumber)?.doubleValue ?? 0
-            let y = (bounds["Y"] as? NSNumber)?.doubleValue ?? 0
-            let w = (bounds["Width"] as? NSNumber)?.doubleValue ?? 0
-            let h = (bounds["Height"] as? NSNumber)?.doubleValue ?? 0
+            let x = CGFloat((bounds["X"] as? NSNumber)?.doubleValue ?? 0)
+            let y = CGFloat((bounds["Y"] as? NSNumber)?.doubleValue ?? 0)
+            let w = CGFloat((bounds["Width"] as? NSNumber)?.doubleValue ?? 0)
+            let h = CGFloat((bounds["Height"] as? NSNumber)?.doubleValue ?? 0)
 
-            // Primary screen only (CG Y=0 at top, so primary screen items have Y=0)
-            guard y == 0 && x >= 0 else { continue }
+            // Filter to items on this screen: CG Y should match the screen's
+            // top edge (menu bar sits at the very top), and X should be within
+            // the screen's horizontal range.
+            guard abs(y - cgScreenTop) < 2 else { continue }
+            guard x + w > cgScreenLeft && x < cgScreenRight else { continue }
 
-            items.append((x: CGFloat(x), w: CGFloat(w), h: CGFloat(h), owner: owner))
+            items.append((x: x, y: y, w: w, h: h, owner: owner))
         }
 
         // Sort right-to-left (descending X)
@@ -57,7 +69,7 @@ struct MenuBarItemDetector {
         return items.enumerated().map { (i, item) in
             NativeMenuBarItem(
                 index: i,
-                cgRect: CGRect(x: item.x, y: 0, width: item.w, height: item.h),
+                cgRect: CGRect(x: item.x, y: item.y, width: item.w, height: item.h),
                 owner: item.owner
             )
         }
@@ -131,10 +143,12 @@ struct MenuBarItemDetector {
     }
 
     /// Convert CG rect to AppKit screen coordinates.
-    static func appKitRect(from cgRect: CGRect, screenHeight: CGFloat) -> NSRect {
-        NSRect(
+    /// CG origin = top-left of primary. NSScreen origin = bottom-left of primary.
+    static func appKitRect(from cgRect: CGRect, on screen: NSScreen) -> NSRect {
+        let primaryHeight = NSScreen.screens.first?.frame.height ?? screen.frame.height
+        return NSRect(
             x: cgRect.origin.x,
-            y: screenHeight - cgRect.origin.y - cgRect.height,
+            y: primaryHeight - cgRect.origin.y - cgRect.height,
             width: cgRect.width,
             height: cgRect.height
         )

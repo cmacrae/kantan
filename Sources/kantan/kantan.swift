@@ -3,59 +3,53 @@ import Combine
 import SwiftUI
 import Yaml
 
+// MARK: - Display Instance
+
+/// Encapsulates all per-display state: panels, autohide tracking, and
+/// repositioning. One instance is created for each screen kantan runs on.
 @MainActor
-class AppDelegate: NSObject, NSApplicationDelegate {
+class DisplayInstance {
+    let screenName: String
     var bgPanel: NSPanel!
     var groupPanels: [(panel: NSPanel, hostingView: NSHostingView<ModuleGroupView>, group: ModuleGroup)] = []
-    var barViewModel: BarViewModel?
-    var themeProvider: ThemeProvider?
-    var barHeight: CGFloat = 0
-    var autohideConfig: AutohideConfig = .default
+    var bgColorCancellable: AnyCancellable?
+
+    // Autohide state (independent per display)
     var isMenuBarShowing: Bool = false
     var isHoveringTopEdge: Bool = false
-    /// Set when the cursor arrives from an adjacent display. Suppresses the
-    /// top-edge hide trigger until the mouse descends below the trigger zone,
-    /// preventing a re-hide when the user moves back from an upper screen.
     var enteredFromAbove: Bool = false
-    nonisolated(unsafe) var menuBarMonitor: Any?
-    nonisolated(unsafe) var repositionTimer: Timer?
     nonisolated(unsafe) var autohideDelayTimer: Timer?
-    var bgColorCancellable: AnyCancellable?
-    var visibilityCancellables: [AnyCancellable] = []
 
-    func applicationDidFinishLaunching(_ aNotification: Notification) {
-        NSApp.setActivationPolicy(.accessory)
+    private let barHeight: CGFloat
+    private let config: Config
+    private weak var bar: BarViewModel?
+    private weak var theme: ThemeProvider?
 
-        var config: Config?
+    init(screenName: String, barHeight: CGFloat, config: Config) {
+        self.screenName = screenName
+        self.barHeight = barHeight
+        self.config = config
+    }
 
-        if let fileData = loadFileContents(filePath: "config.yaml") {
-            do {
-                let yaml = try Yaml.load(fileData)
-                config = loadConfig(from: yaml)
-            } catch {
-                print(error)
+    /// Find the current NSScreen matching this instance's screenName.
+    func resolveScreen() -> NSScreen? {
+        for screen in NSScreen.screens {
+            if screen.localizedName == screenName {
+                return screen
             }
-        } else {
-            print("Failed to load file contents")
         }
+        return nil
+    }
 
-        guard let config = config else {
-            print("Configuration not loaded")
-            return
-        }
-
-        barHeight = CGFloat(config.height)
-        autohideConfig = config.autohide
-
-        guard let screen = NSScreen.screens.first else {
-            print("Unable to get screen")
-            return
-        }
+    /// Create all panels for the given screen.
+    func createPanels(for screen: NSScreen, bar: BarViewModel, theme: ThemeProvider) {
+        self.bar = bar
+        self.theme = theme
 
         let statusBarY = screen.frame.origin.y + screen.frame.height - barHeight
         let statusWindowLevel = NSWindow.Level(rawValue: Int(CGWindowLevelForKey(.statusWindow)))
 
-        // MARK: Background Panel — full-width, ignoresMouseEvents
+        // Background panel — full-width, ignoresMouseEvents
         let bgRect = NSRect(
             x: screen.frame.origin.x,
             y: statusBarY,
@@ -70,8 +64,6 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         bgPanel.hasShadow = false
         bgPanel.backgroundColor = NSColor.clear
         bgPanel.ignoresMouseEvents = true
-
-        let theme = ThemeProvider(config: config)
 
         if config.appearance == .native {
             let effectView = NSVisualEffectView(frame: NSRect(origin: .zero, size: bgRect.size))
@@ -88,7 +80,6 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             bgView.autoresizingMask = [.width, .height]
             bgPanel.contentView = bgView
 
-            // Reactively update bar background when light/dark mode changes
             bgColorCancellable = theme.$isDarkMode.sink { [weak self] isDark in
                 guard let self = self, let view = self.bgPanel.contentView else { return }
                 let mode = isDark ? config.style.dark! : config.style.light!
@@ -98,19 +89,11 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
         bgPanel.orderFrontRegardless()
 
-        // MARK: Module Group Panels
-        let bar = BarViewModel(config: config)
-
-        bar.popupManager.themeProvider = theme
-        bar.popupManager.appearance = config.appearance
-
+        // Module group panels
         let moduleGroupLevel = NSWindow.Level(rawValue: statusWindowLevel.rawValue + 1)
-        // Right groups are reversed so the last group (rightmost in config)
-        // gets positioned at the far right edge of the screen
         let allGroups = bar.leftGroups + bar.rightGroups.reversed()
 
-        // Detect native menu bar items for masked module positioning
-        let nativeItems = MenuBarItemDetector.detectItems()
+        let nativeItems = MenuBarItemDetector.detectItems(for: screen)
 
         // First pass: determine space occupied by masked modules
         var leftX = screen.frame.origin.x
@@ -120,10 +103,11 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             guard group.modules.count == 1,
                   let mask = group.modules[0].moduleConfig.mask,
                   let nativeItem = MenuBarItemDetector.resolveItem(for: mask, from: nativeItems) else { continue }
+            let nativeRect = MenuBarItemDetector.appKitRect(from: nativeItem.cgRect, on: screen)
             if group.alignment == "right" {
-                rightX = min(rightX, CGFloat(nativeItem.cgRect.origin.x))
+                rightX = min(rightX, nativeRect.origin.x)
             } else {
-                leftX = max(leftX, CGFloat(nativeItem.cgRect.origin.x + nativeItem.cgRect.width))
+                leftX = max(leftX, nativeRect.origin.x + nativeRect.width)
             }
         }
 
@@ -140,11 +124,9 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             if group.modules.count == 1,
                let mask = group.modules[0].moduleConfig.mask,
                let nativeItem = MenuBarItemDetector.resolveItem(for: mask, from: nativeItems) {
-                // Masked module: position at native item coordinates
-                let nativeRect = MenuBarItemDetector.appKitRect(from: nativeItem.cgRect, screenHeight: screen.frame.height)
+                let nativeRect = MenuBarItemDetector.appKitRect(from: nativeItem.cgRect, on: screen)
                 panelRect = NSRect(x: nativeRect.origin.x, y: statusBarY, width: nativeRect.width, height: barHeight)
             } else {
-                // Non-masked: sequential positioning
                 let fittingWidth = hostingView.fittingSize.width
                 let panelX: CGFloat
                 if group.alignment == "left" {
@@ -170,63 +152,18 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             panel.contentView = hostingView
             panel.orderFrontRegardless()
 
-            // Register each module in the group with the popup manager
             for vm in group.modules {
                 bar.popupManager.modulePanels[vm.id] = panel
             }
 
             groupPanels.append((panel: panel, hostingView: hostingView, group: group))
         }
-
-        self.barViewModel = bar
-        self.themeProvider = theme
-
-        // Reposition panels when module visibility changes (e.g. reminders
-        // hiding when empty). Debounce to coalesce rapid changes.
-        for vm in bar.allModules {
-            vm.$shouldDisplay
-                .removeDuplicates()
-                .debounce(for: .milliseconds(50), scheduler: RunLoop.main)
-                .sink { [weak self] _ in
-                    self?.repositionAllPanels()
-                }
-                .store(in: &visibilityCancellables)
-        }
-
-        restartRepositionTimer()
-
-        NotificationCenter.default.addObserver(
-            self, selector: #selector(screenDidChange),
-            name: NSApplication.didChangeScreenParametersNotification, object: nil
-        )
-
-        if autohideConfig.enabled {
-            startMenuBarMonitoring()
-        }
     }
 
-    @objc func screenDidChange(_ notification: Notification) {
-        repositionAllPanels()
-        restartRepositionTimer()
-    }
-
-    func restartRepositionTimer() {
-        repositionTimer?.invalidate()
-        var repositionCount = 0
-        repositionTimer = Timer.scheduledTimer(withTimeInterval: 0.1, repeats: true) { [weak self] _ in
-            MainActor.assumeIsolated {
-                self?.repositionAllPanels()
-                repositionCount += 1
-                if repositionCount >= 20 {
-                    self?.repositionTimer?.invalidate()
-                    self?.repositionTimer = nil
-                }
-            }
-        }
-    }
-
-    func repositionAllPanels() {
-        guard let screen = NSScreen.screens.first else { return }
+    /// Reposition all panels to match the current screen geometry and
+    /// native menu bar item positions.
+    func repositionPanels() {
+        guard let screen = resolveScreen() else { return }
         let statusBarY = screen.frame.origin.y + screen.frame.height - barHeight
 
         // Background panel — full width
@@ -238,11 +175,10 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         )
         bgPanel.setFrame(bgFrame, display: true)
 
-        // Re-detect native items for current positions
-        let nativeItems = MenuBarItemDetector.detectItems()
+        // Re-detect native items for current positions on this screen
+        let nativeItems = MenuBarItemDetector.detectItems(for: screen)
 
-        // First pass: position masked panels and compute the space they occupy
-        // so non-masked panels don't overlap with them
+        // First pass: position masked panels
         var leftX = screen.frame.origin.x
         var rightX = screen.frame.origin.x + screen.frame.width
 
@@ -251,19 +187,17 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                   let mask = entry.group.modules[0].moduleConfig.mask else { continue }
 
             guard let nativeItem = MenuBarItemDetector.resolveItem(for: mask, from: nativeItems) else {
-                // Mask resolution failed — hide panel to avoid stale positioning
                 entry.panel.orderOut(nil)
                 continue
             }
 
-            let nativeRect = MenuBarItemDetector.appKitRect(from: nativeItem.cgRect, screenHeight: screen.frame.height)
+            let nativeRect = MenuBarItemDetector.appKitRect(from: nativeItem.cgRect, on: screen)
             let panelFrame = NSRect(x: nativeRect.origin.x, y: statusBarY, width: nativeRect.width, height: barHeight)
             entry.panel.setFrame(panelFrame, display: true)
             if !entry.panel.isVisible {
                 entry.panel.orderFrontRegardless()
             }
 
-            // Shrink the available space for sequential panels
             if entry.group.alignment == "right" {
                 rightX = min(rightX, nativeRect.origin.x)
             } else {
@@ -293,49 +227,25 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         }
     }
 
-    // MARK: - Menu Bar Visibility Monitoring
+    // MARK: - Autohide
 
-    func startMenuBarMonitoring() {
-        menuBarMonitor = NSEvent.addGlobalMonitorForEvents(matching: .mouseMoved) { [weak self] _ in
-            DispatchQueue.main.async {
-                MainActor.assumeIsolated {
-                    self?.checkMenuBar()
-                }
-            }
-        }
-    }
-
-    func stopMenuBarMonitoring() {
-        if let monitor = menuBarMonitor {
-            NSEvent.removeMonitor(monitor)
-            menuBarMonitor = nil
-        }
-    }
-
-    func checkMenuBar() {
-        guard let screen = NSScreen.screens.first else { return }
-        let mouseLocation = NSEvent.mouseLocation
+    /// Check whether the mouse is in this display's trigger zone and
+    /// update autohide state accordingly. Called from the global mouse
+    /// monitor for each display instance.
+    func checkMenuBar(mouseLocation: NSPoint, autohideConfig: AutohideConfig) {
+        guard let screen = resolveScreen() else { return }
         let mouseX = mouseLocation.x
         let mouseY = mouseLocation.y
         let screenTop = screen.frame.maxY
         let menuBarRegion = screen.frame.maxY - screen.visibleFrame.maxY
 
-        // Mouse must be within the kantan screen's bounds. When a display
-        // sits above this one, the cursor can exceed screenTop — that means
-        // the user moved to the other display, not that they're hovering
-        // kantan's top edge.
         let onScreen = mouseX >= screen.frame.minX && mouseX <= screen.frame.maxX
                     && mouseY >= screen.frame.minY && mouseY < screenTop
         let inTriggerZone = onScreen && mouseY >= screenTop - 4
 
-        // Track when the cursor arrives from off-screen (e.g. an adjacent
-        // display above). Suppress the hide trigger until the mouse has
-        // descended fully below the trigger zone — otherwise returning
-        // from an upper display would immediately re-hide the bar.
         if !onScreen {
             enteredFromAbove = true
         } else if enteredFromAbove && !inTriggerZone {
-            // Mouse is back on-screen AND below the trigger zone — clear
             enteredFromAbove = false
         }
 
@@ -373,8 +283,8 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
     // MARK: - Slide Animation
 
-    private var allPanels: [NSPanel] {
-        [bgPanel] + groupPanels.map { $0.panel }
+    var allPanels: [NSPanel] {
+        [bgPanel].compactMap { $0 } + groupPanels.map { $0.panel }
     }
 
     func slideOut() {
@@ -388,9 +298,6 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         }, completionHandler: {
             DispatchQueue.main.async {
                 MainActor.assumeIsolated { [weak self] in
-                    // Guard against a slideIn that started during the
-                    // animation. If the menu bar is no longer showing
-                    // (i.e. slideIn was called), don't yank the panels.
                     guard let self = self, self.isMenuBarShowing else { return }
                     for panel in panels {
                         panel.orderOut(nil)
@@ -401,8 +308,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     func slideIn() {
-        // Reposition panels to their correct locations before showing
-        repositionAllPanels()
+        repositionPanels()
 
         for panel in allPanels {
             panel.alphaValue = 0
@@ -418,12 +324,204 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         }
     }
 
+    /// Remove all panels from screen and release resources.
+    func teardown() {
+        autohideDelayTimer?.invalidate()
+        autohideDelayTimer = nil
+        bgColorCancellable?.cancel()
+        bgColorCancellable = nil
+        for panel in allPanels {
+            panel.orderOut(nil)
+        }
+        groupPanels.removeAll()
+        bgPanel = nil
+    }
+}
+
+// MARK: - App Delegate
+
+@MainActor
+class AppDelegate: NSObject, NSApplicationDelegate {
+    var displayInstances: [DisplayInstance] = []
+    var barViewModel: BarViewModel?
+    var themeProvider: ThemeProvider?
+    var config: Config?
+    var barHeight: CGFloat = 0
+    var autohideConfig: AutohideConfig = .default
+    nonisolated(unsafe) var menuBarMonitor: Any?
+    nonisolated(unsafe) var repositionTimer: Timer?
+    var visibilityCancellables: [AnyCancellable] = []
+
+    func applicationDidFinishLaunching(_ aNotification: Notification) {
+        NSApp.setActivationPolicy(.accessory)
+
+        var config: Config?
+
+        if let fileData = loadFileContents(filePath: "config.yaml") {
+            do {
+                let yaml = try Yaml.load(fileData)
+                config = loadConfig(from: yaml)
+            } catch {
+                print(error)
+            }
+        } else {
+            print("Failed to load file contents")
+        }
+
+        guard let config = config else {
+            print("Configuration not loaded")
+            return
+        }
+
+        self.config = config
+        barHeight = CGFloat(config.height)
+        autohideConfig = config.autohide
+
+        let theme = ThemeProvider(config: config)
+        let bar = BarViewModel(config: config)
+        bar.popupManager.themeProvider = theme
+        bar.popupManager.appearance = config.appearance
+
+        self.barViewModel = bar
+        self.themeProvider = theme
+
+        // Create display instances for target screens
+        let targetScreens = resolveTargetScreens(config.displays)
+        for screen in targetScreens {
+            let instance = DisplayInstance(screenName: screen.localizedName, barHeight: barHeight, config: config)
+            instance.createPanels(for: screen, bar: bar, theme: theme)
+            displayInstances.append(instance)
+        }
+
+        // Reposition panels when module visibility changes
+        for vm in bar.allModules {
+            vm.$shouldDisplay
+                .removeDuplicates()
+                .debounce(for: .milliseconds(50), scheduler: RunLoop.main)
+                .sink { [weak self] _ in
+                    self?.repositionAllDisplays()
+                }
+                .store(in: &visibilityCancellables)
+        }
+
+        restartRepositionTimer()
+
+        NotificationCenter.default.addObserver(
+            self, selector: #selector(screenDidChange),
+            name: NSApplication.didChangeScreenParametersNotification, object: nil
+        )
+
+        if autohideConfig.enabled {
+            startMenuBarMonitoring()
+        }
+    }
+
+    // MARK: - Screen Resolution
+
+    /// Resolve which screens to display on based on the config.
+    func resolveTargetScreens(_ displays: DisplaysConfig) -> [NSScreen] {
+        switch displays {
+        case .main:
+            if let main = NSScreen.main {
+                return [main]
+            }
+            // Fall back to first screen if main isn't available
+            if let first = NSScreen.screens.first {
+                return [first]
+            }
+            return []
+        case .all:
+            return NSScreen.screens
+        case .named(let names):
+            return NSScreen.screens.filter { screen in
+                names.contains(screen.localizedName)
+            }
+        }
+    }
+
+    // MARK: - Screen Change Handling
+
+    @objc func screenDidChange(_ notification: Notification) {
+        guard let config = config, let bar = barViewModel, let theme = themeProvider else { return }
+
+        let targetScreens = resolveTargetScreens(config.displays)
+        let targetNames = Set(targetScreens.map { $0.localizedName })
+        let existingNames = Set(displayInstances.map { $0.screenName })
+
+        // Remove instances for screens no longer targeted
+        for instance in displayInstances where !targetNames.contains(instance.screenName) {
+            instance.teardown()
+        }
+        displayInstances.removeAll { !targetNames.contains($0.screenName) }
+
+        // Add instances for newly targeted screens
+        for screen in targetScreens where !existingNames.contains(screen.localizedName) {
+            let instance = DisplayInstance(screenName: screen.localizedName, barHeight: barHeight, config: config)
+            instance.createPanels(for: screen, bar: bar, theme: theme)
+            displayInstances.append(instance)
+        }
+
+        // Reposition existing instances
+        repositionAllDisplays()
+        restartRepositionTimer()
+    }
+
+    // MARK: - Repositioning
+
+    func repositionAllDisplays() {
+        for instance in displayInstances {
+            instance.repositionPanels()
+        }
+    }
+
+    func restartRepositionTimer() {
+        repositionTimer?.invalidate()
+        var repositionCount = 0
+        repositionTimer = Timer.scheduledTimer(withTimeInterval: 0.1, repeats: true) { [weak self] _ in
+            MainActor.assumeIsolated {
+                self?.repositionAllDisplays()
+                repositionCount += 1
+                if repositionCount >= 20 {
+                    self?.repositionTimer?.invalidate()
+                    self?.repositionTimer = nil
+                }
+            }
+        }
+    }
+
+    // MARK: - Menu Bar Visibility Monitoring
+
+    func startMenuBarMonitoring() {
+        menuBarMonitor = NSEvent.addGlobalMonitorForEvents(matching: .mouseMoved) { [weak self] _ in
+            DispatchQueue.main.async {
+                MainActor.assumeIsolated {
+                    self?.checkMenuBar()
+                }
+            }
+        }
+    }
+
+    func stopMenuBarMonitoring() {
+        if let monitor = menuBarMonitor {
+            NSEvent.removeMonitor(monitor)
+            menuBarMonitor = nil
+        }
+    }
+
+    func checkMenuBar() {
+        let mouseLocation = NSEvent.mouseLocation
+        for instance in displayInstances {
+            instance.checkMenuBar(mouseLocation: mouseLocation, autohideConfig: autohideConfig)
+        }
+    }
+
     func applicationWillTerminate(_ aNotification: Notification) {
         stopMenuBarMonitoring()
         repositionTimer?.invalidate()
-        autohideDelayTimer?.invalidate()
-        bgColorCancellable?.cancel()
         visibilityCancellables.removeAll()
+        for instance in displayInstances {
+            instance.teardown()
+        }
     }
 }
 

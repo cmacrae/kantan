@@ -108,10 +108,11 @@ class PopupManager {
 
     /// Convert a point from SwiftUI .global coordinate space (window-local,
     /// Y-down from top-left) to macOS screen coordinates (Y-up from bottom-left).
-    /// Uses the module's own panel for coordinate conversion.
-    func screenPoint(from swiftUIPoint: NSPoint, forModule moduleId: String) -> NSPoint {
-        guard let panel = modulePanels[moduleId] else { return swiftUIPoint }
-        let panelFrame = panel.frame
+    /// Uses the provided window for coordinate conversion. Each display has
+    /// its own panels, so the caller must supply the correct window.
+    func screenPoint(from swiftUIPoint: NSPoint, in window: NSWindow?) -> NSPoint {
+        guard let window = window else { return swiftUIPoint }
+        let panelFrame = window.frame
         return NSPoint(
             x: panelFrame.origin.x + swiftUIPoint.x,
             y: panelFrame.origin.y + panelFrame.height - swiftUIPoint.y
@@ -120,8 +121,12 @@ class PopupManager {
 
     // MARK: - Screen Clamping
 
+    /// Clamp a rect to the visible area of the screen that contains the
+    /// rect's origin. Falls back to the main screen if no match.
     private func clampToScreen(_ rect: NSRect) -> NSRect {
-        guard let screen = NSScreen.main?.visibleFrame else { return rect }
+        let screen = NSScreen.screens.first(where: { $0.frame.contains(rect.origin) })?.visibleFrame
+                  ?? NSScreen.main?.visibleFrame
+        guard let screen = screen else { return rect }
         var clamped = rect
         if clamped.maxX > screen.maxX {
             clamped.origin.x = screen.maxX - clamped.width

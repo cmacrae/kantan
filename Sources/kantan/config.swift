@@ -26,6 +26,14 @@ struct StyleConfig: Codable, Sendable {
     let dark: StyleModeConfig?
 }
 
+// MARK: - Displays
+
+enum DisplaysConfig: Sendable {
+    case main
+    case all
+    case named([String])
+}
+
 // MARK: - Autohide
 
 struct AutohideConfig: Codable, Sendable {
@@ -37,7 +45,7 @@ struct AutohideConfig: Codable, Sendable {
 
 // MARK: - Config
 
-struct Config: Codable {
+struct Config {
     let appearance: AppearanceStyle
     let style: StyleConfig
     let height: Int
@@ -46,6 +54,7 @@ struct Config: Codable {
     let iconFont: FontConfig?
     let textFont: FontConfig?
     let autohide: AutohideConfig
+    let displays: DisplaysConfig
     var modules: [ModuleConfig]
 }
 
@@ -192,6 +201,21 @@ func loadConfig(from yaml: Yaml) -> Config? {
 
     let appearanceStr = yaml["appearance"].string ?? "theme"
     let appearance = AppearanceStyle(rawValue: appearanceStr) ?? .theme
+
+    let displays: DisplaysConfig
+    if let displaysStr = yaml["displays"].string {
+        switch displaysStr.lowercased() {
+        case "all":
+            displays = .all
+        default:
+            displays = .main
+        }
+    } else if let displaysArray = yaml["displays"].array {
+        let names = displaysArray.compactMap { $0.string }
+        displays = names.isEmpty ? .main : .named(names)
+    } else {
+        displays = .main
+    }
 
     let autohide: AutohideConfig
     if let autohideYaml = yaml["autohide"].dictionary {
@@ -362,6 +386,7 @@ func loadConfig(from yaml: Yaml) -> Config? {
         iconFont: iconFont,
         textFont: textFont,
         autohide: autohide,
+        displays: displays,
         modules: modules
     )
 }

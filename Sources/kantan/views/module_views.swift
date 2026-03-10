@@ -1,5 +1,37 @@
 import SwiftUI
 
+// MARK: - Window Reader
+
+/// Captures the NSWindow hosting this SwiftUI view. Used to convert
+/// SwiftUI coordinates to screen coordinates on the correct display.
+/// Uses viewDidMoveToWindow for reliable capture — the NSView may not
+/// have a window at creation time.
+struct WindowReader: NSViewRepresentable {
+    @Binding var window: NSWindow?
+
+    func makeNSView(context: Context) -> WindowReaderView {
+        let view = WindowReaderView()
+        view.onWindowChange = { [self] win in self.window = win }
+        return view
+    }
+
+    func updateNSView(_ nsView: WindowReaderView, context: Context) {
+        nsView.onWindowChange = { [self] win in self.window = win }
+        if let win = nsView.window {
+            self.window = win
+        }
+    }
+}
+
+class WindowReaderView: NSView {
+    var onWindowChange: ((NSWindow?) -> Void)?
+
+    override func viewDidMoveToWindow() {
+        super.viewDidMoveToWindow()
+        onWindowChange?(window)
+    }
+}
+
 // MARK: - Module Container View
 
 /// Wraps each module's visual content with interaction handling
@@ -9,6 +41,7 @@ struct ModuleContainerView: View {
     @EnvironmentObject var themeProvider: ThemeProvider
     let popupManager: PopupManager
     @State private var moduleFrame: CGRect = .zero
+    @State private var hostWindow: NSWindow?
 
     var hasInteraction: Bool {
         viewModel.moduleConfig.interaction != nil
@@ -34,6 +67,7 @@ struct ModuleContainerView: View {
                         }
                 }
             )
+            .background(WindowReader(window: $hostWindow))
             .contentShape(hasInteraction ? Rectangle() : .rect)
             .allowsHitTesting(hasInteraction)
             .onHover { hovering in
@@ -54,7 +88,7 @@ struct ModuleContainerView: View {
 
     private var anchorPoint: NSPoint {
         let swiftUIPoint = NSPoint(x: moduleFrame.midX, y: moduleFrame.maxY)
-        return popupManager.screenPoint(from: swiftUIPoint, forModule: viewModel.id)
+        return popupManager.screenPoint(from: swiftUIPoint, in: hostWindow)
     }
 
     private func showTooltipIfConfigured() {

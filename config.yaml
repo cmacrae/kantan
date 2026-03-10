@@ -3,6 +3,8 @@ padding: 10
 textFont: "Helvetica Neue:13"
 iconFont: "FontAwesome:Regular:15"
 appearance: theme
+# displays: main
+displays: all
 # autohide:
 #   enabled: false
 style:
