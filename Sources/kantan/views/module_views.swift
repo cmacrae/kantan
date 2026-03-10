@@ -268,23 +268,83 @@ struct StandardModuleView: View {
 // MARK: - Workspace Module View
 
 /// Renders N space indicators with active/inactive colouring.
+/// Supports `maxSpaces` windowing: when the user has more spaces than
+/// `maxSpaces`, only a sliding window of spaces is shown, with an
+/// overflow indicator hinting at hidden spaces.
 struct WorkspaceModuleView: View {
     @ObservedObject var viewModel: ModuleViewModel
     @EnvironmentObject var themeProvider: ThemeProvider
 
     var body: some View {
+        let allSegments = getWorkspaceSegments()
+        let wsConfig = viewModel.moduleConfig.config as? WorkspaceConfig
+        let window = windowedSegments(allSegments, config: wsConfig)
+
         HStack(spacing: 6) {
-            ForEach(Array(segments.enumerated()), id: \.offset) { _, segment in
+            if window.overflowBefore {
+                overflowIndicatorView(icon: wsConfig?.overflow.iconLeft ?? "‹", config: wsConfig)
+            }
+            ForEach(Array(window.segments.enumerated()), id: \.offset) { _, segment in
                 Text(segment.label)
                     .font(themeProvider.textFont(for: viewModel))
                     .foregroundStyle(segment.isActive ? activeColor : inactiveColor)
             }
+            if window.overflowAfter {
+                overflowIndicatorView(icon: wsConfig?.overflow.iconRight ?? "›", config: wsConfig)
+            }
         }
     }
 
-    private var segments: [WorkspaceSegment] {
-        getWorkspaceSegments()
+    // MARK: - Windowing
+
+    private struct WindowResult {
+        let segments: [WorkspaceSegment]
+        let overflowBefore: Bool
+        let overflowAfter: Bool
     }
+
+    private func windowedSegments(_ all: [WorkspaceSegment], config: WorkspaceConfig?) -> WindowResult {
+        guard let of = config?.overflow, of.enabled, of.max > 0, all.count > of.max else {
+            return WindowResult(segments: all, overflowBefore: false, overflowAfter: false)
+        }
+
+        let activeIndex = all.firstIndex(where: { $0.isActive }) ?? 0
+
+        // Page-based: spaces are divided into fixed pages of `max` size.
+        // The active space determines which page is displayed.
+        let page = activeIndex / of.max
+        let windowStart = page * of.max
+        let windowEnd = min(windowStart + of.max, all.count)
+        let slice = Array(all[windowStart..<windowEnd])
+
+        let overflowBefore = windowStart > 0
+        let overflowAfter = windowEnd < all.count
+
+        return WindowResult(segments: slice, overflowBefore: overflowBefore, overflowAfter: overflowAfter)
+    }
+
+    // MARK: - Overflow Indicator
+
+    @ViewBuilder
+    private func overflowIndicatorView(icon: String, config: WorkspaceConfig?) -> some View {
+        if let of = config?.overflow, of.enabled, of.showIcon {
+            Text(icon)
+                .font(themeProvider.textFont(for: viewModel))
+                .foregroundStyle(overflowColor(config: config))
+        }
+    }
+
+    private func overflowColor(config: WorkspaceConfig?) -> Color {
+        if let style = config?.overflow.style {
+            let mode = themeProvider.isDarkMode ? style.dark : style.light
+            if let fg = mode?.fg {
+                return Color(nsColor: NSColor(hex: fg))
+            }
+        }
+        return inactiveColor
+    }
+
+    // MARK: - Colors
 
     private var activeColor: Color {
         if let wsConfig = viewModel.moduleConfig.config as? WorkspaceConfig,

@@ -34,6 +34,12 @@ modules:
       type: aerospace
       defaultIcon: ●
       activeColour: "#ffffff"
+      overflow:
+        enabled: true
+        max: 5
+        icon:
+          left: ‹
+          right: ›
 
   - name: caffeine
     type: caffeinate

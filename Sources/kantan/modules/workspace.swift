@@ -37,6 +37,19 @@ struct WorkspaceConfigFactory: ModuleConfigurationFactory {
     }
 }
 
+// MARK: - Overflow Config
+
+struct OverflowConfig: Sendable {
+    let enabled: Bool
+    let max: Int
+    let showIcon: Bool
+    let iconLeft: String
+    let iconRight: String
+    let style: StyleConfig?
+
+    static let disabled = OverflowConfig(enabled: false, max: 5, showIcon: true, iconLeft: "‹", iconRight: "›", style: nil)
+}
+
 // MARK: - Configuration
 
 /// Workspace module. Native macOS spaces are event-driven via
@@ -52,6 +65,7 @@ struct WorkspaceConfig: ModuleConfiguration {
     let activeColour: String?
     let inactiveColour: String?
     let aerospacePath: String?
+    let overflow: OverflowConfig
 
     // No polling needed — native uses NSWorkspace notifications via
     // EventObserver, aerospace uses CLI triggers. Both call refreshAll()
@@ -65,6 +79,39 @@ struct WorkspaceConfig: ModuleConfiguration {
         self.activeColour = yaml?["activeColour"].string
         self.inactiveColour = yaml?["inactiveColour"].string
         self.aerospacePath = yaml?["aerospacePath"].string
+
+        if let ofYaml = yaml?["overflow"].dictionary {
+            let enabled = ofYaml["enabled"]?.bool ?? false
+            let max = ofYaml["max"]?.int ?? 5
+            let style = ofYaml["style"].flatMap { parseStyleConfig(from: $0) }
+
+            // icon: false disables indicator, icon: "str" sets both,
+            // icon: {left: ..., right: ...} sets individually
+            let showIcon: Bool
+            let iconLeft: String
+            let iconRight: String
+            if let iconBool = ofYaml["icon"]?.bool, iconBool == false {
+                showIcon = false
+                iconLeft = ""
+                iconRight = ""
+            } else if let iconStr = ofYaml["icon"]?.string {
+                showIcon = true
+                iconLeft = iconStr
+                iconRight = iconStr
+            } else if let iconDict = ofYaml["icon"]?.dictionary {
+                showIcon = true
+                iconLeft = iconDict["left"]?.string ?? "‹"
+                iconRight = iconDict["right"]?.string ?? "›"
+            } else {
+                showIcon = true
+                iconLeft = "‹"
+                iconRight = "›"
+            }
+
+            self.overflow = OverflowConfig(enabled: enabled, max: max, showIcon: showIcon, iconLeft: iconLeft, iconRight: iconRight, style: style)
+        } else {
+            self.overflow = .disabled
+        }
     }
 
     init(from decoder: Decoder) throws {
@@ -74,6 +121,7 @@ struct WorkspaceConfig: ModuleConfiguration {
         self.activeColour = nil
         self.inactiveColour = nil
         self.aerospacePath = nil
+        self.overflow = .disabled
     }
 
     func encode(to encoder: Encoder) throws {}
