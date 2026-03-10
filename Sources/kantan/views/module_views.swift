@@ -91,6 +91,13 @@ struct ModuleContainerView: View {
         return popupManager.screenPoint(from: swiftUIPoint, in: hostWindow)
     }
 
+    /// Module's left edge in screen coordinates, for native NSMenu
+    /// left-aligned positioning.
+    private var moduleScreenMinX: CGFloat {
+        let swiftUIPoint = NSPoint(x: moduleFrame.minX, y: moduleFrame.maxY)
+        return popupManager.screenPoint(from: swiftUIPoint, in: hostWindow).x
+    }
+
     private func showTooltipIfConfigured() {
         guard let hover = viewModel.moduleConfig.interaction?.hover,
               hover.type == "tooltip" else { return }
@@ -111,18 +118,20 @@ struct ModuleContainerView: View {
                 showDynamicMenu(
                     builder: { self.descriptorsFromClickConfig(click) },
                     moduleName: viewModel.id,
-                    anchorPoint: anchorPoint
+                    anchorPoint: anchorPoint,
+                    moduleMinX: moduleScreenMinX
                 )
             } else if let descriptors = viewModel.moduleConfig.config?.getMenuDescriptors(), !descriptors.isEmpty {
                 // No YAML items — module provides its own full menu (e.g. wifi, bluetooth).
                 showDynamicMenu(
                     builder: { self.viewModel.moduleConfig.config?.getMenuDescriptors() ?? [] },
                     moduleName: viewModel.id,
-                    anchorPoint: anchorPoint
+                    anchorPoint: anchorPoint,
+                    moduleMinX: moduleScreenMinX
                 )
             } else {
                 let descriptors = descriptorsFromClickConfig(click)
-                popupManager.showMenu(descriptors: descriptors, moduleName: viewModel.id, anchorPoint: anchorPoint)
+                popupManager.showMenu(descriptors: descriptors, moduleName: viewModel.id, anchorPoint: anchorPoint, moduleMinX: moduleScreenMinX)
             }
         case "dynamic-menu":
             break
@@ -132,7 +141,6 @@ struct ModuleContainerView: View {
         case "popup":
             if let popupConfig = click.popupConfig {
                 let fg = Color(nsColor: popupManager.effectiveFgColor)
-                let bg = Color(nsColor: popupManager.effectiveBgColor)
                 let iconFont = themeProvider.iconFont(for: viewModel)
                 popupManager.showUserPopup(
                     config: popupConfig,
@@ -140,7 +148,6 @@ struct ModuleContainerView: View {
                     anchorPoint: anchorPoint,
                     templateResolver: { self.resolveTemplate($0) },
                     fgColor: fg,
-                    bgColor: bg,
                     iconFont: iconFont
                 )
             } else if let popupName = click.popup {
@@ -157,10 +164,10 @@ struct ModuleContainerView: View {
     /// Show a dynamic menu with a rebuilder that re-fetches descriptors
     /// after toggle state changes (e.g. WiFi/Bluetooth power toggle).
     /// The rebuilder is self-referencing so repeated toggles work.
-    private func showDynamicMenu(builder: @escaping () -> [MenuItemDescriptor], moduleName: String, anchorPoint: NSPoint) {
+    private func showDynamicMenu(builder: @escaping () -> [MenuItemDescriptor], moduleName: String, anchorPoint: NSPoint, moduleMinX: CGFloat? = nil) {
         let descriptors = builder()
-        popupManager.showMenu(descriptors: descriptors, moduleName: moduleName, anchorPoint: anchorPoint) {
-            self.showDynamicMenu(builder: builder, moduleName: moduleName, anchorPoint: anchorPoint)
+        popupManager.showMenu(descriptors: descriptors, moduleName: moduleName, anchorPoint: anchorPoint, moduleMinX: moduleMinX) {
+            self.showDynamicMenu(builder: builder, moduleName: moduleName, anchorPoint: anchorPoint, moduleMinX: moduleMinX)
         }
     }
 

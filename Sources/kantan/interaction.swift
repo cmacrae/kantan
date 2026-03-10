@@ -77,11 +77,27 @@ class PopupPanel: NSPanel, NSWindowDelegate {
     }
 }
 
+// MARK: - Native Menu Target
+
+/// Action target for native NSMenu items. Holds a closure that fires
+/// when the menu item is selected. Stored as `representedObject` on the
+/// NSMenuItem to prevent premature deallocation during menu tracking.
+class NativeMenuTarget: NSObject {
+    let handler: () -> Void
+    init(handler: @escaping () -> Void) {
+        self.handler = handler
+    }
+    @objc func menuAction(_ sender: Any?) {
+        handler()
+    }
+}
+
 // MARK: - Popup Manager
 
 /// Centralised manager for all tooltips, menus, and popups.
-/// Renders using either native system controls or kantan-themed panels,
-/// controlled by the `appearance` property.
+/// Always uses native macOS controls (NSVisualEffectView, system colors)
+/// as the foundation. In "theme" mode, colors are tinted on top of the
+/// native materials to maintain a native feel while respecting user config.
 @MainActor
 class PopupManager {
     private var activePanel: NSPanel?
@@ -91,15 +107,18 @@ class PopupManager {
     var appearance: AppearanceStyle = .theme
     var modulePanels: [String: NSWindow] = [:]
 
+    /// Whether we're in native appearance mode (use system colors throughout).
+    var isNative: Bool { appearance == .native }
+
     var effectiveFgColor: NSColor {
-        if appearance == .native { return .labelColor }
+        if isNative { return .labelColor }
         guard let tp = themeProvider else { return .labelColor }
         let mode = tp.isDarkMode ? tp.config.style.dark : tp.config.style.light
         return NSColor(hex: mode!.fg!)
     }
 
     var effectiveBgColor: NSColor {
-        if appearance == .native { return .windowBackgroundColor }
+        if isNative { return .windowBackgroundColor }
         guard let tp = themeProvider else { return .windowBackgroundColor }
         let mode = tp.isDarkMode ? tp.config.style.dark : tp.config.style.light
         return NSColor(hex: mode!.bg!)
@@ -154,18 +173,9 @@ class PopupManager {
         guard !isPopupActive else { return }
         hideTooltip()
 
-        switch appearance {
-        case .native:
-            showNativeTooltip(text: text, anchorPoint: anchorPoint)
-        case .theme:
-            showThemedTooltip(text: text, anchorPoint: anchorPoint)
-        }
-    }
-
-    private func showNativeTooltip(text: String, anchorPoint: NSPoint) {
         let label = NSTextField(labelWithString: text)
-        label.font = NSFont.systemFont(ofSize: 11)
-        label.textColor = .labelColor
+        label.font = NSFont.systemFont(ofSize: NSFont.smallSystemFontSize)
+        label.textColor = isNative ? .labelColor : effectiveFgColor
         label.backgroundColor = .clear
         label.isBezeled = false
         label.isEditable = false
@@ -186,6 +196,8 @@ class PopupManager {
         let panel = makeNonActivatingPanel(rect: panelRect)
         panel.ignoresMouseEvents = true
 
+        // Always use native NSVisualEffectView for the tooltip background.
+        // Theme mode tints just the text color above.
         let effect = NSVisualEffectView(frame: NSRect(origin: .zero, size: panelRect.size))
         effect.material = .toolTip
         effect.state = .active
@@ -202,44 +214,6 @@ class PopupManager {
         tooltipPanel = panel
     }
 
-    private func showThemedTooltip(text: String, anchorPoint: NSPoint) {
-        let label = NSTextField(labelWithString: text)
-        label.font = NSFont.systemFont(ofSize: 11)
-        label.textColor = effectiveFgColor
-        label.backgroundColor = .clear
-        label.isBezeled = false
-        label.isEditable = false
-        label.sizeToFit()
-
-        let padding: CGFloat = 8
-        let panelWidth = label.frame.width + padding * 2
-        let panelHeight = label.frame.height + padding * 2
-
-        var panelRect = NSRect(
-            x: anchorPoint.x - panelWidth / 2,
-            y: anchorPoint.y - panelHeight - 4,
-            width: panelWidth,
-            height: panelHeight
-        )
-        panelRect = clampToScreen(panelRect)
-
-        let panel = makeNonActivatingPanel(rect: panelRect)
-        panel.ignoresMouseEvents = true
-
-        let container = NSView(frame: NSRect(origin: .zero, size: panelRect.size))
-        container.wantsLayer = true
-        container.layer?.cornerRadius = 6
-        container.layer?.masksToBounds = true
-        container.layer?.backgroundColor = effectiveBgColor.cgColor
-
-        label.frame.origin = NSPoint(x: padding, y: padding)
-        container.addSubview(label)
-
-        panel.contentView = container
-        panel.orderFrontRegardless()
-        tooltipPanel = panel
-    }
-
     func hideTooltip() {
         tooltipPanel?.orderOut(nil)
         tooltipPanel = nil
@@ -247,65 +221,9 @@ class PopupManager {
 
     // MARK: - Menu
 
-    func showMenu(descriptors: [MenuItemDescriptor], moduleName: String, anchorPoint: NSPoint, rebuilder: (() -> Void)? = nil) {
+    func showMenu(descriptors: [MenuItemDescriptor], moduleName: String, anchorPoint: NSPoint, moduleMinX: CGFloat? = nil, rebuilder: (() -> Void)? = nil) {
         guard !descriptors.isEmpty else { return }
 
-        switch appearance {
-        case .native:
-            showNativeMenu(descriptors: descriptors, anchorPoint: anchorPoint, rebuilder: rebuilder)
-        case .theme:
-            showThemedMenu(descriptors: descriptors, moduleName: moduleName, anchorPoint: anchorPoint, rebuilder: rebuilder)
-        }
-    }
-
-    private func showNativeMenu(descriptors: [MenuItemDescriptor], anchorPoint: NSPoint, rebuilder: (() -> Void)?) {
-        let menu = NSMenu()
-        let actionTarget = NativeMenuActionTarget()
-        objc_setAssociatedObject(menu, "actionTarget", actionTarget, .OBJC_ASSOCIATION_RETAIN)
-
-        for descriptor in descriptors {
-            if descriptor.isSeparator {
-                menu.addItem(NSMenuItem.separator())
-            } else if descriptor.isCheck {
-                let item = NSMenuItem()
-                let checkView = MenuCheckView(label: descriptor.label ?? "", isChecked: descriptor.isChecked) { [weak menu] in
-                    menu?.cancelTracking()
-                    descriptor.toggleAction? {
-                        rebuilder?()
-                    }
-                }
-                let hostingView = NSHostingView(rootView: checkView)
-                hostingView.frame.size = hostingView.fittingSize
-                item.view = hostingView
-                menu.addItem(item)
-            } else if descriptor.isToggle {
-                let item = NSMenuItem()
-                let toggleView = MenuToggleView(label: descriptor.label ?? "", isOn: descriptor.isToggleOn) { [weak menu] in
-                    menu?.cancelTracking()
-                    descriptor.toggleAction? {
-                        rebuilder?()
-                    }
-                }
-                let hostingView = NSHostingView(rootView: toggleView)
-                hostingView.frame.size = hostingView.fittingSize
-                item.view = hostingView
-                menu.addItem(item)
-            } else if descriptor.isHeader {
-                let item = NSMenuItem(title: descriptor.label ?? "", action: nil, keyEquivalent: "")
-                item.isEnabled = false
-                menu.addItem(item)
-            } else if let label = descriptor.label {
-                let item = NSMenuItem(title: label, action: #selector(NativeMenuActionTarget.menuItemClicked(_:)), keyEquivalent: "")
-                item.target = actionTarget
-                item.representedObject = descriptor.action
-                menu.addItem(item)
-            }
-        }
-
-        menu.popUp(positioning: nil, at: anchorPoint, in: nil)
-    }
-
-    private func showThemedMenu(descriptors: [MenuItemDescriptor], moduleName: String, anchorPoint: NSPoint, rebuilder: (() -> Void)?) {
         let menuId = "\(moduleName):menu"
 
         if menuId == activePopupId, activePanel != nil {
@@ -315,12 +233,125 @@ class PopupManager {
 
         dismissPopup()
 
-        let fg = Color(nsColor: effectiveFgColor)
-        let bg = Color(nsColor: effectiveBgColor)
+        if isNative {
+            // Native NSMenu left-aligns at the anchor point. Use the
+            // module's left edge X so the menu appears directly below
+            // the module, matching native macOS menu bar behaviour.
+            var nativeAnchor = anchorPoint
+            if let minX = moduleMinX {
+                nativeAnchor.x = minX
+            }
+            showNativeMenu(descriptors: descriptors, anchorPoint: nativeAnchor, rebuilder: rebuilder)
+        } else {
+            showThemedMenu(descriptors: descriptors, moduleName: moduleName, anchorPoint: anchorPoint, rebuilder: rebuilder)
+        }
+    }
 
-        let menuView = SwiftUIThemedMenuView(descriptors: descriptors, fgColor: fg, bgColor: bg, dismissHandler: { [weak self] in
-            self?.dismissPopup()
-        }, rebuilder: rebuilder)
+    // MARK: - Native NSMenu
+
+    /// Build and display an actual NSMenu. This gives us the real macOS
+    /// menu appearance — correct material, shadow, corner radius, and
+    /// item rendering, identical to system menu bar dropdown menus.
+    /// `popUp()` is synchronous: it blocks until the menu is dismissed.
+    private func showNativeMenu(descriptors: [MenuItemDescriptor], anchorPoint: NSPoint, rebuilder: (() -> Void)? = nil) {
+        let menu = NSMenu()
+        menu.autoenablesItems = false
+
+        for descriptor in descriptors {
+            if descriptor.isSeparator {
+                menu.addItem(.separator())
+            } else if descriptor.isHeader {
+                if #available(macOS 14, *) {
+                    menu.addItem(.sectionHeader(title: descriptor.label ?? ""))
+                } else {
+                    let item = NSMenuItem(title: descriptor.label ?? "", action: nil, keyEquivalent: "")
+                    item.isEnabled = false
+                    item.attributedTitle = NSAttributedString(
+                        string: (descriptor.label ?? "").uppercased(),
+                        attributes: [
+                            .font: NSFont.systemFont(ofSize: 11, weight: .semibold),
+                            .foregroundColor: NSColor.secondaryLabelColor
+                        ]
+                    )
+                    menu.addItem(item)
+                }
+            } else if descriptor.isCheck {
+                let item = NSMenuItem(title: descriptor.label ?? "",
+                                      action: #selector(NativeMenuTarget.menuAction(_:)),
+                                      keyEquivalent: "")
+                // SF Symbol checkbox indicators matching native macOS style
+                let size = NSFont.menuFont(ofSize: 0).pointSize
+                let config = NSImage.SymbolConfiguration(pointSize: size, weight: .regular)
+                if descriptor.isChecked {
+                    item.image = NSImage(systemSymbolName: "checkmark.circle.fill", accessibilityDescription: "completed")?
+                        .withSymbolConfiguration(config)
+                    item.attributedTitle = NSAttributedString(
+                        string: descriptor.label ?? "",
+                        attributes: [
+                            .strikethroughStyle: NSUnderlineStyle.single.rawValue,
+                            .foregroundColor: NSColor.secondaryLabelColor
+                        ]
+                    )
+                } else {
+                    item.image = NSImage(systemSymbolName: "circle", accessibilityDescription: "incomplete")?
+                        .withSymbolConfiguration(config)
+                }
+                let target = NativeMenuTarget {
+                    descriptor.toggleAction? { [rebuilder] in
+                        rebuilder?()
+                    }
+                }
+                item.target = target
+                item.representedObject = target
+                menu.addItem(item)
+            } else if descriptor.isToggle {
+                let item = NSMenuItem()
+                let toggleView = NativeMenuToggleView(
+                    label: descriptor.label ?? "",
+                    isOn: descriptor.isToggleOn,
+                    action: {
+                        menu.cancelTracking()
+                        descriptor.toggleAction? { [rebuilder] in
+                            rebuilder?()
+                        }
+                    }
+                )
+                let hosting = NSHostingView(rootView: toggleView)
+                hosting.frame = NSRect(x: 0, y: 0, width: 220, height: 28)
+                item.view = hosting
+                menu.addItem(item)
+            } else {
+                let title: String
+                if let glyph = descriptor.iconGlyph, !glyph.isEmpty {
+                    title = "\(glyph)  \(descriptor.label ?? "")"
+                } else {
+                    title = descriptor.label ?? ""
+                }
+                let item = NSMenuItem(title: title,
+                                      action: #selector(NativeMenuTarget.menuAction(_:)),
+                                      keyEquivalent: "")
+                let target = NativeMenuTarget {
+                    descriptor.action?()
+                }
+                item.target = target
+                item.representedObject = target
+                menu.addItem(item)
+            }
+        }
+
+        menu.popUp(positioning: nil, at: anchorPoint, in: nil)
+    }
+
+    // MARK: - Themed Menu (PopupPanel + SwiftUI)
+
+    private func showThemedMenu(descriptors: [MenuItemDescriptor], moduleName: String, anchorPoint: NSPoint, rebuilder: (() -> Void)? = nil) {
+        let menuView = SwiftUIThemedMenuView(
+            descriptors: descriptors,
+            isNative: isNative,
+            fgColor: Color(nsColor: effectiveFgColor),
+            dismissHandler: { [weak self] in self?.dismissPopup() },
+            rebuilder: rebuilder
+        )
 
         let hostingView = NSHostingView(rootView: menuView)
         let fittingSize = hostingView.fittingSize
@@ -346,7 +377,7 @@ class PopupManager {
         panel.makeKeyAndOrderFront(nil)
 
         activePanel = panel
-        activePopupId = menuId
+        activePopupId = "\(moduleName):menu"
     }
 
     // MARK: - Popup
@@ -362,9 +393,8 @@ class PopupManager {
         dismissPopup()
 
         let fg = Color(nsColor: effectiveFgColor)
-        let bg = Color(nsColor: effectiveBgColor)
 
-        guard let popupView = createSwiftUIPopup(name: name, fgColor: fg, bgColor: bg) else { return }
+        guard let popupView = createSwiftUIPopup(name: name, fgColor: fg, isNative: isNative) else { return }
 
         let hostingView = NSHostingView(rootView: popupView)
         let fittingSize = hostingView.fittingSize
@@ -436,30 +466,34 @@ class PopupManager {
         return panel
     }
 
+    /// Always uses NSVisualEffectView(.menu) for the native translucent
+    /// material. In theme mode, adds a semi-transparent tint overlay so
+    /// the user's configured color shows through while preserving the
+    /// native vibrancy effect.
     private func makePopupContainer(size: NSSize) -> NSView {
-        switch appearance {
-        case .native:
-            let effect = NSVisualEffectView(frame: NSRect(origin: .zero, size: size))
-            effect.material = .menu
-            effect.state = .active
-            effect.blendingMode = .behindWindow
-            effect.wantsLayer = true
-            effect.layer?.cornerRadius = 10
-            effect.layer?.masksToBounds = true
-            return effect
-        case .theme:
-            let container = NSView(frame: NSRect(origin: .zero, size: size))
-            container.wantsLayer = true
-            container.layer?.cornerRadius = 10
-            container.layer?.masksToBounds = true
-            container.layer?.backgroundColor = effectiveBgColor.cgColor
-            return container
+        let effect = NSVisualEffectView(frame: NSRect(origin: .zero, size: size))
+        effect.material = .menu
+        effect.state = .active
+        effect.blendingMode = .behindWindow
+        effect.wantsLayer = true
+        effect.layer?.cornerRadius = 6
+        effect.layer?.masksToBounds = true
+
+        if !isNative {
+            // Tint overlay: semi-transparent theme color on top of native blur
+            let tint = NSView(frame: NSRect(origin: .zero, size: size))
+            tint.wantsLayer = true
+            tint.layer?.backgroundColor = effectiveBgColor.withAlphaComponent(0.85).cgColor
+            tint.autoresizingMask = [.width, .height]
+            effect.addSubview(tint)
         }
+
+        return effect
     }
 
     // MARK: - SwiftUI Popup Content
 
-    private func createSwiftUIPopup(name: String, fgColor: Color, bgColor: Color) -> AnyView? {
+    private func createSwiftUIPopup(name: String, fgColor: Color, isNative: Bool) -> AnyView? {
         return nil
     }
 
@@ -467,7 +501,7 @@ class PopupManager {
 
     func showUserPopup(config: PopupConfig, moduleName: String, anchorPoint: NSPoint,
                        templateResolver: @escaping (String) -> String,
-                       fgColor: Color, bgColor: Color, iconFont: Font?) {
+                       fgColor: Color, iconFont: Font?) {
         let popupId = "\(moduleName):user-popup"
 
         if popupId == activePopupId, activePanel != nil {
@@ -480,8 +514,8 @@ class PopupManager {
         let popupView = UserPopupView(
             config: config,
             templateResolver: templateResolver,
+            isNative: isNative,
             fgColor: fgColor,
-            bgColor: bgColor,
             iconFont: iconFont,
             dismissHandler: { [weak self] in self?.dismissPopup() }
         )
@@ -519,21 +553,25 @@ class PopupManager {
 struct UserPopupView: View {
     let config: PopupConfig
     let templateResolver: (String) -> String
+    let isNative: Bool
     let fgColor: Color
-    let bgColor: Color
     let iconFont: Font?
     let dismissHandler: () -> Void
+
+    /// Resolved foreground: system .primary in native mode, theme color otherwise.
+    private var resolvedFg: Color {
+        isNative ? .primary : fgColor
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             if let title = config.title {
                 Text(templateResolver(title))
                     .font(.system(size: 13, weight: .semibold))
-                    .foregroundStyle(fgColor)
+                    .foregroundStyle(resolvedFg)
                     .padding(.horizontal, 16)
                     .frame(height: 32, alignment: .leading)
                 Divider()
-                    .background(fgColor.opacity(0.15))
                     .padding(.horizontal, 8)
             }
 
@@ -551,7 +589,7 @@ struct UserPopupView: View {
         case "header":
             Text(templateResolver(row.content ?? row.label ?? ""))
                 .font(.system(size: 11, weight: .medium))
-                .foregroundStyle(fgColor.opacity(0.5))
+                .foregroundStyle(resolvedFg.opacity(0.5))
                 .padding(.horizontal, 16)
                 .frame(height: 22, alignment: .leading)
 
@@ -579,7 +617,6 @@ struct UserPopupView: View {
 
         case "separator":
             Divider()
-                .background(fgColor.opacity(0.15))
                 .padding(.horizontal, 8)
                 .padding(.vertical, 4)
 
@@ -588,6 +625,7 @@ struct UserPopupView: View {
                 label: templateResolver(row.label ?? ""),
                 icon: row.icon.map { templateResolver($0) },
                 iconFont: iconFont,
+                isNative: isNative,
                 fgColor: fgColor,
                 command: row.command,
                 dismissHandler: dismissHandler
@@ -599,7 +637,7 @@ struct UserPopupView: View {
     }
 
     private func rowFgColor(_ row: PopupRowConfig) -> Color {
-        row.style == "secondary" ? fgColor.opacity(0.5) : fgColor
+        row.style == "secondary" ? resolvedFg.opacity(0.5) : resolvedFg
     }
 }
 
@@ -607,28 +645,33 @@ struct PopupActionRow: View {
     let label: String
     let icon: String?
     let iconFont: Font?
+    let isNative: Bool
     let fgColor: Color
     let command: String?
     let dismissHandler: () -> Void
     @State private var isHovered = false
+
+    private var resolvedFg: Color {
+        isNative ? .primary : fgColor
+    }
 
     var body: some View {
         HStack(spacing: 8) {
             if let icon = icon {
                 Text(icon)
                     .font(iconFont ?? .system(size: 13))
-                    .foregroundStyle(fgColor)
+                    .foregroundStyle(isHovered && isNative ? .white : resolvedFg)
             }
             Text(label)
                 .font(.system(size: 13))
-                .foregroundStyle(fgColor)
+                .foregroundStyle(isHovered && isNative ? .white : resolvedFg)
             Spacer()
         }
         .padding(.horizontal, 16)
         .frame(height: 28)
         .background(
             RoundedRectangle(cornerRadius: 4)
-                .fill(isHovered ? fgColor.opacity(0.1) : .clear)
+                .fill(isHovered ? Color(nsColor: .selectedContentBackgroundColor).opacity(isNative ? 1.0 : 0.3) : .clear)
         )
         .onHover { hovering in isHovered = hovering }
         .onTapGesture {
@@ -646,56 +689,21 @@ struct PopupActionRow: View {
     }
 }
 
-// MARK: - Menu Toggle View
+// MARK: - Native Menu Toggle View
 
-/// SwiftUI toggle switch embedded in NSMenu items via NSHostingView.
-struct MenuToggleView: View {
+/// SwiftUI Toggle embedded in a native NSMenuItem via NSHostingView.
+/// Used only for `.toggle()` descriptors in native NSMenu mode.
+struct NativeMenuToggleView: View {
     let label: String
     @State var isOn: Bool
-    let onToggle: () -> Void
+    let action: () -> Void
 
     var body: some View {
         Toggle(label, isOn: $isOn)
             .toggleStyle(.switch)
             .controlSize(.small)
-            .tint(.blue)
             .padding(.horizontal, 14)
-            .padding(.vertical, 4)
-            .onChange(of: isOn) { _, _ in
-                onToggle()
-            }
-    }
-}
-
-struct MenuCheckView: View {
-    let label: String
-    let isChecked: Bool
-    let onTap: () -> Void
-
-    var body: some View {
-        HStack(spacing: 8) {
-            Image(systemName: isChecked ? "checkmark.circle.fill" : "circle")
-                .foregroundStyle(isChecked ? .secondary : .primary)
-                .imageScale(.medium)
-            Text(label)
-                .strikethrough(isChecked)
-                .foregroundStyle(isChecked ? .secondary : .primary)
-            Spacer()
-        }
-        .padding(.horizontal, 14)
-        .padding(.vertical, 4)
-        .contentShape(Rectangle())
-        .onTapGesture {
-            onTap()
-        }
-    }
-}
-
-// MARK: - Native Menu Action Target
-
-class NativeMenuActionTarget: NSObject {
-    @objc func menuItemClicked(_ sender: NSMenuItem) {
-        guard let action = sender.representedObject as? (() -> Void) else { return }
-        action()
+            .frame(height: 28)
+            .onChange(of: isOn) { _, _ in action() }
     }
 }

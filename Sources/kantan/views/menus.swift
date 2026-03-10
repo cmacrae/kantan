@@ -2,27 +2,33 @@ import SwiftUI
 
 // MARK: - Themed Menu (SwiftUI)
 
-/// SwiftUI replacement for the AppKit ThemedMenuView.
-/// Renders MenuItemDescriptors with hover highlights and click handling.
+/// SwiftUI menu rendered inside an NSVisualEffectView(.menu) panel.
+/// Uses native system colors (.primary/.secondary) in native mode;
+/// applies the user's theme foreground color in theme mode.
 struct SwiftUIThemedMenuView: View {
     let descriptors: [MenuItemDescriptor]
+    let isNative: Bool
     let fgColor: Color
-    let bgColor: Color
     let dismissHandler: () -> Void
     let rebuilder: (() -> Void)?
+
+    /// Resolved foreground: system .primary in native mode, theme color otherwise.
+    private var resolvedFg: Color {
+        isNative ? .primary : fgColor
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             ForEach(Array(descriptors.enumerated()), id: \.offset) { _, descriptor in
                 if descriptor.isSeparator {
                     Divider()
-                        .background(fgColor.opacity(0.15))
                         .padding(.horizontal, 8)
                         .padding(.vertical, 4)
                 } else if descriptor.isCheck {
                     SwiftUIMenuCheckView(
                         label: descriptor.label ?? "",
                         isChecked: descriptor.isChecked,
+                        isNative: isNative,
                         fgColor: fgColor,
                         action: {
                             dismissHandler()
@@ -35,6 +41,7 @@ struct SwiftUIThemedMenuView: View {
                     SwiftUIMenuToggleView(
                         label: descriptor.label ?? "",
                         isOn: descriptor.isToggleOn,
+                        isNative: isNative,
                         fgColor: fgColor,
                         action: {
                             dismissHandler()
@@ -46,7 +53,7 @@ struct SwiftUIThemedMenuView: View {
                 } else if descriptor.isHeader {
                     Text(descriptor.label ?? "")
                         .font(.system(size: 11, weight: .medium))
-                        .foregroundStyle(fgColor.opacity(0.5))
+                        .foregroundStyle(resolvedFg.opacity(0.5))
                         .padding(.horizontal, 16)
                         .frame(height: 22, alignment: .leading)
                 } else {
@@ -54,6 +61,7 @@ struct SwiftUIThemedMenuView: View {
                         label: descriptor.label ?? "",
                         icon: descriptor.icon,
                         iconGlyph: descriptor.iconGlyph,
+                        isNative: isNative,
                         fgColor: fgColor,
                         action: {
                             dismissHandler()
@@ -74,16 +82,21 @@ struct SwiftUIMenuItemView: View {
     let label: String
     let icon: NSView?
     var iconGlyph: String? = nil
+    let isNative: Bool
     let fgColor: Color
     let action: () -> Void
     @State private var isHovered = false
+
+    private var resolvedFg: Color {
+        isNative ? .primary : fgColor
+    }
 
     var body: some View {
         HStack(spacing: 8) {
             if let iconGlyph = iconGlyph, !iconGlyph.isEmpty {
                 Text(iconGlyph)
                     .font(.system(size: 13))
-                    .foregroundStyle(fgColor)
+                    .foregroundStyle(isHovered && isNative ? .white : resolvedFg)
                     .frame(width: 16, alignment: .center)
             } else if let icon = icon {
                 NSViewWrapper(nsView: icon)
@@ -91,14 +104,14 @@ struct SwiftUIMenuItemView: View {
             }
             Text(label)
                 .font(.system(size: 13))
-                .foregroundStyle(fgColor)
+                .foregroundStyle(isHovered && isNative ? .white : resolvedFg)
             Spacer()
         }
         .padding(.horizontal, 16)
         .frame(height: 28)
         .background(
             RoundedRectangle(cornerRadius: 4)
-                .fill(isHovered ? fgColor.opacity(0.1) : .clear)
+                .fill(isHovered ? Color(nsColor: .selectedContentBackgroundColor).opacity(isNative ? 1.0 : 0.3) : .clear)
         )
         .onHover { hovering in
             isHovered = hovering
@@ -114,15 +127,20 @@ struct SwiftUIMenuItemView: View {
 struct SwiftUIMenuToggleView: View {
     let label: String
     @State var isOn: Bool
+    let isNative: Bool
     let fgColor: Color
     let action: () -> Void
+
+    private var resolvedFg: Color {
+        isNative ? .primary : fgColor
+    }
 
     var body: some View {
         Toggle(label, isOn: $isOn)
             .toggleStyle(.switch)
             .controlSize(.small)
-            .tint(.blue)
-            .foregroundStyle(fgColor)
+            .tint(.accentColor)
+            .foregroundStyle(resolvedFg)
             .padding(.horizontal, 14)
             .frame(height: 26)
             .onChange(of: isOn) { _, _ in
@@ -134,17 +152,22 @@ struct SwiftUIMenuToggleView: View {
 struct SwiftUIMenuCheckView: View {
     let label: String
     let isChecked: Bool
+    let isNative: Bool
     let fgColor: Color
     let action: () -> Void
+
+    private var resolvedFg: Color {
+        isNative ? .primary : fgColor
+    }
 
     var body: some View {
         HStack(spacing: 8) {
             Image(systemName: isChecked ? "checkmark.circle.fill" : "circle")
-                .foregroundStyle(isChecked ? fgColor.opacity(0.4) : fgColor)
+                .foregroundStyle(isChecked ? resolvedFg.opacity(0.4) : resolvedFg)
                 .imageScale(.medium)
             Text(label)
                 .strikethrough(isChecked)
-                .foregroundStyle(isChecked ? fgColor.opacity(0.4) : fgColor)
+                .foregroundStyle(isChecked ? resolvedFg.opacity(0.4) : resolvedFg)
             Spacer()
         }
         .padding(.horizontal, 14)
