@@ -5,428 +5,441 @@ import SwiftUI
 
 @MainActor
 class ModuleViewModel: ObservableObject, Identifiable {
-    let id: String
-    let moduleConfig: ModuleConfig
+  let id: String
+  let moduleConfig: ModuleConfig
 
-    @Published var displayValue: String?
-    @Published var displayIcon: String?
-    @Published var isActive: Bool = true
-    @Published var shouldDisplay: Bool = true
-    @Published var templateVariables: [String: String] = [:]
+  @Published var displayValue: String?
+  @Published var displayIcon: String?
+  @Published var isActive: Bool = true
+  @Published var shouldDisplay: Bool = true
+  @Published var templateVariables: [String: String] = [:]
 
-    @Published var fgOverride: String?
-    @Published var bgOverride: String?
+  @Published var fgOverride: String?
+  @Published var bgOverride: String?
 
-    @Published var dynamicStyle: DynamicStyleOverride?
+  @Published var dynamicStyle: DynamicStyleOverride?
 
-    private var updateGeneration: UInt64 = 0
-    nonisolated(unsafe) private var timer: Timer?
-    nonisolated(unsafe) private var durationTimer: Timer?
+  private var updateGeneration: UInt64 = 0
+  nonisolated(unsafe) private var timer: Timer?
+  nonisolated(unsafe) private var durationTimer: Timer?
 
-    init(moduleConfig: ModuleConfig) {
-        self.id = moduleConfig.name
-        self.moduleConfig = moduleConfig
-        self.displayIcon = moduleConfig.icon
+  init(moduleConfig: ModuleConfig) {
+    self.id = moduleConfig.name
+    self.moduleConfig = moduleConfig
+    self.displayIcon = moduleConfig.icon
 
-        if let eventModule = moduleConfig.config as? EventDrivenModule {
-            update()
-            startEventObservation(eventModule)
-        } else {
-            startPolling()
+    if let eventModule = moduleConfig.config as? EventDrivenModule {
+      update()
+      startEventObservation(eventModule)
+    } else {
+      startPolling()
+    }
+  }
+
+  deinit {
+    (moduleConfig.config as? EventDrivenModule)?.stopObserving()
+    timer?.invalidate()
+    durationTimer?.invalidate()
+  }
+
+  func update() {
+    guard durationTimer == nil else { return }
+    guard let config = moduleConfig.config else { return }
+
+    updateGeneration &+= 1
+    let gen = updateGeneration
+
+    let icon = config.getIcon()
+    let newIcon = icon.isEmpty ? moduleConfig.icon : icon
+
+    config.getValue { [weak self] newValue in
+      DispatchQueue.main.async {
+        guard let self else { return }
+        guard self.updateGeneration == gen else { return }
+        self.displayValue = newValue
+        self.displayIcon = newIcon
+        self.isActive = config.isActive()
+        self.shouldDisplay = config.shouldDisplay()
+        self.templateVariables = config.getTemplateVariables()
+        self.dynamicStyle = config.getDynamicStyle()
+      }
+    }
+  }
+
+  func scheduleDurationReset(_ duration: Double) {
+    durationTimer?.invalidate()
+    durationTimer = Timer.scheduledTimer(withTimeInterval: duration, repeats: false) {
+      [weak self] _ in
+      MainActor.assumeIsolated {
+        guard let self else { return }
+        self.durationTimer = nil
+        self.fgOverride = nil
+        self.bgOverride = nil
+        self.update()
+      }
+    }
+  }
+
+  func pause() {
+    if let eventModule = moduleConfig.config as? EventDrivenModule {
+      eventModule.stopObserving()
+    }
+    timer?.invalidate()
+    timer = nil
+  }
+
+  func resume() {
+    if let eventModule = moduleConfig.config as? EventDrivenModule {
+      startEventObservation(eventModule)
+    } else {
+      startPolling()
+    }
+    update()
+  }
+
+  private func startEventObservation(_ eventModule: EventDrivenModule) {
+    eventModule.startObserving { [weak self] in
+      DispatchQueue.main.async {
+        MainActor.assumeIsolated {
+          self?.update()
         }
+      }
     }
+  }
 
-    deinit {
-        (moduleConfig.config as? EventDrivenModule)?.stopObserving()
-        timer?.invalidate()
-        durationTimer?.invalidate()
+  private func startPolling() {
+    update()
+    let interval = moduleConfig.config?.redrawInterval ?? 1.0
+    guard interval > 0 else { return }
+    timer = Timer.scheduledTimer(withTimeInterval: interval, repeats: true) { [weak self] _ in
+      MainActor.assumeIsolated {
+        self?.update()
+      }
     }
-
-    func update() {
-        guard durationTimer == nil else { return }
-        guard let config = moduleConfig.config else { return }
-
-        updateGeneration &+= 1
-        let gen = updateGeneration
-
-        let icon = config.getIcon()
-        let newIcon = icon.isEmpty ? moduleConfig.icon : icon
-
-        config.getValue { [weak self] newValue in
-            DispatchQueue.main.async {
-                guard let self else { return }
-                guard self.updateGeneration == gen else { return }
-                self.displayValue = newValue
-                self.displayIcon = newIcon
-                self.isActive = config.isActive()
-                self.shouldDisplay = config.shouldDisplay()
-                self.templateVariables = config.getTemplateVariables()
-                self.dynamicStyle = config.getDynamicStyle()
-            }
-        }
-    }
-
-    func scheduleDurationReset(_ duration: Double) {
-        durationTimer?.invalidate()
-        durationTimer = Timer.scheduledTimer(withTimeInterval: duration, repeats: false) { [weak self] _ in
-            MainActor.assumeIsolated {
-                guard let self else { return }
-                self.durationTimer = nil
-                self.fgOverride = nil
-                self.bgOverride = nil
-                self.update()
-            }
-        }
-    }
-
-    func pause() {
-        if let eventModule = moduleConfig.config as? EventDrivenModule {
-            eventModule.stopObserving()
-        }
-        timer?.invalidate()
-        timer = nil
-    }
-
-    func resume() {
-        if let eventModule = moduleConfig.config as? EventDrivenModule {
-            startEventObservation(eventModule)
-        } else {
-            startPolling()
-        }
-        update()
-    }
-
-    private func startEventObservation(_ eventModule: EventDrivenModule) {
-        eventModule.startObserving { [weak self] in
-            DispatchQueue.main.async {
-                MainActor.assumeIsolated {
-                    self?.update()
-                }
-            }
-        }
-    }
-
-    private func startPolling() {
-        update()
-        let interval = moduleConfig.config?.redrawInterval ?? 1.0
-        guard interval > 0 else { return }
-        timer = Timer.scheduledTimer(withTimeInterval: interval, repeats: true) { [weak self] _ in
-            MainActor.assumeIsolated {
-                self?.update()
-            }
-        }
-    }
+  }
 }
 
 // MARK: - Module Group
 
 struct ModuleGroup: Identifiable {
-    let id: String
-    let modules: [ModuleViewModel]
-    let isPassthrough: Bool
-    let alignment: String
+  let id: String
+  let modules: [ModuleViewModel]
+  let isPassthrough: Bool
+  let alignment: String
 }
 
 // MARK: - Bar View Model
 
 @MainActor
 class BarViewModel: ObservableObject {
-    let leftModules: [ModuleViewModel]
-    let rightModules: [ModuleViewModel]
-    let config: Config
-    let popupManager = PopupManager()
-    private var eventObserver: EventObserver?
+  let leftModules: [ModuleViewModel]
+  let rightModules: [ModuleViewModel]
+  let config: Config
+  let popupManager = PopupManager()
+  private var eventObserver: EventObserver?
 
-    let allModules: [ModuleViewModel]
-    let leftGroups: [ModuleGroup]
-    let rightGroups: [ModuleGroup]
+  let allModules: [ModuleViewModel]
+  let leftGroups: [ModuleGroup]
+  let rightGroups: [ModuleGroup]
 
-    init(config: Config) {
-        self.config = config
+  init(config: Config) {
+    self.config = config
 
-        var left: [ModuleViewModel] = []
-        var right: [ModuleViewModel] = []
+    var left: [ModuleViewModel] = []
+    var right: [ModuleViewModel] = []
 
-        for moduleConfig in config.modules {
-            let vm = ModuleViewModel(moduleConfig: moduleConfig)
-            if moduleConfig.alignment == "right" {
-                right.append(vm)
-            } else {
-                left.append(vm)
-            }
-        }
-
-        self.leftModules = left
-        self.rightModules = right
-        self.allModules = left + right
-        self.leftGroups = BarViewModel.buildGroups(from: left, alignment: "left")
-        self.rightGroups = BarViewModel.buildGroups(from: right, alignment: "right")
-
-        eventObserver = EventObserver(
-            onRefresh: { [weak self] in
-                self?.refreshAll()
-            },
-            onSleep: { [weak self] in
-                self?.pauseAll()
-            },
-            onWake: { [weak self] in
-                self?.resumeAll()
-            },
-            onEvent: { [weak self] module, action, userInfo in
-                self?.handleEvent(module: module, action: action, userInfo: userInfo)
-            }
-        )
+    for moduleConfig in config.modules {
+      let vm = ModuleViewModel(moduleConfig: moduleConfig)
+      if moduleConfig.alignment == "right" {
+        right.append(vm)
+      } else {
+        left.append(vm)
+      }
     }
 
-    private static func buildGroups(from modules: [ModuleViewModel], alignment: String) -> [ModuleGroup] {
-        guard !modules.isEmpty else { return [] }
-        var groups: [ModuleGroup] = []
-        var current: [ModuleViewModel] = []
-        var currentPassthrough = false
+    self.leftModules = left
+    self.rightModules = right
+    self.allModules = left + right
+    self.leftGroups = BarViewModel.buildGroups(from: left, alignment: "left")
+    self.rightGroups = BarViewModel.buildGroups(from: right, alignment: "right")
 
-        for vm in modules {
-            let isMasked = vm.moduleConfig.mask != nil
-            let pt = vm.moduleConfig.isPassthrough
+    eventObserver = EventObserver(
+      onRefresh: { [weak self] in
+        self?.refreshAll()
+      },
+      onSleep: { [weak self] in
+        self?.pauseAll()
+      },
+      onWake: { [weak self] in
+        self?.resumeAll()
+      },
+      onEvent: { [weak self] module, action, userInfo in
+        self?.handleEvent(module: module, action: action, userInfo: userInfo)
+      }
+    )
+  }
 
-            if isMasked {
-                if !current.isEmpty {
-                    groups.append(ModuleGroup(
-                        id: "\(alignment)-\(groups.count)",
-                        modules: current,
-                        isPassthrough: currentPassthrough,
-                        alignment: alignment
-                    ))
-                    current = []
-                }
-                groups.append(ModuleGroup(
-                    id: "\(alignment)-\(groups.count)",
-                    modules: [vm],
-                    isPassthrough: true,
-                    alignment: alignment
-                ))
-            } else {
-                if current.isEmpty {
-                    currentPassthrough = pt
-                    current.append(vm)
-                } else if pt == currentPassthrough {
-                    current.append(vm)
-                } else {
-                    groups.append(ModuleGroup(
-                        id: "\(alignment)-\(groups.count)",
-                        modules: current,
-                        isPassthrough: currentPassthrough,
-                        alignment: alignment
-                    ))
-                    current = [vm]
-                    currentPassthrough = pt
-                }
-            }
-        }
+  private static func buildGroups(from modules: [ModuleViewModel], alignment: String)
+    -> [ModuleGroup]
+  {
+    guard !modules.isEmpty else { return [] }
+    var groups: [ModuleGroup] = []
+    var current: [ModuleViewModel] = []
+    var currentPassthrough = false
 
+    for vm in modules {
+      let isMasked = vm.moduleConfig.mask != nil
+      let pt = vm.moduleConfig.isPassthrough
+
+      if isMasked {
         if !current.isEmpty {
-            groups.append(ModuleGroup(
-                id: "\(alignment)-\(groups.count)",
-                modules: current,
-                isPassthrough: currentPassthrough,
-                alignment: alignment
+          groups.append(
+            ModuleGroup(
+              id: "\(alignment)-\(groups.count)",
+              modules: current,
+              isPassthrough: currentPassthrough,
+              alignment: alignment
             ))
+          current = []
         }
-
-        return groups
-    }
-
-    func refreshAll() {
-        for vm in allModules {
-            vm.update()
-        }
-    }
-
-    func pauseAll() {
-        for vm in allModules {
-            vm.pause()
-        }
-    }
-
-    func resumeAll() {
-        for vm in allModules {
-            vm.resume()
-        }
-    }
-
-    func handleEvent(module moduleName: String, action: String, userInfo: [String: String]) {
-        let targets: [ModuleViewModel]
-        if moduleName == "*" {
-            targets = allModules
+        groups.append(
+          ModuleGroup(
+            id: "\(alignment)-\(groups.count)",
+            modules: [vm],
+            isPassthrough: true,
+            alignment: alignment
+          ))
+      } else {
+        if current.isEmpty {
+          currentPassthrough = pt
+          current.append(vm)
+        } else if pt == currentPassthrough {
+          current.append(vm)
         } else {
-            targets = allModules.filter { $0.id == moduleName }
+          groups.append(
+            ModuleGroup(
+              id: "\(alignment)-\(groups.count)",
+              modules: current,
+              isPassthrough: currentPassthrough,
+              alignment: alignment
+            ))
+          current = [vm]
+          currentPassthrough = pt
         }
-
-        guard !targets.isEmpty else { return }
-
-        for vm in targets {
-            switch action {
-            case "refresh":
-                vm.update()
-
-            case "set":
-                if let value = userInfo["value"] {
-                    vm.displayValue = value.isEmpty ? nil : value
-                }
-                if let icon = userInfo["icon"] {
-                    vm.displayIcon = icon.isEmpty ? nil : icon
-                }
-                if let fg = userInfo["fg"] {
-                    vm.fgOverride = fg.isEmpty ? nil : fg
-                }
-                if let bg = userInfo["bg"] {
-                    vm.bgOverride = bg.isEmpty ? nil : bg
-                }
-                if let durationStr = userInfo["duration"],
-                   let duration = Double(durationStr), duration > 0 {
-                    vm.scheduleDurationReset(duration)
-                }
-
-            default:
-                break
-            }
-        }
+      }
     }
+
+    if !current.isEmpty {
+      groups.append(
+        ModuleGroup(
+          id: "\(alignment)-\(groups.count)",
+          modules: current,
+          isPassthrough: currentPassthrough,
+          alignment: alignment
+        ))
+    }
+
+    return groups
+  }
+
+  func refreshAll() {
+    for vm in allModules {
+      vm.update()
+    }
+  }
+
+  func pauseAll() {
+    for vm in allModules {
+      vm.pause()
+    }
+  }
+
+  func resumeAll() {
+    for vm in allModules {
+      vm.resume()
+    }
+  }
+
+  func handleEvent(module moduleName: String, action: String, userInfo: [String: String]) {
+    let targets: [ModuleViewModel]
+    if moduleName == "*" {
+      targets = allModules
+    } else {
+      targets = allModules.filter { $0.id == moduleName }
+    }
+
+    guard !targets.isEmpty else { return }
+
+    for vm in targets {
+      switch action {
+      case "refresh":
+        vm.update()
+
+      case "set":
+        if let value = userInfo["value"] {
+          vm.displayValue = value.isEmpty ? nil : value
+        }
+        if let icon = userInfo["icon"] {
+          vm.displayIcon = icon.isEmpty ? nil : icon
+        }
+        if let fg = userInfo["fg"] {
+          vm.fgOverride = fg.isEmpty ? nil : fg
+        }
+        if let bg = userInfo["bg"] {
+          vm.bgOverride = bg.isEmpty ? nil : bg
+        }
+        if let durationStr = userInfo["duration"],
+          let duration = Double(durationStr), duration > 0
+        {
+          vm.scheduleDurationReset(duration)
+        }
+
+      default:
+        break
+      }
+    }
+  }
 }
 
 // MARK: - Theme Provider
 
-private let defaultStyleMode = StyleModeConfig(fg: "FFFFFF", bg: "000000", text: nil, icon: nil, shape: nil)
+private let defaultStyleMode = StyleModeConfig(
+  fg: "FFFFFF", bg: "000000", text: nil, icon: nil, shape: nil)
 private let defaultFontConfig = FontConfig(descriptor: "HelveticaNeue:regular:14")
 
 @MainActor
 class ThemeProvider: ObservableObject {
-    @Published var isDarkMode: Bool = true
-    let config: Config
-    private var appearanceObservation: NSKeyValueObservation?
+  @Published var isDarkMode: Bool = true
+  let config: Config
+  private var appearanceObservation: NSKeyValueObservation?
 
-    var isNative: Bool {
-        config.appearance == .native
+  var isNative: Bool {
+    config.appearance == .native
+  }
+
+  init(config: Config) {
+    self.config = config
+    self.isDarkMode = NSApp.effectiveAppearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
+    observeAppearance()
+  }
+
+  private func observeAppearance() {
+    appearanceObservation = NSApp.observe(\.effectiveAppearance) { [weak self] _, _ in
+      DispatchQueue.main.async {
+        self?.isDarkMode =
+          NSApp.effectiveAppearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
+      }
     }
+  }
 
-    init(config: Config) {
-        self.config = config
-        self.isDarkMode = NSApp.effectiveAppearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
-        observeAppearance()
+  // MARK: - Style Resolution Helpers
+
+  private func resolveGlobalStyleMode() -> StyleModeConfig {
+    if isDarkMode {
+      return config.style.dark ?? config.style.light ?? defaultStyleMode
+    } else {
+      return config.style.light ?? config.style.dark ?? defaultStyleMode
     }
+  }
 
-    private func observeAppearance() {
-        appearanceObservation = NSApp.observe(\.effectiveAppearance) { [weak self] _, _ in
-            DispatchQueue.main.async {
-                self?.isDarkMode = NSApp.effectiveAppearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
-            }
-        }
+  private func resolveModuleStyleMode(_ style: StyleConfig?) -> StyleModeConfig? {
+    guard let style = style else { return nil }
+    return isDarkMode ? style.dark : style.light
+  }
+
+  // MARK: - Color Resolution
+
+  func globalColors() -> (fg: Color, bg: Color) {
+    let mode = resolveGlobalStyleMode()
+    return (
+      Color(nsColor: NSColor(hex: mode.fg ?? "FFFFFF")),
+      Color(nsColor: NSColor(hex: mode.bg ?? "000000"))
+    )
+  }
+
+  func globalFgNSColor() -> NSColor {
+    if isNative { return .labelColor }
+    let mode = resolveGlobalStyleMode()
+    return NSColor(hex: mode.fg ?? "FFFFFF")
+  }
+
+  func globalBgNSColor() -> NSColor {
+    if isNative { return .windowBackgroundColor }
+    let mode = resolveGlobalStyleMode()
+    return NSColor(hex: mode.bg ?? "000000")
+  }
+
+  private func elementFgColor(
+    for vm: ModuleViewModel,
+    dynamicFg: KeyPath<DynamicStyleOverride, String?>,
+    elementFg: KeyPath<StyleModeConfig, ElementStyle?>
+  ) -> Color {
+    if let override = vm.fgOverride {
+      return Color(nsColor: NSColor(hex: override))
     }
-
-    // MARK: - Style Resolution Helpers
-
-    private func resolveGlobalStyleMode() -> StyleModeConfig {
-        if isDarkMode {
-            return config.style.dark ?? config.style.light ?? defaultStyleMode
-        } else {
-            return config.style.light ?? config.style.dark ?? defaultStyleMode
-        }
+    if let ds = vm.dynamicStyle {
+      if let fg = ds[keyPath: dynamicFg] { return Color(nsColor: NSColor(hex: fg)) }
+      if let fg = ds.fg { return Color(nsColor: NSColor(hex: fg)) }
     }
+    if isNative { return Color(nsColor: .labelColor) }
+    let moduleMode = resolveModuleStyleMode(vm.moduleConfig.style)
+    let globalMode = resolveGlobalStyleMode()
+    if let fg = moduleMode?[keyPath: elementFg]?.fg { return Color(nsColor: NSColor(hex: fg)) }
+    if let fg = moduleMode?.fg { return Color(nsColor: NSColor(hex: fg)) }
+    if let fg = globalMode[keyPath: elementFg]?.fg { return Color(nsColor: NSColor(hex: fg)) }
+    return Color(nsColor: NSColor(hex: globalMode.fg ?? "FFFFFF"))
+  }
 
-    private func resolveModuleStyleMode(_ style: StyleConfig?) -> StyleModeConfig? {
-        guard let style = style else { return nil }
-        return isDarkMode ? style.dark : style.light
+  func textFgColor(for vm: ModuleViewModel) -> Color {
+    elementFgColor(for: vm, dynamicFg: \.textFg, elementFg: \.text)
+  }
+
+  func iconFgColor(for vm: ModuleViewModel) -> Color {
+    elementFgColor(for: vm, dynamicFg: \.iconFg, elementFg: \.icon)
+  }
+
+  func bgColor(for vm: ModuleViewModel) -> Color {
+    if let override = vm.bgOverride {
+      return Color(nsColor: NSColor(hex: override))
     }
-
-    // MARK: - Color Resolution
-
-    func globalColors() -> (fg: Color, bg: Color) {
-        let mode = resolveGlobalStyleMode()
-        return (Color(nsColor: NSColor(hex: mode.fg ?? "FFFFFF")), Color(nsColor: NSColor(hex: mode.bg ?? "000000")))
+    if let ds = vm.dynamicStyle, let bg = ds.bg, !bg.isEmpty {
+      return Color(nsColor: NSColor(hex: bg))
     }
+    if isNative { return .clear }
 
-    func globalFgNSColor() -> NSColor {
-        if isNative { return .labelColor }
-        let mode = resolveGlobalStyleMode()
-        return NSColor(hex: mode.fg ?? "FFFFFF")
-    }
+    let moduleMode = resolveModuleStyleMode(vm.moduleConfig.style)
+    let globalMode = resolveGlobalStyleMode()
 
-    func globalBgNSColor() -> NSColor {
-        if isNative { return .windowBackgroundColor }
-        let mode = resolveGlobalStyleMode()
-        return NSColor(hex: mode.bg ?? "000000")
-    }
+    if let bg = moduleMode?.bg { return Color(nsColor: NSColor(hex: bg)) }
+    return Color(nsColor: NSColor(hex: globalMode.bg ?? "000000"))
+  }
 
-    private func elementFgColor(
-        for vm: ModuleViewModel,
-        dynamicFg: KeyPath<DynamicStyleOverride, String?>,
-        elementFg: KeyPath<StyleModeConfig, ElementStyle?>
-    ) -> Color {
-        if let override = vm.fgOverride {
-            return Color(nsColor: NSColor(hex: override))
-        }
-        if let ds = vm.dynamicStyle {
-            if let fg = ds[keyPath: dynamicFg] { return Color(nsColor: NSColor(hex: fg)) }
-            if let fg = ds.fg { return Color(nsColor: NSColor(hex: fg)) }
-        }
-        if isNative { return Color(nsColor: .labelColor) }
-        let moduleMode = resolveModuleStyleMode(vm.moduleConfig.style)
-        let globalMode = resolveGlobalStyleMode()
-        if let fg = moduleMode?[keyPath: elementFg]?.fg { return Color(nsColor: NSColor(hex: fg)) }
-        if let fg = moduleMode?.fg { return Color(nsColor: NSColor(hex: fg)) }
-        if let fg = globalMode[keyPath: elementFg]?.fg { return Color(nsColor: NSColor(hex: fg)) }
-        return Color(nsColor: NSColor(hex: globalMode.fg ?? "FFFFFF"))
-    }
+  func barBgColor() -> Color {
+    if isNative { return .clear }
+    let mode = resolveGlobalStyleMode()
+    return Color(nsColor: NSColor(hex: mode.bg ?? "000000"))
+  }
 
-    func textFgColor(for vm: ModuleViewModel) -> Color {
-        elementFgColor(for: vm, dynamicFg: \.textFg, elementFg: \.text)
-    }
+  func shape(for vm: ModuleViewModel) -> ModuleShape? {
+    let moduleMode = resolveModuleStyleMode(vm.moduleConfig.style)
+    return moduleMode?.shape
+  }
 
-    func iconFgColor(for vm: ModuleViewModel) -> Color {
-        elementFgColor(for: vm, dynamicFg: \.iconFg, elementFg: \.icon)
-    }
+  // MARK: - Font Resolution
 
-    func bgColor(for vm: ModuleViewModel) -> Color {
-        if let override = vm.bgOverride {
-            return Color(nsColor: NSColor(hex: override))
-        }
-        if let ds = vm.dynamicStyle, let bg = ds.bg, !bg.isEmpty {
-            return Color(nsColor: NSColor(hex: bg))
-        }
-        if isNative { return .clear }
+  func iconFont(for vm: ModuleViewModel) -> Font {
+    let fontConfig = vm.moduleConfig.iconFont ?? config.iconFont ?? defaultFontConfig
+    return fontConfig.swiftUIFont
+  }
 
-        let moduleMode = resolveModuleStyleMode(vm.moduleConfig.style)
-        let globalMode = resolveGlobalStyleMode()
+  func textFont(for vm: ModuleViewModel) -> Font {
+    let fontConfig = vm.moduleConfig.textFont ?? config.textFont ?? defaultFontConfig
+    return fontConfig.swiftUIFont
+  }
 
-        if let bg = moduleMode?.bg { return Color(nsColor: NSColor(hex: bg)) }
-        return Color(nsColor: NSColor(hex: globalMode.bg ?? "000000"))
-    }
+  // MARK: - Layout
 
-    func barBgColor() -> Color {
-        if isNative { return .clear }
-        let mode = resolveGlobalStyleMode()
-        return Color(nsColor: NSColor(hex: mode.bg ?? "000000"))
-    }
-
-    func shape(for vm: ModuleViewModel) -> ModuleShape? {
-        let moduleMode = resolveModuleStyleMode(vm.moduleConfig.style)
-        return moduleMode?.shape
-    }
-
-    // MARK: - Font Resolution
-
-    func iconFont(for vm: ModuleViewModel) -> Font {
-        let fontConfig = vm.moduleConfig.iconFont ?? config.iconFont ?? defaultFontConfig
-        return fontConfig.swiftUIFont
-    }
-
-    func textFont(for vm: ModuleViewModel) -> Font {
-        let fontConfig = vm.moduleConfig.textFont ?? config.textFont ?? defaultFontConfig
-        return fontConfig.swiftUIFont
-    }
-
-    // MARK: - Layout
-
-    var iconTextSpacing: CGFloat {
-        CGFloat(config.iconTextSpacing)
-    }
+  var iconTextSpacing: CGFloat {
+    CGFloat(config.iconTextSpacing)
+  }
 }
