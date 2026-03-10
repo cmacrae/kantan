@@ -56,6 +56,14 @@
         };
       };
 
+      formatter.${system} = pkgs.writeShellApplication {
+        name = "swift-fmt";
+        runtimeInputs = [ pkgs.swift-format ];
+        text = ''
+          swift-format format --in-place --recursive --parallel Sources/
+        '';
+      };
+
       devShells.${system}.default = pkgs.mkShell {
         nativeBuildInputs = with pkgs; [
           swift-format
