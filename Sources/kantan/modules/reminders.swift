@@ -248,33 +248,8 @@ final class RemindersConfig: ModuleConfiguration, EventDrivenModule, @unchecked 
         completeDisplayedReminder()
     }
 
-    private func completeDisplayedReminder() {
-        _cacheLock.lock()
-        defer { _cacheLock.unlock() }
-        guard let store = eventStore,
-              let id = _displayedReminderID,
-              let reminder = _cachedIncomplete.first(where: { $0.calendarItemIdentifier == id }) else {
-            return
-        }
-        let retention = listConfig(for: reminder)?.completedRetention ?? 0
-        reminder.isCompleted = true
-        reminder.completionDate = Date()
-        do {
-            try store.save(reminder, commit: true)
-            _cachedIncomplete.removeAll { $0.calendarItemIdentifier == id }
-            if retention > 0 {
-                _cachedCompleted.insert(reminder, at: 0)
-            }
-            _displayedReminderID = _cachedIncomplete.first?.calendarItemIdentifier
-            _hasReminders = !_cachedIncomplete.isEmpty
-        } catch {
-            print("Failed to complete reminder: \(error)")
-        }
-    }
-
-    private func completeReminder(_ reminder: EKReminder) {
-        _cacheLock.lock()
-        defer { _cacheLock.unlock() }
+    /// Save a reminder as completed and update caches. Caller must hold _cacheLock.
+    private func saveCompletion(for reminder: EKReminder) {
         guard let store = eventStore else { return }
         let retention = listConfig(for: reminder)?.completedRetention ?? 0
         reminder.isCompleted = true
@@ -285,15 +260,27 @@ final class RemindersConfig: ModuleConfiguration, EventDrivenModule, @unchecked 
             if retention > 0 {
                 _cachedCompleted.insert(reminder, at: 0)
             }
-            if _cachedIncomplete.isEmpty {
-                _hasReminders = false
-                _displayedReminderID = nil
-            } else {
-                _displayedReminderID = _cachedIncomplete.first?.calendarItemIdentifier
-            }
+            _hasReminders = !_cachedIncomplete.isEmpty
+            _displayedReminderID = _cachedIncomplete.first?.calendarItemIdentifier
         } catch {
             print("Failed to complete reminder: \(error)")
         }
+    }
+
+    private func completeDisplayedReminder() {
+        _cacheLock.lock()
+        defer { _cacheLock.unlock() }
+        guard let id = _displayedReminderID,
+              let reminder = _cachedIncomplete.first(where: { $0.calendarItemIdentifier == id }) else {
+            return
+        }
+        saveCompletion(for: reminder)
+    }
+
+    private func completeReminder(_ reminder: EKReminder) {
+        _cacheLock.lock()
+        defer { _cacheLock.unlock() }
+        saveCompletion(for: reminder)
     }
 
     private func uncompleteReminder(_ reminder: EKReminder) {
@@ -379,6 +366,19 @@ final class RemindersConfig: ModuleConfiguration, EventDrivenModule, @unchecked 
         _displayedReminderID = nil
     }
 
+    // MARK: - Sorting
+
+    private static func sortByDate<T>(_ items: [T], ascending: Bool, dateFor: (T) -> Date?) -> [T] {
+        items.sorted { a, b in
+            switch (dateFor(a), dateFor(b)) {
+            case let (da?, db?): return ascending ? da < db : da > db
+            case (_?, nil): return true
+            case (nil, _?): return false
+            case (nil, nil): return false
+            }
+        }
+    }
+
     // MARK: - Fetch
 
     private static func fetchAllReminders(
@@ -426,16 +426,7 @@ final class RemindersConfig: ModuleConfiguration, EventDrivenModule, @unchecked 
                 return dueDate <= endDate
             }
 
-            let sortedIncomplete = incomplete.sorted { a, b in
-                let dateA = a.dueDateComponents?.date
-                let dateB = b.dueDateComponents?.date
-                switch (dateA, dateB) {
-                case let (da?, db?): return da < db
-                case (_?, nil): return true
-                case (nil, _?): return false
-                case (nil, nil): return false
-                }
-            }
+            let sortedIncomplete = sortByDate(incomplete, ascending: true) { $0.dueDateComponents?.date }
 
             // Fetch recently completed reminders if any list has retention > 0
             let maxRetention = listConfigs.map { $0.completedRetention }.max() ?? 0
@@ -461,16 +452,7 @@ final class RemindersConfig: ModuleConfiguration, EventDrivenModule, @unchecked 
                     return completionDate >= listRetentionStart
                 }
 
-                let sortedCompleted = filtered.sorted { a, b in
-                    let dateA = a.completionDate
-                    let dateB = b.completionDate
-                    switch (dateA, dateB) {
-                    case let (da?, db?): return da > db
-                    case (_?, nil): return true
-                    case (nil, _?): return false
-                    case (nil, nil): return false
-                    }
-                }
+                let sortedCompleted = sortByDate(filtered, ascending: false) { $0.completionDate }
                 completion(sortedIncomplete, sortedCompleted)
             }
         }

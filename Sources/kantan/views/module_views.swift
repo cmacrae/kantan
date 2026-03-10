@@ -17,7 +17,7 @@ struct WindowReader: NSViewRepresentable {
 
     func updateNSView(_ nsView: WindowReaderView, context: Context) {
         nsView.onWindowChange = { self.window = $0 }
-        if let win = nsView.window {
+        if let win = nsView.window, self.window !== win {
             self.window = win
         }
     }
@@ -67,7 +67,7 @@ struct ModuleContainerView: View {
             }
         )
         .background(WindowReader(window: $hostWindow))
-        .contentShape(hasInteraction ? Rectangle() : .rect)
+        .contentShape(Rectangle())
         .allowsHitTesting(hasInteraction)
         .onHover { hovering in
             guard hasInteraction else { return }
@@ -128,8 +128,6 @@ struct ModuleContainerView: View {
                 let descriptors = descriptorsFromClickConfig(click)
                 popupManager.showMenu(descriptors: descriptors, moduleName: viewModel.id, anchorPoint: anchorPoint, moduleMinX: moduleScreenMinX)
             }
-        case "dynamic-menu":
-            break
         case "complete":
             viewModel.moduleConfig.config?.handleToggle()
             viewModel.update()
@@ -308,9 +306,13 @@ struct WorkspaceModuleView: View {
     @ObservedObject var viewModel: ModuleViewModel
     @EnvironmentObject var themeProvider: ThemeProvider
 
+    private var wsConfig: WorkspaceConfig? {
+        viewModel.moduleConfig.config as? WorkspaceConfig
+    }
+
     var body: some View {
         let allSegments = getWorkspaceSegments()
-        let wsConfig = viewModel.moduleConfig.config as? WorkspaceConfig
+        let wsConfig = self.wsConfig
         let window = windowedSegments(allSegments, config: wsConfig)
 
         HStack(spacing: 6) {
@@ -380,16 +382,14 @@ struct WorkspaceModuleView: View {
     // MARK: - Colors
 
     private var activeColor: Color {
-        if let wsConfig = viewModel.moduleConfig.config as? WorkspaceConfig,
-           let activeHex = wsConfig.activeColour {
+        if let wsConfig, let activeHex = wsConfig.activeColour {
             return Color(nsColor: NSColor(hex: activeHex))
         }
         return themeProvider.textFgColor(for: viewModel)
     }
 
     private var inactiveColor: Color {
-        if let wsConfig = viewModel.moduleConfig.config as? WorkspaceConfig,
-           let inactiveHex = wsConfig.inactiveColour {
+        if let wsConfig, let inactiveHex = wsConfig.inactiveColour {
             return Color(nsColor: NSColor(hex: inactiveHex))
         }
         return themeProvider.textFgColor(for: viewModel).opacity(0.4)

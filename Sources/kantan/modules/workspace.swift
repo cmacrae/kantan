@@ -70,7 +70,7 @@ struct WorkspaceConfig: ModuleConfiguration {
     // No polling needed — native uses NSWorkspace notifications via
     // EventObserver, aerospace uses CLI triggers. Both call refreshAll()
     // which invokes update() on this module.
-    var redrawInterval: TimeInterval { 3600.0 }
+    var redrawInterval: TimeInterval { noPoll }
 
     init(yaml: Yaml?) {
         self.providerType = yaml?["type"].string ?? "native"

@@ -1,17 +1,49 @@
 import SwiftUI
 
+// MARK: - Hoverable Row
+
+struct HoverableRowView: View {
+    let label: String
+    let icon: String?
+    let iconFont: Font?
+    let iconWidth: CGFloat?
+    let isNative: Bool
+    let resolvedFg: Color
+    let action: () -> Void
+    @State private var isHovered = false
+
+    var body: some View {
+        HStack(spacing: 8) {
+            if let icon = icon, !icon.isEmpty {
+                Text(icon)
+                    .font(iconFont ?? .system(size: 13))
+                    .foregroundStyle(isHovered && isNative ? .white : resolvedFg)
+                    .frame(width: iconWidth, alignment: .center)
+            }
+            Text(label)
+                .font(.system(size: 13))
+                .foregroundStyle(isHovered && isNative ? .white : resolvedFg)
+            Spacer()
+        }
+        .padding(.horizontal, 16)
+        .frame(height: 28)
+        .background(
+            RoundedRectangle(cornerRadius: 4)
+                .fill(isHovered ? Color(nsColor: .selectedContentBackgroundColor).opacity(isNative ? 1.0 : 0.3) : .clear)
+        )
+        .onHover { hovering in isHovered = hovering }
+        .onTapGesture { action() }
+    }
+}
+
 // MARK: - Themed Menu (SwiftUI)
 
 struct SwiftUIThemedMenuView: View {
     let descriptors: [MenuItemDescriptor]
     let isNative: Bool
-    let fgColor: Color
+    let resolvedFg: Color
     let dismissHandler: () -> Void
     let rebuilder: (() -> Void)?
-
-    private var resolvedFg: Color {
-        isNative ? .primary : fgColor
-    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -24,8 +56,7 @@ struct SwiftUIThemedMenuView: View {
                     SwiftUIMenuCheckView(
                         label: descriptor.label ?? "",
                         isChecked: descriptor.isChecked,
-                        isNative: isNative,
-                        fgColor: fgColor,
+                        resolvedFg: resolvedFg,
                         action: {
                             dismissHandler()
                             descriptor.toggleAction? {
@@ -37,8 +68,7 @@ struct SwiftUIThemedMenuView: View {
                     SwiftUIMenuToggleView(
                         label: descriptor.label ?? "",
                         isOn: descriptor.isToggleOn,
-                        isNative: isNative,
-                        fgColor: fgColor,
+                        resolvedFg: resolvedFg,
                         action: {
                             dismissHandler()
                             descriptor.toggleAction? {
@@ -57,7 +87,7 @@ struct SwiftUIThemedMenuView: View {
                         label: descriptor.label ?? "",
                         iconGlyph: descriptor.iconGlyph,
                         isNative: isNative,
-                        fgColor: fgColor,
+                        resolvedFg: resolvedFg,
                         action: {
                             dismissHandler()
                             descriptor.action?()
@@ -77,39 +107,19 @@ struct SwiftUIMenuItemView: View {
     let label: String
     var iconGlyph: String? = nil
     let isNative: Bool
-    let fgColor: Color
+    let resolvedFg: Color
     let action: () -> Void
-    @State private var isHovered = false
-
-    private var resolvedFg: Color {
-        isNative ? .primary : fgColor
-    }
 
     var body: some View {
-        HStack(spacing: 8) {
-            if let iconGlyph = iconGlyph, !iconGlyph.isEmpty {
-                Text(iconGlyph)
-                    .font(.system(size: 13))
-                    .foregroundStyle(isHovered && isNative ? .white : resolvedFg)
-                    .frame(width: 16, alignment: .center)
-            }
-            Text(label)
-                .font(.system(size: 13))
-                .foregroundStyle(isHovered && isNative ? .white : resolvedFg)
-            Spacer()
-        }
-        .padding(.horizontal, 16)
-        .frame(height: 28)
-        .background(
-            RoundedRectangle(cornerRadius: 4)
-                .fill(isHovered ? Color(nsColor: .selectedContentBackgroundColor).opacity(isNative ? 1.0 : 0.3) : .clear)
+        HoverableRowView(
+            label: label,
+            icon: iconGlyph,
+            iconFont: nil,
+            iconWidth: 16,
+            isNative: isNative,
+            resolvedFg: resolvedFg,
+            action: action
         )
-        .onHover { hovering in
-            isHovered = hovering
-        }
-        .onTapGesture {
-            action()
-        }
     }
 }
 
@@ -118,13 +128,8 @@ struct SwiftUIMenuItemView: View {
 struct SwiftUIMenuToggleView: View {
     let label: String
     @State var isOn: Bool
-    let isNative: Bool
-    let fgColor: Color
+    let resolvedFg: Color
     let action: () -> Void
-
-    private var resolvedFg: Color {
-        isNative ? .primary : fgColor
-    }
 
     var body: some View {
         Toggle(label, isOn: $isOn)
@@ -143,13 +148,8 @@ struct SwiftUIMenuToggleView: View {
 struct SwiftUIMenuCheckView: View {
     let label: String
     let isChecked: Bool
-    let isNative: Bool
-    let fgColor: Color
+    let resolvedFg: Color
     let action: () -> Void
-
-    private var resolvedFg: Color {
-        isNative ? .primary : fgColor
-    }
 
     var body: some View {
         HStack(spacing: 8) {

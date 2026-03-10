@@ -53,6 +53,8 @@ final class WiFiConfig: NSObject, ModuleConfiguration, EventDrivenModule, @unche
     nonisolated(unsafe) private var onChange: (@Sendable () -> Void)?
     nonisolated(unsafe) private var rssiTimer: Timer?
     nonisolated(unsafe) private var wifiClient: CWWiFiClient?
+    nonisolated(unsafe) private var _cachedStatus: WiFiStatus?
+    private let _statusLock = NSLock()
 
     init(showSSID: Bool, icons: [String], disconnectedIcon: String) {
         self.showSSID = showSSID
@@ -118,10 +120,26 @@ final class WiFiConfig: NSObject, ModuleConfiguration, EventDrivenModule, @unche
         onChange?()
     }
 
+    // MARK: - Status Caching
+
+    private func refreshCache() {
+        let status = Self.readWiFiStatus()
+        _statusLock.lock()
+        _cachedStatus = status
+        _statusLock.unlock()
+    }
+
+    private func getCachedStatus() -> WiFiStatus {
+        _statusLock.lock()
+        defer { _statusLock.unlock() }
+        return _cachedStatus ?? .disconnected
+    }
+
     // MARK: - ModuleConfiguration
 
     func getValue(completion: @escaping @Sendable (String) -> Void) {
-        let status = Self.readWiFiStatus()
+        refreshCache()
+        let status = getCachedStatus()
         if showSSID {
             completion(status.ssid ?? "")
         } else {
@@ -130,14 +148,12 @@ final class WiFiConfig: NSObject, ModuleConfiguration, EventDrivenModule, @unche
     }
 
     func getIcon() -> String {
-        let status = Self.readWiFiStatus()
+        let status = getCachedStatus()
         guard status.isConnected else {
             return disconnectedIcon
         }
-        guard !icons.isEmpty else { return "" }
-        let step = 1.0 / Float(icons.count)
-        let index = min(Int(status.signalQuality / step), icons.count - 1)
-        return icons[max(0, index)]
+        let level = Int(status.signalQuality * 100)
+        return iconForLevel(level, icons: icons)
     }
 
     // MARK: - WiFi Status Reading
@@ -181,7 +197,7 @@ final class WiFiConfig: NSObject, ModuleConfiguration, EventDrivenModule, @unche
 
         let pipe = Pipe()
         process.standardOutput = pipe
-        process.standardError = Pipe()
+        process.standardError = FileHandle.nullDevice
 
         do {
             try process.run()

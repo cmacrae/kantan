@@ -9,6 +9,11 @@ struct NativeMenuBarItem {
 }
 
 struct MenuBarItemDetector {
+    /// Tolerance in points for matching a menu bar item's Y position to a screen edge.
+    private static let screenEdgeTolerance: CGFloat = 2
+    /// Tolerance in points for matching preferred position to detected item position.
+    private static let preferredPositionTolerance: Double = 3.0
+
     /// User-friendly aliases for Control Center item names.
     /// Maps user-facing config names to the internal plist identifier
     /// used in `NSStatusItem Preferred Position <identifier>`.
@@ -21,11 +26,6 @@ struct MenuBarItemDetector {
 
     /// Query native menu bar items on a given screen.
     /// Returns items sorted right-to-left (index 0 = rightmost).
-    ///
-    /// Uses CGWindowListCopyWindowInfo for position/bounds detection.
-    /// CG coordinates have origin at top-left of the primary display.
-    /// We convert the target NSScreen's frame to CG space and filter
-    /// items whose position falls within that screen's bounds.
     static func detectItems(for screen: NSScreen, excludingOwner: String = "kantan") -> [NativeMenuBarItem] {
         let windowList = CGWindowListCopyWindowInfo([.optionOnScreenOnly], kCGNullWindowID) as? [[String: Any]] ?? []
         let statusLevel = Int(CGWindowLevelForKey(.statusWindow))
@@ -39,7 +39,7 @@ struct MenuBarItemDetector {
         let cgScreenLeft = screen.frame.minX
         let cgScreenRight = screen.frame.maxX
 
-        var items: [(x: CGFloat, y: CGFloat, w: CGFloat, h: CGFloat, owner: String)] = []
+        var items: [(cgRect: CGRect, owner: String)] = []
 
         for window in windowList {
             let level = window[kCGWindowLayer as String] as? Int ?? -999
@@ -48,28 +48,24 @@ struct MenuBarItemDetector {
             let owner = window[kCGWindowOwnerName as String] as? String ?? ""
             guard owner != excludingOwner else { continue }
 
-            let bounds = window[kCGWindowBounds as String] as? [String: Any] ?? [:]
-            let x = CGFloat((bounds["X"] as? NSNumber)?.doubleValue ?? 0)
-            let y = CGFloat((bounds["Y"] as? NSNumber)?.doubleValue ?? 0)
-            let w = CGFloat((bounds["Width"] as? NSNumber)?.doubleValue ?? 0)
-            let h = CGFloat((bounds["Height"] as? NSNumber)?.doubleValue ?? 0)
+            guard let boundsDict = window[kCGWindowBounds as String] as? NSDictionary,
+                  let bounds = CGRect(dictionaryRepresentation: boundsDict) else { continue }
 
             // Filter to items on this screen: CG Y should match the screen's
             // top edge (menu bar sits at the very top), and X should be within
             // the screen's horizontal range.
-            guard abs(y - cgScreenTop) < 2 else { continue }
-            guard x + w > cgScreenLeft && x < cgScreenRight else { continue }
+            guard abs(bounds.origin.y - cgScreenTop) < screenEdgeTolerance else { continue }
+            guard bounds.maxX > cgScreenLeft && bounds.origin.x < cgScreenRight else { continue }
 
-            items.append((x: x, y: y, w: w, h: h, owner: owner))
+            items.append((cgRect: bounds, owner: owner))
         }
 
-        // Sort right-to-left (descending X)
-        items.sort { $0.x > $1.x }
+        items.sort { $0.cgRect.origin.x > $1.cgRect.origin.x }
 
         return items.enumerated().map { (i, item) in
             NativeMenuBarItem(
                 index: i,
-                cgRect: CGRect(x: item.x, y: item.y, width: item.w, height: item.h),
+                cgRect: item.cgRect,
                 owner: item.owner
             )
         }
@@ -104,12 +100,13 @@ struct MenuBarItemDetector {
 
         // Resolve aliases to plist identifiers
         let plistName = nameAliases[name] ?? name
+        let controlCenterDefaults = UserDefaults(suiteName: "com.apple.controlcenter")
 
         // Special case: Clock has no preferred position in the plist.
         // When the clock is enabled, it occupies the rightmost position
         // — the item at index 0 in our right-to-left sorted array.
         if plistName == "Clock" {
-            if let defaults = UserDefaults(suiteName: "com.apple.controlcenter"),
+            if let defaults = controlCenterDefaults,
                let clockVisible = defaults.object(forKey: "NSStatusItem VisibleCC Clock") as? Int,
                clockVisible != 0,
                let firstItem = items.first {
@@ -124,14 +121,14 @@ struct MenuBarItemDetector {
         // screen boundary — the rightmost item often overflows by a few px)
         // to the right edge of the item. We compute the effective right edge
         // from the detected items themselves rather than using screenWidth.
-        let effectiveRightEdge = items.map { Double($0.cgRect.origin.x + $0.cgRect.width) }.max() ?? 0
+        let effectiveRightEdge = items.map { Double($0.cgRect.maxX) }.max() ?? 0
 
-        if let defaults = UserDefaults(suiteName: "com.apple.controlcenter") {
+        if let defaults = controlCenterDefaults {
             let key = "NSStatusItem Preferred Position \(plistName)"
             if let preferredPos = defaults.object(forKey: key) as? Double {
                 for item in items {
-                    let rightEdgeDist = effectiveRightEdge - Double(item.cgRect.origin.x) - Double(item.cgRect.width)
-                    if abs(rightEdgeDist - preferredPos) < 3.0 {
+                    let rightEdgeDist = effectiveRightEdge - Double(item.cgRect.maxX)
+                    if abs(rightEdgeDist - preferredPos) < preferredPositionTolerance {
                         return item
                     }
                 }

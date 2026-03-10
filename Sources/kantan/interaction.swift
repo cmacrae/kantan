@@ -68,9 +68,7 @@ struct MenuItemDescriptor {
 
 // MARK: - Popup Panel
 
-/// An NSPanel subclass that can become key without activating the app.
-/// Uses `windowDidResignKey` for natural click-outside dismiss, following
-/// the standard macOS floating panel pattern (like Spotlight, palette windows).
+/// Uses `windowDidResignKey` for natural click-outside dismiss.
 class PopupPanel: NSPanel, NSWindowDelegate {
     var onResignKey: (() -> Void)?
 
@@ -121,19 +119,11 @@ class PopupManager {
     var isNative: Bool { appearance == .native }
 
     var effectiveFgColor: NSColor {
-        if isNative { return .labelColor }
-        guard let tp = themeProvider,
-              let mode = tp.isDarkMode ? tp.config.style.dark : tp.config.style.light,
-              let fg = mode.fg else { return .labelColor }
-        return NSColor(hex: fg)
+        themeProvider?.globalFgNSColor() ?? .labelColor
     }
 
     var effectiveBgColor: NSColor {
-        if isNative { return .windowBackgroundColor }
-        guard let tp = themeProvider,
-              let mode = tp.isDarkMode ? tp.config.style.dark : tp.config.style.light,
-              let bg = mode.bg else { return .windowBackgroundColor }
-        return NSColor(hex: bg)
+        themeProvider?.globalBgNSColor() ?? .windowBackgroundColor
     }
 
     var isPopupActive: Bool {
@@ -286,7 +276,6 @@ class PopupManager {
                 let item = NSMenuItem(title: descriptor.label ?? "",
                                       action: #selector(NativeMenuTarget.menuAction(_:)),
                                       keyEquivalent: "")
-                // SF Symbol checkbox indicators matching native macOS style
                 let size = NSFont.menuFont(ofSize: 0).pointSize
                 let config = NSImage.SymbolConfiguration(pointSize: size, weight: .regular)
                 if descriptor.isChecked {
@@ -352,10 +341,11 @@ class PopupManager {
     // MARK: - Themed Menu (PopupPanel + SwiftUI)
 
     private func showThemedMenu(descriptors: [MenuItemDescriptor], moduleName: String, anchorPoint: NSPoint, rebuilder: (() -> Void)? = nil) {
+        let resolvedFg: Color = isNative ? .primary : Color(nsColor: effectiveFgColor)
         let menuView = SwiftUIThemedMenuView(
             descriptors: descriptors,
             isNative: isNative,
-            fgColor: Color(nsColor: effectiveFgColor),
+            resolvedFg: resolvedFg,
             dismissHandler: { [weak self] in self?.dismissPopup() },
             rebuilder: rebuilder
         )
@@ -482,11 +472,12 @@ class PopupManager {
 
         if dismissIfActive(popupId) { return }
 
+        let resolvedFg: Color = isNative ? .primary : fgColor
         let popupView = UserPopupView(
             config: config,
             templateResolver: templateResolver,
             isNative: isNative,
-            fgColor: fgColor,
+            resolvedFg: resolvedFg,
             iconFont: iconFont,
             dismissHandler: { [weak self] in self?.dismissPopup() }
         )
@@ -513,13 +504,9 @@ struct UserPopupView: View {
     let config: PopupConfig
     let templateResolver: (String) -> String
     let isNative: Bool
-    let fgColor: Color
+    let resolvedFg: Color
     let iconFont: Font?
     let dismissHandler: () -> Void
-
-    private var resolvedFg: Color {
-        isNative ? .primary : fgColor
-    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -584,7 +571,7 @@ struct UserPopupView: View {
                 icon: row.icon.map { templateResolver($0) },
                 iconFont: iconFont,
                 isNative: isNative,
-                fgColor: fgColor,
+                resolvedFg: resolvedFg,
                 command: row.command,
                 dismissHandler: dismissHandler
             )
@@ -604,39 +591,24 @@ struct PopupActionRow: View {
     let icon: String?
     let iconFont: Font?
     let isNative: Bool
-    let fgColor: Color
+    let resolvedFg: Color
     let command: String?
     let dismissHandler: () -> Void
-    @State private var isHovered = false
-
-    private var resolvedFg: Color {
-        isNative ? .primary : fgColor
-    }
 
     var body: some View {
-        HStack(spacing: 8) {
-            if let icon = icon {
-                Text(icon)
-                    .font(iconFont ?? .system(size: 13))
-                    .foregroundStyle(isHovered && isNative ? .white : resolvedFg)
+        HoverableRowView(
+            label: label,
+            icon: icon,
+            iconFont: iconFont,
+            iconWidth: nil,
+            isNative: isNative,
+            resolvedFg: resolvedFg,
+            action: {
+                dismissHandler()
+                guard let command = command, !command.isEmpty else { return }
+                runShellCommand(command)
             }
-            Text(label)
-                .font(.system(size: 13))
-                .foregroundStyle(isHovered && isNative ? .white : resolvedFg)
-            Spacer()
-        }
-        .padding(.horizontal, 16)
-        .frame(height: 28)
-        .background(
-            RoundedRectangle(cornerRadius: 4)
-                .fill(isHovered ? Color(nsColor: .selectedContentBackgroundColor).opacity(isNative ? 1.0 : 0.3) : .clear)
         )
-        .onHover { hovering in isHovered = hovering }
-        .onTapGesture {
-            dismissHandler()
-            guard let command = command, !command.isEmpty else { return }
-            runShellCommand(command)
-        }
     }
 }
 

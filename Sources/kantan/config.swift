@@ -84,7 +84,7 @@ struct FontConfig: Codable {
 
     private static let defaultSize: CGFloat = 14
 
-    /// Components of the descriptor string, parsed once and cached.
+    /// Components of the descriptor string.
     private var components: [String] {
         descriptor.components(separatedBy: ":")
     }
@@ -155,17 +155,17 @@ func parseStyleModeConfig(from yaml: Yaml) -> StyleModeConfig? {
     let fg = dict["fg"]?.string
     let bg = dict["bg"]?.string
 
-    var text: ElementStyle? = nil
+    var text: ElementStyle?
     if let textDict = dict["text"]?.dictionary {
         text = ElementStyle(fg: textDict["fg"]?.string)
     }
 
-    var icon: ElementStyle? = nil
+    var icon: ElementStyle?
     if let iconDict = dict["icon"]?.dictionary {
         icon = ElementStyle(fg: iconDict["fg"]?.string)
     }
 
-    var shape: ModuleShape? = nil
+    var shape: ModuleShape?
     if let shapeStr = dict["shape"]?.string {
         shape = ModuleShape(rawValue: shapeStr)
     }
@@ -214,6 +214,77 @@ func clampedCGFloat(_ yaml: Yaml?) -> CGFloat {
     return max(0, CGFloat(value))
 }
 
+/// Parse a YAML value as CGFloat, accepting both int and double forms.
+/// Clamps to [min, max] range. Returns `fallback` if nil.
+func yamlCGFloat(_ yaml: Yaml?, min minVal: CGFloat = 0, max maxVal: CGFloat = .greatestFiniteMagnitude, fallback: CGFloat = 0) -> CGFloat {
+    if let d = yaml?.double {
+        return Swift.max(minVal, Swift.min(maxVal, CGFloat(d)))
+    } else if let i = yaml?.int {
+        return Swift.max(minVal, Swift.min(maxVal, CGFloat(i)))
+    }
+    return fallback
+}
+
+private func parseHoverConfig(from yaml: Yaml?) -> HoverConfig? {
+    guard let hoverYaml = yaml?.dictionary else { return nil }
+    let hoverType = hoverYaml["type"]?.string ?? "tooltip"
+    let content = fixYamlUnicodeEscapes(hoverYaml["content"]?.string ?? "{value}")
+    return HoverConfig(type: hoverType, content: content)
+}
+
+private func parseClickConfig(from clickYaml: [Yaml: Yaml]) -> ClickConfig {
+    let clickType = clickYaml["type"]?.string ?? "menu"
+    let popup = clickYaml["popup"]?.string
+    var menuItems: [MenuItemConfig]?
+
+    if let itemsYaml = clickYaml["items"]?.array {
+        menuItems = itemsYaml.compactMap { itemYaml -> MenuItemConfig? in
+            let isSeparator = itemYaml["separator"].bool ?? false
+            if isSeparator {
+                return MenuItemConfig(label: nil, command: nil, separator: true, icon: nil, header: nil, dynamic: nil)
+            }
+            if let header = itemYaml["header"].string {
+                return MenuItemConfig(label: nil, command: nil, separator: nil, icon: nil, header: fixYamlUnicodeEscapes(header), dynamic: nil)
+            }
+            if itemYaml["dynamic"].bool == true {
+                return MenuItemConfig(label: nil, command: nil, separator: nil, icon: nil, header: nil, dynamic: true)
+            }
+            guard let label = itemYaml["label"].string else { return nil }
+            let command = itemYaml["command"].string
+            let icon = itemYaml["icon"].string.map(fixYamlUnicodeEscapes)
+            return MenuItemConfig(label: fixYamlUnicodeEscapes(label), command: command, separator: false, icon: icon, header: nil, dynamic: nil)
+        }
+    }
+
+    var popupConfig: PopupConfig?
+    if let popupYaml = clickYaml["popup"]?.dictionary {
+        popupConfig = parsePopupConfig(from: popupYaml)
+    }
+
+    return ClickConfig(type: clickType, popup: popup, items: menuItems, popupConfig: popupConfig)
+}
+
+private func parsePopupConfig(from popupYaml: [Yaml: Yaml]) -> PopupConfig {
+    let title = popupYaml["title"]?.string.map(fixYamlUnicodeEscapes)
+    let width = popupYaml["width"]?.int
+    var rows: [PopupRowConfig] = []
+    if let rowsYaml = popupYaml["rows"]?.array {
+        rows = rowsYaml.compactMap { rowYaml -> PopupRowConfig? in
+            guard let rowType = rowYaml["type"].string else { return nil }
+            return PopupRowConfig(
+                type: rowType,
+                content: rowYaml["content"].string.map(fixYamlUnicodeEscapes),
+                icon: rowYaml["icon"].string.map(fixYamlUnicodeEscapes),
+                label: rowYaml["label"].string.map(fixYamlUnicodeEscapes),
+                value: rowYaml["value"].string.map(fixYamlUnicodeEscapes),
+                command: rowYaml["command"].string,
+                style: rowYaml["style"].string
+            )
+        }
+    }
+    return PopupConfig(title: title, width: width, rows: rows)
+}
+
 // MARK: - Load Configuration
 
 func loadConfig(from yaml: Yaml, configDir: String? = nil) -> Config? {
@@ -242,14 +313,7 @@ func loadConfig(from yaml: Yaml, configDir: String? = nil) -> Config? {
     let iconFont = yaml["iconFont"].string.map { FontConfig(descriptor: $0) }
     let textFont = yaml["textFont"].string.map { FontConfig(descriptor: $0) }
 
-    let cornerRadius: CGFloat
-    if let cr = yaml["cornerRadius"].double {
-        cornerRadius = max(0, CGFloat(cr))
-    } else if let cr = yaml["cornerRadius"].int {
-        cornerRadius = max(0, CGFloat(cr))
-    } else {
-        cornerRadius = 0
-    }
+    let cornerRadius = yamlCGFloat(yaml["cornerRadius"])
 
     let blur: Int
     if let b = yaml["blur"].int {
@@ -278,14 +342,7 @@ func loadConfig(from yaml: Yaml, configDir: String? = nil) -> Config? {
     let autohide: AutohideConfig
     if let autohideYaml = yaml["autohide"].dictionary {
         let enable = autohideYaml["enabled"]?.bool ?? true
-        let delay: Double
-        if let d = autohideYaml["delay"]?.double {
-            delay = max(0.0, min(5.0, d))
-        } else if let d = autohideYaml["delay"]?.int {
-            delay = max(0.0, min(5.0, Double(d)))
-        } else {
-            delay = AutohideConfig.default.delay
-        }
+        let delay = Double(yamlCGFloat(autohideYaml["delay"], max: 5, fallback: CGFloat(AutohideConfig.default.delay)))
         autohide = AutohideConfig(enabled: enable, delay: delay)
     } else {
         autohide = AutohideConfig.default
@@ -320,10 +377,7 @@ func loadConfig(from yaml: Yaml, configDir: String? = nil) -> Config? {
 
 // MARK: - Module Parsing
 
-/// Parse a single module definition from YAML into a ModuleConfig.
-/// Used both for inline modules in config.yaml and standalone files in modules.d.
-/// `configDir` is the directory containing the config/module file, used to
-/// resolve relative paths (e.g. command scripts).
+/// `configDir` resolves relative paths (e.g. command scripts).
 func parseModuleConfig(from moduleYaml: Yaml, configDir: String? = nil) -> ModuleConfig? {
     var builder = ModuleConfigBuilder()
 
@@ -352,77 +406,19 @@ func parseModuleConfig(from moduleYaml: Yaml, configDir: String? = nil) -> Modul
         builder.setIconFont(moduleIconFont)
     }
 
-    // Parse per-module style
     if let moduleStyle = parseStyleConfig(from: moduleYaml["style"]) {
         builder.setStyle(moduleStyle)
     }
 
-    // Parse interaction config
     if let interactionYaml = moduleYaml["interaction"].dictionary {
-        var hover: HoverConfig? = nil
-        var click: ClickConfig? = nil
-
-        if let hoverYaml = interactionYaml["hover"]?.dictionary {
-            let hoverType = hoverYaml["type"]?.string ?? "tooltip"
-            let content = fixYamlUnicodeEscapes(hoverYaml["content"]?.string ?? "{value}")
-            hover = HoverConfig(type: hoverType, content: content)
-        }
-
+        let hover = parseHoverConfig(from: interactionYaml["hover"])
+        var click: ClickConfig?
         if let clickYaml = interactionYaml["click"]?.dictionary {
-            let clickType = clickYaml["type"]?.string ?? "menu"
-            let popup = clickYaml["popup"]?.string
-            var menuItems: [MenuItemConfig]? = nil
-
-            if let itemsYaml = clickYaml["items"]?.array {
-                menuItems = itemsYaml.compactMap { itemYaml -> MenuItemConfig? in
-                    let isSeparator = itemYaml["separator"].bool ?? false
-                    if isSeparator {
-                        return MenuItemConfig(label: nil, command: nil, separator: true, icon: nil, header: nil, dynamic: nil)
-                    }
-                    if let header = itemYaml["header"].string {
-                        return MenuItemConfig(label: nil, command: nil, separator: nil, icon: nil, header: fixYamlUnicodeEscapes(header), dynamic: nil)
-                    }
-                    if itemYaml["dynamic"].bool == true {
-                        return MenuItemConfig(label: nil, command: nil, separator: nil, icon: nil, header: nil, dynamic: true)
-                    }
-                    guard let label = itemYaml["label"].string else { return nil }
-                    let command = itemYaml["command"].string
-                    let icon = itemYaml["icon"].string.map(fixYamlUnicodeEscapes)
-                    return MenuItemConfig(label: fixYamlUnicodeEscapes(label), command: command, separator: false, icon: icon, header: nil, dynamic: nil)
-                }
-            }
-
-            // Parse popup config (object form for user-defined popups)
-            var popupConfig: PopupConfig? = nil
-            if let popupYaml = clickYaml["popup"]?.dictionary {
-                let title = popupYaml["title"]?.string.map(fixYamlUnicodeEscapes)
-                let width = popupYaml["width"]?.int
-                var rows: [PopupRowConfig] = []
-                if let rowsYaml = popupYaml["rows"]?.array {
-                    rows = rowsYaml.compactMap { rowYaml -> PopupRowConfig? in
-                        guard let rowType = rowYaml["type"].string else { return nil }
-                        return PopupRowConfig(
-                            type: rowType,
-                            content: rowYaml["content"].string.map(fixYamlUnicodeEscapes),
-                            icon: rowYaml["icon"].string.map(fixYamlUnicodeEscapes),
-                            label: rowYaml["label"].string.map(fixYamlUnicodeEscapes),
-                            value: rowYaml["value"].string.map(fixYamlUnicodeEscapes),
-                            command: rowYaml["command"].string,
-                            style: rowYaml["style"].string
-                        )
-                    }
-                }
-                popupConfig = PopupConfig(title: title, width: width, rows: rows)
-            }
-
-            click = ClickConfig(type: clickType, popup: popup, items: menuItems, popupConfig: popupConfig)
+            click = parseClickConfig(from: clickYaml)
         }
-
-        let interaction = InteractionConfig(hover: hover, click: click)
-        builder.setInteraction(interaction)
+        builder.setInteraction(InteractionConfig(hover: hover, click: click))
     }
 
-    // Parse mask config (index or name, mutually exclusive)
     if let maskYaml = moduleYaml["mask"].dictionary {
         if let index = maskYaml["index"]?.int {
             builder.setMask(MaskConfig(index: index))
@@ -430,21 +426,13 @@ func parseModuleConfig(from moduleYaml: Yaml, configDir: String? = nil) -> Modul
             builder.setMask(MaskConfig(name: name))
         }
 
-        // Default to passthrough if no explicit click type was set
         if moduleYaml["interaction"]["click"]["type"].string == nil {
-            // Preserve any existing hover config
-            var hover: HoverConfig? = nil
-            if let hoverYaml = moduleYaml["interaction"]["hover"].dictionary {
-                let hoverType = hoverYaml["type"]?.string ?? "tooltip"
-                let hoverContent = fixYamlUnicodeEscapes(hoverYaml["content"]?.string ?? "{value}")
-                hover = HoverConfig(type: hoverType, content: hoverContent)
-            }
+            let hover = parseHoverConfig(from: moduleYaml["interaction"]["hover"])
             let click = ClickConfig(type: "passthrough", popup: nil, items: nil, popupConfig: nil)
             builder.setInteraction(InteractionConfig(hover: hover, click: click))
         }
     }
 
-    // Parse per-module displays config
     let moduleDisplays = parseDisplaysConfig(from: moduleYaml["displays"])
     if case .main = moduleDisplays {
         // Only set if not the default (.main), to avoid overriding unset state
@@ -576,10 +564,6 @@ func mergeModules(base: [ModuleConfig], extra: [ModuleConfig]) -> [ModuleConfig]
     let extraLeft = extra.filter { $0.alignment != "right" }
     let baseRight = base.filter { $0.alignment == "right" }
     let baseLeft = base.filter { $0.alignment != "right" }
-    // modules.d numbering follows the same convention as config.yaml line
-    // order: lower number = earlier in visual flow (left to right).
-    // Right-aligned modules.d entries are prepended so they appear to the
-    // left of config.yaml right modules (closer to center).
     return baseLeft + extraLeft + extraRight + baseRight
 }
 
@@ -626,7 +610,7 @@ func loadFileContents(filePath: String) -> String? {
         let fileData = try String(contentsOf: fileURL, encoding: .utf8)
         return fileData
     } catch {
-        print("Error loading file: \(error)")
+        print("Error loading file \(filePath): \(error)")
         return nil
     }
 }
@@ -641,7 +625,8 @@ extension NSColor {
             let b = CGFloat(rgbValue & 0x0000FF) / 255.0
             self.init(red: r, green: g, blue: b, alpha: 1)
         } else {
-            self.init(red: defaultColor.redComponent, green: defaultColor.greenComponent, blue: defaultColor.blueComponent, alpha: defaultColor.alphaComponent)
+            let rgb = defaultColor.usingColorSpace(.deviceRGB) ?? NSColor.clear
+            self.init(red: rgb.redComponent, green: rgb.greenComponent, blue: rgb.blueComponent, alpha: rgb.alphaComponent)
         }
     }
 }

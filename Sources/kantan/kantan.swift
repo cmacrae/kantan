@@ -26,8 +26,7 @@ class DisplayInstance {
         self.config = config
     }
 
-    /// Check whether a module should appear on this display based on its
-    /// per-module `displays` config. `nil` means show everywhere.
+    /// `nil` displays means show everywhere.
     private func moduleMatchesDisplay(_ vm: ModuleViewModel, screen: NSScreen) -> Bool {
         guard let displays = vm.moduleConfig.displays else { return true }
         switch displays {
@@ -40,7 +39,6 @@ class DisplayInstance {
         }
     }
 
-    /// Filter groups to only include modules targeted at the given screen.
     /// Groups that become empty after filtering are removed entirely.
     private func filterGroups(_ groups: [ModuleGroup], for screen: NSScreen) -> [ModuleGroup] {
         groups.compactMap { group in
@@ -62,10 +60,42 @@ class DisplayInstance {
         }
     }
 
+    private func statusBarY(for screen: NSScreen) -> CGFloat {
+        screen.frame.origin.y + screen.frame.height - barHeight - config.gaps.top
+    }
+
+    private func configurePanelDefaults(_ panel: NSPanel, level: NSWindow.Level) {
+        panel.level = level
+        panel.collectionBehavior = .canJoinAllSpaces
+        panel.isOpaque = false
+        panel.hasShadow = false
+        panel.backgroundColor = NSColor.clear
+    }
+
+    private func computeMaskBoundaries(
+        screen: NSScreen,
+        nativeItems: [NativeMenuBarItem],
+        maskedGroups: [(alignment: String, mask: MaskConfig)]
+    ) -> (leftX: CGFloat, rightX: CGFloat) {
+        let gaps = config.gaps
+        var leftX = screen.frame.origin.x + gaps.left
+        var rightX = screen.frame.origin.x + screen.frame.width - gaps.right
+        for (alignment, mask) in maskedGroups {
+            guard let nativeItem = MenuBarItemDetector.resolveItem(for: mask, from: nativeItems) else { continue }
+            let nativeRect = MenuBarItemDetector.appKitRect(from: nativeItem.cgRect, on: screen)
+            if alignment == "right" {
+                rightX = min(rightX, nativeRect.origin.x)
+            } else {
+                leftX = max(leftX, nativeRect.origin.x + nativeRect.width)
+            }
+        }
+        return (leftX, rightX)
+    }
+
     func createPanels(for screen: NSScreen, bar: BarViewModel, theme: ThemeProvider) {
         let gaps = config.gaps
         let radius = config.cornerRadius
-        let statusBarY = screen.frame.origin.y + screen.frame.height - barHeight - gaps.top
+        let statusBarY = statusBarY(for: screen)
         let statusWindowLevel = NSWindow.Level(rawValue: Int(CGWindowLevelForKey(.statusWindow)))
 
         let bgRect = NSRect(
@@ -76,11 +106,7 @@ class DisplayInstance {
         )
 
         let panel = NSPanel(contentRect: bgRect, styleMask: [.borderless, .nonactivatingPanel], backing: .buffered, defer: false)
-        panel.level = statusWindowLevel
-        panel.collectionBehavior = .canJoinAllSpaces
-        panel.isOpaque = false
-        panel.hasShadow = false
-        panel.backgroundColor = NSColor.clear
+        configurePanelDefaults(panel, level: statusWindowLevel)
         panel.ignoresMouseEvents = true
         bgPanel = panel
 
@@ -150,20 +176,11 @@ class DisplayInstance {
 
         let nativeItems = MenuBarItemDetector.detectItems(for: screen)
 
-        var leftX = screen.frame.origin.x + gaps.left
-        var rightX = screen.frame.origin.x + screen.frame.width - gaps.right
-
-        for group in allGroups {
-            guard group.modules.count == 1,
-                  let mask = group.modules[0].moduleConfig.mask,
-                  let nativeItem = MenuBarItemDetector.resolveItem(for: mask, from: nativeItems) else { continue }
-            let nativeRect = MenuBarItemDetector.appKitRect(from: nativeItem.cgRect, on: screen)
-            if group.alignment == "right" {
-                rightX = min(rightX, nativeRect.origin.x)
-            } else {
-                leftX = max(leftX, nativeRect.origin.x + nativeRect.width)
-            }
+        let maskedGroups = allGroups.compactMap { group -> (alignment: String, mask: MaskConfig)? in
+            guard group.modules.count == 1, let mask = group.modules[0].moduleConfig.mask else { return nil }
+            return (group.alignment, mask)
         }
+        var (leftX, rightX) = computeMaskBoundaries(screen: screen, nativeItems: nativeItems, maskedGroups: maskedGroups)
 
         for group in allGroups {
             let groupView = ModuleGroupView(
@@ -193,11 +210,7 @@ class DisplayInstance {
             }
 
             let groupPanel = NSPanel(contentRect: panelRect, styleMask: [.borderless, .nonactivatingPanel], backing: .buffered, defer: false)
-            groupPanel.level = moduleGroupLevel
-            groupPanel.collectionBehavior = .canJoinAllSpaces
-            groupPanel.isOpaque = false
-            groupPanel.hasShadow = false
-            groupPanel.backgroundColor = NSColor.clear
+            configurePanelDefaults(groupPanel, level: moduleGroupLevel)
             groupPanel.ignoresMouseEvents = group.isPassthrough
 
             hostingView.frame = NSRect(origin: .zero, size: panelRect.size)
@@ -213,7 +226,7 @@ class DisplayInstance {
         guard let screen = resolveScreen(),
               let bgPanel = bgPanel else { return }
         let gaps = config.gaps
-        let statusBarY = screen.frame.origin.y + screen.frame.height - barHeight - gaps.top
+        let statusBarY = statusBarY(for: screen)
 
         let bgFrame = NSRect(
             x: screen.frame.origin.x + gaps.left,
@@ -225,8 +238,11 @@ class DisplayInstance {
 
         let nativeItems = MenuBarItemDetector.detectItems(for: screen)
 
-        var leftX = screen.frame.origin.x + gaps.left
-        var rightX = screen.frame.origin.x + screen.frame.width - gaps.right
+        let maskedEntries = groupPanels.compactMap { entry -> (alignment: String, mask: MaskConfig)? in
+            guard entry.group.modules.count == 1, let mask = entry.group.modules[0].moduleConfig.mask else { return nil }
+            return (entry.group.alignment, mask)
+        }
+        var (leftX, rightX) = computeMaskBoundaries(screen: screen, nativeItems: nativeItems, maskedGroups: maskedEntries)
 
         for entry in groupPanels {
             guard entry.group.modules.count == 1,
@@ -242,12 +258,6 @@ class DisplayInstance {
             entry.panel.setFrame(panelFrame, display: true)
             if !entry.panel.isVisible {
                 entry.panel.orderFrontRegardless()
-            }
-
-            if entry.group.alignment == "right" {
-                rightX = min(rightX, nativeRect.origin.x)
-            } else {
-                leftX = max(leftX, nativeRect.origin.x + nativeRect.width)
             }
         }
 
@@ -274,8 +284,6 @@ class DisplayInstance {
 
     // MARK: - Autohide
 
-    /// Check whether the mouse is in this display's trigger zone and
-    /// update autohide state accordingly.
     func checkMenuBar(mouseLocation: NSPoint, autohideConfig: AutohideConfig) {
         guard let screen = resolveScreen() else { return }
         let mouseX = mouseLocation.x
@@ -427,20 +435,21 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         self.modulesDirPath = modulesDirPath
 
         let configDir = URL(fileURLWithPath: configPath).deletingLastPathComponent().path
-        var config: Config?
 
-        if let fileData = loadFileContents(filePath: configPath) {
-            do {
-                let yaml = try Yaml.load(fileData)
-                config = loadConfig(from: yaml, configDir: configDir)
-            } catch {
-                print(error)
-            }
-        } else {
+        guard let fileData = loadFileContents(filePath: configPath) else {
             print("Failed to load file contents")
+            return
         }
 
-        guard var config = config else {
+        let yaml: Yaml
+        do {
+            yaml = try Yaml.load(fileData)
+        } catch {
+            print(error)
+            return
+        }
+
+        guard var config = loadConfig(from: yaml, configDir: configDir) else {
             print("Configuration not loaded")
             return
         }
@@ -779,8 +788,8 @@ struct Kantan {
                 "action": action,
             ]
 
-            for j in 4..<positionalArgs.count {
-                let parts = positionalArgs[j].split(separator: "=", maxSplits: 1)
+            for arg in positionalArgs.dropFirst(4) {
+                let parts = arg.split(separator: "=", maxSplits: 1)
                 if parts.count == 2 {
                     userInfo[String(parts[0])] = String(parts[1])
                 }

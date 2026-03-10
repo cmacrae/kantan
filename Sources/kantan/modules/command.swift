@@ -269,11 +269,6 @@ struct CommandConfig: ModuleConfiguration {
             return ""
         }
 
-        if var string = String(data: outdata, encoding: .utf8) {
-            string = string.trimmingCharacters(in: .newlines)
-            return string
-        }
-
-        return ""
+        return String(data: outdata, encoding: .utf8)?.trimmingCharacters(in: .newlines) ?? ""
     }
 }

@@ -47,6 +47,8 @@ final class VolumeConfig: ModuleConfiguration, EventDrivenModule {
 
     nonisolated(unsafe) private var onChange: (@Sendable () -> Void)?
     nonisolated(unsafe) private var listenedDeviceID: AudioDeviceID = 0
+    nonisolated(unsafe) private var _cachedStatus: VolumeStatus?
+    private let _statusLock = NSLock()
 
     init(showLevel: Bool, icons: [String], mutedIcon: String) {
         self.showLevel = showLevel
@@ -169,10 +171,26 @@ final class VolumeConfig: ModuleConfiguration, EventDrivenModule {
         }
     }
 
+    // MARK: - Status Caching
+
+    private func refreshCache() {
+        let status = Self.readVolumeStatus()
+        _statusLock.lock()
+        _cachedStatus = status
+        _statusLock.unlock()
+    }
+
+    private func getCachedStatus() -> VolumeStatus {
+        _statusLock.lock()
+        defer { _statusLock.unlock() }
+        return _cachedStatus ?? .unavailable
+    }
+
     // MARK: - ModuleConfiguration
 
     func getValue(completion: @escaping @Sendable (String) -> Void) {
-        let status = Self.readVolumeStatus()
+        refreshCache()
+        let status = getCachedStatus()
         if status.isMuted {
             completion(showLevel ? "muted" : "")
         } else {
@@ -181,14 +199,11 @@ final class VolumeConfig: ModuleConfiguration, EventDrivenModule {
     }
 
     func getIcon() -> String {
-        let status = Self.readVolumeStatus()
+        let status = getCachedStatus()
         if status.isMuted {
             return mutedIcon
         }
-        guard !icons.isEmpty else { return "" }
-        let step = 1.0 / Float(icons.count)
-        let index = min(Int(status.volume / step), icons.count - 1)
-        return icons[max(0, index)]
+        return iconForLevel(status.level, icons: icons)
     }
 
     // MARK: - CoreAudio

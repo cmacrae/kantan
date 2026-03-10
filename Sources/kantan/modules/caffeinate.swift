@@ -14,7 +14,7 @@ struct CaffeinateConfigFactory: ModuleConfigurationFactory {
 
 struct CaffeinateConfig: ModuleConfiguration {
     var type: String { "caffeinate" }
-    var redrawInterval: TimeInterval { 3600.0 }
+    var redrawInterval: TimeInterval { noPoll }
 
     private let state = CaffeinateState()
 

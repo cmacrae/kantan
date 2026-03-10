@@ -14,7 +14,7 @@ struct IconConfigFactory: ModuleConfigurationFactory {
 struct IconConfig: ModuleConfiguration {
     var type: String { "icon" }
 
-    var redrawInterval: TimeInterval { 3600.0 }
+    var redrawInterval: TimeInterval { noPoll }
 
     func getValue(completion: @escaping @Sendable (String) -> Void) {
         completion("")

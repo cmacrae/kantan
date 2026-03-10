@@ -21,7 +21,7 @@ struct TextConfig: ModuleConfiguration {
     // Static value — no polling needed. CLI triggers can still update
     // via BarViewModel.handleEvent(), and EventObserver.refreshAll()
     // will call update() on wake/space-change.
-    var redrawInterval: TimeInterval { 3600.0 }
+    var redrawInterval: TimeInterval { noPoll }
 
     func getValue(completion: @escaping @Sendable (String) -> Void) {
         completion(self.value)

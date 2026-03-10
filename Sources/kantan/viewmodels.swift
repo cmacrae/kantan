@@ -344,6 +344,18 @@ class ThemeProvider: ObservableObject {
         return (Color(nsColor: NSColor(hex: mode.fg ?? "FFFFFF")), Color(nsColor: NSColor(hex: mode.bg ?? "000000")))
     }
 
+    func globalFgNSColor() -> NSColor {
+        if isNative { return .labelColor }
+        let mode = resolveGlobalStyleMode()
+        return NSColor(hex: mode.fg ?? "FFFFFF")
+    }
+
+    func globalBgNSColor() -> NSColor {
+        if isNative { return .windowBackgroundColor }
+        let mode = resolveGlobalStyleMode()
+        return NSColor(hex: mode.bg ?? "000000")
+    }
+
     private func elementFgColor(
         for vm: ModuleViewModel,
         dynamicFg: KeyPath<DynamicStyleOverride, String?>,

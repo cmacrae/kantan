@@ -33,12 +33,13 @@ extension ModuleConfiguration {
     func getDynamicStyle() -> DynamicStyleOverride? { nil }
 }
 
+/// Sentinel interval for modules that don't poll (event-driven or static).
+/// Using a large value rather than 0 prevents Timer from firing continuously.
+let noPoll: TimeInterval = 3600.0
+
 // MARK: - Event-Driven Module
 
-/// Modules that push updates via system events rather than timer-based
-/// polling. Conforming modules create their own observers (IOKit,
-/// CoreAudio, CoreWLAN, etc.) and call the provided onChange callback
-/// whenever state changes.
+/// Modules that push updates via system events rather than timer-based polling.
 protocol EventDrivenModule: AnyObject {
     func startObserving(onChange: @escaping @Sendable () -> Void)
     func stopObserving()
@@ -287,6 +288,15 @@ func runShellCommand(_ command: String) {
         process.standardError = FileHandle.nullDevice
         try? process.run()
     }
+}
+
+/// Compute an icon array index from a 0–100 level value.
+/// Clamps to valid array bounds.
+func iconForLevel(_ level: Int, icons: [String]) -> String {
+    guard !icons.isEmpty else { return "" }
+    let step = max(1, 100 / icons.count)
+    let index = min(level / step, icons.count - 1)
+    return icons[index]
 }
 
 /// Run a command synchronously and return its stdout.

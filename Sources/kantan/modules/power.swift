@@ -42,6 +42,8 @@ final class PowerConfig: ModuleConfiguration, EventDrivenModule {
 
     nonisolated(unsafe) private var runLoopSource: CFRunLoopSource?
     nonisolated(unsafe) private var onChange: (@Sendable () -> Void)?
+    nonisolated(unsafe) private var _cachedStatus: BatteryStatus?
+    private let _statusLock = NSLock()
 
     init(showLevel: Bool, charging: ChargingConfig, battery: BatteryConfig) {
         self.showLevel = showLevel
@@ -88,10 +90,26 @@ final class PowerConfig: ModuleConfiguration, EventDrivenModule {
         onChange = nil
     }
 
+    // MARK: - Status Caching
+
+    private func refreshCache() {
+        let status = Self.readBatteryStatus()
+        _statusLock.lock()
+        _cachedStatus = status
+        _statusLock.unlock()
+    }
+
+    private func getCachedStatus() -> BatteryStatus {
+        _statusLock.lock()
+        defer { _statusLock.unlock() }
+        return _cachedStatus ?? .unavailable
+    }
+
     // MARK: - ModuleConfiguration
 
     func getValue(completion: @escaping @Sendable (String) -> Void) {
-        let status = Self.readBatteryStatus()
+        refreshCache()
+        let status = getCachedStatus()
         guard status.isAvailable else {
             completion("")
             return
@@ -100,17 +118,14 @@ final class PowerConfig: ModuleConfiguration, EventDrivenModule {
     }
 
     func getIcon() -> String {
-        let status = Self.readBatteryStatus()
+        let status = getCachedStatus()
         guard status.isAvailable else {
             return battery.icons.first ?? ""
         }
         if status.isCharging || status.isPluggedIn {
             return charging.icon
         }
-        guard !battery.icons.isEmpty else { return "" }
-        let step = max(1, 100 / battery.icons.count)
-        let index = min(status.level / step, battery.icons.count - 1)
-        return battery.icons[max(0, index)]
+        return iconForLevel(status.level, icons: battery.icons)
     }
 
 
