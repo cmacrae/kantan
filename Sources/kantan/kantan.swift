@@ -417,6 +417,7 @@ class DisplayInstance {
 
 // MARK: - App Delegate
 
+
 @MainActor
 class AppDelegate: NSObject, NSApplicationDelegate {
     var displayInstances: [DisplayInstance] = []
@@ -429,21 +430,30 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     nonisolated(unsafe) var repositionTimer: Timer?
     var visibilityCancellables: [AnyCancellable] = []
     var configFilePath: String?
+    var modulesDirPath: String?
     nonisolated(unsafe) var configFileSource: DispatchSourceFileSystemObject?
+    nonisolated(unsafe) var modulesDirSource: DispatchSourceFileSystemObject?
     nonisolated(unsafe) var reloadDebounceTimer: Timer?
 
     func applicationDidFinishLaunching(_ aNotification: Notification) {
         NSApp.setActivationPolicy(.accessory)
 
-        let configPath = URL(fileURLWithPath: "config.yaml").standardizedFileURL.path
+        guard let configPath = resolveConfigPath(explicit: Kantan.configPath) else {
+            print("Configuration not found")
+            return
+        }
         self.configFilePath = configPath
 
+        let modulesDirPath = resolveModulesDir(explicit: Kantan.modulesDirPath, configPath: configPath)
+        self.modulesDirPath = modulesDirPath
+
+        let configDir = URL(fileURLWithPath: configPath).deletingLastPathComponent().path
         var config: Config?
 
         if let fileData = loadFileContents(filePath: configPath) {
             do {
                 let yaml = try Yaml.load(fileData)
-                config = loadConfig(from: yaml)
+                config = loadConfig(from: yaml, configDir: configDir)
             } catch {
                 print(error)
             }
@@ -451,10 +461,14 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             print("Failed to load file contents")
         }
 
-        guard let config = config else {
+        guard var config = config else {
             print("Configuration not loaded")
             return
         }
+
+        // Merge modules from modules.d directory
+        let extraModules = loadModulesFromDirectory(path: modulesDirPath)
+        config.modules = mergeModules(base: config.modules, extra: extraModules)
 
         self.config = config
         barHeight = CGFloat(config.height)
@@ -499,8 +513,8 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         }
 
         startWatchingConfig(path: configPath)
+        startWatchingModulesDir(path: modulesDirPath)
     }
-
     // MARK: - Screen Resolution
 
     /// Resolve which screens to display on based on the config.
@@ -645,6 +659,35 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         source.resume()
     }
 
+    func startWatchingModulesDir(path: String) {
+        guard FileManager.default.fileExists(atPath: path) else { return }
+
+        let fd = open(path, O_EVTONLY)
+        guard fd >= 0 else {
+            print("Unable to open modules directory for watching: \(path)")
+            return
+        }
+
+        let source = DispatchSource.makeFileSystemObjectSource(
+            fileDescriptor: fd,
+            eventMask: [.write, .delete, .rename],
+            queue: .main
+        )
+
+        source.setEventHandler { [weak self] in
+            MainActor.assumeIsolated {
+                self?.scheduleReload()
+            }
+        }
+
+        source.setCancelHandler {
+            close(fd)
+        }
+
+        self.modulesDirSource = source
+        source.resume()
+    }
+
     private func scheduleReload() {
         reloadDebounceTimer?.invalidate()
         reloadDebounceTimer = Timer.scheduledTimer(withTimeInterval: 0.2, repeats: false) { [weak self] _ in
@@ -662,18 +705,25 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             return
         }
 
-        let newConfig: Config?
+        let configDir = URL(fileURLWithPath: path).deletingLastPathComponent().path
+        var newConfig: Config?
         do {
             let yaml = try Yaml.load(fileData)
-            newConfig = loadConfig(from: yaml)
+            newConfig = loadConfig(from: yaml, configDir: configDir)
         } catch {
             print("Hot-reload: failed to parse config — \(error)")
             return
         }
 
-        guard let newConfig = newConfig else {
+        guard var newConfig = newConfig else {
             print("Hot-reload: invalid config, keeping current bar")
             return
+        }
+
+        // Merge modules from modules.d directory
+        if let dir = modulesDirPath {
+            let extraModules = loadModulesFromDirectory(path: dir)
+            newConfig.modules = mergeModules(base: newConfig.modules, extra: extraModules)
         }
 
         print("Hot-reload: config changed, rebuilding bar")
@@ -730,6 +780,8 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationWillTerminate(_ aNotification: Notification) {
         configFileSource?.cancel()
         configFileSource = nil
+        modulesDirSource?.cancel()
+        modulesDirSource = nil
         reloadDebounceTimer?.invalidate()
         stopMenuBarMonitoring()
         repositionTimer?.invalidate()
@@ -742,13 +794,43 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
 @main
 struct Kantan {
+    nonisolated(unsafe) static var configPath: String?
+    nonisolated(unsafe) static var modulesDirPath: String?
+
     static func main() {
         let args = CommandLine.arguments
 
+        // Parse --config and --modules-dir flags
+        var positionalArgs: [String] = [args[0]]
+        var i = 1
+        while i < args.count {
+            switch args[i] {
+            case "--config":
+                if i + 1 < args.count {
+                    configPath = (args[i + 1] as NSString).expandingTildeInPath
+                    i += 2
+                } else {
+                    print("--config requires a path argument")
+                    i += 1
+                }
+            case "--modules-dir":
+                if i + 1 < args.count {
+                    modulesDirPath = (args[i + 1] as NSString).expandingTildeInPath
+                    i += 2
+                } else {
+                    print("--modules-dir requires a path argument")
+                    i += 1
+                }
+            default:
+                positionalArgs.append(args[i])
+                i += 1
+            }
+        }
+
         // CLI trigger mode: kantan trigger <module> <action> [key=value ...]
-        if args.count >= 4 && args[1] == "trigger" {
-            let module = args[2]
-            let action = args[3]
+        if positionalArgs.count >= 4 && positionalArgs[1] == "trigger" {
+            let module = positionalArgs[2]
+            let action = positionalArgs[3]
 
             var userInfo: [String: String] = [
                 "module": module,
@@ -756,8 +838,8 @@ struct Kantan {
             ]
 
             // Parse key=value pairs from remaining args
-            for i in 4..<args.count {
-                let parts = args[i].split(separator: "=", maxSplits: 1)
+            for j in 4..<positionalArgs.count {
+                let parts = positionalArgs[j].split(separator: "=", maxSplits: 1)
                 if parts.count == 2 {
                     userInfo[String(parts[0])] = String(parts[1])
                 }

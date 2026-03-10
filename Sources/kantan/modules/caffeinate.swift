@@ -3,7 +3,7 @@ import IOKit.pwr_mgt
 import Yaml
 
 struct CaffeinateConfigFactory: ModuleConfigurationFactory {
-    func configuration(from yaml: Yaml) throws -> ModuleConfiguration {
+    func configuration(from yaml: Yaml, configDir: String?) throws -> ModuleConfiguration {
         return CaffeinateConfig()
     }
 

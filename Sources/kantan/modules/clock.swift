@@ -2,7 +2,7 @@ import Foundation
 import Yaml
 
 struct ClockConfigFactory: ModuleConfigurationFactory {
-    func configuration(from yaml: Yaml) throws -> ModuleConfiguration {
+    func configuration(from yaml: Yaml, configDir: String?) throws -> ModuleConfiguration {
         guard let _ = yaml["format"].string else {
             throw DecodingError.dataCorrupted(DecodingError.Context(codingPath: [], debugDescription: "Unable to decode clock configuration"))
         }

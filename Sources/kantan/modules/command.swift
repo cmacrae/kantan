@@ -36,11 +36,11 @@ private func setCommandData(_ data: CommandOutputData, for key: String) {
 // MARK: - Factory
 
 struct CommandConfigFactory: ModuleConfigurationFactory {
-    func configuration(from yaml: Yaml) throws -> ModuleConfiguration {
+    func configuration(from yaml: Yaml, configDir: String?) throws -> ModuleConfiguration {
         guard let _ = yaml["command"].string else {
             throw DecodingError.dataCorrupted(DecodingError.Context(codingPath: [], debugDescription: "Unable to decode CommandConfig from Yaml"))
         }
-        return try CommandConfig(yaml: yaml)
+        return try CommandConfig(yaml: yaml, configDir: configDir)
     }
 }
 
@@ -55,16 +55,30 @@ struct CommandConfig: ModuleConfiguration {
     let outputMode: String  // "text" or "json"
     let interval: TimeInterval  // polling interval; 0 = event-only (no timer)
 
-    init(yaml: Yaml) throws {
-        guard let command = yaml["command"].string else {
+    init(yaml: Yaml, configDir: String? = nil) throws {
+        guard let rawCommand = yaml["command"].string else {
             throw DecodingError.dataCorrupted(DecodingError.Context(codingPath: [], debugDescription: "Unable to decode CommandConfig from Yaml"))
         }
-        self.command = command
+
+        // Resolve relative command paths against the config directory.
+        // Commands starting with ./ or ../ are treated as relative paths
+        // and wrapped with cd so the shell resolves them correctly.
+        if let dir = configDir,
+           rawCommand.hasPrefix("./") || rawCommand.hasPrefix("../") {
+            self.command = "cd \(Self.shellQuote(dir)) && \(rawCommand)"
+        } else {
+            self.command = rawCommand
+        }
+
         self.launchPath = yaml["launcher"]["path"].string ?? "/bin/sh"
         self.launchArgs = yaml["launcher"]["args"].array?.compactMap { $0.string } ?? ["-c"]
         self.timeout = yaml["timeout"].double ?? 10.0
         self.outputMode = yaml["output"].string ?? "text"
         self.interval = yaml["interval"].double ?? 1.0
+    }
+
+    private static func shellQuote(_ s: String) -> String {
+        "'" + s.replacingOccurrences(of: "'", with: "'\\''") + "'"
     }
 
     var redrawInterval: TimeInterval { interval }

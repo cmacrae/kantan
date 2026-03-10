@@ -4,7 +4,7 @@ import IOBluetooth
 import Yaml
 
 struct BluetoothConfigFactory: ModuleConfigurationFactory {
-    func configuration(from yaml: Yaml) throws -> ModuleConfiguration {
+    func configuration(from yaml: Yaml, configDir: String?) throws -> ModuleConfiguration {
         let showCount = yaml["showCount"].bool ?? false
 
         guard let icon = yaml["icon"].string else {

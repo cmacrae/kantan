@@ -4,7 +4,7 @@ import Yaml
 @preconcurrency import EventKit
 
 struct RemindersConfigFactory: ModuleConfigurationFactory {
-    func configuration(from yaml: Yaml) throws -> ModuleConfiguration {
+    func configuration(from yaml: Yaml, configDir: String?) throws -> ModuleConfiguration {
         return try RemindersConfig(yaml: yaml)
     }
 }

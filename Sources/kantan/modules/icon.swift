@@ -2,7 +2,7 @@ import Foundation
 import Yaml
 
 struct IconConfigFactory: ModuleConfigurationFactory {
-    func configuration(from yaml: Yaml) throws -> ModuleConfiguration {
+    func configuration(from yaml: Yaml, configDir: String?) throws -> ModuleConfiguration {
         return IconConfig()
     }
 

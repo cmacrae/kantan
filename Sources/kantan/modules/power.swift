@@ -3,7 +3,7 @@ import Yaml
 import IOKit.ps
 
 struct PowerConfigFactory: ModuleConfigurationFactory {
-    func configuration(from yaml: Yaml) throws -> ModuleConfiguration {
+    func configuration(from yaml: Yaml, configDir: String?) throws -> ModuleConfiguration {
         guard let showLevel = yaml["showLevel"].bool,
               let chargingYaml = yaml["charging"].dictionary,
               let batteryYaml = yaml["battery"].dictionary,

@@ -4,7 +4,7 @@ import Foundation
 import Yaml
 
 struct WiFiConfigFactory: ModuleConfigurationFactory {
-    func configuration(from yaml: Yaml) throws -> ModuleConfiguration {
+    func configuration(from yaml: Yaml, configDir: String?) throws -> ModuleConfiguration {
         let showSSID = yaml["showSSID"].bool ?? false
 
         guard let iconsYaml = yaml["icons"].array,

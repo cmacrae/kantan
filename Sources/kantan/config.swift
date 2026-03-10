@@ -187,7 +187,7 @@ func parseStyleConfig(from yaml: Yaml) -> StyleConfig? {
 
 // MARK: - Load Configuration
 
-func loadConfig(from yaml: Yaml) -> Config? {
+func loadConfig(from yaml: Yaml, configDir: String? = nil) -> Config? {
     // Top-level keys (flattened — no "global" wrapper)
     guard let height = yaml["height"].int,
           let padding = yaml["padding"].int else {
@@ -274,192 +274,13 @@ func loadConfig(from yaml: Yaml) -> Config? {
         autohide = AutohideConfig.default
     }
 
-    guard let modulesYaml = yaml["modules"].array else {
-        print("Failed to load modules config from YAML")
-        return nil
-    }
 
     var modules: [ModuleConfig] = []
-    let textConfigFactory = TextConfigFactory()
-    let clockConfigFactory = ClockConfigFactory()
-    let powerConfigFactory = PowerConfigFactory()
-    let commandConfigFactory = CommandConfigFactory()
-    let remindersConfigFactory = RemindersConfigFactory()
-    let workspaceConfigFactory = WorkspaceConfigFactory()
-    let volumeConfigFactory = VolumeConfigFactory()
-    let wifiConfigFactory = WiFiConfigFactory()
-    let bluetoothConfigFactory = BluetoothConfigFactory()
-    let caffeinateConfigFactory = CaffeinateConfigFactory()
-    let iconConfigFactory = IconConfigFactory()
-
-    for moduleYaml in modulesYaml {
-        var builder = ModuleConfigBuilder()
-
-        guard let name = moduleYaml["name"].string,
-              let alignment = moduleYaml["alignment"].string,
-              let type = moduleYaml["type"].string else {
-            print("Failed to load module config")
-            return nil
-        }
-
-        builder = builder.setName(name)
-        builder = builder.setAlignment(alignment)
-        builder = builder.setType(type)
-
-        if let icon = moduleYaml["icon"].string {
-            builder = builder.setIcon(fixYamlUnicodeEscapes(icon))
-        }
-
-        if let textFontDescriptor = moduleYaml["textFont"].string {
-            let moduleTextFont = FontConfig(descriptor: textFontDescriptor)
-            builder = builder.setTextFont(moduleTextFont)
-        }
-
-        if let iconFontDescriptor = moduleYaml["iconFont"].string {
-            let moduleIconFont = FontConfig(descriptor: iconFontDescriptor)
-            builder = builder.setIconFont(moduleIconFont)
-        }
-
-        // Parse per-module style
-        if let moduleStyle = parseStyleConfig(from: moduleYaml["style"]) {
-            builder = builder.setStyle(moduleStyle)
-        }
-
-        // Parse interaction config
-        if let interactionYaml = moduleYaml["interaction"].dictionary {
-            var hover: HoverConfig? = nil
-            var click: ClickConfig? = nil
-
-            if let hoverYaml = interactionYaml["hover"]?.dictionary {
-                let hoverType = hoverYaml["type"]?.string ?? "tooltip"
-                let content = fixYamlUnicodeEscapes(hoverYaml["content"]?.string ?? "{value}")
-                hover = HoverConfig(type: hoverType, content: content)
+    if let modulesYaml = yaml["modules"].array {
+        for moduleYaml in modulesYaml {
+            if let module = parseModuleConfig(from: moduleYaml, configDir: configDir) {
+                modules.append(module)
             }
-
-            if let clickYaml = interactionYaml["click"]?.dictionary {
-                let clickType = clickYaml["type"]?.string ?? "menu"
-                let popup = clickYaml["popup"]?.string
-                var menuItems: [MenuItemConfig]? = nil
-
-                if let itemsYaml = clickYaml["items"]?.array {
-                    menuItems = itemsYaml.compactMap { itemYaml -> MenuItemConfig? in
-                        let isSeparator = itemYaml["separator"].bool ?? false
-                        if isSeparator {
-                            return MenuItemConfig(label: nil, command: nil, separator: true, icon: nil, header: nil, dynamic: nil)
-                        }
-                        if let header = itemYaml["header"].string {
-                            return MenuItemConfig(label: nil, command: nil, separator: nil, icon: nil, header: fixYamlUnicodeEscapes(header), dynamic: nil)
-                        }
-                        if itemYaml["dynamic"].bool == true {
-                            return MenuItemConfig(label: nil, command: nil, separator: nil, icon: nil, header: nil, dynamic: true)
-                        }
-                        guard let label = itemYaml["label"].string else { return nil }
-                        let command = itemYaml["command"].string
-                        let icon = itemYaml["icon"].string.map(fixYamlUnicodeEscapes)
-                        return MenuItemConfig(label: fixYamlUnicodeEscapes(label), command: command, separator: false, icon: icon, header: nil, dynamic: nil)
-                    }
-                }
-
-                // Parse popup config (object form for user-defined popups)
-                var popupConfig: PopupConfig? = nil
-                if let popupYaml = clickYaml["popup"]?.dictionary {
-                    let title = popupYaml["title"]?.string.map(fixYamlUnicodeEscapes)
-                    let width = popupYaml["width"]?.int
-                    var rows: [PopupRowConfig] = []
-                    if let rowsYaml = popupYaml["rows"]?.array {
-                        rows = rowsYaml.compactMap { rowYaml -> PopupRowConfig? in
-                            guard let rowType = rowYaml["type"].string else { return nil }
-                            return PopupRowConfig(
-                                type: rowType,
-                                content: rowYaml["content"].string.map(fixYamlUnicodeEscapes),
-                                icon: rowYaml["icon"].string.map(fixYamlUnicodeEscapes),
-                                label: rowYaml["label"].string.map(fixYamlUnicodeEscapes),
-                                value: rowYaml["value"].string.map(fixYamlUnicodeEscapes),
-                                command: rowYaml["command"].string,
-                                style: rowYaml["style"].string
-                            )
-                        }
-                    }
-                    popupConfig = PopupConfig(title: title, width: width, rows: rows)
-                }
-
-                click = ClickConfig(type: clickType, popup: popup, items: menuItems, popupConfig: popupConfig)
-            }
-
-            let interaction = InteractionConfig(hover: hover, click: click)
-            builder = builder.setInteraction(interaction)
-        }
-
-        // Parse mask config (index or name, mutually exclusive)
-        if let maskYaml = moduleYaml["mask"].dictionary {
-            if let index = maskYaml["index"]?.int {
-                builder = builder.setMask(MaskConfig(index: index))
-            } else if let name = maskYaml["name"]?.string {
-                builder = builder.setMask(MaskConfig(name: name))
-            }
-
-            // Default to passthrough if no explicit click type was set
-            if moduleYaml["interaction"]["click"]["type"].string == nil {
-                // Preserve any existing hover config
-                var hover: HoverConfig? = nil
-                if let hoverYaml = moduleYaml["interaction"]["hover"].dictionary {
-                    let hoverType = hoverYaml["type"]?.string ?? "tooltip"
-                    let hoverContent = fixYamlUnicodeEscapes(hoverYaml["content"]?.string ?? "{value}")
-                    hover = HoverConfig(type: hoverType, content: hoverContent)
-                }
-                let click = ClickConfig(type: "passthrough", popup: nil, items: nil, popupConfig: nil)
-                builder = builder.setInteraction(InteractionConfig(hover: hover, click: click))
-            }
-        }
-
-        // Parse per-module displays config
-        if let displaysStr = moduleYaml["displays"].string {
-            switch displaysStr.lowercased() {
-            case "all":
-                builder = builder.setDisplays(.all)
-            default:
-                builder = builder.setDisplays(.main)
-            }
-        } else if let displaysArray = moduleYaml["displays"].array {
-            let names = displaysArray.compactMap { $0.string }
-            if !names.isEmpty {
-                builder = builder.setDisplays(.named(names))
-            }
-        }
-
-        switch type {
-        case "text":
-            builder = builder.setConfigFactory(textConfigFactory)
-        case "clock":
-            builder = builder.setConfigFactory(clockConfigFactory)
-        case "power":
-            builder = builder.setConfigFactory(powerConfigFactory)
-        case "command":
-            builder = builder.setConfigFactory(commandConfigFactory)
-        case "reminders":
-            builder = builder.setConfigFactory(remindersConfigFactory)
-        case "workspace":
-            builder = builder.setConfigFactory(workspaceConfigFactory)
-        case "volume":
-            builder = builder.setConfigFactory(volumeConfigFactory)
-        case "wifi":
-            builder = builder.setConfigFactory(wifiConfigFactory)
-        case "bluetooth":
-            builder = builder.setConfigFactory(bluetoothConfigFactory)
-        case "caffeinate":
-            builder = builder.setConfigFactory(caffeinateConfigFactory)
-        case "icon":
-            builder = builder.setConfigFactory(iconConfigFactory)
-        default:
-            print("Unsupported module type")
-        }
-
-        do {
-            builder = try builder.buildConfiguration(from: moduleYaml["config"])
-            let module = try builder.build()
-            modules.append(module)
-        } catch {
-            print("Failed to build module config: \(error)")
         }
     }
 
@@ -478,6 +299,289 @@ func loadConfig(from yaml: Yaml) -> Config? {
         displays: displays,
         modules: modules
     )
+}
+
+// MARK: - Module Parsing
+
+/// Parse a single module definition from YAML into a ModuleConfig.
+/// Used both for inline modules in config.yaml and standalone files in modules.d.
+/// `configDir` is the directory containing the config/module file, used to
+/// resolve relative paths (e.g. command scripts).
+func parseModuleConfig(from moduleYaml: Yaml, configDir: String? = nil) -> ModuleConfig? {
+    var builder = ModuleConfigBuilder()
+
+    guard let name = moduleYaml["name"].string,
+          let alignment = moduleYaml["alignment"].string,
+          let type = moduleYaml["type"].string else {
+        print("Failed to load module config: missing name, alignment, or type")
+        return nil
+    }
+
+    builder = builder.setName(name)
+    builder = builder.setAlignment(alignment)
+    builder = builder.setType(type)
+
+    if let icon = moduleYaml["icon"].string {
+        builder = builder.setIcon(fixYamlUnicodeEscapes(icon))
+    }
+
+    if let textFontDescriptor = moduleYaml["textFont"].string {
+        let moduleTextFont = FontConfig(descriptor: textFontDescriptor)
+        builder = builder.setTextFont(moduleTextFont)
+    }
+
+    if let iconFontDescriptor = moduleYaml["iconFont"].string {
+        let moduleIconFont = FontConfig(descriptor: iconFontDescriptor)
+        builder = builder.setIconFont(moduleIconFont)
+    }
+
+    // Parse per-module style
+    if let moduleStyle = parseStyleConfig(from: moduleYaml["style"]) {
+        builder = builder.setStyle(moduleStyle)
+    }
+
+    // Parse interaction config
+    if let interactionYaml = moduleYaml["interaction"].dictionary {
+        var hover: HoverConfig? = nil
+        var click: ClickConfig? = nil
+
+        if let hoverYaml = interactionYaml["hover"]?.dictionary {
+            let hoverType = hoverYaml["type"]?.string ?? "tooltip"
+            let content = fixYamlUnicodeEscapes(hoverYaml["content"]?.string ?? "{value}")
+            hover = HoverConfig(type: hoverType, content: content)
+        }
+
+        if let clickYaml = interactionYaml["click"]?.dictionary {
+            let clickType = clickYaml["type"]?.string ?? "menu"
+            let popup = clickYaml["popup"]?.string
+            var menuItems: [MenuItemConfig]? = nil
+
+            if let itemsYaml = clickYaml["items"]?.array {
+                menuItems = itemsYaml.compactMap { itemYaml -> MenuItemConfig? in
+                    let isSeparator = itemYaml["separator"].bool ?? false
+                    if isSeparator {
+                        return MenuItemConfig(label: nil, command: nil, separator: true, icon: nil, header: nil, dynamic: nil)
+                    }
+                    if let header = itemYaml["header"].string {
+                        return MenuItemConfig(label: nil, command: nil, separator: nil, icon: nil, header: fixYamlUnicodeEscapes(header), dynamic: nil)
+                    }
+                    if itemYaml["dynamic"].bool == true {
+                        return MenuItemConfig(label: nil, command: nil, separator: nil, icon: nil, header: nil, dynamic: true)
+                    }
+                    guard let label = itemYaml["label"].string else { return nil }
+                    let command = itemYaml["command"].string
+                    let icon = itemYaml["icon"].string.map(fixYamlUnicodeEscapes)
+                    return MenuItemConfig(label: fixYamlUnicodeEscapes(label), command: command, separator: false, icon: icon, header: nil, dynamic: nil)
+                }
+            }
+
+            // Parse popup config (object form for user-defined popups)
+            var popupConfig: PopupConfig? = nil
+            if let popupYaml = clickYaml["popup"]?.dictionary {
+                let title = popupYaml["title"]?.string.map(fixYamlUnicodeEscapes)
+                let width = popupYaml["width"]?.int
+                var rows: [PopupRowConfig] = []
+                if let rowsYaml = popupYaml["rows"]?.array {
+                    rows = rowsYaml.compactMap { rowYaml -> PopupRowConfig? in
+                        guard let rowType = rowYaml["type"].string else { return nil }
+                        return PopupRowConfig(
+                            type: rowType,
+                            content: rowYaml["content"].string.map(fixYamlUnicodeEscapes),
+                            icon: rowYaml["icon"].string.map(fixYamlUnicodeEscapes),
+                            label: rowYaml["label"].string.map(fixYamlUnicodeEscapes),
+                            value: rowYaml["value"].string.map(fixYamlUnicodeEscapes),
+                            command: rowYaml["command"].string,
+                            style: rowYaml["style"].string
+                        )
+                    }
+                }
+                popupConfig = PopupConfig(title: title, width: width, rows: rows)
+            }
+
+            click = ClickConfig(type: clickType, popup: popup, items: menuItems, popupConfig: popupConfig)
+        }
+
+        let interaction = InteractionConfig(hover: hover, click: click)
+        builder = builder.setInteraction(interaction)
+    }
+
+    // Parse mask config (index or name, mutually exclusive)
+    if let maskYaml = moduleYaml["mask"].dictionary {
+        if let index = maskYaml["index"]?.int {
+            builder = builder.setMask(MaskConfig(index: index))
+        } else if let name = maskYaml["name"]?.string {
+            builder = builder.setMask(MaskConfig(name: name))
+        }
+
+        // Default to passthrough if no explicit click type was set
+        if moduleYaml["interaction"]["click"]["type"].string == nil {
+            // Preserve any existing hover config
+            var hover: HoverConfig? = nil
+            if let hoverYaml = moduleYaml["interaction"]["hover"].dictionary {
+                let hoverType = hoverYaml["type"]?.string ?? "tooltip"
+                let hoverContent = fixYamlUnicodeEscapes(hoverYaml["content"]?.string ?? "{value}")
+                hover = HoverConfig(type: hoverType, content: hoverContent)
+            }
+            let click = ClickConfig(type: "passthrough", popup: nil, items: nil, popupConfig: nil)
+            builder = builder.setInteraction(InteractionConfig(hover: hover, click: click))
+        }
+    }
+
+    // Parse per-module displays config
+    if let displaysStr = moduleYaml["displays"].string {
+        switch displaysStr.lowercased() {
+        case "all":
+            builder = builder.setDisplays(.all)
+        default:
+            builder = builder.setDisplays(.main)
+        }
+    } else if let displaysArray = moduleYaml["displays"].array {
+        let names = displaysArray.compactMap { $0.string }
+        if !names.isEmpty {
+            builder = builder.setDisplays(.named(names))
+        }
+    }
+
+    let factories: [String: ModuleConfigurationFactory] = [
+        "text": TextConfigFactory(),
+        "clock": ClockConfigFactory(),
+        "power": PowerConfigFactory(),
+        "command": CommandConfigFactory(),
+        "reminders": RemindersConfigFactory(),
+        "workspace": WorkspaceConfigFactory(),
+        "volume": VolumeConfigFactory(),
+        "wifi": WiFiConfigFactory(),
+        "bluetooth": BluetoothConfigFactory(),
+        "caffeinate": CaffeinateConfigFactory(),
+        "icon": IconConfigFactory(),
+    ]
+
+    guard let factory = factories[type] else {
+        print("Unsupported module type: \(type)")
+        return nil
+    }
+
+    builder = builder.setConfigFactory(factory)
+
+    do {
+        builder = try builder.buildConfiguration(from: moduleYaml["config"], configDir: configDir)
+        return try builder.build()
+    } catch {
+        print("Failed to build module config: \(error)")
+        return nil
+    }
+}
+
+// MARK: - Config Path Resolution
+
+/// Resolve the config file path using the priority chain:
+/// 1. Explicit path (from --config flag)
+/// 2. config.yaml in CWD
+/// 3. $XDG_CONFIG_HOME/kantan/config.yaml (default ~/.config/kantan/config.yaml)
+func resolveConfigPath(explicit: String?) -> String? {
+    let fm = FileManager.default
+
+    if let explicit = explicit {
+        let url = URL(fileURLWithPath: explicit).standardizedFileURL
+        if fm.fileExists(atPath: url.path) {
+            return url.path
+        }
+        print("Config file not found: \(explicit)")
+        return nil
+    }
+
+    let cwdPath = URL(fileURLWithPath: "config.yaml").standardizedFileURL.path
+    if fm.fileExists(atPath: cwdPath) {
+        return cwdPath
+    }
+
+    let xdgBase: String
+    if let xdg = ProcessInfo.processInfo.environment["XDG_CONFIG_HOME"] {
+        xdgBase = xdg
+    } else {
+        xdgBase = ("~/.config" as NSString).expandingTildeInPath
+    }
+    let xdgPath = URL(fileURLWithPath: xdgBase)
+        .appendingPathComponent("kantan/config.yaml").standardizedFileURL.path
+    if fm.fileExists(atPath: xdgPath) {
+        return xdgPath
+    }
+
+    print("No config file found (tried CWD and \(xdgPath))")
+    return nil
+}
+
+/// Resolve the modules.d directory path.
+/// 1. Explicit path (from --modules-dir flag)
+/// 2. modules.d/ sibling to the resolved config file
+func resolveModulesDir(explicit: String?, configPath: String) -> String {
+    if let explicit = explicit {
+        return URL(fileURLWithPath: explicit).standardizedFileURL.path
+    }
+    let configDir = URL(fileURLWithPath: configPath).deletingLastPathComponent()
+    return configDir.appendingPathComponent("modules.d").standardizedFileURL.path
+}
+
+// MARK: - modules.d Loading
+
+/// Load individual module YAML files from a directory.
+/// Files are sorted alphabetically (numeric prefix controls order).
+/// Non-existent directory is silently ignored.
+func loadModulesFromDirectory(path: String) -> [ModuleConfig] {
+    let fm = FileManager.default
+    guard fm.fileExists(atPath: path) else { return [] }
+
+    guard let entries = try? fm.contentsOfDirectory(atPath: path) else {
+        print("Failed to read modules directory: \(path)")
+        return []
+    }
+
+    let yamlFiles = entries
+        .filter { $0.hasSuffix(".yaml") || $0.hasSuffix(".yml") }
+        .sorted()
+
+    var modules: [ModuleConfig] = []
+    for filename in yamlFiles {
+        let filePath = URL(fileURLWithPath: path)
+            .appendingPathComponent(filename).path
+        guard let fileData = loadFileContents(filePath: filePath) else {
+            print("modules.d: failed to read \(filename)")
+            continue
+        }
+        do {
+            let yaml = try Yaml.load(fileData)
+            if let module = parseModuleConfig(from: yaml, configDir: path) {
+                modules.append(module)
+            } else {
+                print("modules.d: failed to parse module from \(filename)")
+            }
+        } catch {
+            print("modules.d: YAML error in \(filename) — \(error)")
+        }
+    }
+    return modules
+}
+
+/// Merge modules.d modules into the base config modules list with correct
+/// visual ordering. Config.yaml modules occupy the screen edges; modules.d
+/// modules are placed inward (toward center), ordered by filename prefix.
+///
+/// Right-aligned: modules.d entries are prepended so they appear to the
+/// LEFT of config.yaml right modules (closer to center) after the
+/// right-group reversal in the positioning pass.
+///
+/// Left-aligned: modules.d entries are appended so they appear to the
+/// RIGHT of config.yaml left modules (closer to center).
+func mergeModules(base: [ModuleConfig], extra: [ModuleConfig]) -> [ModuleConfig] {
+    let extraRight = extra.filter { $0.alignment == "right" }
+    let extraLeft = extra.filter { $0.alignment != "right" }
+    let baseRight = base.filter { $0.alignment == "right" }
+    let baseLeft = base.filter { $0.alignment != "right" }
+    // modules.d numbering follows the same convention as config.yaml line
+    // order: lower number = earlier in visual flow (left to right).
+    // Right-aligned modules.d entries are prepended so they appear to the
+    // left of config.yaml right modules (closer to center).
+    return baseLeft + extraLeft + extraRight + baseRight
 }
 
 // Convenience function to load data from a file

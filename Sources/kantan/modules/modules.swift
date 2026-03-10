@@ -117,7 +117,7 @@ struct MaskConfig: Codable {
 }
 
 protocol ModuleConfigurationFactory {
-    func configuration(from yaml: Yaml) throws -> ModuleConfiguration
+    func configuration(from yaml: Yaml, configDir: String?) throws -> ModuleConfiguration
     func defaultConfiguration() -> ModuleConfiguration?
 }
 
@@ -214,12 +214,12 @@ struct ModuleConfigBuilder {
         return self
     }
 
-    mutating func buildConfiguration(from yaml: Yaml?) throws -> ModuleConfigBuilder {
+    mutating func buildConfiguration(from yaml: Yaml?, configDir: String? = nil) throws -> ModuleConfigBuilder {
         guard let factory = self.configFactory else {
             throw BuilderError.missingConfigurationFactory
         }
         if let yaml = yaml {
-            self.config = try factory.configuration(from: yaml)
+            self.config = try factory.configuration(from: yaml, configDir: configDir)
         } else {
             self.config = factory.defaultConfiguration()
         }
@@ -305,7 +305,7 @@ struct ModuleConfig: Codable {
         ]
 
         if let configYaml = configYaml, let factory = factories[type] {
-            config = try factory.configuration(from: configYaml)
+            config = try factory.configuration(from: configYaml, configDir: nil)
         } else {
             config = nil
         }

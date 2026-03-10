@@ -2,7 +2,7 @@ import Foundation
 import Yaml
 
 struct TextConfigFactory: ModuleConfigurationFactory {
-    func configuration(from yaml: Yaml) throws -> ModuleConfiguration {
+    func configuration(from yaml: Yaml, configDir: String?) throws -> ModuleConfiguration {
         guard let _ = yaml["value"].string else {
             throw DecodingError.dataCorrupted(DecodingError.Context(codingPath: [], debugDescription: "Unable to decode TextConfig from Yaml"))
         }

@@ -4,7 +4,7 @@ import Foundation
 import Yaml
 
 struct VolumeConfigFactory: ModuleConfigurationFactory {
-    func configuration(from yaml: Yaml) throws -> ModuleConfiguration {
+    func configuration(from yaml: Yaml, configDir: String?) throws -> ModuleConfiguration {
         let showLevel = yaml["showLevel"].bool ?? false
 
         guard let iconsYaml = yaml["icons"].array,
