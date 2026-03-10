@@ -46,14 +46,16 @@ class DisplayInstance {
         self.bar = bar
         self.theme = theme
 
-        let statusBarY = screen.frame.origin.y + screen.frame.height - barHeight
+        let gaps = config.gaps
+        let radius = config.cornerRadius
+        let statusBarY = screen.frame.origin.y + screen.frame.height - barHeight - gaps.top
         let statusWindowLevel = NSWindow.Level(rawValue: Int(CGWindowLevelForKey(.statusWindow)))
 
-        // Background panel — full-width, ignoresMouseEvents
+        // Background panel — inset by gaps, with corner radius
         let bgRect = NSRect(
-            x: screen.frame.origin.x,
+            x: screen.frame.origin.x + gaps.left,
             y: statusBarY,
-            width: screen.frame.width,
+            width: screen.frame.width - gaps.left - gaps.right,
             height: barHeight
         )
 
@@ -70,6 +72,9 @@ class DisplayInstance {
             effectView.material = .headerView
             effectView.state = .active
             effectView.blendingMode = .behindWindow
+            effectView.wantsLayer = true
+            effectView.layer?.cornerRadius = radius
+            effectView.layer?.masksToBounds = true
             effectView.autoresizingMask = [.width, .height]
             bgPanel.contentView = effectView
         } else {
@@ -77,6 +82,8 @@ class DisplayInstance {
             bgView.wantsLayer = true
             let globalStyle = theme.isDarkMode ? config.style.dark! : config.style.light!
             bgView.layer?.backgroundColor = NSColor(hex: globalStyle.bg!).cgColor
+            bgView.layer?.cornerRadius = radius
+            bgView.layer?.masksToBounds = true
             bgView.autoresizingMask = [.width, .height]
             bgPanel.contentView = bgView
 
@@ -89,15 +96,15 @@ class DisplayInstance {
 
         bgPanel.orderFrontRegardless()
 
-        // Module group panels
+        // Module group panels — positioned within gap-adjusted area
         let moduleGroupLevel = NSWindow.Level(rawValue: statusWindowLevel.rawValue + 1)
         let allGroups = bar.leftGroups + bar.rightGroups.reversed()
 
         let nativeItems = MenuBarItemDetector.detectItems(for: screen)
 
         // First pass: determine space occupied by masked modules
-        var leftX = screen.frame.origin.x
-        var rightX = screen.frame.origin.x + screen.frame.width
+        var leftX = screen.frame.origin.x + gaps.left
+        var rightX = screen.frame.origin.x + screen.frame.width - gaps.right
 
         for group in allGroups {
             guard group.modules.count == 1,
@@ -164,13 +171,14 @@ class DisplayInstance {
     /// native menu bar item positions.
     func repositionPanels() {
         guard let screen = resolveScreen() else { return }
-        let statusBarY = screen.frame.origin.y + screen.frame.height - barHeight
+        let gaps = config.gaps
+        let statusBarY = screen.frame.origin.y + screen.frame.height - barHeight - gaps.top
 
-        // Background panel — full width
+        // Background panel — inset by gaps
         let bgFrame = NSRect(
-            x: screen.frame.origin.x,
+            x: screen.frame.origin.x + gaps.left,
             y: statusBarY,
-            width: screen.frame.width,
+            width: screen.frame.width - gaps.left - gaps.right,
             height: barHeight
         )
         bgPanel.setFrame(bgFrame, display: true)
@@ -179,8 +187,8 @@ class DisplayInstance {
         let nativeItems = MenuBarItemDetector.detectItems(for: screen)
 
         // First pass: position masked panels
-        var leftX = screen.frame.origin.x
-        var rightX = screen.frame.origin.x + screen.frame.width
+        var leftX = screen.frame.origin.x + gaps.left
+        var rightX = screen.frame.origin.x + screen.frame.width - gaps.right
 
         for entry in groupPanels {
             guard entry.group.modules.count == 1,

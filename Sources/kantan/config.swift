@@ -34,6 +34,17 @@ enum DisplaysConfig: Sendable {
     case named([String])
 }
 
+// MARK: - Gaps
+
+struct GapsConfig: Sendable {
+    let top: CGFloat
+    let bottom: CGFloat
+    let left: CGFloat
+    let right: CGFloat
+
+    static let `default` = GapsConfig(top: 0, bottom: 0, left: 0, right: 0)
+}
+
 // MARK: - Autohide
 
 struct AutohideConfig: Codable, Sendable {
@@ -53,6 +64,8 @@ struct Config {
     let iconTextSpacing: Int
     let iconFont: FontConfig?
     let textFont: FontConfig?
+    let cornerRadius: CGFloat
+    let gaps: GapsConfig
     let autohide: AutohideConfig
     let displays: DisplaysConfig
     var modules: [ModuleConfig]
@@ -198,6 +211,26 @@ func loadConfig(from yaml: Yaml) -> Config? {
 
     let iconFont = yaml["iconFont"].string.map { FontConfig(descriptor: $0) }
     let textFont = yaml["textFont"].string.map { FontConfig(descriptor: $0) }
+
+    let cornerRadius: CGFloat
+    if let cr = yaml["cornerRadius"].double {
+        cornerRadius = max(0, CGFloat(cr))
+    } else if let cr = yaml["cornerRadius"].int {
+        cornerRadius = max(0, CGFloat(cr))
+    } else {
+        cornerRadius = 0
+    }
+
+    let gaps: GapsConfig
+    if let gapsYaml = yaml["gaps"].dictionary {
+        let top = gapsYaml["top"]?.int.map { max(0, CGFloat($0)) } ?? 0
+        let bottom = gapsYaml["bottom"]?.int.map { max(0, CGFloat($0)) } ?? 0
+        let left = gapsYaml["left"]?.int.map { max(0, CGFloat($0)) } ?? 0
+        let right = gapsYaml["right"]?.int.map { max(0, CGFloat($0)) } ?? 0
+        gaps = GapsConfig(top: top, bottom: bottom, left: left, right: right)
+    } else {
+        gaps = .default
+    }
 
     let appearanceStr = yaml["appearance"].string ?? "theme"
     let appearance = AppearanceStyle(rawValue: appearanceStr) ?? .theme
@@ -385,6 +418,8 @@ func loadConfig(from yaml: Yaml) -> Config? {
         iconTextSpacing: iconTextSpacing,
         iconFont: iconFont,
         textFont: textFont,
+        cornerRadius: cornerRadius,
+        gaps: gaps,
         autohide: autohide,
         displays: displays,
         modules: modules
