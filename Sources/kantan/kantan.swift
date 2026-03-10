@@ -428,13 +428,19 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     nonisolated(unsafe) var menuBarMonitor: Any?
     nonisolated(unsafe) var repositionTimer: Timer?
     var visibilityCancellables: [AnyCancellable] = []
+    var configFilePath: String?
+    nonisolated(unsafe) var configFileSource: DispatchSourceFileSystemObject?
+    nonisolated(unsafe) var reloadDebounceTimer: Timer?
 
     func applicationDidFinishLaunching(_ aNotification: Notification) {
         NSApp.setActivationPolicy(.accessory)
 
+        let configPath = URL(fileURLWithPath: "config.yaml").standardizedFileURL.path
+        self.configFilePath = configPath
+
         var config: Config?
 
-        if let fileData = loadFileContents(filePath: "config.yaml") {
+        if let fileData = loadFileContents(filePath: configPath) {
             do {
                 let yaml = try Yaml.load(fileData)
                 config = loadConfig(from: yaml)
@@ -491,6 +497,8 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         if autohideConfig.enabled {
             startMenuBarMonitoring()
         }
+
+        startWatchingConfig(path: configPath)
     }
 
     // MARK: - Screen Resolution
@@ -592,7 +600,137 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         }
     }
 
+    // MARK: - Config Hot-Reload
+
+    func startWatchingConfig(path: String) {
+        let fd = open(path, O_EVTONLY)
+        guard fd >= 0 else {
+            print("Unable to open config file for watching: \(path)")
+            return
+        }
+
+        let source = DispatchSource.makeFileSystemObjectSource(
+            fileDescriptor: fd,
+            eventMask: [.write, .delete, .rename],
+            queue: .main
+        )
+
+        source.setEventHandler { [weak self] in
+            MainActor.assumeIsolated {
+                guard let self = self else { return }
+                let flags = source.data
+                if flags.contains(.delete) || flags.contains(.rename) {
+                    // Editor did atomic save (write to tmp + rename).
+                    // Close old fd, wait briefly, re-open at same path.
+                    source.cancel()
+                    self.configFileSource = nil
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                        MainActor.assumeIsolated {
+                            guard let path = self.configFilePath else { return }
+                            self.startWatchingConfig(path: path)
+                            self.scheduleReload()
+                        }
+                    }
+                } else {
+                    self.scheduleReload()
+                }
+            }
+        }
+
+        source.setCancelHandler {
+            close(fd)
+        }
+
+        self.configFileSource = source
+        source.resume()
+    }
+
+    private func scheduleReload() {
+        reloadDebounceTimer?.invalidate()
+        reloadDebounceTimer = Timer.scheduledTimer(withTimeInterval: 0.2, repeats: false) { [weak self] _ in
+            MainActor.assumeIsolated {
+                self?.reloadConfig()
+            }
+        }
+    }
+
+    func reloadConfig() {
+        guard let path = configFilePath else { return }
+
+        guard let fileData = loadFileContents(filePath: path) else {
+            print("Hot-reload: failed to read config file")
+            return
+        }
+
+        let newConfig: Config?
+        do {
+            let yaml = try Yaml.load(fileData)
+            newConfig = loadConfig(from: yaml)
+        } catch {
+            print("Hot-reload: failed to parse config — \(error)")
+            return
+        }
+
+        guard let newConfig = newConfig else {
+            print("Hot-reload: invalid config, keeping current bar")
+            return
+        }
+
+        print("Hot-reload: config changed, rebuilding bar")
+
+        // Tear down current state
+        stopMenuBarMonitoring()
+        repositionTimer?.invalidate()
+        repositionTimer = nil
+        visibilityCancellables.removeAll()
+        for instance in displayInstances {
+            instance.teardown()
+        }
+        displayInstances.removeAll()
+        barViewModel = nil
+        themeProvider = nil
+
+        // Rebuild with new config
+        self.config = newConfig
+        barHeight = CGFloat(newConfig.height)
+        autohideConfig = newConfig.autohide
+
+        let theme = ThemeProvider(config: newConfig)
+        let bar = BarViewModel(config: newConfig)
+        bar.popupManager.themeProvider = theme
+        bar.popupManager.appearance = newConfig.appearance
+
+        self.barViewModel = bar
+        self.themeProvider = theme
+
+        let targetScreens = resolveTargetScreens(newConfig.displays)
+        for screen in targetScreens {
+            let instance = DisplayInstance(screenName: screen.localizedName, barHeight: barHeight, config: newConfig)
+            instance.createPanels(for: screen, bar: bar, theme: theme)
+            displayInstances.append(instance)
+        }
+
+        for vm in bar.allModules {
+            vm.$shouldDisplay
+                .removeDuplicates()
+                .debounce(for: .milliseconds(50), scheduler: RunLoop.main)
+                .sink { [weak self] _ in
+                    self?.repositionAllDisplays()
+                }
+                .store(in: &visibilityCancellables)
+        }
+
+        restartRepositionTimer()
+
+        if autohideConfig.enabled {
+            startMenuBarMonitoring()
+        }
+    }
+
     func applicationWillTerminate(_ aNotification: Notification) {
+        configFileSource?.cancel()
+        configFileSource = nil
+        reloadDebounceTimer?.invalidate()
         stopMenuBarMonitoring()
         repositionTimer?.invalidate()
         visibilityCancellables.removeAll()
