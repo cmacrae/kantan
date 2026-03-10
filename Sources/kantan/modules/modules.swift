@@ -1,6 +1,15 @@
 import Foundation
 import Yaml
 
+/// Dynamic style overrides returned by modules (e.g. command JSON output).
+/// Takes priority over static YAML style config when present.
+struct DynamicStyleOverride: Sendable {
+    let fg: String?       // sets both icon + text foreground
+    let bg: String?       // background color
+    let iconFg: String?   // icon-specific foreground (overrides fg)
+    let textFg: String?   // text-specific foreground (overrides fg)
+}
+
 protocol ModuleConfiguration: Codable, Sendable {
     var type: String { get }
     var redrawInterval: TimeInterval { get }
@@ -11,6 +20,7 @@ protocol ModuleConfiguration: Codable, Sendable {
     func shouldDisplay() -> Bool
     func handleToggle()
     func getMenuDescriptors() -> [MenuItemDescriptor]?
+    func getDynamicStyle() -> DynamicStyleOverride?
 }
 
 extension ModuleConfiguration {
@@ -25,6 +35,7 @@ extension ModuleConfiguration {
     }
     func handleToggle() {}
     func getMenuDescriptors() -> [MenuItemDescriptor]? { return nil }
+    func getDynamicStyle() -> DynamicStyleOverride? { return nil }
 }
 
 // MARK: - Event-Driven Module
@@ -62,12 +73,32 @@ struct ClickConfig: Codable {
     let type: String  // "popup", "menu", "dynamic-menu", "toggle", "passthrough"
     let popup: String?  // built-in popup name
     let items: [MenuItemConfig]?
+    let popupConfig: PopupConfig?
+}
+
+struct PopupConfig: Codable, Sendable {
+    let title: String?
+    let width: Int?
+    let rows: [PopupRowConfig]
+}
+
+struct PopupRowConfig: Codable, Sendable {
+    let type: String        // "header", "text", "separator", "action"
+    let content: String?    // for header type
+    let icon: String?       // icon glyph
+    let label: String?      // left text
+    let value: String?      // right text (template)
+    let command: String?    // for action rows
+    let style: String?      // "secondary" for dimmed
 }
 
 struct MenuItemConfig: Codable {
     let label: String?
     let command: String?
     let separator: Bool?
+    let icon: String?
+    let header: String?
+    let dynamic: Bool?
 }
 
 struct MaskConfig: Codable {

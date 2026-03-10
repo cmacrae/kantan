@@ -105,7 +105,16 @@ struct ModuleContainerView: View {
 
         switch click.type {
         case "menu":
-            if let descriptors = viewModel.moduleConfig.config?.getMenuDescriptors(), !descriptors.isEmpty {
+            if click.items != nil {
+                // YAML items defined — build from config (dynamic: true entries
+                // splice in getMenuDescriptors() at their position).
+                showDynamicMenu(
+                    builder: { self.descriptorsFromClickConfig(click) },
+                    moduleName: viewModel.id,
+                    anchorPoint: anchorPoint
+                )
+            } else if let descriptors = viewModel.moduleConfig.config?.getMenuDescriptors(), !descriptors.isEmpty {
+                // No YAML items — module provides its own full menu (e.g. wifi, bluetooth).
                 showDynamicMenu(
                     builder: { self.viewModel.moduleConfig.config?.getMenuDescriptors() ?? [] },
                     moduleName: viewModel.id,
@@ -121,8 +130,22 @@ struct ModuleContainerView: View {
             viewModel.moduleConfig.config?.handleToggle()
             viewModel.update()
         case "popup":
-            guard let popupName = click.popup else { return }
-            popupManager.togglePopup(name: popupName, moduleName: viewModel.id, anchorPoint: anchorPoint)
+            if let popupConfig = click.popupConfig {
+                let fg = Color(nsColor: popupManager.effectiveFgColor)
+                let bg = Color(nsColor: popupManager.effectiveBgColor)
+                let iconFont = themeProvider.iconFont(for: viewModel)
+                popupManager.showUserPopup(
+                    config: popupConfig,
+                    moduleName: viewModel.id,
+                    anchorPoint: anchorPoint,
+                    templateResolver: { self.resolveTemplate($0) },
+                    fgColor: fg,
+                    bgColor: bg,
+                    iconFont: iconFont
+                )
+            } else if let popupName = click.popup {
+                popupManager.togglePopup(name: popupName, moduleName: viewModel.id, anchorPoint: anchorPoint)
+            }
         case "toggle":
             viewModel.moduleConfig.config?.handleToggle()
             viewModel.update()
@@ -158,15 +181,31 @@ struct ModuleContainerView: View {
     }
 
     /// Convert a ClickConfig's static menu items into MenuItemDescriptors.
+    /// Supports icon glyphs, headers, and `dynamic: true` placeholders that
+    /// expand to the module's getMenuDescriptors() output.
     private func descriptorsFromClickConfig(_ config: ClickConfig) -> [MenuItemDescriptor] {
         guard let items = config.items else { return [] }
-        return items.map { item in
+        var result: [MenuItemDescriptor] = []
+        for item in items {
             if item.separator == true {
-                return .separator()
+                result.append(.separator())
+                continue
             }
-            guard let label = item.label else { return .separator() }
+            if let header = item.header {
+                result.append(.header(resolveTemplate(header)))
+                continue
+            }
+            if item.dynamic == true {
+                if let dynamicDescriptors = viewModel.moduleConfig.config?.getMenuDescriptors() {
+                    result.append(contentsOf: dynamicDescriptors)
+                }
+                continue
+            }
+            guard let label = item.label else { continue }
+            let resolved = resolveTemplate(label)
             let command = item.command
-            return .item(label) {
+            let iconGlyph = item.icon
+            result.append(.item(resolved, iconGlyph: iconGlyph) {
                 guard let command = command, !command.isEmpty else { return }
                 DispatchQueue.global(qos: .userInitiated).async {
                     let process = Process()
@@ -176,8 +215,9 @@ struct ModuleContainerView: View {
                     process.standardError = Pipe()
                     try? process.run()
                 }
-            }
+            })
         }
+        return result
     }
 }
 

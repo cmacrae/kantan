@@ -9,6 +9,7 @@ import SwiftUI
 struct MenuItemDescriptor {
     let label: String?
     let icon: NSView?
+    let iconGlyph: String?
     let isSeparator: Bool
     let isHeader: Bool
     let isToggle: Bool
@@ -21,29 +22,33 @@ struct MenuItemDescriptor {
     let toggleAction: ((@escaping () -> Void) -> Void)?
 
     static func item(_ label: String, action: @escaping () -> Void) -> MenuItemDescriptor {
-        MenuItemDescriptor(label: label, icon: nil, isSeparator: false, isHeader: false, isToggle: false, isToggleOn: false, isCheck: false, isChecked: false, action: action, toggleAction: nil)
+        MenuItemDescriptor(label: label, icon: nil, iconGlyph: nil, isSeparator: false, isHeader: false, isToggle: false, isToggleOn: false, isCheck: false, isChecked: false, action: action, toggleAction: nil)
     }
 
     static func item(_ label: String, icon: NSView, action: @escaping () -> Void) -> MenuItemDescriptor {
-        MenuItemDescriptor(label: label, icon: icon, isSeparator: false, isHeader: false, isToggle: false, isToggleOn: false, isCheck: false, isChecked: false, action: action, toggleAction: nil)
+        MenuItemDescriptor(label: label, icon: icon, iconGlyph: nil, isSeparator: false, isHeader: false, isToggle: false, isToggleOn: false, isCheck: false, isChecked: false, action: action, toggleAction: nil)
+    }
+
+    static func item(_ label: String, iconGlyph: String?, action: @escaping () -> Void) -> MenuItemDescriptor {
+        MenuItemDescriptor(label: label, icon: nil, iconGlyph: iconGlyph, isSeparator: false, isHeader: false, isToggle: false, isToggleOn: false, isCheck: false, isChecked: false, action: action, toggleAction: nil)
     }
 
     static func header(_ label: String) -> MenuItemDescriptor {
-        MenuItemDescriptor(label: label, icon: nil, isSeparator: false, isHeader: true, isToggle: false, isToggleOn: false, isCheck: false, isChecked: false, action: nil, toggleAction: nil)
+        MenuItemDescriptor(label: label, icon: nil, iconGlyph: nil, isSeparator: false, isHeader: true, isToggle: false, isToggleOn: false, isCheck: false, isChecked: false, action: nil, toggleAction: nil)
     }
 
     static func separator() -> MenuItemDescriptor {
-        MenuItemDescriptor(label: nil, icon: nil, isSeparator: true, isHeader: false, isToggle: false, isToggleOn: false, isCheck: false, isChecked: false, action: nil, toggleAction: nil)
+        MenuItemDescriptor(label: nil, icon: nil, iconGlyph: nil, isSeparator: true, isHeader: false, isToggle: false, isToggleOn: false, isCheck: false, isChecked: false, action: nil, toggleAction: nil)
     }
 
     static func toggle(_ label: String, isOn: Bool, action: @escaping (@escaping () -> Void) -> Void) -> MenuItemDescriptor {
-        MenuItemDescriptor(label: label, icon: nil, isSeparator: false, isHeader: false, isToggle: true, isToggleOn: isOn, isCheck: false, isChecked: false, action: nil, toggleAction: action)
+        MenuItemDescriptor(label: label, icon: nil, iconGlyph: nil, isSeparator: false, isHeader: false, isToggle: true, isToggleOn: isOn, isCheck: false, isChecked: false, action: nil, toggleAction: action)
     }
 
     /// A checkable item with a circle/checkmark indicator (like Reminders.app).
     /// The action takes a completion callback for menu rebuilding.
     static func check(_ label: String, isChecked: Bool, action: @escaping (@escaping () -> Void) -> Void) -> MenuItemDescriptor {
-        MenuItemDescriptor(label: label, icon: nil, isSeparator: false, isHeader: false, isToggle: false, isToggleOn: false, isCheck: true, isChecked: isChecked, action: nil, toggleAction: action)
+        MenuItemDescriptor(label: label, icon: nil, iconGlyph: nil, isSeparator: false, isHeader: false, isToggle: false, isToggleOn: false, isCheck: true, isChecked: isChecked, action: nil, toggleAction: action)
     }
 }
 
@@ -456,6 +461,188 @@ class PopupManager {
 
     private func createSwiftUIPopup(name: String, fgColor: Color, bgColor: Color) -> AnyView? {
         return nil
+    }
+
+    // MARK: - User-Defined Popup
+
+    func showUserPopup(config: PopupConfig, moduleName: String, anchorPoint: NSPoint,
+                       templateResolver: @escaping (String) -> String,
+                       fgColor: Color, bgColor: Color, iconFont: Font?) {
+        let popupId = "\(moduleName):user-popup"
+
+        if popupId == activePopupId, activePanel != nil {
+            dismissPopup()
+            return
+        }
+
+        dismissPopup()
+
+        let popupView = UserPopupView(
+            config: config,
+            templateResolver: templateResolver,
+            fgColor: fgColor,
+            bgColor: bgColor,
+            iconFont: iconFont,
+            dismissHandler: { [weak self] in self?.dismissPopup() }
+        )
+
+        let hostingView = NSHostingView(rootView: popupView)
+        let fittingSize = hostingView.fittingSize
+        let panelWidth = max(fittingSize.width, CGFloat(config.width ?? 240))
+        let panelHeight = max(fittingSize.height, 40)
+
+        var panelRect = NSRect(
+            x: anchorPoint.x - panelWidth / 2,
+            y: anchorPoint.y - panelHeight - 4,
+            width: panelWidth,
+            height: panelHeight
+        )
+        panelRect = clampToScreen(panelRect)
+
+        let panel = makePopupPanel(rect: panelRect)
+
+        let container = makePopupContainer(size: panelRect.size)
+        hostingView.frame = container.bounds
+        hostingView.autoresizingMask = [.width, .height]
+        container.addSubview(hostingView)
+
+        panel.contentView = container
+        panel.makeKeyAndOrderFront(nil)
+
+        activePanel = panel
+        activePopupId = popupId
+    }
+}
+
+// MARK: - User-Defined Popup View
+
+struct UserPopupView: View {
+    let config: PopupConfig
+    let templateResolver: (String) -> String
+    let fgColor: Color
+    let bgColor: Color
+    let iconFont: Font?
+    let dismissHandler: () -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            if let title = config.title {
+                Text(templateResolver(title))
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundStyle(fgColor)
+                    .padding(.horizontal, 16)
+                    .frame(height: 32, alignment: .leading)
+                Divider()
+                    .background(fgColor.opacity(0.15))
+                    .padding(.horizontal, 8)
+            }
+
+            ForEach(Array(config.rows.enumerated()), id: \.offset) { _, row in
+                popupRow(row)
+            }
+        }
+        .padding(.vertical, 8)
+        .frame(minWidth: CGFloat(config.width ?? 240))
+    }
+
+    @ViewBuilder
+    private func popupRow(_ row: PopupRowConfig) -> some View {
+        switch row.type {
+        case "header":
+            Text(templateResolver(row.content ?? row.label ?? ""))
+                .font(.system(size: 11, weight: .medium))
+                .foregroundStyle(fgColor.opacity(0.5))
+                .padding(.horizontal, 16)
+                .frame(height: 22, alignment: .leading)
+
+        case "text":
+            HStack(spacing: 8) {
+                if let icon = row.icon {
+                    Text(templateResolver(icon))
+                        .font(iconFont ?? .system(size: 13))
+                        .foregroundStyle(rowFgColor(row))
+                }
+                if let label = row.label {
+                    Text(templateResolver(label))
+                        .font(.system(size: 13))
+                        .foregroundStyle(rowFgColor(row))
+                }
+                Spacer()
+                if let value = row.value {
+                    Text(templateResolver(value))
+                        .font(.system(size: 13))
+                        .foregroundStyle(rowFgColor(row))
+                }
+            }
+            .padding(.horizontal, 16)
+            .frame(height: 28)
+
+        case "separator":
+            Divider()
+                .background(fgColor.opacity(0.15))
+                .padding(.horizontal, 8)
+                .padding(.vertical, 4)
+
+        case "action":
+            PopupActionRow(
+                label: templateResolver(row.label ?? ""),
+                icon: row.icon.map { templateResolver($0) },
+                iconFont: iconFont,
+                fgColor: fgColor,
+                command: row.command,
+                dismissHandler: dismissHandler
+            )
+
+        default:
+            EmptyView()
+        }
+    }
+
+    private func rowFgColor(_ row: PopupRowConfig) -> Color {
+        row.style == "secondary" ? fgColor.opacity(0.5) : fgColor
+    }
+}
+
+struct PopupActionRow: View {
+    let label: String
+    let icon: String?
+    let iconFont: Font?
+    let fgColor: Color
+    let command: String?
+    let dismissHandler: () -> Void
+    @State private var isHovered = false
+
+    var body: some View {
+        HStack(spacing: 8) {
+            if let icon = icon {
+                Text(icon)
+                    .font(iconFont ?? .system(size: 13))
+                    .foregroundStyle(fgColor)
+            }
+            Text(label)
+                .font(.system(size: 13))
+                .foregroundStyle(fgColor)
+            Spacer()
+        }
+        .padding(.horizontal, 16)
+        .frame(height: 28)
+        .background(
+            RoundedRectangle(cornerRadius: 4)
+                .fill(isHovered ? fgColor.opacity(0.1) : .clear)
+        )
+        .onHover { hovering in isHovered = hovering }
+        .onTapGesture {
+            dismissHandler()
+            guard let command = command, !command.isEmpty else { return }
+            DispatchQueue.global(qos: .userInitiated).async {
+                let process = Process()
+                process.executableURL = URL(fileURLWithPath: "/bin/sh")
+                process.arguments = ["-c", command]
+                process.standardOutput = Pipe()
+                process.standardError = Pipe()
+                try? process.run()
+            }
+        }
     }
 }
 

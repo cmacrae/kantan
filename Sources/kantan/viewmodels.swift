@@ -17,9 +17,12 @@ class ModuleViewModel: ObservableObject, Identifiable {
     @Published var shouldDisplay: Bool = true
     @Published var templateVariables: [String: String] = [:]
 
-    // CLI trigger overrides
+    // CLI trigger overrides (these take absolute priority)
     @Published var fgOverride: String?
     @Published var bgOverride: String?
+
+    // Dynamic style from module JSON output (lower priority than CLI overrides)
+    @Published var dynamicStyle: DynamicStyleOverride?
 
     nonisolated(unsafe) private var timer: Timer?
     nonisolated(unsafe) private var durationTimer: Timer?
@@ -66,6 +69,7 @@ class ModuleViewModel: ObservableObject, Identifiable {
                 self.isActive = config.isActive()
                 self.shouldDisplay = config.shouldDisplay()
                 self.templateVariables = config.getTemplateVariables()
+                self.dynamicStyle = config.getDynamicStyle()
             }
         }
     }
@@ -112,6 +116,9 @@ class ModuleViewModel: ObservableObject, Identifiable {
     private func startPolling() {
         update()
         let interval = moduleConfig.config?.redrawInterval ?? 1.0
+        // interval == 0 means event-only: initial fetch, then rely on
+        // `kantan trigger <name> refresh` for updates. No repeating timer.
+        guard interval > 0 else { return }
         timer = Timer.scheduledTimer(withTimeInterval: interval, repeats: true) { [weak self] _ in
             MainActor.assumeIsolated {
                 self?.update()
@@ -354,6 +361,11 @@ class ThemeProvider: ObservableObject {
         if let override = vm.fgOverride {
             return Color(nsColor: NSColor(hex: override))
         }
+        // Dynamic style: text.fg -> fg (granular overrides general)
+        if let ds = vm.dynamicStyle {
+            if let fg = ds.textFg { return Color(nsColor: NSColor(hex: fg)) }
+            if let fg = ds.fg { return Color(nsColor: NSColor(hex: fg)) }
+        }
         if isNative { return Color(nsColor: .labelColor) }
 
         let moduleMode = resolveModuleStyleMode(vm.moduleConfig.style)
@@ -370,6 +382,11 @@ class ThemeProvider: ObservableObject {
         if let override = vm.fgOverride {
             return Color(nsColor: NSColor(hex: override))
         }
+        // Dynamic style: icon.fg -> fg (granular overrides general)
+        if let ds = vm.dynamicStyle {
+            if let fg = ds.iconFg { return Color(nsColor: NSColor(hex: fg)) }
+            if let fg = ds.fg { return Color(nsColor: NSColor(hex: fg)) }
+        }
         if isNative { return Color(nsColor: .labelColor) }
 
         let moduleMode = resolveModuleStyleMode(vm.moduleConfig.style)
@@ -385,6 +402,10 @@ class ThemeProvider: ObservableObject {
     func bgColor(for vm: ModuleViewModel) -> Color {
         if let override = vm.bgOverride {
             return Color(nsColor: NSColor(hex: override))
+        }
+        // Dynamic style: bg
+        if let ds = vm.dynamicStyle, let bg = ds.bg, !bg.isEmpty {
+            return Color(nsColor: NSColor(hex: bg))
         }
         if isNative { return .clear }
 

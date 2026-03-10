@@ -307,7 +307,7 @@ func loadConfig(from yaml: Yaml) -> Config? {
         builder = builder.setType(type)
 
         if let icon = moduleYaml["icon"].string {
-            builder = builder.setIcon(icon)
+            builder = builder.setIcon(fixYamlUnicodeEscapes(icon))
         }
 
         if let textFontDescriptor = moduleYaml["textFont"].string {
@@ -332,7 +332,7 @@ func loadConfig(from yaml: Yaml) -> Config? {
 
             if let hoverYaml = interactionYaml["hover"]?.dictionary {
                 let hoverType = hoverYaml["type"]?.string ?? "tooltip"
-                let content = hoverYaml["content"]?.string ?? "{value}"
+                let content = fixYamlUnicodeEscapes(hoverYaml["content"]?.string ?? "{value}")
                 hover = HoverConfig(type: hoverType, content: content)
             }
 
@@ -345,15 +345,45 @@ func loadConfig(from yaml: Yaml) -> Config? {
                     menuItems = itemsYaml.compactMap { itemYaml -> MenuItemConfig? in
                         let isSeparator = itemYaml["separator"].bool ?? false
                         if isSeparator {
-                            return MenuItemConfig(label: nil, command: nil, separator: true)
+                            return MenuItemConfig(label: nil, command: nil, separator: true, icon: nil, header: nil, dynamic: nil)
+                        }
+                        if let header = itemYaml["header"].string {
+                            return MenuItemConfig(label: nil, command: nil, separator: nil, icon: nil, header: fixYamlUnicodeEscapes(header), dynamic: nil)
+                        }
+                        if itemYaml["dynamic"].bool == true {
+                            return MenuItemConfig(label: nil, command: nil, separator: nil, icon: nil, header: nil, dynamic: true)
                         }
                         guard let label = itemYaml["label"].string else { return nil }
                         let command = itemYaml["command"].string
-                        return MenuItemConfig(label: label, command: command, separator: false)
+                        let icon = itemYaml["icon"].string.map(fixYamlUnicodeEscapes)
+                        return MenuItemConfig(label: fixYamlUnicodeEscapes(label), command: command, separator: false, icon: icon, header: nil, dynamic: nil)
                     }
                 }
 
-                click = ClickConfig(type: clickType, popup: popup, items: menuItems)
+                // Parse popup config (object form for user-defined popups)
+                var popupConfig: PopupConfig? = nil
+                if let popupYaml = clickYaml["popup"]?.dictionary {
+                    let title = popupYaml["title"]?.string.map(fixYamlUnicodeEscapes)
+                    let width = popupYaml["width"]?.int
+                    var rows: [PopupRowConfig] = []
+                    if let rowsYaml = popupYaml["rows"]?.array {
+                        rows = rowsYaml.compactMap { rowYaml -> PopupRowConfig? in
+                            guard let rowType = rowYaml["type"].string else { return nil }
+                            return PopupRowConfig(
+                                type: rowType,
+                                content: rowYaml["content"].string.map(fixYamlUnicodeEscapes),
+                                icon: rowYaml["icon"].string.map(fixYamlUnicodeEscapes),
+                                label: rowYaml["label"].string.map(fixYamlUnicodeEscapes),
+                                value: rowYaml["value"].string.map(fixYamlUnicodeEscapes),
+                                command: rowYaml["command"].string,
+                                style: rowYaml["style"].string
+                            )
+                        }
+                    }
+                    popupConfig = PopupConfig(title: title, width: width, rows: rows)
+                }
+
+                click = ClickConfig(type: clickType, popup: popup, items: menuItems, popupConfig: popupConfig)
             }
 
             let interaction = InteractionConfig(hover: hover, click: click)
@@ -374,10 +404,10 @@ func loadConfig(from yaml: Yaml) -> Config? {
                 var hover: HoverConfig? = nil
                 if let hoverYaml = moduleYaml["interaction"]["hover"].dictionary {
                     let hoverType = hoverYaml["type"]?.string ?? "tooltip"
-                    let hoverContent = hoverYaml["content"]?.string ?? "{value}"
+                    let hoverContent = fixYamlUnicodeEscapes(hoverYaml["content"]?.string ?? "{value}")
                     hover = HoverConfig(type: hoverType, content: hoverContent)
                 }
-                let click = ClickConfig(type: "passthrough", popup: nil, items: nil)
+                let click = ClickConfig(type: "passthrough", popup: nil, items: nil, popupConfig: nil)
                 builder = builder.setInteraction(InteractionConfig(hover: hover, click: click))
             }
         }
@@ -451,6 +481,42 @@ func loadConfig(from yaml: Yaml) -> Config? {
 }
 
 // Convenience function to load data from a file
+/// Fix YamlSwift bug: `String(describing: UnicodeScalar(n))` produces
+/// `Optional("\u{XXXX}")` instead of the actual character for `\uXXXX`
+/// escapes in double-quoted YAML strings. This unwraps the Optional
+/// wrapper and converts `\u{XXXX}` escape literals into real characters.
+func fixYamlUnicodeEscapes(_ s: String) -> String {
+    var result = s
+
+    // Step 1: Strip Optional("...") wrappers
+    if result.contains("Optional(\"") {
+        while let range = result.range(of: "Optional(\"") {
+            let afterOpen = range.upperBound
+            guard let closeQuote = result[afterOpen...].firstIndex(of: "\"") else { break }
+            let nextIndex = result.index(after: closeQuote)
+            guard nextIndex < result.endIndex, result[nextIndex] == ")" else { break }
+            let content = String(result[afterOpen..<closeQuote])
+            let fullRange = range.lowerBound..<result.index(after: nextIndex)
+            result.replaceSubrange(fullRange, with: content)
+        }
+    }
+
+    // Step 2: Convert literal \u{XXXX} sequences into actual unicode characters
+    while let range = result.range(of: "\\u{") {
+        guard let closeBrace = result[range.upperBound...].firstIndex(of: "}") else { break }
+        let hexStr = String(result[range.upperBound..<closeBrace])
+        let fullRange = range.lowerBound..<result.index(after: closeBrace)
+        if let codepoint = UInt32(hexStr, radix: 16),
+           let scalar = Unicode.Scalar(codepoint) {
+            result.replaceSubrange(fullRange, with: String(scalar))
+        } else {
+            break
+        }
+    }
+
+    return result
+}
+
 func loadFileContents(filePath: String) -> String? {
     let fileURL = URL(fileURLWithPath: filePath)
     print("Loading file from: \(fileURL.path)")

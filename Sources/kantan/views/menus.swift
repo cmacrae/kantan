@@ -53,6 +53,7 @@ struct SwiftUIThemedMenuView: View {
                     SwiftUIMenuItemView(
                         label: descriptor.label ?? "",
                         icon: descriptor.icon,
+                        iconGlyph: descriptor.iconGlyph,
                         fgColor: fgColor,
                         action: {
                             dismissHandler()
@@ -72,13 +73,19 @@ struct SwiftUIThemedMenuView: View {
 struct SwiftUIMenuItemView: View {
     let label: String
     let icon: NSView?
+    var iconGlyph: String? = nil
     let fgColor: Color
     let action: () -> Void
     @State private var isHovered = false
 
     var body: some View {
         HStack(spacing: 8) {
-            if let icon = icon {
+            if let iconGlyph = iconGlyph, !iconGlyph.isEmpty {
+                Text(iconGlyph)
+                    .font(.system(size: 13))
+                    .foregroundStyle(fgColor)
+                    .frame(width: 16, alignment: .center)
+            } else if let icon = icon {
                 NSViewWrapper(nsView: icon)
                     .frame(width: 10, height: 10)
             }
