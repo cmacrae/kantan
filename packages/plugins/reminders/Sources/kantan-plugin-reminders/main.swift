@@ -90,6 +90,84 @@ func parseDuration(_ string: String) -> TimeInterval? {
   }
 }
 
+// MARK: - JSON View Tree Types
+
+/// A JSON value that can be any type - used to build view trees.
+indirect enum JSONValue: Encodable {
+  case string(String)
+  case int(Int)
+  case double(Double)
+  case bool(Bool)
+  case array([JSONValue])
+  case object([String: JSONValue])
+  case null
+
+  func encode(to encoder: Encoder) throws {
+    var container = encoder.singleValueContainer()
+    switch self {
+    case .string(let s): try container.encode(s)
+    case .int(let i): try container.encode(i)
+    case .double(let d): try container.encode(d)
+    case .bool(let b): try container.encode(b)
+    case .array(let a): try container.encode(a)
+    case .object(let o): try container.encode(o)
+    case .null: try container.encodeNil()
+    }
+  }
+}
+
+// MARK: - View Tree Builders
+
+func vstack(spacing: Double? = nil, children: [JSONValue]) -> JSONValue {
+  var obj: [String: JSONValue] = ["type": .string("vstack"), "children": .array(children)]
+  if let s = spacing { obj["spacing"] = .double(s) }
+  return .object(obj)
+}
+
+func hstack(spacing: Double? = nil, children: [JSONValue]) -> JSONValue {
+  var obj: [String: JSONValue] = ["type": .string("hstack"), "children": .array(children)]
+  if let s = spacing { obj["spacing"] = .double(s) }
+  return .object(obj)
+}
+
+func text(_ content: String, size: Double? = nil, weight: String? = nil, style: String? = nil)
+  -> JSONValue
+{
+  var obj: [String: JSONValue] = ["type": .string("text"), "content": .string(content)]
+  if let s = size { obj["size"] = .double(s) }
+  if let w = weight { obj["weight"] = .string(w) }
+  if let st = style { obj["style"] = .string(st) }
+  return .object(obj)
+}
+
+func divider() -> JSONValue {
+  .object(["type": .string("divider")])
+}
+
+func spacer() -> JSONValue {
+  .object(["type": .string("spacer")])
+}
+
+func action(label: String, icon: String? = nil, command: String? = nil) -> JSONValue {
+  var obj: [String: JSONValue] = ["type": .string("action"), "label": .string(label)]
+  if let i = icon { obj["icon"] = .string(i) }
+  if let c = command { obj["command"] = .string(c) }
+  return .object(obj)
+}
+
+func check(label: String, checked: Bool, command: String) -> JSONValue {
+  .object([
+    "type": .string("check"),
+    "label": .string(label),
+    "checked": .bool(checked),
+    "command": .string(command),
+  ])
+}
+
+func foreach(items: String, child: JSONValue) -> JSONValue {
+  .object(["type": .string("foreach"), "items": .string(items), "child": child])
+}
+
 // MARK: - JSON Output Types
 
 struct PluginOutput: Encodable {
@@ -97,36 +175,8 @@ struct PluginOutput: Encodable {
   let icon: String?
   let hidden: Bool
   let variables: [String: String]
-  let items: [MenuItem]
-}
-
-enum MenuItem: Encodable {
-  case header(String)
-  case separator
-  case item(label: String, icon: String? = nil, command: String? = nil)
-  case check(label: String, checked: Bool, command: String)
-
-  func encode(to encoder: Encoder) throws {
-    var container = encoder.container(keyedBy: CodingKeys.self)
-    switch self {
-    case .header(let text):
-      try container.encode(text, forKey: .header)
-    case .separator:
-      try container.encode(true, forKey: .separator)
-    case .item(let label, let icon, let command):
-      try container.encode(label, forKey: .label)
-      if let icon { try container.encode(icon, forKey: .icon) }
-      if let command { try container.encode(command, forKey: .command) }
-    case .check(let label, let checked, let command):
-      try container.encode(label, forKey: .check)
-      try container.encode(checked, forKey: .checked)
-      try container.encode(command, forKey: .command)
-    }
-  }
-
-  private enum CodingKeys: String, CodingKey {
-    case header, separator, label, icon, command, check, checked
-  }
+  let data: [String: [[String: String]]]
+  let view: JSONValue
 }
 
 // MARK: - Helpers
@@ -394,7 +444,8 @@ func defaultMode() -> Int32 {
   guard !settings.lists.isEmpty else {
     fputs("No lists configured in settings\n", stderr)
     let output = PluginOutput(
-      value: "", icon: nil, hidden: true, variables: [:], items: [])
+      value: "", icon: nil, hidden: true, variables: [:], data: [:],
+      view: vstack(children: []))
     printJSON(output)
     return 0
   }
@@ -402,7 +453,8 @@ func defaultMode() -> Int32 {
   let store = EKEventStore()
   guard ensureAccess(store: store) else {
     let output = PluginOutput(
-      value: "", icon: nil, hidden: true, variables: [:], items: [])
+      value: "", icon: nil, hidden: true, variables: [:], data: [:],
+      view: vstack(children: []))
     printJSON(output)
     return 0
   }
@@ -435,39 +487,59 @@ func defaultMode() -> Int32 {
     return formatter.localizedString(for: date, relativeTo: Date())
   }()
 
-  // Build menu items
-  var items: [MenuItem] = []
+  // Build data collections and view tree
   let allItems = incomplete + completed
   let hasMultiple = allItems.count > 1
   let modName = moduleName()
 
+  var dataCollections: [String: [[String: String]]] = [:]
+  var viewChildren: [JSONValue] = []
+
   if hasMultiple {
-    for reminder in incomplete {
+    // Build data collections for foreach iteration
+    dataCollections["incomplete"] = incomplete.map { reminder in
       let chars = listConfig(for: reminder, configs: settings.lists)?.maxChars ?? 30
       let label = truncate(reminder.title ?? "Untitled", maxChars: chars)
       let id = reminder.calendarItemIdentifier
       let cmd =
         "kantan-plugin-reminders --complete \(shellQuote(id)) && kantan trigger \(shellQuote(modName)) refresh"
-      items.append(.check(label: label, checked: false, command: cmd))
+      return ["title": label, "complete_cmd": cmd]
     }
-    for reminder in completed {
+
+    dataCollections["completed"] = completed.map { reminder in
       let chars = listConfig(for: reminder, configs: settings.lists)?.maxChars ?? 30
       let label = truncate(reminder.title ?? "Untitled", maxChars: chars)
       let id = reminder.calendarItemIdentifier
       let cmd =
         "kantan-plugin-reminders --uncomplete \(shellQuote(id)) && kantan trigger \(shellQuote(modName)) refresh"
-      items.append(.check(label: label, checked: true, command: cmd))
+      return ["title": label, "uncomplete_cmd": cmd]
     }
+
+    // Build view tree with foreach nodes
+    viewChildren.append(
+      foreach(
+        items: "incomplete",
+        child: check(label: "{title}", checked: false, command: "{complete_cmd}")))
+    viewChildren.append(
+      foreach(
+        items: "completed",
+        child: check(label: "{title}", checked: true, command: "{uncomplete_cmd}")))
   } else if hasReminders {
+    // Single incomplete reminder — show a "Complete" action
     if let id = displayedReminder?.calendarItemIdentifier {
       let cmd =
         "kantan-plugin-reminders --complete \(shellQuote(id)) && kantan trigger \(shellQuote(modName)) refresh"
-      items.append(.item(label: "Complete", command: cmd))
+      viewChildren.append(action(label: "Complete", command: cmd))
     }
+  } else {
+    // No reminders at all
+    viewChildren.append(text("No reminders", style: "secondary"))
   }
 
-  items.append(.separator)
-  items.append(.item(label: "Open Reminders...", icon: nil, command: "open x-apple-reminderkit://"))
+  viewChildren.append(divider())
+  viewChildren.append(action(label: "Open Reminders...", command: "open x-apple-reminderkit://"))
+
+  let view = vstack(spacing: 4, children: viewChildren)
 
   // Template variables
   var variables: [String: String] = [
@@ -492,7 +564,8 @@ func defaultMode() -> Int32 {
     icon: icon,
     hidden: !hasReminders,
     variables: variables,
-    items: items
+    data: dataCollections,
+    view: view
   )
 
   printJSON(output)

@@ -13,6 +13,8 @@ class ModuleViewModel: ObservableObject, Identifiable {
   @Published var isActive: Bool = true
   @Published var shouldDisplay: Bool = true
   @Published var templateVariables: [String: String] = [:]
+  @Published var viewTree: ViewNode?
+  @Published var data: [String: [[String: String]]] = [:]
 
   @Published var fgOverride: String?
   @Published var bgOverride: String?
@@ -75,6 +77,10 @@ class ModuleViewModel: ObservableObject, Identifiable {
         self.shouldDisplay = config.shouldDisplay()
         self.templateVariables = config.getTemplateVariables()
         self.dynamicStyle = config.getDynamicStyle()
+        self.viewTree = config.getViewTree()
+        if let cmdConfig = config as? CommandConfig {
+          self.data = cmdConfig.getData()
+        }
       }
     }
   }

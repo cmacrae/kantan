@@ -11,7 +11,8 @@ private let commandDataLock = NSLock()
 struct CommandOutputData {
   var templateVars: [String: String] = [:]
   var dynamicIcon: String = ""
-  var dynamicItems: [[String: Any]] = []
+  var viewTree: ViewNode? = nil
+  var data: [String: [[String: String]]] = [:]
   var hidden: Bool? = nil
   var active: Bool? = nil
   var styleFg: String? = nil
@@ -231,36 +232,14 @@ struct CommandConfig: ModuleConfiguration {
     )
   }
 
-  func getMenuDescriptors() -> [MenuItemDescriptor]? {
+  func getViewTree() -> ViewNode? {
     guard outputMode == "json" else { return nil }
-    let data = getCommandData(for: command)
-    guard !data.dynamicItems.isEmpty else { return nil }
+    return getCommandData(for: command).viewTree
+  }
 
-    return data.dynamicItems.compactMap { item -> MenuItemDescriptor? in
-      if item["separator"] as? Bool == true {
-        return .separator()
-      }
-      if let header = item["header"] as? String {
-        return .header(header)
-      }
-      if let checkLabel = item["check"] as? String {
-        let isChecked = item["checked"] as? Bool ?? false
-        let command = item["command"] as? String
-        return .check(checkLabel, isChecked: isChecked) { completion in
-          if let command = command, !command.isEmpty {
-            runShellCommand(command)
-          }
-          completion()
-        }
-      }
-      guard let label = item["label"] as? String else { return nil }
-      let iconGlyph = item["icon"] as? String
-      let command = item["command"] as? String
-      return .item(label, iconGlyph: iconGlyph) {
-        guard let command = command, !command.isEmpty else { return }
-        runShellCommand(command)
-      }
-    }
+  func getData() -> [String: [[String: String]]] {
+    guard outputMode == "json" else { return [:] }
+    return getCommandData(for: command).data
   }
 
   // MARK: - JSON Parsing
@@ -291,9 +270,28 @@ struct CommandConfig: ModuleConfiguration {
       data.templateVars = vars
     }
 
-    // Extract dynamic menu items
-    if let items = json["items"] as? [[String: Any]] {
-      data.dynamicItems = items
+    // Extract view tree (DSL)
+    if let viewObj = json["view"] {
+      if let viewData = try? JSONSerialization.data(withJSONObject: viewObj),
+        let viewNode = try? JSONDecoder().decode(ViewNode.self, from: viewData)
+      {
+        data.viewTree = viewNode
+      }
+    }
+
+    // Extract data collections for foreach iteration
+    if let dataObj = json["data"] as? [String: [[String: Any]]] {
+      var result: [String: [[String: String]]] = [:]
+      for (key, array) in dataObj {
+        result[key] = array.map { dict in
+          var stringDict: [String: String] = [:]
+          for (k, v) in dict {
+            stringDict[k] = "\(v)"
+          }
+          return stringDict
+        }
+      }
+      data.data = result
     }
 
     // Extract visibility and active state

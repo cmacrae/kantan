@@ -101,12 +101,113 @@ func loadSettings() -> Settings {
 
 // MARK: - JSON Output Types
 
+/// A JSON value that can be any type - used to build view trees.
+indirect enum JSONValue: Encodable {
+  case string(String)
+  case int(Int)
+  case double(Double)
+  case bool(Bool)
+  case array([JSONValue])
+  case object([String: JSONValue])
+  case null
+
+  func encode(to encoder: Encoder) throws {
+    var container = encoder.singleValueContainer()
+    switch self {
+    case .string(let s): try container.encode(s)
+    case .int(let i): try container.encode(i)
+    case .double(let d): try container.encode(d)
+    case .bool(let b): try container.encode(b)
+    case .array(let a): try container.encode(a)
+    case .object(let o): try container.encode(o)
+    case .null: try container.encodeNil()
+    }
+  }
+}
+
+// MARK: - View Tree Builders
+
+func vstack(
+  spacing: Double? = nil, padding: JSONValue? = nil, frame: JSONValue? = nil,
+  children: [JSONValue]
+) -> JSONValue {
+  var obj: [String: JSONValue] = ["type": .string("vstack"), "children": .array(children)]
+  if let s = spacing { obj["spacing"] = .double(s) }
+  if let p = padding { obj["padding"] = p }
+  if let f = frame { obj["frame"] = f }
+  return .object(obj)
+}
+
+func hstack(spacing: Double? = nil, children: [JSONValue]) -> JSONValue {
+  var obj: [String: JSONValue] = ["type": .string("hstack"), "children": .array(children)]
+  if let s = spacing { obj["spacing"] = .double(s) }
+  return .object(obj)
+}
+
+func text(
+  _ content: String, size: Double? = nil, weight: String? = nil, style: String? = nil,
+  color: String? = nil
+) -> JSONValue {
+  var obj: [String: JSONValue] = ["type": .string("text"), "content": .string(content)]
+  if let s = size { obj["size"] = .double(s) }
+  if let w = weight { obj["weight"] = .string(w) }
+  if let st = style { obj["style"] = .string(st) }
+  if let c = color { obj["color"] = .string(c) }
+  return .object(obj)
+}
+
+func header(_ content: String) -> JSONValue {
+  .object(["type": .string("header"), "content": .string(content)])
+}
+
+func divider() -> JSONValue {
+  .object(["type": .string("divider")])
+}
+
+func spacer() -> JSONValue {
+  .object(["type": .string("spacer")])
+}
+
+func icon(_ name: String, size: Double? = nil, color: String? = nil) -> JSONValue {
+  var obj: [String: JSONValue] = ["type": .string("icon"), "name": .string(name)]
+  if let s = size { obj["size"] = .double(s) }
+  if let c = color { obj["color"] = .string(c) }
+  return .object(obj)
+}
+
+func action(label: String, icon iconName: String? = nil, command: String? = nil) -> JSONValue {
+  var obj: [String: JSONValue] = ["type": .string("action"), "label": .string(label)]
+  if let i = iconName { obj["icon"] = .string(i) }
+  if let c = command { obj["command"] = .string(c) }
+  return .object(obj)
+}
+
+func progress(value: String, color: String? = nil, style: String? = nil) -> JSONValue {
+  var obj: [String: JSONValue] = ["type": .string("progress"), "value": .string(value)]
+  if let c = color { obj["color"] = .string(c) }
+  if let s = style { obj["style"] = .string(s) }
+  return .object(obj)
+}
+
+func foreach(items: String, child: JSONValue) -> JSONValue {
+  .object(["type": .string("foreach"), "items": .string(items), "child": child])
+}
+
+func group(children: [JSONValue]) -> JSONValue {
+  .object(["type": .string("group"), "children": .array(children)])
+}
+
+func conditional(variable: String, then thenNode: JSONValue) -> JSONValue {
+  .object(["type": .string("if"), "condition": .string(variable), "then": thenNode])
+}
+
 /// Top-level plugin output matching kantan's command module JSON protocol.
 struct PluginOutput: Encodable {
   let value: String
   let style: Style?
   let variables: [String: String]
-  let items: [MenuItem]
+  let data: [String: [[String: String]]]
+  let view: JSONValue
 
   struct Style: Encodable {
     var fg: String?
@@ -116,32 +217,6 @@ struct PluginOutput: Encodable {
 
   struct ElementStyle: Encodable {
     let fg: String
-  }
-}
-
-/// A menu item in the plugin output. Uses custom encoding to produce
-/// the correct shape for each variant (header, separator, labeled item).
-enum MenuItem: Encodable {
-  case header(String)
-  case separator
-  case item(label: String, icon: String, command: String? = nil)
-
-  func encode(to encoder: Encoder) throws {
-    var container = encoder.container(keyedBy: CodingKeys.self)
-    switch self {
-    case .header(let text):
-      try container.encode(text, forKey: .header)
-    case .separator:
-      try container.encode(true, forKey: .separator)
-    case .item(let label, let icon, let command):
-      try container.encode(label, forKey: .label)
-      try container.encode(icon, forKey: .icon)
-      if let command { try container.encode(command, forKey: .command) }
-    }
-  }
-
-  private enum CodingKeys: String, CodingKey {
-    case header, separator, label, icon, command
   }
 }
 
@@ -441,45 +516,15 @@ func main() {
 
   let thermalIcon = iconForThermal(thermal.level)
   let thermalColor = colorForThermal(thermal.level, colors: colors)
+  let cpuColor = colorForCPU(cpu, colors: colors)
 
-  // Build menu items
-  var items: [MenuItem] = [
-    .header("Overview"),
-    .item(label: "CPU: \(cpuStr)", icon: "\u{f2db}"),
-    .item(label: "Memory: \(memStr) (\(memPctStr))", icon: "\u{f538}"),
-    .item(label: "Disk: \(diskStr) (\(diskPctStr))", icon: "\u{f0a0}"),
-    .item(label: "Thermal: \(thermal.name)", icon: thermalIcon),
-    .item(label: "Uptime: \(uptime)", icon: "\u{f017}"),
-    .item(label: "Load: \(loadStr)", icon: "\u{f080}"),
-    .separator,
-  ]
-
-  if settings.showCores {
-    let cores = cpuSample.cores
-    items.append(.header("CPU Cores"))
-    for core in cores {
-      let pct = String(format: "%.0f%%", core.usage)
-      items.append(.item(label: "Core \(core.core): \(pct)", icon: "\u{f2db}"))
-    }
-    items.append(.separator)
-  }
-
-  if !procs.isEmpty {
-    items.append(.header("Top Processes"))
-    for proc in procs {
-      let cpuPct = String(format: "%.1f%%", proc.cpuPercent)
-      items.append(.item(label: "\(proc.name): \(cpuPct)", icon: "\u{f085}"))
-    }
-    items.append(.separator)
-  }
-
-  items.append(
-    .item(label: "Activity Monitor", icon: "\u{f0e4}", command: "open -a 'Activity Monitor'"))
-
+  // Build variables
   var variables: [String: String] = [
     "cpu": cpuStr,
+    "cpu_pct": String(format: "%.2f", cpu / 100.0),
     "mem": memStr,
     "mem_pct": memPctStr,
+    "mem_pct_norm": String(format: "%.2f", mem.pressurePercent / 100.0),
     "mem_used": "\(memUsedStr) GB",
     "mem_total": "\(memTotalStr) GB",
     "mem_wired": String(format: "%.1f GB", mem.wiredGB),
@@ -488,6 +533,7 @@ func main() {
     "mem_free": String(format: "%.1f GB", mem.freeGB),
     "disk": diskStr,
     "disk_pct": diskPctStr,
+    "disk_pct_norm": String(format: "%.2f", disk.usedPercent / 100.0),
     "disk_used": "\(diskUsedStr) GB",
     "disk_total": "\(diskTotalStr) GB",
     "disk_free": String(format: "%.0f GB", disk.freeGB),
@@ -498,17 +544,153 @@ func main() {
     "load_1m": String(format: "%.2f", load.one),
     "load_5m": String(format: "%.2f", load.five),
     "load_15m": String(format: "%.2f", load.fifteen),
+    "show_cores": settings.showCores ? "true" : "",
+    "show_processes": !procs.isEmpty ? "true" : "",
   ]
   if let thermalColor {
     variables["thermal_color"] = thermalColor
   }
 
+  // Build data collections
+  var dataCollections: [String: [[String: String]]] = [:]
+
+  if settings.showCores {
+    dataCollections["cores"] = cpuSample.cores.map { core in
+      [
+        "core": "\(core.core)",
+        "usage": String(format: "%.0f%%", core.usage),
+        "usage_pct": String(format: "%.2f", core.usage / 100.0),
+      ]
+    }
+  }
+
+  if !procs.isEmpty {
+    dataCollections["processes"] = procs.map { proc in
+      [
+        "name": proc.name,
+        "cpu_pct": String(format: "%.1f%%", proc.cpuPercent),
+      ]
+    }
+  }
+
+  // Build view tree
+  var viewChildren: [JSONValue] = []
+
+  // Overview header
+  viewChildren.append(header("Overview"))
+
+  // CPU row with progress
+  viewChildren.append(
+    hstack(children: [
+      icon("\u{f2db}"),
+      text("CPU"),
+      spacer(),
+      text("{cpu}"),
+      progress(value: "{cpu_pct}", color: cpuColor),
+    ]))
+
+  // Memory row with progress
+  viewChildren.append(
+    hstack(children: [
+      icon("\u{f538}"),
+      text("Memory"),
+      spacer(),
+      text("{mem}"),
+    ]))
+  viewChildren.append(progress(value: "{mem_pct_norm}"))
+
+  // Disk row with progress
+  viewChildren.append(
+    hstack(children: [
+      icon("\u{f0a0}"),
+      text("Disk"),
+      spacer(),
+      text("{disk}"),
+    ]))
+  viewChildren.append(progress(value: "{disk_pct_norm}"))
+
+  // Thermal row
+  viewChildren.append(
+    hstack(children: [
+      icon(thermalIcon),
+      text("Thermal"),
+      spacer(),
+      text("{thermal}", color: thermalColor),
+    ]))
+
+  // Uptime row
+  viewChildren.append(
+    hstack(children: [
+      icon("\u{f017}"),
+      text("Uptime"),
+      spacer(),
+      text("{uptime}"),
+    ]))
+
+  // Load row
+  viewChildren.append(
+    hstack(children: [
+      icon("\u{f080}"),
+      text("Load"),
+      spacer(),
+      text("{load}"),
+    ]))
+
+  viewChildren.append(divider())
+
+  // Conditional CPU Cores section
+  viewChildren.append(
+    conditional(
+      variable: "show_cores",
+      then: group(children: [
+        header("CPU Cores"),
+        foreach(
+          items: "cores",
+          child: hstack(children: [
+            text("Core {core}"),
+            spacer(),
+            text("{usage}"),
+            progress(value: "{usage_pct}"),
+          ])),
+        divider(),
+      ])))
+
+  // Conditional Top Processes section
+  viewChildren.append(
+    conditional(
+      variable: "show_processes",
+      then: group(children: [
+        header("Top Processes"),
+        foreach(
+          items: "processes",
+          child: hstack(children: [
+            icon("\u{f085}"),
+            text("{name}"),
+            spacer(),
+            text("{cpu_pct}"),
+          ])),
+        divider(),
+      ])))
+
+  // Activity Monitor action
+  viewChildren.append(
+    action(
+      label: "Activity Monitor", icon: "\u{f0e4}",
+      command: "open -a 'Activity Monitor'"))
+
+  let view = vstack(
+    spacing: 8,
+    padding: .array([.double(12), .double(16), .double(12), .double(16)]),
+    frame: .object(["w": .int(300)]),
+    children: viewChildren
+  )
+
+  // Format display value
   var displayValue = settings.format
   for (key, val) in variables {
     displayValue = displayValue.replacingOccurrences(of: "{\(key)}", with: val)
   }
 
-  let cpuColor = colorForCPU(cpu, colors: colors)
   let outputStyle: PluginOutput.Style? = cpuColor.map { color in
     switch settings.colorTarget {
     case "icon":
@@ -524,7 +706,8 @@ func main() {
     value: displayValue,
     style: outputStyle,
     variables: variables,
-    items: items
+    data: dataCollections,
+    view: view
   )
 
   let encoder = JSONEncoder()

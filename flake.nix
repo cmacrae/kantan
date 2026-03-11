@@ -191,7 +191,7 @@
               wrapProgram $out/bin/kantan \
                 --prefix PATH : $out/bin
             '';
-            meta = _kantan.meta;
+            inherit (_kantan) meta;
           };
 
       kantan = (kantanWithPlugins { }) // {

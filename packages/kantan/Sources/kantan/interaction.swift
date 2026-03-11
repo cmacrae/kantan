@@ -12,24 +12,24 @@ class LiveContentProvider: ObservableObject {
   @Published var templateVariables: [String: String] = [:]
   @Published var displayValue: String?
   @Published var displayIcon: String?
-  @Published var descriptors: [MenuItemDescriptor] = []
+  @Published var viewTree: ViewNode?
+  @Published var data: [String: [[String: String]]] = [:]
   private var cancellables = Set<AnyCancellable>()
 
   let isStatic: Bool
 
-  init(viewModel: ModuleViewModel, descriptorBuilder: (() -> [MenuItemDescriptor])? = nil) {
+  init(viewModel: ModuleViewModel) {
     self.isStatic = false
     self.templateVariables = viewModel.templateVariables
     self.displayValue = viewModel.displayValue
     self.displayIcon = viewModel.displayIcon
+    self.viewTree = viewModel.viewTree
+    self.data = viewModel.data
 
     viewModel.$templateVariables
       .receive(on: RunLoop.main)
       .sink { [weak self] vars in
         self?.templateVariables = vars
-        if let builder = descriptorBuilder {
-          self?.descriptors = builder()
-        }
       }
       .store(in: &cancellables)
 
@@ -41,6 +41,16 @@ class LiveContentProvider: ObservableObject {
     viewModel.$displayIcon
       .receive(on: RunLoop.main)
       .sink { [weak self] icon in self?.displayIcon = icon }
+      .store(in: &cancellables)
+
+    viewModel.$viewTree
+      .receive(on: RunLoop.main)
+      .sink { [weak self] tree in self?.viewTree = tree }
+      .store(in: &cancellables)
+
+    viewModel.$data
+      .receive(on: RunLoop.main)
+      .sink { [weak self] d in self?.data = d }
       .store(in: &cancellables)
   }
 
@@ -65,77 +75,6 @@ class LiveContentProvider: ObservableObject {
       result = result.replacingOccurrences(of: "{\(key)}", with: val)
     }
     return result
-  }
-}
-
-// MARK: - Menu Item Descriptor
-
-struct MenuItemDescriptor {
-  let label: String?
-  let iconGlyph: String?
-  let isSeparator: Bool
-  let isHeader: Bool
-  let isToggle: Bool
-  let isToggleOn: Bool
-  let isCheck: Bool
-  let isChecked: Bool
-  let action: (() -> Void)?
-  let toggleAction: ((@escaping () -> Void) -> Void)?
-
-  init(
-    label: String? = nil,
-    iconGlyph: String? = nil,
-    isSeparator: Bool = false,
-    isHeader: Bool = false,
-    isToggle: Bool = false,
-    isToggleOn: Bool = false,
-    isCheck: Bool = false,
-    isChecked: Bool = false,
-    action: (() -> Void)? = nil,
-    toggleAction: ((@escaping () -> Void) -> Void)? = nil
-  ) {
-    self.label = label
-    self.iconGlyph = iconGlyph
-    self.isSeparator = isSeparator
-    self.isHeader = isHeader
-    self.isToggle = isToggle
-    self.isToggleOn = isToggleOn
-    self.isCheck = isCheck
-    self.isChecked = isChecked
-    self.action = action
-    self.toggleAction = toggleAction
-  }
-
-  static func item(_ label: String, action: @escaping () -> Void) -> MenuItemDescriptor {
-    MenuItemDescriptor(label: label, action: action)
-  }
-
-  static func item(_ label: String, iconGlyph: String?, action: @escaping () -> Void)
-    -> MenuItemDescriptor
-  {
-    MenuItemDescriptor(label: label, iconGlyph: iconGlyph, action: action)
-  }
-
-  static func header(_ label: String) -> MenuItemDescriptor {
-    MenuItemDescriptor(label: label, isHeader: true)
-  }
-
-  static func separator() -> MenuItemDescriptor {
-    MenuItemDescriptor(isSeparator: true)
-  }
-
-  static func toggle(_ label: String, isOn: Bool, action: @escaping (@escaping () -> Void) -> Void)
-    -> MenuItemDescriptor
-  {
-    MenuItemDescriptor(label: label, isToggle: true, isToggleOn: isOn, toggleAction: action)
-  }
-
-  /// A checkable item with a circle/checkmark indicator (like Reminders.app).
-  /// The action takes a completion callback for menu rebuilding.
-  static func check(
-    _ label: String, isChecked: Bool, action: @escaping (@escaping () -> Void) -> Void
-  ) -> MenuItemDescriptor {
-    MenuItemDescriptor(label: label, isCheck: true, isChecked: isChecked, toggleAction: action)
   }
 }
 
@@ -314,6 +253,56 @@ class PopupManager {
     }
   }
 
+  /// Show a DSL view tree as a tooltip (for rich hover content).
+  func showDSLTooltip(
+    viewTree: ViewNode, anchorPoint: NSPoint, liveContent: LiveContentProvider
+  ) {
+    guard !isPopupActive else { return }
+    hideTooltip()
+
+    let resolver = TemplateResolver(
+      variables: liveContent.templateVariables,
+      data: liveContent.data
+    )
+    if let value = liveContent.displayValue {
+      resolver.variables["value"] = value
+    }
+    if let icon = liveContent.displayIcon {
+      resolver.variables["icon"] = icon
+    }
+
+    let dslView = DSLRendererView(
+      node: viewTree, resolver: resolver, isNative: isNative,
+      dismissHandler: {}, depth: 0
+    )
+    .padding(8)
+
+    let hostingView = NSHostingView(rootView: dslView)
+    let fittingSize = hostingView.fittingSize
+    let panelWidth = max(fittingSize.width, 40)
+    let panelHeight = max(fittingSize.height, 20)
+
+    var panelRect = NSRect(
+      x: anchorPoint.x - panelWidth / 2,
+      y: anchorPoint.y - panelHeight - 4,
+      width: panelWidth,
+      height: panelHeight
+    )
+    panelRect = clampToScreen(panelRect)
+
+    let panel = makeNonActivatingPanel(rect: panelRect)
+    panel.ignoresMouseEvents = true
+
+    let container = makePopupContainer(size: panelRect.size)
+    hostingView.frame = container.bounds
+    hostingView.autoresizingMask = [.width, .height]
+    container.addSubview(hostingView)
+
+    panel.contentView = container
+    panel.orderFrontRegardless()
+    tooltipPanel = panel
+  }
+
   private func refreshTooltipContent() {
     guard let label = tooltipLabel, let provider = tooltipRefreshProvider else { return }
     let newText = provider()
@@ -345,153 +334,77 @@ class PopupManager {
     tooltipPanel = nil
   }
 
-  // MARK: - Menu
+  // MARK: - Menu (DSL)
 
+  /// Show a menu from a ViewNode tree. Dispatches to native NSMenu or
+  /// themed SwiftUI panel based on appearance mode.
   func showMenu(
-    descriptors: [MenuItemDescriptor], moduleName: String, anchorPoint: NSPoint,
-    moduleMinX: CGFloat? = nil, rebuilder: (() -> Void)? = nil,
-    liveContent: LiveContentProvider? = nil
+    viewTree: ViewNode, moduleName: String, anchorPoint: NSPoint,
+    moduleMinX: CGFloat? = nil, liveContent: LiveContentProvider
   ) {
-    guard !descriptors.isEmpty else { return }
-
     let menuId = "\(moduleName):menu"
 
     if dismissIfActive(menuId) { return }
 
-    if isNative, liveContent == nil {
-      // Native NSMenu left-aligns at the anchor point. Use the
-      // module's left edge X so the menu appears directly below
-      // the module, matching native macOS menu bar behaviour.
-      // Menus with live content always use the themed path so
-      // SwiftUI can observe and re-render updates in place.
+    let resolver = TemplateResolver(
+      variables: liveContent.templateVariables,
+      data: liveContent.data
+    )
+    if let value = liveContent.displayValue {
+      resolver.variables["value"] = value
+    }
+    if let icon = liveContent.displayIcon {
+      resolver.variables["icon"] = icon
+    }
+
+    if isNative {
       var nativeAnchor = anchorPoint
       if let minX = moduleMinX {
         nativeAnchor.x = minX
       }
-      showNativeMenu(descriptors: descriptors, anchorPoint: nativeAnchor, rebuilder: rebuilder)
+      let menu = buildNativeMenu(from: viewTree, resolver: resolver)
+      menu.popUp(positioning: nil, at: nativeAnchor, in: nil)
     } else {
-      showThemedMenu(
-        descriptors: descriptors, moduleName: moduleName, anchorPoint: anchorPoint,
-        rebuilder: rebuilder, liveContent: liveContent)
+      showDSLView(
+        viewTree: viewTree, moduleName: moduleName, anchorPoint: anchorPoint,
+        liveContent: liveContent, resolver: resolver)
     }
   }
 
-  // MARK: - Native NSMenu
+  // MARK: - DSL View (PopupPanel + SwiftUI)
 
-  /// Build and display an actual NSMenu. This gives us the real macOS
-  /// menu appearance — correct material, shadow, corner radius, and
-  /// item rendering, identical to system menu bar dropdown menus.
-  /// `popUp()` is synchronous: it blocks until the menu is dismissed.
-  private func showNativeMenu(
-    descriptors: [MenuItemDescriptor], anchorPoint: NSPoint, rebuilder: (() -> Void)? = nil
+  /// Show a DSL ViewNode tree in a themed popup panel.
+  func showDSLView(
+    viewTree: ViewNode, moduleName: String, anchorPoint: NSPoint,
+    liveContent: LiveContentProvider, resolver: TemplateResolver? = nil
   ) {
-    let menu = NSMenu()
-    menu.autoenablesItems = false
+    let popupId = "\(moduleName):dsl"
 
-    for descriptor in descriptors {
-      if descriptor.isSeparator {
-        menu.addItem(.separator())
-      } else if descriptor.isHeader {
-        if #available(macOS 14, *) {
-          menu.addItem(.sectionHeader(title: descriptor.label ?? ""))
-        } else {
-          let item = NSMenuItem(title: descriptor.label ?? "", action: nil, keyEquivalent: "")
-          item.isEnabled = false
-          item.attributedTitle = NSAttributedString(
-            string: (descriptor.label ?? "").uppercased(),
-            attributes: [
-              .font: NSFont.systemFont(ofSize: 11, weight: .semibold),
-              .foregroundColor: NSColor.secondaryLabelColor,
-            ]
-          )
-          menu.addItem(item)
-        }
-      } else if descriptor.isCheck {
-        let item = NSMenuItem(
-          title: descriptor.label ?? "",
-          action: #selector(NativeMenuTarget.menuAction(_:)),
-          keyEquivalent: "")
-        let size = NSFont.menuFont(ofSize: 0).pointSize
-        let config = NSImage.SymbolConfiguration(pointSize: size, weight: .regular)
-        if descriptor.isChecked {
-          item.image = NSImage(
-            systemSymbolName: "checkmark.circle.fill", accessibilityDescription: "completed")?
-            .withSymbolConfiguration(config)
-          item.attributedTitle = NSAttributedString(
-            string: descriptor.label ?? "",
-            attributes: [
-              .strikethroughStyle: NSUnderlineStyle.single.rawValue,
-              .foregroundColor: NSColor.secondaryLabelColor,
-            ]
-          )
-        } else {
-          item.image = NSImage(systemSymbolName: "circle", accessibilityDescription: "incomplete")?
-            .withSymbolConfiguration(config)
-        }
-        let target = NativeMenuTarget {
-          descriptor.toggleAction? { [rebuilder] in
-            rebuilder?()
-          }
-        }
-        item.target = target
-        item.representedObject = target
-        menu.addItem(item)
-      } else if descriptor.isToggle {
-        let item = NSMenuItem()
-        let toggleView = NativeMenuToggleView(
-          label: descriptor.label ?? "",
-          isOn: descriptor.isToggleOn,
-          action: {
-            menu.cancelTracking()
-            descriptor.toggleAction? { [rebuilder] in
-              rebuilder?()
-            }
-          }
+    if dismissIfActive(popupId) { return }
+
+    let effectiveResolver =
+      resolver
+      ?? {
+        let r = TemplateResolver(
+          variables: liveContent.templateVariables,
+          data: liveContent.data
         )
-        let hosting = NSHostingView(rootView: toggleView)
-        hosting.frame = NSRect(x: 0, y: 0, width: 220, height: 28)
-        item.view = hosting
-        menu.addItem(item)
-      } else {
-        let title: String
-        if let glyph = descriptor.iconGlyph, !glyph.isEmpty {
-          title = "\(glyph)  \(descriptor.label ?? "")"
-        } else {
-          title = descriptor.label ?? ""
+        if let value = liveContent.displayValue {
+          r.variables["value"] = value
         }
-        let item = NSMenuItem(
-          title: title,
-          action: #selector(NativeMenuTarget.menuAction(_:)),
-          keyEquivalent: "")
-        let target = NativeMenuTarget {
-          descriptor.action?()
+        if let icon = liveContent.displayIcon {
+          r.variables["icon"] = icon
         }
-        item.target = target
-        item.representedObject = target
-        menu.addItem(item)
-      }
-    }
+        return r
+      }()
 
-    menu.popUp(positioning: nil, at: anchorPoint, in: nil)
-  }
-
-  // MARK: - Themed Menu (PopupPanel + SwiftUI)
-
-  private func showThemedMenu(
-    descriptors: [MenuItemDescriptor], moduleName: String, anchorPoint: NSPoint,
-    rebuilder: (() -> Void)? = nil, liveContent: LiveContentProvider? = nil
-  ) {
-    let resolvedFg: Color = isNative ? .primary : Color(nsColor: effectiveFgColor)
-    let menuView = SwiftUIThemedMenuView(
-      descriptors: descriptors,
-      isNative: isNative,
-      resolvedFg: resolvedFg,
-      dismissHandler: { [weak self] in self?.dismissPopup() },
-      rebuilder: rebuilder,
-      liveContent: liveContent
+    let dslView = DSLRendererView(
+      node: viewTree, resolver: effectiveResolver, isNative: isNative,
+      dismissHandler: { [weak self] in self?.dismissPopup() }, depth: 0
     )
+    .padding(.vertical, 8)
 
-    let hostingView = NSHostingView(rootView: menuView)
+    let hostingView = NSHostingView(rootView: dslView)
     let fittingSize = hostingView.fittingSize
     let panelWidth = max(fittingSize.width, 160)
     let panelHeight = max(fittingSize.height, 20)
@@ -504,7 +417,7 @@ class PopupManager {
     )
 
     presentPopupPanel(
-      hostingView: hostingView, panelRect: panelRect, popupId: "\(moduleName):menu",
+      hostingView: hostingView, panelRect: panelRect, popupId: popupId,
       liveContent: liveContent)
   }
 
@@ -567,7 +480,7 @@ class PopupManager {
   /// material. In theme mode, adds a semi-transparent tint overlay so
   /// the user's configured color shows through while preserving the
   /// native vibrancy effect.
-  private func makePopupContainer(size: NSSize) -> NSView {
+  func makePopupContainer(size: NSSize) -> NSView {
     let effect = NSVisualEffectView(frame: NSRect(origin: .zero, size: size))
     effect.material = .menu
     effect.state = .active
@@ -589,8 +502,6 @@ class PopupManager {
   }
 
   /// Present a SwiftUI hosting view in a popup panel, clamped to screen bounds.
-  /// Shared by showThemedMenu and showUserPopup to avoid duplicating the
-  /// panel-creation and container-setup pattern.
   private func presentPopupPanel(
     hostingView: NSView, panelRect: NSRect, popupId: String,
     liveContent: LiveContentProvider? = nil
@@ -610,190 +521,12 @@ class PopupManager {
     activePopupId = popupId
     activeLiveContent = liveContent
   }
-
-  // MARK: - User-Defined Popup
-
-  func showUserPopup(
-    config: PopupConfig, moduleName: String, anchorPoint: NSPoint,
-    templateResolver: @escaping (String) -> String,
-    fgColor: Color, iconFont: Font?,
-    liveContent: LiveContentProvider? = nil
-  ) {
-    let popupId = "\(moduleName):user-popup"
-
-    if dismissIfActive(popupId) { return }
-
-    let resolvedFg: Color = isNative ? .primary : fgColor
-    let popupView = UserPopupView(
-      config: config,
-      templateResolver: templateResolver,
-      isNative: isNative,
-      resolvedFg: resolvedFg,
-      iconFont: iconFont,
-      dismissHandler: { [weak self] in self?.dismissPopup() },
-      liveContent: liveContent
-    )
-
-    let hostingView = NSHostingView(rootView: popupView)
-    let fittingSize = hostingView.fittingSize
-    let panelWidth = max(fittingSize.width, CGFloat(config.width ?? 240))
-    let panelHeight = max(fittingSize.height, 40)
-
-    let panelRect = NSRect(
-      x: anchorPoint.x - panelWidth / 2,
-      y: anchorPoint.y - panelHeight - 4,
-      width: panelWidth,
-      height: panelHeight
-    )
-
-    presentPopupPanel(
-      hostingView: hostingView, panelRect: panelRect, popupId: popupId,
-      liveContent: liveContent)
-  }
-}
-
-// MARK: - User-Defined Popup View
-
-struct UserPopupView: View {
-  let config: PopupConfig
-  let templateResolver: (String) -> String
-  let isNative: Bool
-  let resolvedFg: Color
-  let iconFont: Font?
-  let dismissHandler: () -> Void
-  @ObservedObject var liveContent: LiveContentProvider
-
-  /// Initializer that accepts an optional LiveContentProvider, creating
-  /// a dummy static one if nil (for backward compatibility).
-  init(
-    config: PopupConfig, templateResolver: @escaping (String) -> String,
-    isNative: Bool, resolvedFg: Color, iconFont: Font?,
-    dismissHandler: @escaping () -> Void, liveContent: LiveContentProvider? = nil
-  ) {
-    self.config = config
-    self.templateResolver = templateResolver
-    self.isNative = isNative
-    self.resolvedFg = resolvedFg
-    self.iconFont = iconFont
-    self.dismissHandler = dismissHandler
-    self.liveContent = liveContent ?? LiveContentProvider.static()
-  }
-
-  private func resolve(_ template: String) -> String {
-    if liveContent.isStatic {
-      return templateResolver(template)
-    }
-    return liveContent.resolveTemplate(template)
-  }
-
-  var body: some View {
-    VStack(alignment: .leading, spacing: 0) {
-      if let title = config.title {
-        Text(resolve(title))
-          .font(.system(size: 13, weight: .semibold))
-          .foregroundStyle(resolvedFg)
-          .padding(.horizontal, 16)
-          .frame(height: 32, alignment: .leading)
-        Divider()
-          .padding(.horizontal, 8)
-      }
-
-      ForEach(Array(config.rows.enumerated()), id: \.offset) { _, row in
-        popupRow(row)
-      }
-    }
-    .padding(.vertical, 8)
-    .frame(minWidth: CGFloat(config.width ?? 240))
-  }
-
-  @ViewBuilder
-  private func popupRow(_ row: PopupRowConfig) -> some View {
-    switch row.type {
-    case "header":
-      Text(resolve(row.content ?? row.label ?? ""))
-        .font(.system(size: 11, weight: .medium))
-        .foregroundStyle(resolvedFg.opacity(0.5))
-        .padding(.horizontal, 16)
-        .frame(height: 22, alignment: .leading)
-
-    case "text":
-      HStack(spacing: 8) {
-        if let icon = row.icon {
-          Text(resolve(icon))
-            .font(iconFont ?? .system(size: 13))
-            .foregroundStyle(rowFgColor(row))
-        }
-        if let label = row.label {
-          Text(resolve(label))
-            .font(.system(size: 13))
-            .foregroundStyle(rowFgColor(row))
-        }
-        Spacer()
-        if let value = row.value {
-          Text(resolve(value))
-            .font(.system(size: 13))
-            .foregroundStyle(rowFgColor(row))
-        }
-      }
-      .padding(.horizontal, 16)
-      .frame(height: 28)
-
-    case "separator":
-      Divider()
-        .padding(.horizontal, 8)
-        .padding(.vertical, 4)
-
-    case "action":
-      PopupActionRow(
-        label: resolve(row.label ?? ""),
-        icon: row.icon.map { resolve($0) },
-        iconFont: iconFont,
-        isNative: isNative,
-        resolvedFg: resolvedFg,
-        command: row.command,
-        dismissHandler: dismissHandler
-      )
-
-    default:
-      EmptyView()
-    }
-  }
-
-  private func rowFgColor(_ row: PopupRowConfig) -> Color {
-    row.style == "secondary" ? resolvedFg.opacity(0.5) : resolvedFg
-  }
-}
-
-struct PopupActionRow: View {
-  let label: String
-  let icon: String?
-  let iconFont: Font?
-  let isNative: Bool
-  let resolvedFg: Color
-  let command: String?
-  let dismissHandler: () -> Void
-
-  var body: some View {
-    HoverableRowView(
-      label: label,
-      icon: icon,
-      iconFont: iconFont,
-      iconWidth: nil,
-      isNative: isNative,
-      resolvedFg: resolvedFg,
-      action: {
-        dismissHandler()
-        guard let command = command, !command.isEmpty else { return }
-        runShellCommand(command)
-      }
-    )
-  }
 }
 
 // MARK: - Native Menu Toggle View
 
 /// SwiftUI Toggle embedded in a native NSMenuItem via NSHostingView.
-/// Used only for `.toggle()` descriptors in native NSMenu mode.
+/// Used only for toggle nodes in native NSMenu mode.
 struct NativeMenuToggleView: View {
   let label: String
   @State var isOn: Bool

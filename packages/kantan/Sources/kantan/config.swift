@@ -234,67 +234,240 @@ func yamlCGFloat(
 private func parseHoverConfig(from yaml: Yaml?) -> HoverConfig? {
   guard let hoverYaml = yaml?.dictionary else { return nil }
   let hoverType = hoverYaml["type"]?.string ?? "tooltip"
-  let content = fixYamlUnicodeEscapes(hoverYaml["content"]?.string ?? "{value}")
-  return HoverConfig(type: hoverType, content: content)
+  let content = hoverYaml["content"]?.string.map(fixYamlUnicodeEscapes)
+  let viewTree = hoverYaml["view"].flatMap { parseViewNodeFromYaml($0) }
+  return HoverConfig(type: hoverType, content: content, viewTree: viewTree)
 }
 
 private func parseClickConfig(from clickYaml: [Yaml: Yaml]) -> ClickConfig {
   let clickType = clickYaml["type"]?.string ?? "menu"
-  let popup = clickYaml["popup"]?.string
-  var menuItems: [MenuItemConfig]?
-
-  if let itemsYaml = clickYaml["items"]?.array {
-    menuItems = itemsYaml.compactMap { itemYaml -> MenuItemConfig? in
-      let isSeparator = itemYaml["separator"].bool ?? false
-      if isSeparator {
-        return MenuItemConfig(
-          label: nil, command: nil, separator: true, icon: nil, header: nil, dynamic: nil)
-      }
-      if let header = itemYaml["header"].string {
-        return MenuItemConfig(
-          label: nil, command: nil, separator: nil, icon: nil,
-          header: fixYamlUnicodeEscapes(header), dynamic: nil)
-      }
-      if itemYaml["dynamic"].bool == true {
-        return MenuItemConfig(
-          label: nil, command: nil, separator: nil, icon: nil, header: nil, dynamic: true)
-      }
-      guard let label = itemYaml["label"].string else { return nil }
-      let command = itemYaml["command"].string
-      let icon = itemYaml["icon"].string.map(fixYamlUnicodeEscapes)
-      return MenuItemConfig(
-        label: fixYamlUnicodeEscapes(label), command: command, separator: false, icon: icon,
-        header: nil, dynamic: nil)
-    }
-  }
-
-  var popupConfig: PopupConfig?
-  if let popupYaml = clickYaml["popup"]?.dictionary {
-    popupConfig = parsePopupConfig(from: popupYaml)
-  }
-
-  return ClickConfig(type: clickType, popup: popup, items: menuItems, popupConfig: popupConfig)
+  let viewTree = clickYaml["view"].flatMap { parseViewNodeFromYaml($0) }
+  return ClickConfig(type: clickType, viewTree: viewTree)
 }
 
-private func parsePopupConfig(from popupYaml: [Yaml: Yaml]) -> PopupConfig {
-  let title = popupYaml["title"]?.string.map(fixYamlUnicodeEscapes)
-  let width = popupYaml["width"]?.int
-  var rows: [PopupRowConfig] = []
-  if let rowsYaml = popupYaml["rows"]?.array {
-    rows = rowsYaml.compactMap { rowYaml -> PopupRowConfig? in
-      guard let rowType = rowYaml["type"].string else { return nil }
-      return PopupRowConfig(
-        type: rowType,
-        content: rowYaml["content"].string.map(fixYamlUnicodeEscapes),
-        icon: rowYaml["icon"].string.map(fixYamlUnicodeEscapes),
-        label: rowYaml["label"].string.map(fixYamlUnicodeEscapes),
-        value: rowYaml["value"].string.map(fixYamlUnicodeEscapes),
-        command: rowYaml["command"].string,
-        style: rowYaml["style"].string
-      )
-    }
+// MARK: - YAML to ViewNode Parsing
+
+/// Parse a YAML node into a ViewNode tree.
+/// This allows users to define view trees directly in YAML config files.
+private func parseViewNodeFromYaml(_ yaml: Yaml) -> ViewNode? {
+  guard let dict = yaml.dictionary else { return nil }
+  guard let typeStr = dict["type"]?.string else { return nil }
+
+  let common = parseCommonNodeProperties(from: dict)
+
+  switch typeStr {
+  case "vstack":
+    let spacing = yamlDouble(dict["spacing"])
+    let nodePadding = yamlPadding(dict["padding"])
+    let alignment = dict["alignment"]?.string.flatMap { ViewAlignment(rawValue: $0) }
+    let children = dict["children"]?.array?.compactMap { parseViewNodeFromYaml($0) } ?? []
+    return .vstack(
+      spacing: spacing, padding: nodePadding, alignment: alignment, children: children,
+      common: common)
+
+  case "hstack":
+    let spacing = yamlDouble(dict["spacing"])
+    let nodePadding = yamlPadding(dict["padding"])
+    let alignment = dict["alignment"]?.string.flatMap { ViewAlignment(rawValue: $0) }
+    let children = dict["children"]?.array?.compactMap { parseViewNodeFromYaml($0) } ?? []
+    return .hstack(
+      spacing: spacing, padding: nodePadding, alignment: alignment, children: children,
+      common: common)
+
+  case "zstack":
+    let alignment = dict["alignment"]?.string.flatMap { ViewAlignment(rawValue: $0) }
+    let children = dict["children"]?.array?.compactMap { parseViewNodeFromYaml($0) } ?? []
+    return .zstack(alignment: alignment, children: children, common: common)
+
+  case "scroll":
+    let axis = dict["axis"]?.string.flatMap { ScrollAxis(rawValue: $0) } ?? .vertical
+    let children = dict["children"]?.array?.compactMap { parseViewNodeFromYaml($0) } ?? []
+    return .scroll(axis: axis, children: children, common: common)
+
+  case "spacer":
+    let minLength = yamlDouble(dict["minLength"])
+    return .spacer(minLength: minLength, common: common)
+
+  case "group":
+    let children = dict["children"]?.array?.compactMap { parseViewNodeFromYaml($0) } ?? []
+    return .group(children: children, common: common)
+
+  case "text":
+    let content = fixYamlUnicodeEscapes(dict["content"]?.string ?? "")
+    let size = yamlDouble(dict["size"])
+    let weight = dict["weight"]?.string.flatMap { TextWeight(rawValue: $0) }
+    let style = dict["style"]?.string.flatMap { TextStyle(rawValue: $0) }
+    let color = dict["color"]?.string
+    let align = dict["align"]?.string.flatMap { DSLTextAlignment(rawValue: $0) }
+    let strikethrough = dict["strikethrough"]?.bool
+    return .text(
+      content: content, size: size, weight: weight, style: style, color: color, align: align,
+      strikethrough: strikethrough, common: common)
+
+  case "icon":
+    let name = fixYamlUnicodeEscapes(dict["name"]?.string ?? "")
+    let size = yamlDouble(dict["size"])
+    let color = dict["color"]?.string
+    let style = dict["style"]?.string.flatMap { IconStyle(rawValue: $0) }
+    return .icon(name: name, size: size, color: color, style: style, common: common)
+
+  case "image":
+    let url = dict["url"]?.string ?? ""
+    let width = yamlDouble(dict["width"])
+    let height = yamlDouble(dict["height"])
+    let cornerRadius = yamlDouble(dict["cornerRadius"])
+    return .image(
+      url: url, width: width, height: height, cornerRadius: cornerRadius, common: common)
+
+  case "divider":
+    return .divider(common: common)
+
+  case "header":
+    let content = fixYamlUnicodeEscapes(dict["content"]?.string ?? "")
+    return .header(content: content, common: common)
+
+  case "rect":
+    let width = yamlDouble(dict["width"])
+    let height = yamlDouble(dict["height"])
+    let color = dict["color"]?.string
+    let cornerRadius = yamlDouble(dict["cornerRadius"])
+    let strokeColor = dict["strokeColor"]?.string
+    let strokeWidth = yamlDouble(dict["strokeWidth"])
+    return .rect(
+      width: width, height: height, color: color, cornerRadius: cornerRadius,
+      strokeColor: strokeColor, strokeWidth: strokeWidth, common: common)
+
+  case "circle":
+    let size = yamlDouble(dict["size"])
+    let color = dict["color"]?.string
+    let strokeColor = dict["strokeColor"]?.string
+    let strokeWidth = yamlDouble(dict["strokeWidth"])
+    return .circle(
+      size: size, color: color, strokeColor: strokeColor, strokeWidth: strokeWidth, common: common)
+
+  case "capsule":
+    let width = yamlDouble(dict["width"])
+    let height = yamlDouble(dict["height"])
+    let color = dict["color"]?.string
+    return .capsule(width: width, height: height, color: color, common: common)
+
+  case "action":
+    let label = fixYamlUnicodeEscapes(dict["label"]?.string ?? "")
+    let icon = dict["icon"]?.string.map(fixYamlUnicodeEscapes)
+    let command = dict["command"]?.string
+    let iconFont = dict["iconFont"]?.string
+    return .action(
+      label: label, icon: icon, command: command, iconFont: iconFont, common: common)
+
+  case "check":
+    let label = fixYamlUnicodeEscapes(dict["label"]?.string ?? "")
+    let checked = dict["checked"]?.string ?? dict["checked"]?.bool.map { "\($0)" } ?? "false"
+    let command = dict["command"]?.string
+    return .check(label: label, checked: checked, command: command, common: common)
+
+  case "toggle":
+    let label = fixYamlUnicodeEscapes(dict["label"]?.string ?? "")
+    let on = dict["on"]?.string ?? dict["on"]?.bool.map { "\($0)" } ?? "false"
+    let command = dict["command"]?.string
+    return .toggle(label: label, on: on, command: command, common: common)
+
+  case "button":
+    let label = fixYamlUnicodeEscapes(dict["label"]?.string ?? "")
+    let icon = dict["icon"]?.string.map(fixYamlUnicodeEscapes)
+    let command = dict["command"]?.string
+    let style = dict["style"]?.string.flatMap { DSLButtonStyle(rawValue: $0) }
+    return .button(label: label, icon: icon, command: command, style: style, common: common)
+
+  case "foreach":
+    let items = dict["items"]?.string ?? ""
+    guard let child = dict["child"].flatMap({ parseViewNodeFromYaml($0) }) else { return nil }
+    return .foreach(items: items, child: child, common: common)
+
+  case "if":
+    let condition = dict["condition"]?.string ?? ""
+    guard let thenNode = dict["then"].flatMap({ parseViewNodeFromYaml($0) }) else { return nil }
+    let elseNode = dict["else"].flatMap { parseViewNodeFromYaml($0) }
+    return .if(condition: condition, then: thenNode, else: elseNode, common: common)
+
+  case "progress":
+    let value =
+      dict["value"]?.string ?? dict["value"]?.double.map { "\($0)" }
+      ?? dict["value"]?.int.map { "\($0)" } ?? "0"
+    let color = dict["color"]?.string
+    let trackColor = dict["trackColor"]?.string
+    let style = dict["style"]?.string.flatMap { ProgressStyle(rawValue: $0) }
+    return .progress(
+      value: value, color: color, trackColor: trackColor, style: style, common: common)
+
+  case "gauge":
+    let value =
+      dict["value"]?.string ?? dict["value"]?.double.map { "\($0)" }
+      ?? dict["value"]?.int.map { "\($0)" } ?? "0"
+    let min = yamlDouble(dict["min"])
+    let max = yamlDouble(dict["max"])
+    let label = dict["label"]?.string
+    let color = dict["color"]?.string
+    return .gauge(value: value, min: min, max: max, label: label, color: color, common: common)
+
+  case "badge":
+    let content = fixYamlUnicodeEscapes(dict["content"]?.string ?? "")
+    let color = dict["color"]?.string
+    let textColor = dict["textColor"]?.string
+    return .badge(content: content, color: color, textColor: textColor, common: common)
+
+  case "grid":
+    let columns = dict["columns"]?.int ?? 2
+    let spacing = yamlDouble(dict["spacing"])
+    let children = dict["children"]?.array?.compactMap { parseViewNodeFromYaml($0) } ?? []
+    return .grid(columns: columns, spacing: spacing, children: children, common: common)
+
+  default:
+    return nil
   }
-  return PopupConfig(title: title, width: width, rows: rows)
+}
+
+/// Extract a Double from a Yaml value (int or double).
+private func yamlDouble(_ yaml: Yaml?) -> Double? {
+  if let d = yaml?.double { return d }
+  if let i = yaml?.int { return Double(i) }
+  return nil
+}
+
+/// Parse a Padding value from Yaml (uniform number or [t, l, b, r] array).
+private func yamlPadding(_ yaml: Yaml?) -> Padding? {
+  if let d = yaml?.double { return .uniform(d) }
+  if let i = yaml?.int { return .uniform(Double(i)) }
+  if let arr = yaml?.array, arr.count == 4 {
+    let values = arr.map { yamlDouble($0) ?? 0.0 }
+    return .edges(top: values[0], leading: values[1], bottom: values[2], trailing: values[3])
+  }
+  return nil
+}
+
+/// Parse common node properties from a YAML dictionary.
+private func parseCommonNodeProperties(from dict: [Yaml: Yaml]) -> CommonNodeProperties {
+  let padding = yamlPadding(dict["padding"])
+
+  var frame: FrameProperties?
+  if let frameDict = dict["frame"]?.dictionary {
+    frame = FrameProperties(
+      w: yamlDouble(frameDict["w"]),
+      h: yamlDouble(frameDict["h"]),
+      maxW: yamlDouble(frameDict["maxW"]),
+      maxH: yamlDouble(frameDict["maxH"]),
+      minW: yamlDouble(frameDict["minW"]),
+      minH: yamlDouble(frameDict["minH"])
+    )
+  }
+
+  return CommonNodeProperties(
+    padding: padding,
+    frame: frame,
+    opacity: yamlDouble(dict["opacity"]),
+    background: dict["background"]?.string,
+    cornerRadius: yamlDouble(dict["cornerRadius"]),
+    visible: dict["visible"]?.string
+  )
 }
 
 // MARK: - Load Configuration
@@ -443,7 +616,7 @@ func parseModuleConfig(from moduleYaml: Yaml, configDir: String? = nil) -> Modul
 
     if moduleYaml["interaction"]["click"]["type"].string == nil {
       let hover = parseHoverConfig(from: moduleYaml["interaction"]["hover"])
-      let click = ClickConfig(type: "passthrough", popup: nil, items: nil, popupConfig: nil)
+      let click = ClickConfig(type: "passthrough")
       builder.setInteraction(InteractionConfig(hover: hover, click: click))
     }
   }

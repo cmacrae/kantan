@@ -101,12 +101,23 @@ struct ModuleContainerView: View {
       hover.type == "tooltip"
     else { return }
     guard !popupManager.isPopupActive else { return }
-    let resolved = resolveTemplate(hover.content)
+
+    // Rich DSL tooltip (from hover.view or module's viewTree)
+    if let viewTree = hover.viewTree {
+      let liveContent = LiveContentProvider(viewModel: viewModel)
+      popupManager.showDSLTooltip(
+        viewTree: viewTree, anchorPoint: anchorPoint, liveContent: liveContent)
+      return
+    }
+
+    // Plain text tooltip
+    let template = hover.content ?? "{value}"
+    let resolved = resolveTemplate(template)
     popupManager.showTooltip(
       text: resolved, anchorPoint: anchorPoint,
       refreshProvider: { [weak viewModel] in
         guard let viewModel else { return resolved }
-        return self.resolveTemplateWith(hover.content, viewModel: viewModel)
+        return self.resolveTemplateWith(template, viewModel: viewModel)
       }
     )
   }
@@ -117,55 +128,22 @@ struct ModuleContainerView: View {
 
     switch click.type {
     case "menu":
-      if click.items != nil {
-        let liveContent = LiveContentProvider(
-          viewModel: viewModel,
-          descriptorBuilder: { self.descriptorsFromClickConfig(click) }
-        )
-        showDynamicMenu(
-          builder: { self.descriptorsFromClickConfig(click) },
-          moduleName: viewModel.id,
-          anchorPoint: anchorPoint,
-          moduleMinX: moduleScreenMinX,
-          liveContent: liveContent
-        )
-      } else if let descriptors = viewModel.moduleConfig.config?.getMenuDescriptors(),
-        !descriptors.isEmpty
-      {
-        let liveContent = LiveContentProvider(
-          viewModel: viewModel,
-          descriptorBuilder: { self.viewModel.moduleConfig.config?.getMenuDescriptors() ?? [] }
-        )
-        showDynamicMenu(
-          builder: { self.viewModel.moduleConfig.config?.getMenuDescriptors() ?? [] },
-          moduleName: viewModel.id,
-          anchorPoint: anchorPoint,
-          moduleMinX: moduleScreenMinX,
-          liveContent: liveContent
-        )
-      } else {
-        let descriptors = descriptorsFromClickConfig(click)
+      let liveContent = LiveContentProvider(viewModel: viewModel)
+      // Priority: click.viewTree (YAML-defined) > module's live viewTree (plugin JSON)
+      if let viewTree = click.viewTree ?? viewModel.viewTree {
         popupManager.showMenu(
-          descriptors: descriptors, moduleName: viewModel.id, anchorPoint: anchorPoint,
-          moduleMinX: moduleScreenMinX)
+          viewTree: viewTree, moduleName: viewModel.id, anchorPoint: anchorPoint,
+          moduleMinX: moduleScreenMinX, liveContent: liveContent)
       }
     case "complete":
       viewModel.moduleConfig.config?.handleToggle()
       viewModel.update()
     case "popup":
-      if let popupConfig = click.popupConfig {
-        let fg = Color(nsColor: popupManager.effectiveFgColor)
-        let iconFont = themeProvider.iconFont(for: viewModel)
-        let liveContent = LiveContentProvider(viewModel: viewModel)
-        popupManager.showUserPopup(
-          config: popupConfig,
-          moduleName: viewModel.id,
-          anchorPoint: anchorPoint,
-          templateResolver: { self.resolveTemplate($0) },
-          fgColor: fg,
-          iconFont: iconFont,
-          liveContent: liveContent
-        )
+      let liveContent = LiveContentProvider(viewModel: viewModel)
+      if let viewTree = click.viewTree ?? viewModel.viewTree {
+        popupManager.showDSLView(
+          viewTree: viewTree, moduleName: viewModel.id, anchorPoint: anchorPoint,
+          liveContent: liveContent)
       }
     case "toggle":
       viewModel.moduleConfig.config?.handleToggle()
@@ -173,26 +151,6 @@ struct ModuleContainerView: View {
     default:
       break
     }
-  }
-
-  /// Show a dynamic menu with a rebuilder that re-fetches descriptors
-  /// after toggle state changes (e.g. WiFi/Bluetooth power toggle).
-  /// The rebuilder is self-referencing so repeated toggles work.
-  private func showDynamicMenu(
-    builder: @escaping () -> [MenuItemDescriptor], moduleName: String, anchorPoint: NSPoint,
-    moduleMinX: CGFloat? = nil, liveContent: LiveContentProvider? = nil
-  ) {
-    let descriptors = builder()
-    popupManager.showMenu(
-      descriptors: descriptors, moduleName: moduleName, anchorPoint: anchorPoint,
-      moduleMinX: moduleMinX,
-      rebuilder: {
-        self.showDynamicMenu(
-          builder: builder, moduleName: moduleName, anchorPoint: anchorPoint,
-          moduleMinX: moduleMinX, liveContent: liveContent)
-      },
-      liveContent: liveContent
-    )
   }
 
   // MARK: - Template Resolution
@@ -211,40 +169,6 @@ struct ModuleContainerView: View {
     }
     for (key, val) in viewModel.templateVariables {
       result = result.replacingOccurrences(of: "{\(key)}", with: val)
-    }
-    return result
-  }
-
-  /// Convert a ClickConfig's static menu items into MenuItemDescriptors.
-  /// Supports icon glyphs, headers, and `dynamic: true` placeholders that
-  /// expand to the module's getMenuDescriptors() output.
-  private func descriptorsFromClickConfig(_ config: ClickConfig) -> [MenuItemDescriptor] {
-    guard let items = config.items else { return [] }
-    var result: [MenuItemDescriptor] = []
-    for item in items {
-      if item.separator == true {
-        result.append(.separator())
-        continue
-      }
-      if let header = item.header {
-        result.append(.header(resolveTemplate(header)))
-        continue
-      }
-      if item.dynamic == true {
-        if let dynamicDescriptors = viewModel.moduleConfig.config?.getMenuDescriptors() {
-          result.append(contentsOf: dynamicDescriptors)
-        }
-        continue
-      }
-      guard let label = item.label else { continue }
-      let resolved = resolveTemplate(label)
-      let command = item.command
-      let iconGlyph = item.icon
-      result.append(
-        .item(resolved, iconGlyph: iconGlyph) {
-          guard let command = command, !command.isEmpty else { return }
-          runShellCommand(command)
-        })
     }
     return result
   }

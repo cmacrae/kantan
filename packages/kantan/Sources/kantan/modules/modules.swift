@@ -19,7 +19,7 @@ protocol ModuleConfiguration: Codable, Sendable {
   func isActive() -> Bool
   func shouldDisplay() -> Bool
   func handleToggle()
-  func getMenuDescriptors() -> [MenuItemDescriptor]?
+  func getViewTree() -> ViewNode?
   func getDynamicStyle() -> DynamicStyleOverride?
   func getWatchCommand() -> String?
 }
@@ -30,7 +30,7 @@ extension ModuleConfiguration {
   func isActive() -> Bool { true }
   func shouldDisplay() -> Bool { true }
   func handleToggle() {}
-  func getMenuDescriptors() -> [MenuItemDescriptor]? { nil }
+  func getViewTree() -> ViewNode? { nil }
   func getDynamicStyle() -> DynamicStyleOverride? { nil }
   func getWatchCommand() -> String? { nil }
 }
@@ -56,39 +56,56 @@ struct InteractionConfig: Codable {
 
 struct HoverConfig: Codable {
   let type: String
-  let content: String
+  let content: String?
+  let viewTree: ViewNode?
+
+  private enum CodingKeys: String, CodingKey {
+    case type, content
+  }
+
+  init(type: String, content: String? = nil, viewTree: ViewNode? = nil) {
+    self.type = type
+    self.content = content
+    self.viewTree = viewTree
+  }
+
+  init(from decoder: Decoder) throws {
+    let container = try decoder.container(keyedBy: CodingKeys.self)
+    self.type = try container.decode(String.self, forKey: .type)
+    self.content = try container.decodeIfPresent(String.self, forKey: .content)
+    self.viewTree = nil
+  }
+
+  func encode(to encoder: Encoder) throws {
+    var container = encoder.container(keyedBy: CodingKeys.self)
+    try container.encode(type, forKey: .type)
+    try container.encodeIfPresent(content, forKey: .content)
+  }
 }
 
 struct ClickConfig: Codable {
   let type: String
-  let popup: String?
-  let items: [MenuItemConfig]?
-  let popupConfig: PopupConfig?
-}
+  let viewTree: ViewNode?
 
-struct PopupConfig: Codable, Sendable {
-  let title: String?
-  let width: Int?
-  let rows: [PopupRowConfig]
-}
+  private enum CodingKeys: String, CodingKey {
+    case type
+  }
 
-struct PopupRowConfig: Codable, Sendable {
-  let type: String
-  let content: String?
-  let icon: String?
-  let label: String?
-  let value: String?
-  let command: String?
-  let style: String?
-}
+  init(type: String, viewTree: ViewNode? = nil) {
+    self.type = type
+    self.viewTree = viewTree
+  }
 
-struct MenuItemConfig: Codable {
-  let label: String?
-  let command: String?
-  let separator: Bool?
-  let icon: String?
-  let header: String?
-  let dynamic: Bool?
+  init(from decoder: Decoder) throws {
+    let container = try decoder.container(keyedBy: CodingKeys.self)
+    self.type = try container.decode(String.self, forKey: .type)
+    self.viewTree = nil
+  }
+
+  func encode(to encoder: Encoder) throws {
+    var container = encoder.container(keyedBy: CodingKeys.self)
+    try container.encode(type, forKey: .type)
+  }
 }
 
 struct MaskConfig: Codable {
