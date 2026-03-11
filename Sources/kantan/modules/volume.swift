@@ -189,7 +189,6 @@ final class VolumeConfig: ModuleConfiguration, EventDrivenModule {
   // MARK: - ModuleConfiguration
 
   func getValue(completion: @escaping @Sendable (String) -> Void) {
-    refreshCache()
     let status = getCachedStatus()
     if status.isMuted {
       completion(showLevel ? "muted" : "")
@@ -199,6 +198,7 @@ final class VolumeConfig: ModuleConfiguration, EventDrivenModule {
   }
 
   func getIcon() -> String {
+    refreshCache()
     let status = getCachedStatus()
     if status.isMuted {
       return mutedIcon

@@ -138,7 +138,6 @@ final class WiFiConfig: NSObject, ModuleConfiguration, EventDrivenModule, @unche
   // MARK: - ModuleConfiguration
 
   func getValue(completion: @escaping @Sendable (String) -> Void) {
-    refreshCache()
     let status = getCachedStatus()
     if showSSID {
       completion(status.ssid ?? "")
@@ -148,6 +147,7 @@ final class WiFiConfig: NSObject, ModuleConfiguration, EventDrivenModule, @unche
   }
 
   func getIcon() -> String {
+    refreshCache()
     let status = getCachedStatus()
     guard status.isConnected else {
       return disconnectedIcon

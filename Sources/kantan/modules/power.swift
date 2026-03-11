@@ -111,7 +111,6 @@ final class PowerConfig: ModuleConfiguration, EventDrivenModule {
   // MARK: - ModuleConfiguration
 
   func getValue(completion: @escaping @Sendable (String) -> Void) {
-    refreshCache()
     let status = getCachedStatus()
     guard status.isAvailable else {
       completion("")
@@ -121,6 +120,7 @@ final class PowerConfig: ModuleConfiguration, EventDrivenModule {
   }
 
   func getIcon() -> String {
+    refreshCache()
     let status = getCachedStatus()
     guard status.isAvailable else {
       return battery.icons.first ?? ""
