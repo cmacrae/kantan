@@ -26,6 +26,8 @@
             pkgs.lib.cleanSourceFilter name type && baseName != "config.yaml" && baseName != "README.org";
         };
 
+        # NOTE: We depend on system installed XCode & Swift until Swift 6 lands
+        #       in nixpkgs
         buildPhase = ''
           runHook preBuild
 
