@@ -118,9 +118,14 @@ indirect enum JSONValue: Encodable {
 
 // MARK: - View Tree Builders
 
-func vstack(spacing: Double? = nil, children: [JSONValue]) -> JSONValue {
+func vstack(
+  spacing: Double? = nil, padding: JSONValue? = nil, frame: JSONValue? = nil,
+  children: [JSONValue]
+) -> JSONValue {
   var obj: [String: JSONValue] = ["type": .string("vstack"), "children": .array(children)]
   if let s = spacing { obj["spacing"] = .double(s) }
+  if let p = padding { obj["padding"] = p }
+  if let f = frame { obj["frame"] = f }
   return .object(obj)
 }
 
@@ -142,6 +147,10 @@ func text(_ content: String, size: Double? = nil, weight: String? = nil, style: 
 
 func divider() -> JSONValue {
   .object(["type": .string("divider")])
+}
+
+func header(_ content: String) -> JSONValue {
+  .object(["type": .string("header"), "content": .string(content)])
 }
 
 func spacer() -> JSONValue {
@@ -496,34 +505,66 @@ func defaultMode() -> Int32 {
   var viewChildren: [JSONValue] = []
 
   if hasMultiple {
-    // Build data collections for foreach iteration
-    dataCollections["incomplete"] = incomplete.map { reminder in
-      let chars = listConfig(for: reminder, configs: settings.lists)?.maxChars ?? 30
-      let label = truncate(reminder.title ?? "Untitled", maxChars: chars)
-      let id = reminder.calendarItemIdentifier
-      let cmd =
-        "kantan-plugin-reminders --complete \(shellQuote(id)) && kantan trigger \(shellQuote(modName)) refresh"
-      return ["title": label, "complete_cmd": cmd]
+    // Group reminders by list name
+    var incompleteByList: [String: [EKReminder]] = [:]
+    for reminder in incomplete {
+      incompleteByList[reminder.calendar.title, default: []].append(reminder)
+    }
+    var completedByList: [String: [EKReminder]] = [:]
+    for reminder in completed {
+      completedByList[reminder.calendar.title, default: []].append(reminder)
     }
 
-    dataCollections["completed"] = completed.map { reminder in
-      let chars = listConfig(for: reminder, configs: settings.lists)?.maxChars ?? 30
-      let label = truncate(reminder.title ?? "Untitled", maxChars: chars)
-      let id = reminder.calendarItemIdentifier
-      let cmd =
-        "kantan-plugin-reminders --uncomplete \(shellQuote(id)) && kantan trigger \(shellQuote(modName)) refresh"
-      return ["title": label, "uncomplete_cmd": cmd]
+    // Determine which lists have items, preserving config order
+    let listsWithItems = settings.lists.filter { lc in
+      !(incompleteByList[lc.name] ?? []).isEmpty || !(completedByList[lc.name] ?? []).isEmpty
     }
+    let showHeaders = settings.lists.count > 1
+    for (index, lc) in listsWithItems.enumerated() {
+      let listIncomplete = incompleteByList[lc.name] ?? []
+      let listCompleted = completedByList[lc.name] ?? []
 
-    // Build view tree with foreach nodes
-    viewChildren.append(
-      foreach(
-        items: "incomplete",
-        child: check(label: "{title}", checked: false, command: "{complete_cmd}")))
-    viewChildren.append(
-      foreach(
-        items: "completed",
-        child: check(label: "{title}", checked: true, command: "{uncomplete_cmd}")))
+      if showHeaders {
+        if index > 0 { viewChildren.append(divider()) }
+        viewChildren.append(header(lc.name))
+      }
+
+      // Build per-list data collection keys
+      let safeKey = lc.name.replacingOccurrences(of: " ", with: "_")
+      let incKey = "incomplete_\(safeKey)"
+      let compKey = "completed_\(safeKey)"
+
+      dataCollections[incKey] = listIncomplete.map { reminder in
+        let chars = lc.maxChars
+        let label = truncate(reminder.title ?? "Untitled", maxChars: chars)
+        let id = reminder.calendarItemIdentifier
+        let cmd =
+          "kantan-plugin-reminders --complete \(shellQuote(id)) && kantan trigger \(shellQuote(modName)) refresh"
+        return ["title": label, "complete_cmd": cmd]
+      }
+
+      dataCollections[compKey] = listCompleted.map { reminder in
+        let chars = lc.maxChars
+        let label = truncate(reminder.title ?? "Untitled", maxChars: chars)
+        let id = reminder.calendarItemIdentifier
+        let cmd =
+          "kantan-plugin-reminders --uncomplete \(shellQuote(id)) && kantan trigger \(shellQuote(modName)) refresh"
+        return ["title": label, "uncomplete_cmd": cmd]
+      }
+
+      if !listIncomplete.isEmpty {
+        viewChildren.append(
+          foreach(
+            items: incKey,
+            child: check(label: "{title}", checked: false, command: "{complete_cmd}")))
+      }
+      if !listCompleted.isEmpty {
+        viewChildren.append(
+          foreach(
+            items: compKey,
+            child: check(label: "{title}", checked: true, command: "{uncomplete_cmd}")))
+      }
+    }
   } else if hasReminders {
     // Single incomplete reminder — show a "Complete" action
     if let id = displayedReminder?.calendarItemIdentifier {
@@ -539,7 +580,12 @@ func defaultMode() -> Int32 {
   viewChildren.append(divider())
   viewChildren.append(action(label: "Open Reminders...", command: "open x-apple-reminderkit://"))
 
-  let view = vstack(spacing: 4, children: viewChildren)
+  let view = vstack(
+    spacing: 8,
+    padding: .array([.double(12), .double(16), .double(12), .double(16)]),
+    frame: .object(["w": .int(280)]),
+    children: viewChildren
+  )
 
   // Template variables
   var variables: [String: String] = [

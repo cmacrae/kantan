@@ -776,6 +776,7 @@ private struct DSLActionView: View {
         .foregroundStyle(hoverFgColor)
       Spacer()
     }
+    .padding(.horizontal, 14)
     .frame(height: 28)
     .background(
       RoundedRectangle(cornerRadius: 4)
