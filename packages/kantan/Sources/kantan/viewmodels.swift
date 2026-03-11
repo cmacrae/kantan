@@ -159,6 +159,7 @@ class ModuleViewModel: ObservableObject, Identifiable {
     let names: [NSAppearance.Name] = [.darkAqua, .aqua]
     let isDark = NSApp.effectiveAppearance.bestMatch(from: names) == .darkAqua
     env["KANTAN_APPEARANCE"] = isDark ? "dark" : "light"
+    env["KANTAN_PID"] = "\(ProcessInfo.processInfo.processIdentifier)"
     process.environment = env
 
     // Provide a stdin pipe so the watch process can detect kantan exit

@@ -106,6 +106,53 @@
           };
         };
 
+      buildShellPlugin =
+        {
+          name,
+          src,
+        }:
+        let
+          bin = "kantan-plugin-${name}";
+        in
+        pkgs.stdenvNoCC.mkDerivation {
+          pname = bin;
+          version = "0.1.0";
+          inherit src;
+          dontFixup = true;
+          installPhase = ''
+            runHook preInstall
+
+            mkdir -p $out/bin
+            cp main.sh $out/bin/${bin}
+            chmod +x $out/bin/${bin}
+
+            if [ -d "examples" ]; then
+              mkdir -p $out/share/examples
+              cp examples/* $out/share/examples/
+            fi
+
+            runHook postInstall
+          '';
+          meta = {
+            platforms = [ "aarch64-darwin" ];
+          };
+        };
+
+      buildPlugin =
+        {
+          name,
+          src,
+        }:
+        let
+          dirContents = builtins.readDir (./packages/plugins + "/${name}");
+        in
+        if dirContents ? "Package.swift" then
+          buildSwiftPlugin { inherit name src; }
+        else if dirContents ? "main.sh" then
+          buildShellPlugin { inherit name src; }
+        else
+          throw "Plugin '${name}' has no Package.swift or main.sh";
+
       pluginDirs = builtins.readDir ./packages/plugins;
       pluginPackages = builtins.listToAttrs (
         builtins.filter (entry: entry != null) (
@@ -114,7 +161,7 @@
             if pluginDirs.${dirName} == "directory" then
               {
                 name = dirName;
-                value = buildSwiftPlugin {
+                value = buildPlugin {
                   name = dirName;
                   src = pkgs.lib.cleanSource ./packages/plugins/${dirName};
                 };
@@ -162,10 +209,18 @@
         plugins = pluginPackages;
       };
 
+      swiftPluginNames = builtins.filter (
+        name:
+        let
+          dirContents = builtins.readDir (./packages/plugins + "/${name}");
+        in
+        dirContents ? "Package.swift"
+      ) (builtins.attrNames pluginPackages);
+
       allSwiftSourceDirs = [
         "packages/kantan/Sources"
       ]
-      ++ builtins.map (name: "packages/plugins/${name}/Sources") (builtins.attrNames pluginPackages);
+      ++ builtins.map (name: "packages/plugins/${name}/Sources") swiftPluginNames;
     in
     {
       packages.${system}.default = kantan;

@@ -82,6 +82,7 @@ struct CommandConfig: ModuleConfiguration {
   let interval: TimeInterval  // polling interval; 0 = event-only (no timer)
   let settingsJSON: String?  // Opaque plugin settings serialized as JSON
   let watchCommand: String?  // Long-lived watcher process command
+  let toggleCommand: String?  // Command to run on toggle interaction
 
   init(yaml: Yaml, configDir: String? = nil) throws {
     guard let rawCommand = yaml["command"].string else {
@@ -107,6 +108,7 @@ struct CommandConfig: ModuleConfiguration {
     self.outputMode = yaml["output"].string ?? "text"
     self.interval = yaml["interval"].double ?? 1.0
     self.watchCommand = yaml["watch"].string
+    self.toggleCommand = yaml["toggle"].string
 
     // Serialize the optional "settings" block to JSON for passing to plugins.
     if let settingsYaml = yaml["settings"].dictionary, !settingsYaml.isEmpty,
@@ -127,6 +129,26 @@ struct CommandConfig: ModuleConfiguration {
   var redrawInterval: TimeInterval { interval }
 
   func getWatchCommand() -> String? { watchCommand }
+
+  func handleToggle() {
+    guard let toggle = toggleCommand, !toggle.isEmpty else { return }
+    let process = Process()
+    process.executableURL = URL(fileURLWithPath: launchPath)
+    process.arguments = launchArgs + [toggle]
+    var env = ProcessInfo.processInfo.environment
+    if let settings = settingsJSON {
+      env["KANTAN_SETTINGS"] = settings
+    }
+    let names: [NSAppearance.Name] = [.darkAqua, .aqua]
+    let isDark = NSApp.effectiveAppearance.bestMatch(from: names) == .darkAqua
+    env["KANTAN_APPEARANCE"] = isDark ? "dark" : "light"
+    env["KANTAN_PID"] = "\(ProcessInfo.processInfo.processIdentifier)"
+    process.environment = env
+    process.standardOutput = FileHandle.nullDevice
+    process.standardError = FileHandle.nullDevice
+    try? process.run()
+    process.waitUntilExit()
+  }
 
   func getValue(completion: @escaping @Sendable (String) -> Void) {
     let cmd = self.command
@@ -326,6 +348,7 @@ struct CommandConfig: ModuleConfiguration {
     if let moduleName = moduleName {
       env["KANTAN_MODULE_NAME"] = moduleName
     }
+    env["KANTAN_PID"] = "\(ProcessInfo.processInfo.processIdentifier)"
     process.environment = env
 
     let stdoutPipe = Pipe()

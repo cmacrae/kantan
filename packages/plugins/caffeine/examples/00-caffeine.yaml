@@ -1,0 +1,20 @@
+name: caffeine
+type: command
+alignment: right
+icon: "\uf0f4"
+style:
+  light:
+    fg: "#e5c890"
+  dark:
+    fg: "#f9e2af"
+config:
+  command: kantan-plugin-caffeine
+  output: json
+  interval: 0
+  toggle: kantan-plugin-caffeine --toggle
+interaction:
+  hover:
+    type: tooltip
+    content: "Caffeine: {status}"
+  click:
+    type: toggle

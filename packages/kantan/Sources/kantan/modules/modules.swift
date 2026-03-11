@@ -126,7 +126,6 @@ nonisolated(unsafe) let moduleFactories: [String: ModuleConfigurationFactory] = 
   "volume": VolumeConfigFactory(),
   "wifi": WiFiConfigFactory(),
   "bluetooth": BluetoothConfigFactory(),
-  "caffeinate": CaffeinateConfigFactory(),
   "icon": IconConfigFactory(),
 ]
 
