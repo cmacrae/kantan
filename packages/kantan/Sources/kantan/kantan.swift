@@ -533,6 +533,22 @@ class AppDelegate: NSObject, NSApplicationDelegate {
           self?.repositionAllDisplays()
         }
         .store(in: &visibilityCancellables)
+
+      vm.$displayValue
+        .removeDuplicates()
+        .debounce(for: .milliseconds(50), scheduler: RunLoop.main)
+        .sink { [weak self] _ in
+          self?.repositionAllDisplays()
+        }
+        .store(in: &visibilityCancellables)
+
+      vm.$displayIcon
+        .removeDuplicates()
+        .debounce(for: .milliseconds(50), scheduler: RunLoop.main)
+        .sink { [weak self] _ in
+          self?.repositionAllDisplays()
+        }
+        .store(in: &visibilityCancellables)
     }
 
     restartRepositionTimer()

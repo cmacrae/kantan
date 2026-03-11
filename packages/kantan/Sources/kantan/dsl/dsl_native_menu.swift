@@ -96,80 +96,94 @@ func buildNativeMenu(from rootNode: ViewNode, resolver: TemplateResolver) -> NSM
 
 // MARK: - HStack Composition
 
+/// Styling metadata extracted from text/icon children when composing hstack items.
+private struct HStackTextPart {
+  let text: String
+  let isSecondary: Bool
+  let isStrikethrough: Bool
+}
+
 /// Collect the visible text content from an hstack's children into a single
 /// NSMenuItem. The pattern `icon + text + spacer + text` becomes a menu item
-/// with a bold label on the left and right-aligned secondary detail on the right,
-/// achieved via an NSAttributedString with a right-aligned tab stop.
+/// with a bold label on the left and right-aligned secondary detail on the right.
 ///
 /// Children are split at the first `spacer` node:
-/// - Before spacer: bold label text
-/// - After spacer: secondary detail text (right-aligned via tab stop)
+/// - Before spacer: label text (bold unless all children are secondary/strikethrough)
+/// - After spacer: secondary detail text (right-aligned)
 ///
-/// If no spacer is found, all children are concatenated into the label.
-/// Uses `attributedTitle` with explicit `.labelColor` so the item appears
-/// at full opacity despite `isEnabled = false`.
+/// Text styling (secondary, strikethrough) is propagated from the child nodes
+/// so past events etc. render correctly in native menus.
 @MainActor
 private func addHStackItem(
   children: [ViewNode], to menu: NSMenu, resolver: TemplateResolver
 ) {
-  // Separate children at the first spacer
-  var labelParts: [String] = []
-  var detailParts: [String] = []
+  // Separate children at the first spacer, preserving style metadata
+  var labelParts: [HStackTextPart] = []
+  var detailParts: [HStackTextPart] = []
   var hitSpacer = false
 
   for child in children {
     switch child {
     case .spacer:
       hitSpacer = true
-    case .text(let content, _, _, _, _, _, _, _):
+    case .text(let content, _, _, let style, _, _, let strikethrough, _):
       let resolved = resolver.resolve(content)
+      let part = HStackTextPart(
+        text: resolved,
+        isSecondary: style == .secondary,
+        isStrikethrough: strikethrough == true)
       if hitSpacer {
-        detailParts.append(resolved)
+        detailParts.append(part)
       } else {
-        labelParts.append(resolved)
+        labelParts.append(part)
       }
     case .icon(let name, _, _, _, _):
       let resolved = resolver.resolve(name)
       if !resolved.isEmpty {
+        let part = HStackTextPart(text: resolved, isSecondary: false, isStrikethrough: false)
         if hitSpacer {
-          detailParts.append(resolved)
+          detailParts.append(part)
         } else {
-          labelParts.append(resolved)
+          labelParts.append(part)
         }
       }
     case .progress:
       // Skip progress bars in native menus — not representable
       break
     default:
-      // Recursively extract text from nested layout nodes
-      let extracted = extractText(from: child, resolver: resolver)
-      if !extracted.isEmpty {
-        if hitSpacer {
-          detailParts.append(extracted)
-        } else {
-          labelParts.append(extracted)
-        }
+      // Recursively extract text and style from nested layout nodes
+      let extracted = extractStyledParts(from: child, resolver: resolver)
+      if hitSpacer {
+        detailParts.append(contentsOf: extracted)
+      } else {
+        labelParts.append(contentsOf: extracted)
       }
     }
   }
 
-  let label = labelParts.joined(separator: " ")
-  let detail = detailParts.joined(separator: " ")
+  let label = labelParts.map(\.text).joined(separator: " ")
+  let detail = detailParts.map(\.text).joined(separator: " ")
 
   guard !label.isEmpty || !detail.isEmpty else { return }
+
+  // Determine overall row styling from children
+  let allParts = labelParts + detailParts
+  let isSecondary = !allParts.isEmpty && allParts.allSatisfy(\.isSecondary)
+  let isStrikethrough = !allParts.isEmpty && allParts.allSatisfy(\.isStrikethrough)
 
   let item = NSMenuItem(title: "", action: nil, keyEquivalent: "")
 
   // Use a custom NSHostingView so macOS doesn't apply disabled muting.
-  // NSMenuItem.view completely takes over rendering.
   let rowView: NSView
   if !detail.isEmpty {
-    let view = NativeMenuRowView(label: label, detail: detail)
+    let view = NativeMenuRowView(
+      label: label, detail: detail, isSecondary: isSecondary, isStrikethrough: isStrikethrough)
     let hosting = NSHostingView(rootView: view)
     hosting.frame = NSRect(x: 0, y: 0, width: 280, height: 22)
     rowView = hosting
   } else {
-    let view = NativeMenuLabelView(label: label)
+    let view = NativeMenuLabelView(
+      label: label, isSecondary: isSecondary, isStrikethrough: isStrikethrough)
     let hosting = NSHostingView(rootView: view)
     hosting.frame = NSRect(x: 0, y: 0, width: 280, height: 22)
     rowView = hosting
@@ -178,21 +192,28 @@ private func addHStackItem(
   menu.addItem(item)
 }
 
-/// Recursively extract visible text content from a node (for composing hstack items).
-private func extractText(from node: ViewNode, resolver: TemplateResolver) -> String {
+/// Recursively extract styled text parts from a node (for composing hstack items).
+private func extractStyledParts(from node: ViewNode, resolver: TemplateResolver)
+  -> [HStackTextPart]
+{
   switch node {
-  case .text(let content, _, _, _, _, _, _, _):
-    return resolver.resolve(content)
+  case .text(let content, _, _, let style, _, _, let strikethrough, _):
+    let resolved = resolver.resolve(content)
+    guard !resolved.isEmpty else { return [] }
+    return [
+      HStackTextPart(
+        text: resolved, isSecondary: style == .secondary, isStrikethrough: strikethrough == true)
+    ]
   case .icon(let name, _, _, _, _):
-    return resolver.resolve(name)
+    let resolved = resolver.resolve(name)
+    guard !resolved.isEmpty else { return [] }
+    return [HStackTextPart(text: resolved, isSecondary: false, isStrikethrough: false)]
   case .vstack(_, _, _, let children, _),
     .hstack(_, _, _, let children, _),
     .group(let children, _):
-    return children.compactMap { extractText(from: $0, resolver: resolver) }
-      .filter { !$0.isEmpty }
-      .joined(separator: " ")
+    return children.flatMap { extractStyledParts(from: $0, resolver: resolver) }
   default:
-    return ""
+    return []
   }
 }
 
@@ -341,14 +362,15 @@ private func addItems(from node: ViewNode, to menu: NSMenu, resolver: TemplateRe
 
   // MARK: Text (read-only display)
 
-  case .text(let content, _, let weight, let style, _, _, _, _):
+  case .text(let content, _, let weight, let style, _, _, let strikethrough, _):
     let resolvedContent = resolver.resolve(content)
     let item = NSMenuItem(title: "", action: nil, keyEquivalent: "")
 
     let isSecondary = style == .secondary
     let isBold = weight == .bold || weight == .semibold || weight == .heavy || weight == .black
     let view = NativeMenuTextView(
-      content: resolvedContent, isBold: isBold, isSecondary: isSecondary)
+      content: resolvedContent, isBold: isBold, isSecondary: isSecondary,
+      isStrikethrough: strikethrough == true)
     let hosting = NSHostingView(rootView: view)
     hosting.frame = NSRect(x: 0, y: 0, width: 280, height: 22)
     item.view = hosting
@@ -402,18 +424,27 @@ private func addItems(from node: ViewNode, to menu: NSMenu, resolver: TemplateRe
 
 /// A key/value row for native NSMenu: bold label on the left, secondary detail
 /// right-aligned. Rendered via NSHostingView to bypass NSMenu's disabled muting.
+/// Supports secondary (muted) and strikethrough styling for past events etc.
 struct NativeMenuRowView: View {
   let label: String
   let detail: String
+  var isSecondary: Bool = false
+  var isStrikethrough: Bool = false
 
   var body: some View {
     HStack(spacing: 0) {
       Text(label)
-        .font(.system(size: NSFont.menuFont(ofSize: 0).pointSize, weight: .bold))
-        .foregroundStyle(.primary)
+        .font(
+          .system(
+            size: NSFont.menuFont(ofSize: 0).pointSize,
+            weight: isSecondary ? .regular : .bold)
+        )
+        .strikethrough(isStrikethrough)
+        .foregroundStyle(isSecondary ? .secondary : .primary)
       Spacer(minLength: 16)
       Text(detail)
         .font(.system(size: NSFont.menuFont(ofSize: 0).pointSize))
+        .strikethrough(isStrikethrough)
         .foregroundStyle(.secondary)
     }
     .padding(.horizontal, 14)
@@ -422,14 +453,22 @@ struct NativeMenuRowView: View {
 }
 
 /// A label-only row for native NSMenu. Bold primary text.
+/// Supports secondary (muted) and strikethrough styling.
 struct NativeMenuLabelView: View {
   let label: String
+  var isSecondary: Bool = false
+  var isStrikethrough: Bool = false
 
   var body: some View {
     HStack {
       Text(label)
-        .font(.system(size: NSFont.menuFont(ofSize: 0).pointSize, weight: .bold))
-        .foregroundStyle(.primary)
+        .font(
+          .system(
+            size: NSFont.menuFont(ofSize: 0).pointSize,
+            weight: isSecondary ? .regular : .bold)
+        )
+        .strikethrough(isStrikethrough)
+        .foregroundStyle(isSecondary ? .secondary : .primary)
       Spacer()
     }
     .padding(.horizontal, 14)
@@ -437,11 +476,12 @@ struct NativeMenuLabelView: View {
   }
 }
 
-/// A standalone text item for native NSMenu. Supports bold/secondary styling.
+/// A standalone text item for native NSMenu. Supports bold/secondary/strikethrough styling.
 struct NativeMenuTextView: View {
   let content: String
   let isBold: Bool
   let isSecondary: Bool
+  var isStrikethrough: Bool = false
 
   var body: some View {
     HStack {
@@ -451,6 +491,7 @@ struct NativeMenuTextView: View {
             size: NSFont.menuFont(ofSize: 0).pointSize,
             weight: isBold ? .bold : .regular)
         )
+        .strikethrough(isStrikethrough)
         .foregroundStyle(isSecondary ? .secondary : .primary)
       Spacer()
     }

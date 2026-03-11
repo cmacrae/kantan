@@ -1,0 +1,36 @@
+name: calendar
+type: command
+alignment: right
+icon: "\uf073"
+style:
+  light:
+    fg: "#8caaee"
+  dark:
+    fg: "#89b4fa"
+config:
+  command: kantan-plugin-calendar
+  output: json
+  interval: 60
+  watch: kantan-plugin-calendar --watch
+  settings:
+    format: "{next_title} in {next_countdown}"
+    upcoming: 1h
+    calendars:
+      include:
+        - Work
+        - Personal
+interaction:
+  hover:
+    type: tooltip
+    view:
+      type: vstack
+      spacing: 4
+      children:
+        - type: text
+          content: "Next: {next_title}"
+          weight: medium
+        - type: text
+          content: "{next_countdown}"
+          style: secondary
+  click:
+    type: menu

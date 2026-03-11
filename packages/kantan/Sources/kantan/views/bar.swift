@@ -1,5 +1,24 @@
 import SwiftUI
 
+// MARK: - Module Visibility Wrapper
+
+/// Observes a single ModuleViewModel so that changes to `shouldDisplay`
+/// trigger a re-evaluation of the conditional content.
+/// Without this, the parent ForEach does not re-render when an individual
+/// view model's published property changes.
+private struct ModuleVisibilityView: View {
+  @ObservedObject var viewModel: ModuleViewModel
+  let popupManager: PopupManager
+  let horizontalPadding: CGFloat
+
+  var body: some View {
+    if viewModel.shouldDisplay {
+      ModuleContainerView(viewModel: viewModel, popupManager: popupManager)
+        .padding(.horizontal, horizontalPadding)
+    }
+  }
+}
+
 // MARK: - Module Group View
 
 /// Renders a single group of modules in an HStack.
@@ -16,10 +35,11 @@ struct ModuleGroupView: View {
   var body: some View {
     HStack(spacing: 0) {
       ForEach(modules) { vm in
-        if vm.shouldDisplay {
-          ModuleContainerView(viewModel: vm, popupManager: popupManager)
-            .padding(.horizontal, isMasked ? 0 : CGFloat(themeProvider.config.padding))
-        }
+        ModuleVisibilityView(
+          viewModel: vm,
+          popupManager: popupManager,
+          horizontalPadding: isMasked ? 0 : CGFloat(themeProvider.config.padding)
+        )
       }
     }
     .frame(maxWidth: isMasked ? .infinity : nil)
