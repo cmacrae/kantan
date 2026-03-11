@@ -10,14 +10,79 @@
     let
       system = "aarch64-darwin";
       pkgs = nixpkgs.legacyPackages.${system};
+
+      # NOTE: We depend on system installed Xcode & Swift until Swift 6 lands
+      #       in nixpkgs
+      swiftBuildPhase = bin: ''
+        runHook preBuild
+
+        export DEVELOPER_DIR=$(/usr/bin/xcode-select -p)
+        export SDKROOT=$(/usr/bin/xcrun --show-sdk-path)
+        export TOOLCHAINS=default
+        export PATH="$DEVELOPER_DIR/Toolchains/XcodeDefault.xctoolchain/usr/bin:$DEVELOPER_DIR/usr/bin:/usr/bin:$PATH"
+        export HOME="$TMPDIR"
+
+        swift build -c release --disable-sandbox --scratch-path .build
+
+        runHook postBuild
+      '';
+
+      swiftInstallPhase = bin: ''
+        runHook preInstall
+        mkdir -p $out/bin
+        cp .build/arm64-apple-macosx/release/${bin} $out/bin/${bin}
+        runHook postInstall
+      '';
+
+      buildSwiftPackage =
+        {
+          pname,
+          version ? "0.1.0",
+          src,
+          meta ? { },
+        }:
+        pkgs.stdenvNoCC.mkDerivation {
+          inherit pname version src;
+
+          buildPhase = swiftBuildPhase pname;
+          installPhase = swiftInstallPhase pname;
+          dontFixup = true;
+
+          meta = {
+            platforms = [ "aarch64-darwin" ];
+          }
+          // meta;
+        };
+
+      pluginDirs = builtins.readDir ./packages/plugins;
+      pluginPackages = builtins.listToAttrs (
+        builtins.filter (entry: entry != null) (
+          builtins.map (
+            name:
+            if pluginDirs.${name} == "directory" then
+              {
+                inherit name;
+                value = buildSwiftPackage {
+                  pname = name;
+                  src = pkgs.lib.cleanSource ./packages/plugins/${name};
+                };
+              }
+            else
+              null
+          ) (builtins.attrNames pluginDirs)
+        )
+      );
+
+      allSwiftSourceDirs = [
+        "packages/kantan/Sources"
+      ]
+      ++ builtins.map (name: "packages/plugins/${name}/Sources") (builtins.attrNames pluginPackages);
     in
     {
-      packages.${system}.default = pkgs.stdenvNoCC.mkDerivation {
+      packages.${system}.default = buildSwiftPackage {
         pname = "kantan";
-        version = "0.1.0";
-
         src = pkgs.lib.cleanSourceWith {
-          src = ./.;
+          src = ./packages/kantan;
           filter =
             name: type:
             let
@@ -25,45 +90,26 @@
             in
             pkgs.lib.cleanSourceFilter name type && baseName != "config.yaml" && baseName != "README.org";
         };
-
-        # NOTE: We depend on system installed XCode & Swift until Swift 6 lands
-        #       in nixpkgs
-        buildPhase = ''
-          runHook preBuild
-
-          export DEVELOPER_DIR=$(/usr/bin/xcode-select -p)
-          export SDKROOT=$(/usr/bin/xcrun --show-sdk-path)
-          export TOOLCHAINS=default
-          export PATH="$DEVELOPER_DIR/Toolchains/XcodeDefault.xctoolchain/usr/bin:$DEVELOPER_DIR/usr/bin:/usr/bin:$PATH"
-          export HOME="$TMPDIR"
-
-          swift build -c release --disable-sandbox --scratch-path .build
-
-          runHook postBuild
-        '';
-
-        installPhase = ''
-          runHook preInstall
-          mkdir -p $out/bin
-          cp .build/arm64-apple-macosx/release/kantan $out/bin/kantan
-          runHook postInstall
-        '';
-
-        dontFixup = true;
-
         meta = {
           description = "A beautifully simple status bar for macOS";
-          platforms = [ "aarch64-darwin" ];
           mainProgram = "kantan";
         };
       };
 
+      legacyPackages.${system}.plugins = pluginPackages;
+
       formatter.${system} = pkgs.writeShellApplication {
         name = "swift-fmt";
         runtimeInputs = [ pkgs.swift-format ];
-        text = ''
-          swift-format format --in-place --recursive --parallel Sources/
-        '';
+        text =
+          let
+            formatCmds = builtins.map (dir: ''
+              if [ -d "${dir}" ]; then
+                swift-format format --in-place --recursive --parallel "${dir}"
+              fi
+            '') allSwiftSourceDirs;
+          in
+          builtins.concatStringsSep "\n" formatCmds;
       };
 
       devShells.${system}.default = pkgs.mkShell {
