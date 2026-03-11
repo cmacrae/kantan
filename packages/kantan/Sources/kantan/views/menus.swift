@@ -42,15 +42,36 @@ struct HoverableRowView: View {
 // MARK: - Themed Menu (SwiftUI)
 
 struct SwiftUIThemedMenuView: View {
-  let descriptors: [MenuItemDescriptor]
+  let initialDescriptors: [MenuItemDescriptor]
   let isNative: Bool
   let resolvedFg: Color
   let dismissHandler: () -> Void
   let rebuilder: (() -> Void)?
+  @ObservedObject var liveContent: LiveContentProvider
+
+  init(
+    descriptors: [MenuItemDescriptor], isNative: Bool, resolvedFg: Color,
+    dismissHandler: @escaping () -> Void, rebuilder: (() -> Void)?,
+    liveContent: LiveContentProvider? = nil
+  ) {
+    self.initialDescriptors = descriptors
+    self.isNative = isNative
+    self.resolvedFg = resolvedFg
+    self.dismissHandler = dismissHandler
+    self.rebuilder = rebuilder
+    self.liveContent = liveContent ?? LiveContentProvider.static()
+  }
+
+  private var activeDescriptors: [MenuItemDescriptor] {
+    if !liveContent.isStatic, !liveContent.descriptors.isEmpty {
+      return liveContent.descriptors
+    }
+    return initialDescriptors
+  }
 
   var body: some View {
     VStack(alignment: .leading, spacing: 0) {
-      ForEach(Array(descriptors.enumerated()), id: \.offset) { _, descriptor in
+      ForEach(Array(activeDescriptors.enumerated()), id: \.offset) { _, descriptor in
         if descriptor.isSeparator {
           Divider()
             .padding(.horizontal, 8)

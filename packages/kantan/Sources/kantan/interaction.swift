@@ -1,5 +1,72 @@
 import AppKit
+import Combine
 import SwiftUI
+
+// MARK: - Live Content Provider
+
+/// Observable object that feeds live template variable updates to
+/// SwiftUI popup/menu views. Connected to a ModuleViewModel via
+/// Combine so content refreshes in place without closing the panel.
+@MainActor
+class LiveContentProvider: ObservableObject {
+  @Published var templateVariables: [String: String] = [:]
+  @Published var displayValue: String?
+  @Published var displayIcon: String?
+  @Published var descriptors: [MenuItemDescriptor] = []
+  private var cancellables = Set<AnyCancellable>()
+
+  let isStatic: Bool
+
+  init(viewModel: ModuleViewModel, descriptorBuilder: (() -> [MenuItemDescriptor])? = nil) {
+    self.isStatic = false
+    self.templateVariables = viewModel.templateVariables
+    self.displayValue = viewModel.displayValue
+    self.displayIcon = viewModel.displayIcon
+
+    viewModel.$templateVariables
+      .receive(on: RunLoop.main)
+      .sink { [weak self] vars in
+        self?.templateVariables = vars
+        if let builder = descriptorBuilder {
+          self?.descriptors = builder()
+        }
+      }
+      .store(in: &cancellables)
+
+    viewModel.$displayValue
+      .receive(on: RunLoop.main)
+      .sink { [weak self] val in self?.displayValue = val }
+      .store(in: &cancellables)
+
+    viewModel.$displayIcon
+      .receive(on: RunLoop.main)
+      .sink { [weak self] icon in self?.displayIcon = icon }
+      .store(in: &cancellables)
+  }
+
+  /// Creates a static (non-updating) provider for backward compatibility.
+  private init(staticMarker: Bool) {
+    self.isStatic = true
+  }
+
+  static func `static`() -> LiveContentProvider {
+    LiveContentProvider(staticMarker: true)
+  }
+
+  func resolveTemplate(_ template: String) -> String {
+    var result = template
+    if let value = displayValue {
+      result = result.replacingOccurrences(of: "{value}", with: value)
+    }
+    if let icon = displayIcon {
+      result = result.replacingOccurrences(of: "{icon}", with: icon)
+    }
+    for (key, val) in templateVariables {
+      result = result.replacingOccurrences(of: "{\(key)}", with: val)
+    }
+    return result
+  }
+}
 
 // MARK: - Menu Item Descriptor
 
@@ -117,7 +184,11 @@ class NativeMenuTarget: NSObject {
 class PopupManager {
   private var activePanel: NSPanel?
   private var activePopupId: String?
+  private var activeLiveContent: LiveContentProvider?
   private var tooltipPanel: NSPanel?
+  private var tooltipLabel: NSTextField?
+  private var tooltipRefreshTimer: Timer?
+  private var tooltipRefreshProvider: (() -> String)?
   weak var themeProvider: ThemeProvider?
   var appearance: AppearanceStyle = .theme
 
@@ -178,7 +249,9 @@ class PopupManager {
 
   // MARK: - Tooltip
 
-  func showTooltip(text: String, anchorPoint: NSPoint) {
+  func showTooltip(
+    text: String, anchorPoint: NSPoint, refreshProvider: (() -> String)? = nil
+  ) {
     guard !isPopupActive else { return }
     hideTooltip()
 
@@ -227,9 +300,47 @@ class PopupManager {
     panel.contentView = effect
     panel.orderFrontRegardless()
     tooltipPanel = panel
+    tooltipLabel = label
+    tooltipRefreshProvider = refreshProvider
+
+    if refreshProvider != nil {
+      let t = Timer(timeInterval: 1.0, repeats: true) { [weak self] _ in
+        MainActor.assumeIsolated {
+          self?.refreshTooltipContent()
+        }
+      }
+      RunLoop.main.add(t, forMode: .common)
+      tooltipRefreshTimer = t
+    }
+  }
+
+  private func refreshTooltipContent() {
+    guard let label = tooltipLabel, let provider = tooltipRefreshProvider else { return }
+    let newText = provider()
+    guard newText != label.stringValue else { return }
+    label.stringValue = newText
+    label.sizeToFit()
+
+    // Resize panel to fit new content without repositioning
+    let padding: CGFloat = 8
+    if let panel = tooltipPanel, let effect = panel.contentView {
+      let newWidth = label.frame.width + padding * 2
+      let newHeight = label.frame.height + padding * 2
+      var frame = panel.frame
+      let oldMidX = frame.midX
+      frame.size.width = newWidth
+      frame.size.height = newHeight
+      frame.origin.x = oldMidX - newWidth / 2
+      effect.frame.size = NSSize(width: newWidth, height: newHeight)
+      panel.setFrame(frame, display: true)
+    }
   }
 
   func hideTooltip() {
+    tooltipRefreshTimer?.invalidate()
+    tooltipRefreshTimer = nil
+    tooltipRefreshProvider = nil
+    tooltipLabel = nil
     tooltipPanel?.orderOut(nil)
     tooltipPanel = nil
   }
@@ -238,7 +349,8 @@ class PopupManager {
 
   func showMenu(
     descriptors: [MenuItemDescriptor], moduleName: String, anchorPoint: NSPoint,
-    moduleMinX: CGFloat? = nil, rebuilder: (() -> Void)? = nil
+    moduleMinX: CGFloat? = nil, rebuilder: (() -> Void)? = nil,
+    liveContent: LiveContentProvider? = nil
   ) {
     guard !descriptors.isEmpty else { return }
 
@@ -246,10 +358,12 @@ class PopupManager {
 
     if dismissIfActive(menuId) { return }
 
-    if isNative {
+    if isNative, liveContent == nil {
       // Native NSMenu left-aligns at the anchor point. Use the
       // module's left edge X so the menu appears directly below
       // the module, matching native macOS menu bar behaviour.
+      // Menus with live content always use the themed path so
+      // SwiftUI can observe and re-render updates in place.
       var nativeAnchor = anchorPoint
       if let minX = moduleMinX {
         nativeAnchor.x = minX
@@ -258,7 +372,7 @@ class PopupManager {
     } else {
       showThemedMenu(
         descriptors: descriptors, moduleName: moduleName, anchorPoint: anchorPoint,
-        rebuilder: rebuilder)
+        rebuilder: rebuilder, liveContent: liveContent)
     }
   }
 
@@ -365,7 +479,7 @@ class PopupManager {
 
   private func showThemedMenu(
     descriptors: [MenuItemDescriptor], moduleName: String, anchorPoint: NSPoint,
-    rebuilder: (() -> Void)? = nil
+    rebuilder: (() -> Void)? = nil, liveContent: LiveContentProvider? = nil
   ) {
     let resolvedFg: Color = isNative ? .primary : Color(nsColor: effectiveFgColor)
     let menuView = SwiftUIThemedMenuView(
@@ -373,7 +487,8 @@ class PopupManager {
       isNative: isNative,
       resolvedFg: resolvedFg,
       dismissHandler: { [weak self] in self?.dismissPopup() },
-      rebuilder: rebuilder
+      rebuilder: rebuilder,
+      liveContent: liveContent
     )
 
     let hostingView = NSHostingView(rootView: menuView)
@@ -388,7 +503,9 @@ class PopupManager {
       height: panelHeight
     )
 
-    presentPopupPanel(hostingView: hostingView, panelRect: panelRect, popupId: "\(moduleName):menu")
+    presentPopupPanel(
+      hostingView: hostingView, panelRect: panelRect, popupId: "\(moduleName):menu",
+      liveContent: liveContent)
   }
 
   // MARK: - Popup
@@ -407,6 +524,7 @@ class PopupManager {
     activePanel?.orderOut(nil)
     activePanel = nil
     activePopupId = nil
+    activeLiveContent = nil
   }
 
   // MARK: - Panel Factories
@@ -473,7 +591,10 @@ class PopupManager {
   /// Present a SwiftUI hosting view in a popup panel, clamped to screen bounds.
   /// Shared by showThemedMenu and showUserPopup to avoid duplicating the
   /// panel-creation and container-setup pattern.
-  private func presentPopupPanel(hostingView: NSView, panelRect: NSRect, popupId: String) {
+  private func presentPopupPanel(
+    hostingView: NSView, panelRect: NSRect, popupId: String,
+    liveContent: LiveContentProvider? = nil
+  ) {
     let clamped = clampToScreen(panelRect)
     let panel = makePopupPanel(rect: clamped)
 
@@ -487,6 +608,7 @@ class PopupManager {
 
     activePanel = panel
     activePopupId = popupId
+    activeLiveContent = liveContent
   }
 
   // MARK: - User-Defined Popup
@@ -494,7 +616,8 @@ class PopupManager {
   func showUserPopup(
     config: PopupConfig, moduleName: String, anchorPoint: NSPoint,
     templateResolver: @escaping (String) -> String,
-    fgColor: Color, iconFont: Font?
+    fgColor: Color, iconFont: Font?,
+    liveContent: LiveContentProvider? = nil
   ) {
     let popupId = "\(moduleName):user-popup"
 
@@ -507,7 +630,8 @@ class PopupManager {
       isNative: isNative,
       resolvedFg: resolvedFg,
       iconFont: iconFont,
-      dismissHandler: { [weak self] in self?.dismissPopup() }
+      dismissHandler: { [weak self] in self?.dismissPopup() },
+      liveContent: liveContent
     )
 
     let hostingView = NSHostingView(rootView: popupView)
@@ -522,7 +646,9 @@ class PopupManager {
       height: panelHeight
     )
 
-    presentPopupPanel(hostingView: hostingView, panelRect: panelRect, popupId: popupId)
+    presentPopupPanel(
+      hostingView: hostingView, panelRect: panelRect, popupId: popupId,
+      liveContent: liveContent)
   }
 }
 
@@ -535,11 +661,35 @@ struct UserPopupView: View {
   let resolvedFg: Color
   let iconFont: Font?
   let dismissHandler: () -> Void
+  @ObservedObject var liveContent: LiveContentProvider
+
+  /// Initializer that accepts an optional LiveContentProvider, creating
+  /// a dummy static one if nil (for backward compatibility).
+  init(
+    config: PopupConfig, templateResolver: @escaping (String) -> String,
+    isNative: Bool, resolvedFg: Color, iconFont: Font?,
+    dismissHandler: @escaping () -> Void, liveContent: LiveContentProvider? = nil
+  ) {
+    self.config = config
+    self.templateResolver = templateResolver
+    self.isNative = isNative
+    self.resolvedFg = resolvedFg
+    self.iconFont = iconFont
+    self.dismissHandler = dismissHandler
+    self.liveContent = liveContent ?? LiveContentProvider.static()
+  }
+
+  private func resolve(_ template: String) -> String {
+    if liveContent.isStatic {
+      return templateResolver(template)
+    }
+    return liveContent.resolveTemplate(template)
+  }
 
   var body: some View {
     VStack(alignment: .leading, spacing: 0) {
       if let title = config.title {
-        Text(templateResolver(title))
+        Text(resolve(title))
           .font(.system(size: 13, weight: .semibold))
           .foregroundStyle(resolvedFg)
           .padding(.horizontal, 16)
@@ -560,7 +710,7 @@ struct UserPopupView: View {
   private func popupRow(_ row: PopupRowConfig) -> some View {
     switch row.type {
     case "header":
-      Text(templateResolver(row.content ?? row.label ?? ""))
+      Text(resolve(row.content ?? row.label ?? ""))
         .font(.system(size: 11, weight: .medium))
         .foregroundStyle(resolvedFg.opacity(0.5))
         .padding(.horizontal, 16)
@@ -569,18 +719,18 @@ struct UserPopupView: View {
     case "text":
       HStack(spacing: 8) {
         if let icon = row.icon {
-          Text(templateResolver(icon))
+          Text(resolve(icon))
             .font(iconFont ?? .system(size: 13))
             .foregroundStyle(rowFgColor(row))
         }
         if let label = row.label {
-          Text(templateResolver(label))
+          Text(resolve(label))
             .font(.system(size: 13))
             .foregroundStyle(rowFgColor(row))
         }
         Spacer()
         if let value = row.value {
-          Text(templateResolver(value))
+          Text(resolve(value))
             .font(.system(size: 13))
             .foregroundStyle(rowFgColor(row))
         }
@@ -595,8 +745,8 @@ struct UserPopupView: View {
 
     case "action":
       PopupActionRow(
-        label: templateResolver(row.label ?? ""),
-        icon: row.icon.map { templateResolver($0) },
+        label: resolve(row.label ?? ""),
+        icon: row.icon.map { resolve($0) },
         iconFont: iconFont,
         isNative: isNative,
         resolvedFg: resolvedFg,

@@ -111,11 +111,13 @@ class ModuleViewModel: ObservableObject, Identifiable {
     update()
     let interval = moduleConfig.config?.redrawInterval ?? 1.0
     guard interval > 0 else { return }
-    timer = Timer.scheduledTimer(withTimeInterval: interval, repeats: true) { [weak self] _ in
+    let t = Timer(timeInterval: interval, repeats: true) { [weak self] _ in
       MainActor.assumeIsolated {
         self?.update()
       }
     }
+    RunLoop.main.add(t, forMode: .common)
+    timer = t
   }
 }
 

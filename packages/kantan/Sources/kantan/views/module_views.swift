@@ -102,7 +102,13 @@ struct ModuleContainerView: View {
     else { return }
     guard !popupManager.isPopupActive else { return }
     let resolved = resolveTemplate(hover.content)
-    popupManager.showTooltip(text: resolved, anchorPoint: anchorPoint)
+    popupManager.showTooltip(
+      text: resolved, anchorPoint: anchorPoint,
+      refreshProvider: { [weak viewModel] in
+        guard let viewModel else { return resolved }
+        return self.resolveTemplateWith(hover.content, viewModel: viewModel)
+      }
+    )
   }
 
   private func handleClick() {
@@ -112,20 +118,30 @@ struct ModuleContainerView: View {
     switch click.type {
     case "menu":
       if click.items != nil {
+        let liveContent = LiveContentProvider(
+          viewModel: viewModel,
+          descriptorBuilder: { self.descriptorsFromClickConfig(click) }
+        )
         showDynamicMenu(
           builder: { self.descriptorsFromClickConfig(click) },
           moduleName: viewModel.id,
           anchorPoint: anchorPoint,
-          moduleMinX: moduleScreenMinX
+          moduleMinX: moduleScreenMinX,
+          liveContent: liveContent
         )
       } else if let descriptors = viewModel.moduleConfig.config?.getMenuDescriptors(),
         !descriptors.isEmpty
       {
+        let liveContent = LiveContentProvider(
+          viewModel: viewModel,
+          descriptorBuilder: { self.viewModel.moduleConfig.config?.getMenuDescriptors() ?? [] }
+        )
         showDynamicMenu(
           builder: { self.viewModel.moduleConfig.config?.getMenuDescriptors() ?? [] },
           moduleName: viewModel.id,
           anchorPoint: anchorPoint,
-          moduleMinX: moduleScreenMinX
+          moduleMinX: moduleScreenMinX,
+          liveContent: liveContent
         )
       } else {
         let descriptors = descriptorsFromClickConfig(click)
@@ -140,13 +156,15 @@ struct ModuleContainerView: View {
       if let popupConfig = click.popupConfig {
         let fg = Color(nsColor: popupManager.effectiveFgColor)
         let iconFont = themeProvider.iconFont(for: viewModel)
+        let liveContent = LiveContentProvider(viewModel: viewModel)
         popupManager.showUserPopup(
           config: popupConfig,
           moduleName: viewModel.id,
           anchorPoint: anchorPoint,
           templateResolver: { self.resolveTemplate($0) },
           fgColor: fg,
-          iconFont: iconFont
+          iconFont: iconFont,
+          liveContent: liveContent
         )
       }
     case "toggle":
@@ -162,21 +180,28 @@ struct ModuleContainerView: View {
   /// The rebuilder is self-referencing so repeated toggles work.
   private func showDynamicMenu(
     builder: @escaping () -> [MenuItemDescriptor], moduleName: String, anchorPoint: NSPoint,
-    moduleMinX: CGFloat? = nil
+    moduleMinX: CGFloat? = nil, liveContent: LiveContentProvider? = nil
   ) {
     let descriptors = builder()
     popupManager.showMenu(
       descriptors: descriptors, moduleName: moduleName, anchorPoint: anchorPoint,
-      moduleMinX: moduleMinX
-    ) {
-      self.showDynamicMenu(
-        builder: builder, moduleName: moduleName, anchorPoint: anchorPoint, moduleMinX: moduleMinX)
-    }
+      moduleMinX: moduleMinX,
+      rebuilder: {
+        self.showDynamicMenu(
+          builder: builder, moduleName: moduleName, anchorPoint: anchorPoint,
+          moduleMinX: moduleMinX, liveContent: liveContent)
+      },
+      liveContent: liveContent
+    )
   }
 
   // MARK: - Template Resolution
 
   private func resolveTemplate(_ template: String) -> String {
+    resolveTemplateWith(template, viewModel: viewModel)
+  }
+
+  private func resolveTemplateWith(_ template: String, viewModel: ModuleViewModel) -> String {
     var result = template
     if let value = viewModel.displayValue {
       result = result.replacingOccurrences(of: "{value}", with: value)
