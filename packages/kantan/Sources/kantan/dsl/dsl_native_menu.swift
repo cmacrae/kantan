@@ -359,21 +359,12 @@ private func addItems(from node: ViewNode, to menu: NSMenu, resolver: TemplateRe
 
   case .header(let content, _):
     let resolvedContent = resolver.resolve(content)
-    if #available(macOS 14.0, *) {
-      let item = NSMenuItem.sectionHeader(title: resolvedContent)
-      menu.addItem(item)
-    } else {
-      // Fallback: disabled item with uppercase, 11pt semibold, secondary color
-      let attributes: [NSAttributedString.Key: Any] = [
-        .font: NSFont.systemFont(ofSize: 11, weight: .semibold),
-        .foregroundColor: NSColor.secondaryLabelColor,
-      ]
-      let item = NSMenuItem(title: "", action: nil, keyEquivalent: "")
-      item.attributedTitle = NSAttributedString(
-        string: resolvedContent.uppercased(), attributes: attributes)
-      item.isEnabled = false
-      menu.addItem(item)
-    }
+    let item = NSMenuItem(title: "", action: nil, keyEquivalent: "")
+    let view = NativeMenuHeaderView(content: resolvedContent)
+    let hosting = NSHostingView(rootView: view)
+    hosting.frame = NSRect(x: 0, y: 0, width: 280, height: 22)
+    item.view = hosting
+    menu.addItem(item)
 
   // MARK: Divider
 
@@ -452,6 +443,20 @@ private func nativeMenuColorFromHex(_ hex: String) -> Color? {
   return Color(red: r, green: g, blue: b)
 }
 
+/// Header row for native NSMenu, matching the themed view's header style.
+struct NativeMenuHeaderView: View {
+  let content: String
+
+  var body: some View {
+    Text(content)
+      .font(.system(size: 12, weight: .bold))
+      .foregroundStyle(Color.primary)
+      .frame(maxWidth: .infinity, alignment: .leading)
+      .frame(height: 22)
+      .padding(.horizontal, 14)
+  }
+}
+
 /// A key/value row for native NSMenu: bold label on the left, secondary detail
 /// right-aligned. Rendered via NSHostingView to bypass NSMenu's disabled muting.
 /// Supports secondary (muted) and strikethrough styling for past events etc.
@@ -471,11 +476,7 @@ struct NativeMenuRowView: View {
           .padding(.trailing, 8)
       }
       Text(label)
-        .font(
-          .system(
-            size: NSFont.menuFont(ofSize: 0).pointSize,
-            weight: isSecondary ? .regular : .bold)
-        )
+        .font(.system(size: NSFont.menuFont(ofSize: 0).pointSize))
         .strikethrough(isStrikethrough)
         .foregroundStyle(isSecondary ? .secondary : .primary)
       Spacer(minLength: 16)
@@ -489,7 +490,7 @@ struct NativeMenuRowView: View {
   }
 }
 
-/// A label-only row for native NSMenu. Bold primary text.
+/// A label-only row for native NSMenu.
 /// Supports secondary (muted) and strikethrough styling.
 struct NativeMenuLabelView: View {
   let label: String
@@ -506,11 +507,7 @@ struct NativeMenuLabelView: View {
           .padding(.trailing, 8)
       }
       Text(label)
-        .font(
-          .system(
-            size: NSFont.menuFont(ofSize: 0).pointSize,
-            weight: isSecondary ? .regular : .bold)
-        )
+        .font(.system(size: NSFont.menuFont(ofSize: 0).pointSize))
         .strikethrough(isStrikethrough)
         .foregroundStyle(isSecondary ? .secondary : .primary)
       Spacer()
