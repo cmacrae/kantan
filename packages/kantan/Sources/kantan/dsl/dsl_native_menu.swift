@@ -115,7 +115,7 @@ private struct HStackTextPart {
 /// so past events etc. render correctly in native menus.
 @MainActor
 private func addHStackItem(
-  children: [ViewNode], to menu: NSMenu, resolver: TemplateResolver
+  children: [ViewNode], command: String? = nil, to menu: NSMenu, resolver: TemplateResolver
 ) {
   // Separate children at the first spacer, preserving style metadata
   var labelParts: [HStackTextPart] = []
@@ -200,6 +200,15 @@ private func addHStackItem(
     rowView = hosting
   }
   item.view = rowView
+  if let command = command {
+    let resolvedCommand = resolver.resolve(command)
+    let target = NativeMenuTarget {
+      runCommand(resolvedCommand)
+    }
+    item.target = target
+    item.action = #selector(NativeMenuTarget.menuAction(_:))
+    item.representedObject = target
+  }
   menu.addItem(item)
 }
 
@@ -220,7 +229,7 @@ private func extractStyledParts(from node: ViewNode, resolver: TemplateResolver)
     guard !resolved.isEmpty else { return [] }
     return [HStackTextPart(text: resolved, isSecondary: false, isStrikethrough: false)]
   case .vstack(_, _, _, let children, _),
-    .hstack(_, _, _, let children, _),
+    .hstack(_, _, _, let children, _, _),
     .group(let children, _):
     return children.flatMap { extractStyledParts(from: $0, resolver: resolver) }
   default:
@@ -275,14 +284,14 @@ private func addItems(from node: ViewNode, to menu: NSMenu, resolver: TemplateRe
 
   // MARK: HStack -- compose into a single menu item
 
-  case .hstack(_, _, _, let children, _):
+  case .hstack(_, _, _, let children, let command, _):
     // Check if hstack contains any interactive nodes — if so, flatten normally
     if children.contains(where: { isInteractiveNode($0) }) {
       for child in children {
         addItems(from: child, to: menu, resolver: resolver)
       }
     } else {
-      addHStackItem(children: children, to: menu, resolver: resolver)
+      addHStackItem(children: children, command: command, to: menu, resolver: resolver)
     }
 
   // MARK: Action
@@ -300,7 +309,7 @@ private func addItems(from node: ViewNode, to menu: NSMenu, resolver: TemplateRe
     if let command = command {
       let resolvedCommand = resolver.resolve(command)
       let target = NativeMenuTarget {
-        runShellCommand(resolvedCommand)
+        runCommand(resolvedCommand)
       }
       item.target = target
       item.action = #selector(NativeMenuTarget.menuAction(_:))
@@ -338,7 +347,7 @@ private func addItems(from node: ViewNode, to menu: NSMenu, resolver: TemplateRe
     let toggleView = NativeMenuToggleView(label: resolvedLabel, isOn: isOn) {
       if let command = command {
         let resolvedCommand = resolver.resolve(command)
-        runShellCommand(resolvedCommand)
+        runCommand(resolvedCommand)
       }
     }
     let hostingView = NSHostingView(rootView: toggleView)
@@ -565,7 +574,7 @@ class NativeMenuCheckItemView: NSView {
         label: hosting.rootView.label, isChecked: isChecked)
     }
     if let command = command, !command.isEmpty {
-      runShellCommand(command)
+      runCommand(command)
     }
   }
 }

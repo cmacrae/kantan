@@ -153,6 +153,7 @@ enum ViewNode: Sendable {
     padding: Padding?,
     alignment: ViewAlignment?,
     children: [ViewNode],
+    command: String?,
     common: CommonNodeProperties
   )
 
@@ -372,6 +373,7 @@ extension ViewNode: Decodable {
         padding: try container.decodeIfPresent(Padding.self, forKey: .padding),
         alignment: try container.decodeIfPresent(ViewAlignment.self, forKey: .alignment),
         children: try container.decodeIfPresent([ViewNode].self, forKey: .children) ?? [],
+        command: try container.decodeIfPresent(String.self, forKey: .command),
         common: common
       )
 

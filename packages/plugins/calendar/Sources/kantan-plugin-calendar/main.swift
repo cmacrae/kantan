@@ -114,10 +114,14 @@ func vstack(
   return .object(obj)
 }
 
-func hstack(spacing: Double? = nil, padding: JSONValue? = nil, children: [JSONValue]) -> JSONValue {
+func hstack(
+  spacing: Double? = nil, padding: JSONValue? = nil, command: String? = nil,
+  children: [JSONValue]
+) -> JSONValue {
   var obj: [String: JSONValue] = ["type": .string("hstack"), "children": .array(children)]
   if let s = spacing { obj["spacing"] = .double(s) }
   if let p = padding { obj["padding"] = p }
+  if let c = command { obj["command"] = .string(c) }
   return .object(obj)
 }
 

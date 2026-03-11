@@ -270,9 +270,10 @@ private func parseViewNodeFromYaml(_ yaml: Yaml) -> ViewNode? {
     let nodePadding = yamlPadding(dict["padding"])
     let alignment = dict["alignment"]?.string.flatMap { ViewAlignment(rawValue: $0) }
     let children = dict["children"]?.array?.compactMap { parseViewNodeFromYaml($0) } ?? []
+    let command = dict["command"]?.string
     return .hstack(
       spacing: spacing, padding: nodePadding, alignment: alignment, children: children,
-      common: common)
+      command: command, common: common)
 
   case "zstack":
     let alignment = dict["alignment"]?.string.flatMap { ViewAlignment(rawValue: $0) }

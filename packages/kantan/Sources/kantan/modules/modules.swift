@@ -1,3 +1,4 @@
+import AppKit
 import Foundation
 import Yaml
 
@@ -302,10 +303,24 @@ struct ConfigDictionary: Decodable {
   }
 }
 
-// MARK: - Shell Command Utility
+// MARK: - Command Utility
 
-/// Run a shell command asynchronously (fire-and-forget).
-func runShellCommand(_ command: String) {
+/// Run a command asynchronously (fire-and-forget).
+/// If the command matches a URL scheme (e.g. "calshow:123", "https://..."),
+/// it is opened via NSWorkspace. Otherwise it is executed as a shell command.
+func runCommand(_ command: String) {
+  let trimmed = command.trimmingCharacters(in: .whitespaces)
+  // Detect URL scheme: starts with letters followed by ":"
+  if let colonRange = trimmed.range(of: ":"),
+    trimmed[trimmed.startIndex..<colonRange.lowerBound].allSatisfy({ $0.isLetter }),
+    !trimmed.contains(" "),
+    let url = URL(string: trimmed)
+  {
+    DispatchQueue.main.async {
+      NSWorkspace.shared.open(url)
+    }
+    return
+  }
   DispatchQueue.global(qos: .userInitiated).async {
     let process = Process()
     process.executableURL = URL(fileURLWithPath: "/bin/sh")

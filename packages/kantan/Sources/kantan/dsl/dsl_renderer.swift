@@ -115,7 +115,7 @@ extension ViewNode {
   var common: CommonNodeProperties {
     switch self {
     case .vstack(_, _, _, _, let c),
-      .hstack(_, _, _, _, let c),
+      .hstack(_, _, _, _, _, let c),
       .zstack(_, _, let c),
       .scroll(_, _, let c),
       .spacer(_, let c),
@@ -181,8 +181,8 @@ struct DSLRendererView: View {
     // Layout
     case .vstack(let spacing, _, let alignment, let children, _):
       renderVStack(spacing: spacing, alignment: alignment, children: children)
-    case .hstack(let spacing, _, let alignment, let children, _):
-      renderHStack(spacing: spacing, alignment: alignment, children: children)
+    case .hstack(let spacing, _, let alignment, let children, let command, _):
+      renderHStack(spacing: spacing, alignment: alignment, children: children, command: command)
     case .zstack(let alignment, let children, _):
       renderZStack(alignment: alignment, children: children)
     case .scroll(let axis, let children, _):
@@ -293,11 +293,14 @@ struct DSLRendererView: View {
 
   @ViewBuilder
   private func renderHStack(
-    spacing: Double?, alignment: ViewAlignment?, children: [ViewNode]
+    spacing: Double?, alignment: ViewAlignment?, children: [ViewNode], command: String? = nil
   ) -> some View {
-    HStack(
-      alignment: verticalAlignment(from: alignment),
-      spacing: spacing.map { CGFloat($0) }
+    let resolvedCommand = command.map { resolver.resolve($0) }
+    let hasCommand = resolvedCommand != nil && !resolvedCommand!.isEmpty
+    DSLClickableHStack(
+      spacing: spacing, alignment: verticalAlignment(from: alignment),
+      command: hasCommand ? resolvedCommand : nil,
+      isNative: isNative, dismissHandler: dismissHandler
     ) {
       renderChildren(children)
     }
@@ -702,6 +705,44 @@ private struct DSLForeachElementView: View {
 
 // MARK: - Interactive Node Views
 
+/// HStack that optionally becomes clickable when a command is provided.
+/// Without a command it renders as a plain HStack.
+private struct DSLClickableHStack<Content: View>: View {
+  let spacing: Double?
+  let alignment: VerticalAlignment
+  let command: String?
+  let isNative: Bool
+  let dismissHandler: () -> Void
+  @ViewBuilder let content: Content
+  @State private var isHovered = false
+
+  var body: some View {
+    if let command = command, !command.isEmpty {
+      HStack(alignment: alignment, spacing: spacing.map { CGFloat($0) }) {
+        content
+      }
+      .background(
+        RoundedRectangle(cornerRadius: 4)
+          .fill(
+            isHovered
+              ? Color(nsColor: .selectedContentBackgroundColor).opacity(isNative ? 1.0 : 0.3)
+              : .clear
+          )
+      )
+      .contentShape(Rectangle())
+      .onHover { hovering in isHovered = hovering }
+      .onTapGesture {
+        dismissHandler()
+        runCommand(command)
+      }
+    } else {
+      HStack(alignment: alignment, spacing: spacing.map { CGFloat($0) }) {
+        content
+      }
+    }
+  }
+}
+
 /// Hoverable action row: icon + label, highlights on hover, runs command on tap.
 private struct DSLActionView: View {
   let label: String?
@@ -735,7 +776,6 @@ private struct DSLActionView: View {
         .foregroundStyle(hoverFgColor)
       Spacer()
     }
-    .padding(.horizontal, 16)
     .frame(height: 28)
     .background(
       RoundedRectangle(cornerRadius: 4)
@@ -750,7 +790,7 @@ private struct DSLActionView: View {
       dismissHandler()
       guard let command = command, !command.isEmpty else { return }
       let resolved = resolver.resolve(command)
-      runShellCommand(resolved)
+      runCommand(resolved)
     }
   }
 
@@ -792,7 +832,7 @@ private struct DSLCheckView: View {
     .onTapGesture {
       guard let command = command, !command.isEmpty else { return }
       let resolved = resolver.resolve(command)
-      runShellCommand(resolved)
+      runCommand(resolved)
     }
   }
 }
@@ -826,7 +866,7 @@ private struct DSLToggleView: View {
         dismissHandler()
         guard let command = command, !command.isEmpty else { return }
         let resolved = resolver.resolve(command)
-        runShellCommand(resolved)
+        runCommand(resolved)
       }
   }
 }
@@ -849,7 +889,7 @@ private struct DSLButtonView: View {
       dismissHandler()
       guard let command = command, !command.isEmpty else { return }
       let resolved = resolver.resolve(command)
-      runShellCommand(resolved)
+      runCommand(resolved)
     }) {
       HStack(spacing: 6) {
         if let icon = resolvedIcon, !icon.isEmpty {
