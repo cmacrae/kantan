@@ -121,6 +121,7 @@ private func addHStackItem(
   var labelParts: [HStackTextPart] = []
   var detailParts: [HStackTextPart] = []
   var hitSpacer = false
+  var indicatorColor: String?
 
   for child in children {
     switch child {
@@ -145,6 +146,14 @@ private func addHStackItem(
           detailParts.append(part)
         } else {
           labelParts.append(part)
+        }
+      }
+    case .rect(_, _, let color, _, _, _, _):
+      // Extract color from rect nodes (e.g. calendar color indicators)
+      if let color = color, indicatorColor == nil {
+        let resolved = resolver.resolve(color)
+        if !resolved.isEmpty {
+          indicatorColor = resolved
         }
       }
     case .progress:
@@ -177,13 +186,15 @@ private func addHStackItem(
   let rowView: NSView
   if !detail.isEmpty {
     let view = NativeMenuRowView(
-      label: label, detail: detail, isSecondary: isSecondary, isStrikethrough: isStrikethrough)
+      label: label, detail: detail, isSecondary: isSecondary, isStrikethrough: isStrikethrough,
+      indicatorColor: indicatorColor)
     let hosting = NSHostingView(rootView: view)
     hosting.frame = NSRect(x: 0, y: 0, width: 280, height: 22)
     rowView = hosting
   } else {
     let view = NativeMenuLabelView(
-      label: label, isSecondary: isSecondary, isStrikethrough: isStrikethrough)
+      label: label, isSecondary: isSecondary, isStrikethrough: isStrikethrough,
+      indicatorColor: indicatorColor)
     let hosting = NSHostingView(rootView: view)
     hosting.frame = NSRect(x: 0, y: 0, width: 280, height: 22)
     rowView = hosting
@@ -422,6 +433,16 @@ private func addItems(from node: ViewNode, to menu: NSMenu, resolver: TemplateRe
 
 // MARK: - Native Menu Custom Views
 
+/// Parse a hex color string (e.g. "#FF5733") into a SwiftUI Color.
+private func nativeMenuColorFromHex(_ hex: String) -> Color? {
+  let cleaned = hex.trimmingCharacters(in: CharacterSet.alphanumerics.inverted)
+  guard cleaned.count == 6, let rgbValue = UInt64(cleaned, radix: 16) else { return nil }
+  let r = Double((rgbValue & 0xFF0000) >> 16) / 255.0
+  let g = Double((rgbValue & 0x00FF00) >> 8) / 255.0
+  let b = Double(rgbValue & 0x0000FF) / 255.0
+  return Color(red: r, green: g, blue: b)
+}
+
 /// A key/value row for native NSMenu: bold label on the left, secondary detail
 /// right-aligned. Rendered via NSHostingView to bypass NSMenu's disabled muting.
 /// Supports secondary (muted) and strikethrough styling for past events etc.
@@ -430,9 +451,16 @@ struct NativeMenuRowView: View {
   let detail: String
   var isSecondary: Bool = false
   var isStrikethrough: Bool = false
+  var indicatorColor: String?
 
   var body: some View {
     HStack(spacing: 0) {
+      if let hex = indicatorColor, let color = nativeMenuColorFromHex(hex) {
+        RoundedRectangle(cornerRadius: 1.5)
+          .fill(color)
+          .frame(width: 3, height: 16)
+          .padding(.trailing, 8)
+      }
       Text(label)
         .font(
           .system(
@@ -458,9 +486,16 @@ struct NativeMenuLabelView: View {
   let label: String
   var isSecondary: Bool = false
   var isStrikethrough: Bool = false
+  var indicatorColor: String?
 
   var body: some View {
     HStack {
+      if let hex = indicatorColor, let color = nativeMenuColorFromHex(hex) {
+        RoundedRectangle(cornerRadius: 1.5)
+          .fill(color)
+          .frame(width: 3, height: 16)
+          .padding(.trailing, 8)
+      }
       Text(label)
         .font(
           .system(
