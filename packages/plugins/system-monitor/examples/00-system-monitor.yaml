@@ -1,0 +1,44 @@
+name: system-monitor
+type: command
+alignment: right
+icon: "\uf2db"
+style:
+  light:
+    fg: "#a6d189"
+  dark:
+    fg: "#a6e3a1"
+config:
+  command: kantan-plugin-system-monitor
+  output: json
+  interval: 3
+  settings:
+    style:
+      light:
+        cpu_low: "#34c759"
+        cpu_medium: "#f0a500"
+        cpu_high: "#e8590c"
+        cpu_critical: "#e03131"
+        thermal_nominal: "#34c759"
+        thermal_fair: "#f0a500"
+        thermal_serious: "#e8590c"
+        thermal_critical: "#e03131"
+      dark:
+        cpu_low: "#30d158"
+        cpu_medium: "#ffcc00"
+        cpu_high: "#ff9500"
+        cpu_critical: "#ff3b30"
+        thermal_nominal: "#30d158"
+        thermal_fair: "#ffcc00"
+        thermal_serious: "#ff9500"
+        thermal_critical: "#ff3b30"
+    process_count: 5
+    show_cores: false
+interaction:
+  hover:
+    type: tooltip
+    content: "CPU {cpu} | Mem {mem} | {thermal}"
+  click:
+    type: menu
+    items:
+      - header: "System Monitor"
+      - dynamic: true

@@ -54,32 +54,7 @@
           // meta;
         };
 
-      pluginDirs = builtins.readDir ./packages/plugins;
-      pluginPackages = builtins.listToAttrs (
-        builtins.filter (entry: entry != null) (
-          builtins.map (
-            name:
-            if pluginDirs.${name} == "directory" then
-              {
-                inherit name;
-                value = buildSwiftPackage {
-                  pname = name;
-                  src = pkgs.lib.cleanSource ./packages/plugins/${name};
-                };
-              }
-            else
-              null
-          ) (builtins.attrNames pluginDirs)
-        )
-      );
-
-      allSwiftSourceDirs = [
-        "packages/kantan/Sources"
-      ]
-      ++ builtins.map (name: "packages/plugins/${name}/Sources") (builtins.attrNames pluginPackages);
-    in
-    {
-      packages.${system}.default = buildSwiftPackage {
+      _kantan = buildSwiftPackage {
         pname = "kantan";
         src = pkgs.lib.cleanSourceWith {
           src = ./packages/kantan;
@@ -96,7 +71,104 @@
         };
       };
 
-      legacyPackages.${system}.plugins = pluginPackages;
+      buildSwiftPlugin =
+        {
+          name,
+          src,
+        }:
+        let
+          bin = "kantan-plugin-${name}";
+          built = buildSwiftPackage {
+            pname = bin;
+            inherit src;
+          };
+        in
+        pkgs.stdenvNoCC.mkDerivation {
+          pname = bin;
+          version = "0.1.0";
+          dontUnpack = true;
+          dontFixup = true;
+          installPhase = ''
+            runHook preInstall
+
+            mkdir -p $out/bin
+            cp ${built}/bin/${bin} $out/bin/${bin}
+
+            if [ -d "${src}/examples" ]; then
+              mkdir -p $out/share/examples
+              cp ${src}/examples/* $out/share/examples/
+            fi
+
+            runHook postInstall
+          '';
+          meta = {
+            platforms = [ "aarch64-darwin" ];
+          };
+        };
+
+      pluginDirs = builtins.readDir ./packages/plugins;
+      pluginPackages = builtins.listToAttrs (
+        builtins.filter (entry: entry != null) (
+          builtins.map (
+            dirName:
+            if pluginDirs.${dirName} == "directory" then
+              {
+                name = dirName;
+                value = buildSwiftPlugin {
+                  name = dirName;
+                  src = pkgs.lib.cleanSource ./packages/plugins/${dirName};
+                };
+              }
+            else
+              null
+          ) (builtins.attrNames pluginDirs)
+        )
+      );
+
+      kantanWithPlugins =
+        {
+          plugins ? builtins.attrValues pluginPackages,
+          extraPlugins ? [ ],
+        }:
+        let
+          allPlugins = plugins ++ extraPlugins;
+        in
+        if allPlugins == [ ] then
+          _kantan
+        else
+          pkgs.symlinkJoin {
+            name = "kantan-${_kantan.version}";
+            paths = [ _kantan ] ++ allPlugins;
+            nativeBuildInputs = [ pkgs.makeBinaryWrapper ];
+            postBuild = ''
+              wrapProgram $out/bin/kantan \
+                --prefix PATH : $out/bin
+            '';
+            meta = _kantan.meta;
+          };
+
+      kantan = (kantanWithPlugins { }) // {
+        override =
+          args:
+          kantanWithPlugins (
+            {
+              plugins = builtins.attrValues pluginPackages;
+              extraPlugins = [ ];
+            }
+            // args
+          );
+        withoutPlugins = _kantan;
+        withPlugins = kantanWithPlugins;
+        plugins = pluginPackages;
+      };
+
+      allSwiftSourceDirs = [
+        "packages/kantan/Sources"
+      ]
+      ++ builtins.map (name: "packages/plugins/${name}/Sources") (builtins.attrNames pluginPackages);
+    in
+    {
+      packages.${system}.default = kantan;
 
       formatter.${system} = pkgs.writeShellApplication {
         name = "swift-fmt";

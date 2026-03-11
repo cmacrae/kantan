@@ -1,3 +1,4 @@
+import AppKit
 import Foundation
 import Yaml
 
@@ -31,6 +32,36 @@ private func setCommandData(_ data: CommandOutputData, for key: String) {
   commandDataCache[key] = data
 }
 
+// MARK: - Yaml to Native Conversion
+
+/// Recursively converts a YamlSwift `Yaml` value to a native Swift type
+/// suitable for `JSONSerialization`.
+private func yamlToNative(_ yaml: Yaml) -> Any? {
+  switch yaml {
+  case .null:
+    return nil
+  case .bool(let b):
+    return b
+  case .int(let i):
+    return i
+  case .double(let d):
+    return d
+  case .string(let s):
+    return s
+  case .array(let arr):
+    return arr.map { yamlToNative($0) as Any }
+  case .dictionary(let dict):
+    var result: [String: Any] = [:]
+    for (key, value) in dict {
+      guard let keyStr = key.string else { continue }
+      if let native = yamlToNative(value) {
+        result[keyStr] = native
+      }
+    }
+    return result
+  }
+}
+
 // MARK: - Factory
 
 struct CommandConfigFactory: ModuleConfigurationFactory {
@@ -49,6 +80,7 @@ struct CommandConfig: ModuleConfiguration {
   let timeout: TimeInterval
   let outputMode: String  // "text" or "json"
   let interval: TimeInterval  // polling interval; 0 = event-only (no timer)
+  let settingsJSON: String?  // Opaque plugin settings serialized as JSON
 
   init(yaml: Yaml, configDir: String? = nil) throws {
     guard let rawCommand = yaml["command"].string else {
@@ -73,6 +105,17 @@ struct CommandConfig: ModuleConfiguration {
     self.timeout = yaml["timeout"].double ?? 10.0
     self.outputMode = yaml["output"].string ?? "text"
     self.interval = yaml["interval"].double ?? 1.0
+
+    // Serialize the optional "settings" block to JSON for passing to plugins.
+    if let settingsYaml = yaml["settings"].dictionary, !settingsYaml.isEmpty,
+      let native = yamlToNative(.dictionary(settingsYaml)),
+      let jsonData = try? JSONSerialization.data(withJSONObject: native),
+      let jsonString = String(data: jsonData, encoding: .utf8)
+    {
+      self.settingsJSON = jsonString
+    } else {
+      self.settingsJSON = nil
+    }
   }
 
   private static func shellQuote(_ s: String) -> String {
@@ -87,13 +130,21 @@ struct CommandConfig: ModuleConfiguration {
     let args = self.launchArgs
     let timeoutInterval = self.timeout
     let mode = self.outputMode
+    let settings = self.settingsJSON
+
+    // Capture appearance on main thread before dispatching to background.
+    let names: [NSAppearance.Name] = [.darkAqua, .aqua]
+    let isDark = NSApp.effectiveAppearance.bestMatch(from: names) == .darkAqua
+    let appearance = isDark ? "dark" : "light"
 
     DispatchQueue.global(qos: .userInitiated).async {
       let result = Self.executeCommand(
         command: cmd,
         launchPath: path,
         launchArgs: args,
-        timeout: timeoutInterval
+        timeout: timeoutInterval,
+        settingsJSON: settings,
+        appearance: appearance
       )
 
       if mode == "json" {
@@ -242,11 +293,24 @@ struct CommandConfig: ModuleConfiguration {
     command: String,
     launchPath: String,
     launchArgs: [String],
-    timeout: TimeInterval
+    timeout: TimeInterval,
+    settingsJSON: String? = nil,
+    appearance: String? = nil
   ) -> String {
     let process = Process()
     process.executableURL = URL(fileURLWithPath: launchPath)
     process.arguments = launchArgs + [command]
+
+    if settingsJSON != nil || appearance != nil {
+      var env = ProcessInfo.processInfo.environment
+      if let settings = settingsJSON {
+        env["KANTAN_SETTINGS"] = settings
+      }
+      if let appearance = appearance {
+        env["KANTAN_APPEARANCE"] = appearance
+      }
+      process.environment = env
+    }
 
     let stdoutPipe = Pipe()
     process.standardOutput = stdoutPipe

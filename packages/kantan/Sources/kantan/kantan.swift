@@ -453,6 +453,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
   var modulesDirPath: String?
   nonisolated(unsafe) var configFileSource: DispatchSourceFileSystemObject?
   nonisolated(unsafe) var modulesDirSource: DispatchSourceFileSystemObject?
+  nonisolated(unsafe) var moduleFileSources: [DispatchSourceFileSystemObject] = []
   nonisolated(unsafe) var reloadDebounceTimer: Timer?
 
   func applicationDidFinishLaunching(_ aNotification: Notification) {
@@ -694,6 +695,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
   func startWatchingModulesDir(path: String) {
     modulesDirSource?.cancel()
+    cancelModuleFileWatchers()
     guard FileManager.default.fileExists(atPath: path) else { return }
 
     let fd = open(path, O_EVTONLY)
@@ -702,6 +704,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
       return
     }
 
+    // Watch the directory itself for structural changes (files added/removed).
     let source = DispatchSource.makeFileSystemObjectSource(
       fileDescriptor: fd,
       eventMask: [.write, .delete, .rename],
@@ -710,7 +713,10 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
     source.setEventHandler { [weak self] in
       MainActor.assumeIsolated {
-        self?.scheduleReload()
+        guard let self = self else { return }
+        // Directory structure changed — re-watch individual files and reload.
+        self.watchModuleFiles(in: path)
+        self.scheduleReload()
       }
     }
 
@@ -720,6 +726,63 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
     self.modulesDirSource = source
     source.resume()
+
+    // Also watch each existing file for content changes.
+    watchModuleFiles(in: path)
+  }
+
+  private func cancelModuleFileWatchers() {
+    for source in moduleFileSources {
+      source.cancel()
+    }
+    moduleFileSources.removeAll()
+  }
+
+  private func watchModuleFiles(in dirPath: String) {
+    cancelModuleFileWatchers()
+    guard let entries = try? FileManager.default.contentsOfDirectory(atPath: dirPath) else {
+      return
+    }
+
+    for entry in entries {
+      guard entry.hasSuffix(".yaml") || entry.hasSuffix(".yml") else { continue }
+      let filePath = (dirPath as NSString).appendingPathComponent(entry)
+      let fileFd = open(filePath, O_EVTONLY)
+      guard fileFd >= 0 else { continue }
+
+      let fileSource = DispatchSource.makeFileSystemObjectSource(
+        fileDescriptor: fileFd,
+        eventMask: [.write, .delete, .rename],
+        queue: .main
+      )
+
+      fileSource.setEventHandler { [weak self] in
+        MainActor.assumeIsolated {
+          guard let self = self else { return }
+          let flags = fileSource.data
+          if flags.contains(.delete) || flags.contains(.rename) {
+            // Atomic save — re-watch all files after a brief delay.
+            fileSource.cancel()
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+              MainActor.assumeIsolated {
+                guard let dir = self.modulesDirPath else { return }
+                self.watchModuleFiles(in: dir)
+                self.scheduleReload()
+              }
+            }
+          } else {
+            self.scheduleReload()
+          }
+        }
+      }
+
+      fileSource.setCancelHandler {
+        close(fileFd)
+      }
+
+      moduleFileSources.append(fileSource)
+      fileSource.resume()
+    }
   }
 
   private func scheduleReload() {
@@ -776,6 +839,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     configFileSource = nil
     modulesDirSource?.cancel()
     modulesDirSource = nil
+    cancelModuleFileWatchers()
     reloadDebounceTimer?.invalidate()
     teardownBar()
   }
