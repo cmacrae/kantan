@@ -367,7 +367,7 @@ class PopupManager {
     } else {
       showDSLView(
         viewTree: viewTree, moduleName: moduleName, anchorPoint: anchorPoint,
-        liveContent: liveContent, resolver: resolver)
+        popupId: menuId, liveContent: liveContent, resolver: resolver)
     }
   }
 
@@ -376,11 +376,12 @@ class PopupManager {
   /// Show a DSL ViewNode tree in a themed popup panel.
   func showDSLView(
     viewTree: ViewNode, moduleName: String, anchorPoint: NSPoint,
-    liveContent: LiveContentProvider, resolver: TemplateResolver? = nil
+    popupId: String? = nil, liveContent: LiveContentProvider,
+    resolver: TemplateResolver? = nil
   ) {
-    let popupId = "\(moduleName):dsl"
+    let effectiveId = popupId ?? "\(moduleName):dsl"
 
-    if dismissIfActive(popupId) { return }
+    if dismissIfActive(effectiveId) { return }
 
     let effectiveResolver =
       resolver
@@ -417,7 +418,7 @@ class PopupManager {
     )
 
     presentPopupPanel(
-      hostingView: hostingView, panelRect: panelRect, popupId: popupId,
+      hostingView: hostingView, panelRect: panelRect, popupId: effectiveId,
       liveContent: liveContent)
   }
 
