@@ -205,15 +205,21 @@ class PopupManager {
     let panel = makeNonActivatingPanel(rect: panelRect)
     panel.ignoresMouseEvents = true
 
-    // Always use native NSVisualEffectView for the tooltip background.
-    // Theme mode tints just the text color above.
     let effect = NSVisualEffectView(frame: NSRect(origin: .zero, size: panelRect.size))
-    effect.material = .toolTip
+    effect.material = isNative ? .toolTip : .menu
     effect.state = .active
     effect.blendingMode = .behindWindow
     effect.wantsLayer = true
     effect.layer?.cornerRadius = 6
     effect.layer?.masksToBounds = true
+
+    if !isNative {
+      let tint = NSView(frame: NSRect(origin: .zero, size: panelRect.size))
+      tint.wantsLayer = true
+      tint.layer?.backgroundColor = effectiveBgColor.withAlphaComponent(0.85).cgColor
+      tint.autoresizingMask = [.width, .height]
+      effect.addSubview(tint)
+    }
 
     label.frame.origin = NSPoint(x: padding, y: padding)
     effect.addSubview(label)
