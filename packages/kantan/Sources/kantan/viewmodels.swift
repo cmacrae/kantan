@@ -22,6 +22,10 @@ class ModuleViewModel: ObservableObject, Identifiable {
   private var updateGeneration: UInt64 = 0
   nonisolated(unsafe) private var timer: Timer?
   nonisolated(unsafe) private var durationTimer: Timer?
+  nonisolated(unsafe) private var watchProcess: Process?
+  nonisolated(unsafe) private var watchStdinPipe: Pipe?
+  nonisolated(unsafe) private var watchRestartCount: Int = 0
+  nonisolated(unsafe) private var watchStopped: Bool = false
 
   init(moduleConfig: ModuleConfig) {
     self.id = moduleConfig.name
@@ -34,12 +38,21 @@ class ModuleViewModel: ObservableObject, Identifiable {
     } else {
       startPolling()
     }
+
+    startWatchIfConfigured()
   }
 
   deinit {
     (moduleConfig.config as? EventDrivenModule)?.stopObserving()
     timer?.invalidate()
     durationTimer?.invalidate()
+    // Inline watch cleanup — can't call @MainActor method from deinit
+    if let process = watchProcess {
+      try? watchStdinPipe?.fileHandleForWriting.close()
+      watchStdinPipe = nil
+      if process.isRunning { process.terminate() }
+      watchProcess = nil
+    }
   }
 
   func update() {
@@ -86,6 +99,7 @@ class ModuleViewModel: ObservableObject, Identifiable {
     }
     timer?.invalidate()
     timer = nil
+    stopWatch()
   }
 
   func resume() {
@@ -94,6 +108,7 @@ class ModuleViewModel: ObservableObject, Identifiable {
     } else {
       startPolling()
     }
+    startWatchIfConfigured()
     update()
   }
 
@@ -118,6 +133,104 @@ class ModuleViewModel: ObservableObject, Identifiable {
     }
     RunLoop.main.add(t, forMode: .common)
     timer = t
+  }
+
+  // MARK: - Watch Process
+
+  private func startWatchIfConfigured() {
+    guard let watchCmd = moduleConfig.config?.getWatchCommand(), !watchCmd.isEmpty else { return }
+    guard watchProcess == nil || watchProcess?.isRunning != true else { return }
+    watchStopped = false
+    launchWatch(command: watchCmd)
+  }
+
+  private func launchWatch(command: String) {
+    let process = Process()
+    process.executableURL = URL(fileURLWithPath: "/bin/sh")
+    process.arguments = ["-c", command]
+
+    var env = ProcessInfo.processInfo.environment
+    env["KANTAN_MODULE_NAME"] = self.id
+    if let cmdConfig = moduleConfig.config as? CommandConfig {
+      if let settings = cmdConfig.settingsJSON {
+        env["KANTAN_SETTINGS"] = settings
+      }
+    }
+    let names: [NSAppearance.Name] = [.darkAqua, .aqua]
+    let isDark = NSApp.effectiveAppearance.bestMatch(from: names) == .darkAqua
+    env["KANTAN_APPEARANCE"] = isDark ? "dark" : "light"
+    process.environment = env
+
+    // Provide a stdin pipe so the watch process can detect kantan exit
+    // (reads on stdin return EOF when kantan terminates).
+    let stdinPipe = Pipe()
+    process.standardInput = stdinPipe
+    process.standardOutput = FileHandle.nullDevice
+    process.standardError = FileHandle.nullDevice
+
+    process.terminationHandler = { [weak self] proc in
+      DispatchQueue.main.async {
+        MainActor.assumeIsolated {
+          self?.handleWatchTermination(exitCode: proc.terminationStatus)
+        }
+      }
+    }
+
+    do {
+      try process.run()
+      watchProcess = process
+      watchStdinPipe = stdinPipe
+      watchRestartCount = 0
+    } catch {
+      print("Failed to launch watch process: \(error)")
+    }
+  }
+
+  private func handleWatchTermination(exitCode: Int32) {
+    watchProcess = nil
+    watchStdinPipe = nil
+
+    // Don't restart if we intentionally stopped the watch
+    guard !watchStopped else { return }
+
+    // Exponential backoff
+    let maxRestarts = 10
+    guard watchRestartCount < maxRestarts else {
+      print("Watch process for '\(id)' exceeded \(maxRestarts) restarts, giving up")
+      return
+    }
+
+    watchRestartCount += 1
+    let delay = min(Double(1 << min(watchRestartCount - 1, 4)), 30.0)
+    print("Watch process for '\(id)' exited (\(exitCode)), restarting in \(delay)s")
+
+    DispatchQueue.main.asyncAfter(deadline: .now() + delay) { [weak self] in
+      MainActor.assumeIsolated {
+        guard let self, !self.watchStopped else { return }
+        guard let watchCmd = self.moduleConfig.config?.getWatchCommand(), !watchCmd.isEmpty else {
+          return
+        }
+        self.launchWatch(command: watchCmd)
+      }
+    }
+  }
+
+  private func stopWatch() {
+    watchStopped = true
+    terminateWatch()
+  }
+
+  private func terminateWatch() {
+    guard let process = watchProcess else { return }
+    // Close stdin pipe first — the watch process should exit on EOF
+    try? watchStdinPipe?.fileHandleForWriting.close()
+    watchStdinPipe = nil
+
+    // Give the process a moment to exit gracefully, then force terminate
+    if process.isRunning {
+      process.terminate()
+    }
+    watchProcess = nil
   }
 }
 

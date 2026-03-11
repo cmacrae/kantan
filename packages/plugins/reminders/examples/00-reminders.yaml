@@ -1,0 +1,40 @@
+name: todo
+type: command
+alignment: right
+icon: "\uf0ae"
+style:
+  light:
+    icon:
+      fg: "#ca9ee6"
+    fg: "#c6d0f5"
+    shape: box
+    bg: "#414559"
+  dark:
+    icon:
+      fg: "#cba6f7"
+    fg: "#cdd6f4"
+    shape: box
+    bg: "#313244"
+config:
+  command: kantan-plugin-reminders
+  output: json
+  interval: 0
+  watch: kantan-plugin-reminders --watch
+  settings:
+    format: "{title}"
+    lists:
+      - name: Reminders
+        icon: "\uf0ae"
+        lookahead: 10m
+        overdue: true
+        undated: false
+        completedRetention: 1h
+        maxChars: 30
+interaction:
+  hover:
+    type: tooltip
+    content: "{count} reminders"
+  click:
+    type: menu
+    items:
+      - dynamic: true

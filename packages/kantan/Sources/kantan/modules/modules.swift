@@ -21,6 +21,7 @@ protocol ModuleConfiguration: Codable, Sendable {
   func handleToggle()
   func getMenuDescriptors() -> [MenuItemDescriptor]?
   func getDynamicStyle() -> DynamicStyleOverride?
+  func getWatchCommand() -> String?
 }
 
 extension ModuleConfiguration {
@@ -31,6 +32,7 @@ extension ModuleConfiguration {
   func handleToggle() {}
   func getMenuDescriptors() -> [MenuItemDescriptor]? { nil }
   func getDynamicStyle() -> DynamicStyleOverride? { nil }
+  func getWatchCommand() -> String? { nil }
 }
 
 /// Sentinel interval for modules that don't poll (event-driven or static).
@@ -120,7 +122,6 @@ nonisolated(unsafe) let moduleFactories: [String: ModuleConfigurationFactory] = 
   "clock": ClockConfigFactory(),
   "power": PowerConfigFactory(),
   "command": CommandConfigFactory(),
-  "reminders": RemindersConfigFactory(),
   "workspace": WorkspaceConfigFactory(),
   "volume": VolumeConfigFactory(),
   "wifi": WiFiConfigFactory(),

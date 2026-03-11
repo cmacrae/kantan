@@ -81,6 +81,7 @@ struct CommandConfig: ModuleConfiguration {
   let outputMode: String  // "text" or "json"
   let interval: TimeInterval  // polling interval; 0 = event-only (no timer)
   let settingsJSON: String?  // Opaque plugin settings serialized as JSON
+  let watchCommand: String?  // Long-lived watcher process command
 
   init(yaml: Yaml, configDir: String? = nil) throws {
     guard let rawCommand = yaml["command"].string else {
@@ -105,6 +106,7 @@ struct CommandConfig: ModuleConfiguration {
     self.timeout = yaml["timeout"].double ?? 10.0
     self.outputMode = yaml["output"].string ?? "text"
     self.interval = yaml["interval"].double ?? 1.0
+    self.watchCommand = yaml["watch"].string
 
     // Serialize the optional "settings" block to JSON for passing to plugins.
     if let settingsYaml = yaml["settings"].dictionary, !settingsYaml.isEmpty,
@@ -123,6 +125,8 @@ struct CommandConfig: ModuleConfiguration {
   }
 
   var redrawInterval: TimeInterval { interval }
+
+  func getWatchCommand() -> String? { watchCommand }
 
   func getValue(completion: @escaping @Sendable (String) -> Void) {
     let cmd = self.command
@@ -217,6 +221,16 @@ struct CommandConfig: ModuleConfiguration {
       if let header = item["header"] as? String {
         return .header(header)
       }
+      if let checkLabel = item["check"] as? String {
+        let isChecked = item["checked"] as? Bool ?? false
+        let command = item["command"] as? String
+        return .check(checkLabel, isChecked: isChecked) { completion in
+          if let command = command, !command.isEmpty {
+            runShellCommand(command)
+          }
+          completion()
+        }
+      }
       guard let label = item["label"] as? String else { return nil }
       let iconGlyph = item["icon"] as? String
       let command = item["command"] as? String
@@ -295,22 +309,24 @@ struct CommandConfig: ModuleConfiguration {
     launchArgs: [String],
     timeout: TimeInterval,
     settingsJSON: String? = nil,
-    appearance: String? = nil
+    appearance: String? = nil,
+    moduleName: String? = nil
   ) -> String {
     let process = Process()
     process.executableURL = URL(fileURLWithPath: launchPath)
     process.arguments = launchArgs + [command]
 
-    if settingsJSON != nil || appearance != nil {
-      var env = ProcessInfo.processInfo.environment
-      if let settings = settingsJSON {
-        env["KANTAN_SETTINGS"] = settings
-      }
-      if let appearance = appearance {
-        env["KANTAN_APPEARANCE"] = appearance
-      }
-      process.environment = env
+    var env = ProcessInfo.processInfo.environment
+    if let settings = settingsJSON {
+      env["KANTAN_SETTINGS"] = settings
     }
+    if let appearance = appearance {
+      env["KANTAN_APPEARANCE"] = appearance
+    }
+    if let moduleName = moduleName {
+      env["KANTAN_MODULE_NAME"] = moduleName
+    }
+    process.environment = env
 
     let stdoutPipe = Pipe()
     process.standardOutput = stdoutPipe
