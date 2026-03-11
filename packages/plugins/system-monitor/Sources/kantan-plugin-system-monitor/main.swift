@@ -182,13 +182,6 @@ func action(label: String, icon iconName: String? = nil, command: String? = nil)
   return .object(obj)
 }
 
-func progress(value: String, color: String? = nil, style: String? = nil) -> JSONValue {
-  var obj: [String: JSONValue] = ["type": .string("progress"), "value": .string(value)]
-  if let c = color { obj["color"] = .string(c) }
-  if let s = style { obj["style"] = .string(s) }
-  return .object(obj)
-}
-
 func foreach(items: String, child: JSONValue) -> JSONValue {
   .object(["type": .string("foreach"), "items": .string(items), "child": child])
 }
@@ -579,17 +572,16 @@ func main() {
   // Overview header
   viewChildren.append(header("Overview"))
 
-  // CPU row with progress
+  // CPU row
   viewChildren.append(
     hstack(children: [
       icon("\u{f2db}"),
       text("CPU"),
       spacer(),
       text("{cpu}"),
-      progress(value: "{cpu_pct}", color: cpuColor),
     ]))
 
-  // Memory row with progress
+  // Memory row
   viewChildren.append(
     hstack(children: [
       icon("\u{f538}"),
@@ -597,9 +589,8 @@ func main() {
       spacer(),
       text("{mem}"),
     ]))
-  viewChildren.append(progress(value: "{mem_pct_norm}"))
 
-  // Disk row with progress
+  // Disk row
   viewChildren.append(
     hstack(children: [
       icon("\u{f0a0}"),
@@ -607,7 +598,6 @@ func main() {
       spacer(),
       text("{disk}"),
     ]))
-  viewChildren.append(progress(value: "{disk_pct_norm}"))
 
   // Thermal row
   viewChildren.append(
@@ -650,7 +640,6 @@ func main() {
             text("Core {core}"),
             spacer(),
             text("{usage}"),
-            progress(value: "{usage_pct}"),
           ])),
         divider(),
       ])))

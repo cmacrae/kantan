@@ -449,9 +449,8 @@ struct DSLRendererView: View {
   private func renderHeader(content: String) -> some View {
     let resolved = resolver.resolve(content)
     Text(resolved)
-      .font(.system(size: 11, weight: .semibold))
-      .foregroundStyle(isNative ? Color.secondary : Color.primary.opacity(0.5))
-      .padding(.horizontal, 16)
+      .font(.system(size: 12, weight: .bold))
+      .foregroundStyle(Color.primary)
       .frame(height: 22, alignment: .leading)
   }
 
