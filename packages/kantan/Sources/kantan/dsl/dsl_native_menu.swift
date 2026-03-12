@@ -321,10 +321,11 @@ private func addItems(from node: ViewNode, to menu: NSMenu, resolver: TemplateRe
 
   // MARK: Check
 
-  case .check(let label, let checked, let command, _):
+  case .check(let label, let checked, let command, let uncheckedCommand, _):
     let resolvedLabel = resolver.resolve(label ?? "")
     let isChecked = checked.map { resolver.resolveBool($0) } ?? false
     let resolvedCommand = command.map { resolver.resolve($0) }
+    let resolvedUncheckedCommand = uncheckedCommand.map { resolver.resolve($0) }
 
     let item = NSMenuItem(title: "", action: nil, keyEquivalent: "")
 
@@ -332,7 +333,8 @@ private func addItems(from node: ViewNode, to menu: NSMenu, resolver: TemplateRe
     // This allows the user to check/uncheck multiple items without
     // the menu closing after each interaction.
     let checkView = NativeMenuCheckItemView(
-      label: resolvedLabel, isChecked: isChecked, command: resolvedCommand)
+      label: resolvedLabel, isChecked: isChecked, command: resolvedCommand,
+      uncheckedCommand: resolvedUncheckedCommand)
     item.view = checkView
     menu.addItem(item)
 
@@ -547,12 +549,14 @@ struct NativeMenuTextView: View {
 /// reliably receive events inside NSMenuItem custom views).
 class NativeMenuCheckItemView: NSView {
   private var isChecked: Bool
-  private let command: String?
+  private let checkedCommand: String?
+  private let uncheckedCommand: String?
   private var hostingView: NSHostingView<NativeMenuCheckContent>?
 
-  init(label: String, isChecked: Bool, command: String?) {
+  init(label: String, isChecked: Bool, command: String?, uncheckedCommand: String?) {
     self.isChecked = isChecked
-    self.command = command
+    self.checkedCommand = command
+    self.uncheckedCommand = uncheckedCommand
     super.init(frame: NSRect(x: 0, y: 0, width: 280, height: 26))
     let content = NativeMenuCheckContent(label: label, isChecked: isChecked)
     let hosting = NSHostingView(rootView: content)
@@ -565,6 +569,10 @@ class NativeMenuCheckItemView: NSView {
   required init?(coder: NSCoder) { fatalError() }
 
   override func mouseUp(with event: NSEvent) {
+    // Pick the right command BEFORE toggling the visual state:
+    // If currently unchecked, we're checking it → use checkedCommand
+    // If currently checked, we're unchecking it → use uncheckedCommand (falling back to checkedCommand)
+    let command = isChecked ? (uncheckedCommand ?? checkedCommand) : checkedCommand
     isChecked.toggle()
     if let hosting = hostingView {
       hosting.rootView = NativeMenuCheckContent(

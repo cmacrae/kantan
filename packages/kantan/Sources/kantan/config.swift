@@ -364,7 +364,10 @@ private func parseViewNodeFromYaml(_ yaml: Yaml) -> ViewNode? {
     let label = fixYamlUnicodeEscapes(dict["label"]?.string ?? "")
     let checked = dict["checked"]?.string ?? dict["checked"]?.bool.map { "\($0)" } ?? "false"
     let command = dict["command"]?.string
-    return .check(label: label, checked: checked, command: command, common: common)
+    let uncheckedCommand = dict["uncheckedCommand"]?.string
+    return .check(
+      label: label, checked: checked, command: command,
+      uncheckedCommand: uncheckedCommand, common: common)
 
   case "toggle":
     let label = fixYamlUnicodeEscapes(dict["label"]?.string ?? "")

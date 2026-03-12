@@ -164,13 +164,19 @@ func action(label: String, icon: String? = nil, command: String? = nil) -> JSONV
   return .object(obj)
 }
 
-func check(label: String, checked: Bool, command: String) -> JSONValue {
-  .object([
+func check(label: String, checked: Bool, command: String, uncheckedCommand: String? = nil)
+  -> JSONValue
+{
+  var obj: [String: JSONValue] = [
     "type": .string("check"),
     "label": .string(label),
     "checked": .bool(checked),
     "command": .string(command),
-  ])
+  ]
+  if let uc = uncheckedCommand {
+    obj["uncheckedCommand"] = .string(uc)
+  }
+  return .object(obj)
 }
 
 func foreach(items: String, child: JSONValue) -> JSONValue {
@@ -538,31 +544,39 @@ func defaultMode() -> Int32 {
         let chars = lc.maxChars
         let label = truncate(reminder.title ?? "Untitled", maxChars: chars)
         let id = reminder.calendarItemIdentifier
-        let cmd =
+        let completeCmd =
           "kantan-plugin-reminders --complete \(shellQuote(id)) && kantan trigger \(shellQuote(modName)) refresh"
-        return ["title": label, "complete_cmd": cmd]
+        let uncompleteCmd =
+          "kantan-plugin-reminders --uncomplete \(shellQuote(id)) && kantan trigger \(shellQuote(modName)) refresh"
+        return ["title": label, "complete_cmd": completeCmd, "uncomplete_cmd": uncompleteCmd]
       }
 
       dataCollections[compKey] = listCompleted.map { reminder in
         let chars = lc.maxChars
         let label = truncate(reminder.title ?? "Untitled", maxChars: chars)
         let id = reminder.calendarItemIdentifier
-        let cmd =
+        let completeCmd =
+          "kantan-plugin-reminders --complete \(shellQuote(id)) && kantan trigger \(shellQuote(modName)) refresh"
+        let uncompleteCmd =
           "kantan-plugin-reminders --uncomplete \(shellQuote(id)) && kantan trigger \(shellQuote(modName)) refresh"
-        return ["title": label, "uncomplete_cmd": cmd]
+        return ["title": label, "complete_cmd": completeCmd, "uncomplete_cmd": uncompleteCmd]
       }
 
       if !listIncomplete.isEmpty {
         viewChildren.append(
           foreach(
             items: incKey,
-            child: check(label: "{title}", checked: false, command: "{complete_cmd}")))
+            child: check(
+              label: "{title}", checked: false, command: "{complete_cmd}",
+              uncheckedCommand: "{uncomplete_cmd}")))
       }
       if !listCompleted.isEmpty {
         viewChildren.append(
           foreach(
             items: compKey,
-            child: check(label: "{title}", checked: true, command: "{uncomplete_cmd}")))
+            child: check(
+              label: "{title}", checked: true, command: "{complete_cmd}",
+              uncheckedCommand: "{uncomplete_cmd}")))
       }
     }
   } else if hasReminders {

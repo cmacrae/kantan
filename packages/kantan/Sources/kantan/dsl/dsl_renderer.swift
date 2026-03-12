@@ -129,7 +129,7 @@ extension ViewNode {
       .circle(_, _, _, _, let c),
       .capsule(_, _, _, let c),
       .action(_, _, _, _, let c),
-      .check(_, _, _, let c),
+      .check(_, _, _, _, let c),
       .toggle(_, _, _, let c),
       .button(_, _, _, _, let c),
       .foreach(_, _, let c),
@@ -225,9 +225,10 @@ struct DSLRendererView: View {
       DSLActionView(
         label: label, icon: icon, command: command,
         resolver: resolver, isNative: isNative, dismissHandler: dismissHandler)
-    case .check(let label, let checked, let command, _):
+    case .check(let label, let checked, let command, let uncheckedCommand, _):
       DSLCheckView(
         label: label, checked: checked, command: command,
+        uncheckedCommand: uncheckedCommand,
         resolver: resolver, isNative: isNative, dismissHandler: dismissHandler)
     case .toggle(let label, let on, let command, _):
       DSLToggleView(
@@ -808,13 +809,16 @@ private struct DSLCheckView: View {
   let label: String?
   let checked: String?
   let command: String?
+  let uncheckedCommand: String?
   let resolver: TemplateResolver
   let isNative: Bool
   let dismissHandler: () -> Void
+  @State private var isToggled = false
 
   var body: some View {
     let resolvedLabel = resolver.resolve(label ?? "")
-    let isChecked = checked.map { resolver.resolveBool($0) } ?? false
+    let initialChecked = checked.map { resolver.resolveBool($0) } ?? false
+    let isChecked = isToggled != initialChecked
     let fgColor: Color = .primary
 
     HStack(spacing: 8) {
@@ -831,8 +835,13 @@ private struct DSLCheckView: View {
     .frame(height: 26)
     .contentShape(Rectangle())
     .onTapGesture {
-      guard let command = command, !command.isEmpty else { return }
-      let resolved = resolver.resolve(command)
+      // Pick the right command based on current visual state:
+      // If currently unchecked → checking → use command
+      // If currently checked → unchecking → use uncheckedCommand (fall back to command)
+      let cmd = isChecked ? (uncheckedCommand ?? command) : command
+      isToggled.toggle()
+      guard let cmd = cmd, !cmd.isEmpty else { return }
+      let resolved = resolver.resolve(cmd)
       runCommand(resolved)
     }
   }
