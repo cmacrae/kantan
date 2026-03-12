@@ -388,14 +388,18 @@ class BarViewModel: ObservableObject {
   {
     guard !modules.isEmpty else { return [] }
 
-    // Find the drawer module index (if any) to mark pre-drawer groups as drawer content.
-    // Modules at indices before the drawer are hidden behind it.
+    // Find the drawer module index (if any) to mark drawer content.
+    // For right-to-left placements (right, notchleft) the drawer comes AFTER
+    // its content in config order, so content = indices before the drawer.
+    // For left-to-right placements (left, notchright) the drawer comes BEFORE
+    // its content, so content = indices after the drawer.
     let drawerIndex = modules.firstIndex { $0.moduleConfig.type == "drawer" }
+    let isRightToLeft = placement == "right" || placement == "notchleft"
 
     // Tag each module with whether it's drawer content
     let isDrawerContent: [Bool] = modules.enumerated().map { idx, _ in
       guard let di = drawerIndex else { return false }
-      return idx < di
+      return isRightToLeft ? idx < di : idx > di
     }
 
     var groups: [ModuleGroup] = []
