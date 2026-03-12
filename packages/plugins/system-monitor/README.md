@@ -49,7 +49,7 @@ Copy the example config into your kantan `modules.d/` directory:
 ```yaml
 name: system-monitor
 type: command
-alignment: right
+placement: right
 icon: "\uf2db"
 style:
   light:

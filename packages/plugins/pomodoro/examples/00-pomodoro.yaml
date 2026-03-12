@@ -1,6 +1,6 @@
 name: pomodoro
 type: command
-alignment: right
+placement: right
 icon: "\uf253"
 style:
   light:

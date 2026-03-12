@@ -81,7 +81,7 @@ class DisplayInstance {
       guard !filtered.isEmpty else { return nil }
       return ModuleGroup(
         id: group.id, modules: filtered, isPassthrough: group.isPassthrough,
-        alignment: group.alignment, isDrawerContent: group.isDrawerContent)
+        placement: group.placement, isDrawerContent: group.isDrawerContent)
     }
   }
 
@@ -114,17 +114,17 @@ class DisplayInstance {
   private func computeMaskBoundaries(
     screen: NSScreen,
     nativeItems: [NativeMenuBarItem],
-    maskedGroups: [(alignment: String, mask: MaskConfig)]
+    maskedGroups: [(placement: String, mask: MaskConfig)]
   ) -> (leftX: CGFloat, rightX: CGFloat) {
     let gaps = config.gaps
     var leftX = screen.frame.origin.x + gaps.left
     var rightX = screen.frame.origin.x + screen.frame.width - gaps.right
-    for (alignment, mask) in maskedGroups {
+    for (placement, mask) in maskedGroups {
       guard let nativeItem = MenuBarItemDetector.resolveItem(for: mask, from: nativeItems) else {
         continue
       }
       let nativeRect = MenuBarItemDetector.appKitRect(from: nativeItem.cgRect, on: screen)
-      if alignment == "right" {
+      if placement == "right" {
         rightX = min(rightX, nativeRect.origin.x)
       } else {
         leftX = max(leftX, nativeRect.origin.x + nativeRect.width)
@@ -240,11 +240,11 @@ class DisplayInstance {
 
     let nativeItems = MenuBarItemDetector.detectItems(for: screen)
 
-    let maskedGroups = allGroups.compactMap { group -> (alignment: String, mask: MaskConfig)? in
+    let maskedGroups = allGroups.compactMap { group -> (placement: String, mask: MaskConfig)? in
       guard group.modules.count == 1, let mask = group.modules[0].moduleConfig.mask else {
         return nil
       }
-      return (group.alignment, mask)
+      return (group.placement, mask)
     }
     var (leftX, rightX) = computeMaskBoundaries(
       screen: screen, nativeItems: nativeItems, maskedGroups: maskedGroups)
@@ -274,7 +274,7 @@ class DisplayInstance {
       } else {
         let fittingWidth = hostingView.fittingSize.width
         let panelX: CGFloat
-        if group.alignment == "left" {
+        if group.placement == "left" {
           panelX = leftX
           leftX += fittingWidth
         } else {
@@ -321,10 +321,10 @@ class DisplayInstance {
 
     let nativeItems = MenuBarItemDetector.detectItems(for: screen)
 
-    let maskedEntries = groupPanels.compactMap { entry -> (alignment: String, mask: MaskConfig)? in
+    let maskedEntries = groupPanels.compactMap { entry -> (placement: String, mask: MaskConfig)? in
       guard entry.group.modules.count == 1, let mask = entry.group.modules[0].moduleConfig.mask
       else { return nil }
-      return (entry.group.alignment, mask)
+      return (entry.group.placement, mask)
     }
     var (leftX, rightX) = computeMaskBoundaries(
       screen: screen, nativeItems: nativeItems, maskedGroups: maskedEntries)
@@ -361,7 +361,7 @@ class DisplayInstance {
       let fittingWidth = entry.hostingView.fittingSize.width
 
       let panelX: CGFloat
-      if entry.group.alignment == "left" {
+      if entry.group.placement == "left" {
         panelX = leftX
         leftX += fittingWidth
       } else {
@@ -382,10 +382,10 @@ class DisplayInstance {
     let statusBarY = statusBarY(for: screen)
 
     let nativeItems = MenuBarItemDetector.detectItems(for: screen)
-    let maskedEntries = groupPanels.compactMap { entry -> (alignment: String, mask: MaskConfig)? in
+    let maskedEntries = groupPanels.compactMap { entry -> (placement: String, mask: MaskConfig)? in
       guard entry.group.modules.count == 1, let mask = entry.group.modules[0].moduleConfig.mask
       else { return nil }
-      return (entry.group.alignment, mask)
+      return (entry.group.placement, mask)
     }
     var (leftX, rightX) = computeMaskBoundaries(
       screen: screen, nativeItems: nativeItems, maskedGroups: maskedEntries)
@@ -410,7 +410,7 @@ class DisplayInstance {
 
       let fittingWidth = entry.hostingView.fittingSize.width
       let panelX: CGFloat
-      if entry.group.alignment == "left" {
+      if entry.group.placement == "left" {
         panelX = leftX
         leftX += fittingWidth
       } else {

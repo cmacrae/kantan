@@ -258,7 +258,7 @@ struct ModuleGroup: Identifiable {
   let id: String
   let modules: [ModuleViewModel]
   let isPassthrough: Bool
-  let alignment: String
+  let placement: String
   let isDrawerContent: Bool
 }
 
@@ -290,7 +290,7 @@ class BarViewModel: ObservableObject {
 
     for moduleConfig in config.modules {
       let vm = ModuleViewModel(moduleConfig: moduleConfig)
-      if moduleConfig.alignment == "right" {
+      if moduleConfig.placement == "right" {
         right.append(vm)
       } else {
         left.append(vm)
@@ -300,8 +300,8 @@ class BarViewModel: ObservableObject {
     self.leftModules = left
     self.rightModules = right
     self.allModules = left + right
-    self.leftGroups = BarViewModel.buildGroups(from: left, alignment: "left")
-    self.rightGroups = BarViewModel.buildGroups(from: right, alignment: "right")
+    self.leftGroups = BarViewModel.buildGroups(from: left, placement: "left")
+    self.rightGroups = BarViewModel.buildGroups(from: right, placement: "right")
 
     // Wire up drawer module
     if let dvm = allModules.first(where: { $0.moduleConfig.type == "drawer" }) {
@@ -333,7 +333,7 @@ class BarViewModel: ObservableObject {
     )
   }
 
-  private static func buildGroups(from modules: [ModuleViewModel], alignment: String)
+  private static func buildGroups(from modules: [ModuleViewModel], placement: String)
     -> [ModuleGroup]
   {
     guard !modules.isEmpty else { return [] }
@@ -357,10 +357,10 @@ class BarViewModel: ObservableObject {
       guard !current.isEmpty else { return }
       groups.append(
         ModuleGroup(
-          id: "\(alignment)-\(groups.count)",
+          id: "\(placement)-\(groups.count)",
           modules: current,
           isPassthrough: currentPassthrough,
-          alignment: alignment,
+          placement: placement,
           isDrawerContent: currentDrawerContent
         ))
       current = []
@@ -375,10 +375,10 @@ class BarViewModel: ObservableObject {
         flushCurrent()
         groups.append(
           ModuleGroup(
-            id: "\(alignment)-\(groups.count)",
+            id: "\(placement)-\(groups.count)",
             modules: [vm],
             isPassthrough: true,
-            alignment: alignment,
+            placement: placement,
             isDrawerContent: dc
           ))
       } else {

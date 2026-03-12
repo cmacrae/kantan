@@ -152,7 +152,7 @@ nonisolated(unsafe) let moduleFactories: [String: ModuleConfigurationFactory] = 
 
 struct ModuleConfigBuilder {
   private var name: String = ""
-  private var alignment: String = ""
+  private var placement: String = ""
   private var type: String = ""
   private var icon: String? = nil
   private var textFont: FontConfig? = nil
@@ -165,7 +165,7 @@ struct ModuleConfigBuilder {
   private var configFactory: ModuleConfigurationFactory?
 
   mutating func setName(_ name: String) { self.name = name }
-  mutating func setAlignment(_ alignment: String) { self.alignment = alignment }
+  mutating func setPlacement(_ placement: String) { self.placement = placement }
   mutating func setType(_ type: String) { self.type = type }
   mutating func setIcon(_ icon: String) { self.icon = icon }
   mutating func setTextFont(_ textFont: FontConfig) { self.textFont = textFont }
@@ -194,7 +194,7 @@ struct ModuleConfigBuilder {
       throw BuilderError.missingConfiguration
     }
     return ModuleConfig(
-      name: name, alignment: alignment, type: type, icon: icon, textFont: textFont,
+      name: name, placement: placement, type: type, icon: icon, textFont: textFont,
       iconFont: iconFont, style: style, config: config, interaction: interaction, mask: mask,
       displays: displays)
   }
@@ -209,7 +209,7 @@ enum BuilderError: Error {
 
 struct ModuleConfig: Codable {
   let name: String
-  let alignment: String
+  let placement: String
   let type: String
   let icon: String?
   let textFont: FontConfig?
@@ -225,16 +225,16 @@ struct ModuleConfig: Codable {
   }
 
   private enum CodingKeys: String, CodingKey {
-    case name, type, alignment, icon, textFont, iconFont, style, config, interaction, mask
+    case name, type, placement, icon, textFont, iconFont, style, config, interaction, mask
   }
 
   init(
-    name: String, alignment: String, type: String, icon: String? = nil, textFont: FontConfig? = nil,
+    name: String, placement: String, type: String, icon: String? = nil, textFont: FontConfig? = nil,
     iconFont: FontConfig? = nil, style: StyleConfig? = nil, config: ModuleConfiguration? = nil,
     interaction: InteractionConfig? = nil, mask: MaskConfig? = nil, displays: DisplaysConfig? = nil
   ) {
     self.name = name
-    self.alignment = alignment
+    self.placement = placement
     self.type = type
     self.icon = icon
     self.textFont = textFont
@@ -249,7 +249,7 @@ struct ModuleConfig: Codable {
   init(from decoder: Decoder) throws {
     let container = try decoder.container(keyedBy: CodingKeys.self)
     name = try container.decode(String.self, forKey: .name)
-    alignment = try container.decode(String.self, forKey: .alignment)
+    placement = try container.decode(String.self, forKey: .placement)
     type = try container.decode(String.self, forKey: .type)
     icon = try container.decodeIfPresent(String.self, forKey: .icon)
     textFont = try container.decodeIfPresent(FontConfig.self, forKey: .textFont)
@@ -272,7 +272,7 @@ struct ModuleConfig: Codable {
   func encode(to encoder: Encoder) throws {
     var container = encoder.container(keyedBy: CodingKeys.self)
     try container.encode(name, forKey: .name)
-    try container.encode(alignment, forKey: .alignment)
+    try container.encode(placement, forKey: .placement)
     try container.encode(type, forKey: .type)
     try container.encodeIfPresent(icon, forKey: .icon)
     try container.encodeIfPresent(textFont, forKey: .textFont)

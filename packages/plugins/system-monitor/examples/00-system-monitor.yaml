@@ -1,6 +1,6 @@
 name: system-monitor
 type: command
-alignment: right
+placement: right
 icon: "\uf2db"
 style:
   light:

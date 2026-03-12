@@ -34,7 +34,7 @@ Copy the example config into your kantan `modules.d/` directory:
 ```yaml
 name: todo
 type: command
-alignment: right
+placement: right
 icon: "\uf0ae"
 style:
   light:

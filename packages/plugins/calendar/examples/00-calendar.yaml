@@ -1,6 +1,6 @@
 name: calendar
 type: command
-alignment: right
+placement: right
 icon: "\uf073"
 style:
   light:

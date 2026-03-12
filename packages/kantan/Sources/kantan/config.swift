@@ -573,15 +573,15 @@ func parseModuleConfig(from moduleYaml: Yaml, configDir: String? = nil) -> Modul
   var builder = ModuleConfigBuilder()
 
   guard let name = moduleYaml["name"].string,
-    let alignment = moduleYaml["alignment"].string,
+    let placement = moduleYaml["placement"].string,
     let type = moduleYaml["type"].string
   else {
-    print("Failed to load module config: missing name, alignment, or type")
+    print("Failed to load module config: missing name, placement, or type")
     return nil
   }
 
   builder.setName(name)
-  builder.setAlignment(alignment)
+  builder.setPlacement(placement)
   builder.setType(type)
 
   if let icon = moduleYaml["icon"].string {
@@ -762,10 +762,10 @@ func loadModulesFromDirectory(path: String) -> [ModuleConfig] {
 /// Left-aligned: modules.d entries are appended so they appear to the
 /// RIGHT of config.yaml left modules (closer to center).
 func mergeModules(base: [ModuleConfig], extra: [ModuleConfig]) -> [ModuleConfig] {
-  let extraRight = extra.filter { $0.alignment == "right" }
-  let extraLeft = extra.filter { $0.alignment != "right" }
-  let baseRight = base.filter { $0.alignment == "right" }
-  let baseLeft = base.filter { $0.alignment != "right" }
+  let extraRight = extra.filter { $0.placement == "right" }
+  let extraLeft = extra.filter { $0.placement != "right" }
+  let baseRight = base.filter { $0.placement == "right" }
+  let baseLeft = base.filter { $0.placement != "right" }
   return baseLeft + extraLeft + extraRight + baseRight
 }
 

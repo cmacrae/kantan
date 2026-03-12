@@ -1,6 +1,6 @@
 name: caffeine
 type: command
-alignment: right
+placement: right
 icon: "\uf0f4"
 style:
   light:

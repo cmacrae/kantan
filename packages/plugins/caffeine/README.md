@@ -23,7 +23,7 @@ Copy the example config into your kantan `modules.d/` directory:
 ```yaml
 name: caffeine
 type: command
-alignment: right
+placement: right
 icon: "\uf0f4"
 style:
   light:
