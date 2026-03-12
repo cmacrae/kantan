@@ -14,7 +14,7 @@ private struct ModuleVisibilityView: View {
   var body: some View {
     if viewModel.shouldDisplay {
       ModuleContainerView(viewModel: viewModel, popupManager: popupManager)
-        .padding(.horizontal, horizontalPadding)
+        .padding(.horizontal, viewModel.moduleConfig.type == "drawer" ? 0 : horizontalPadding)
     }
   }
 }

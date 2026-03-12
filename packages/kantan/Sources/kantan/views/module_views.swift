@@ -67,7 +67,11 @@ struct ModuleContainerView: View {
       }
     )
     .background(WindowReader(window: $hostWindow))
+    // Drawer icon: expand hit target without affecting layout.
+    // Positive padding expands contentShape, negative padding collapses layout back.
+    .padding(.horizontal, viewModel.moduleConfig.type == "drawer" ? 6 : 0)
     .contentShape(Rectangle())
+    .padding(.horizontal, viewModel.moduleConfig.type == "drawer" ? -6 : 0)
     .allowsHitTesting(hasInteraction)
     .onHover { hovering in
       guard hasInteraction else { return }
