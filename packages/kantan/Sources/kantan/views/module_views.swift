@@ -145,6 +145,8 @@ struct ModuleContainerView: View {
           viewTree: viewTree, moduleName: viewModel.id, anchorPoint: anchorPoint,
           liveContent: liveContent)
       }
+    case "drawer":
+      viewModel.toggleAction?()
     case "toggle":
       viewModel.moduleConfig.config?.handleToggle()
       viewModel.update()

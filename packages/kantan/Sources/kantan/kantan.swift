@@ -12,6 +12,7 @@ class DisplayInstance {
   var groupPanels:
     [(panel: NSPanel, hostingView: NSHostingView<ModuleGroupView>, group: ModuleGroup)] = []
   var bgColorCancellable: AnyCancellable?
+  var drawerOpen: Bool = false
 
   var isMenuBarShowing: Bool = false
   var isHoveringTopEdge: Bool = false
@@ -47,7 +48,7 @@ class DisplayInstance {
       guard !filtered.isEmpty else { return nil }
       return ModuleGroup(
         id: group.id, modules: filtered, isPassthrough: group.isPassthrough,
-        alignment: group.alignment)
+        alignment: group.alignment, isDrawerContent: group.isDrawerContent)
     }
   }
 
@@ -206,6 +207,9 @@ class DisplayInstance {
       )
       let hostingView = NSHostingView(rootView: groupView)
 
+      // Skip drawer content in positioning when drawer is closed
+      let skipPositioning = group.isDrawerContent && !drawerOpen
+
       let panelRect: NSRect
       if group.modules.count == 1,
         let mask = group.modules[0].moduleConfig.mask,
@@ -214,6 +218,9 @@ class DisplayInstance {
         let nativeRect = MenuBarItemDetector.appKitRect(from: nativeItem.cgRect, on: screen)
         panelRect = NSRect(
           x: nativeRect.origin.x, y: statusBarY, width: nativeRect.width, height: barHeight)
+      } else if skipPositioning {
+        // Place off-screen; will be positioned correctly when drawer opens
+        panelRect = NSRect(x: rightX, y: statusBarY, width: 0, height: barHeight)
       } else {
         let fittingWidth = hostingView.fittingSize.width
         let panelX: CGFloat
@@ -236,7 +243,12 @@ class DisplayInstance {
       hostingView.frame = NSRect(origin: .zero, size: panelRect.size)
       hostingView.autoresizingMask = [.width, .height]
       groupPanel.contentView = hostingView
-      groupPanel.orderFrontRegardless()
+
+      if skipPositioning {
+        groupPanel.orderOut(nil)
+      } else {
+        groupPanel.orderFrontRegardless()
+      }
 
       groupPanels.append((panel: groupPanel, hostingView: hostingView, group: group))
     }
@@ -291,6 +303,11 @@ class DisplayInstance {
         continue
       }
 
+      // Skip drawer content panels when drawer is closed
+      if entry.group.isDrawerContent && !drawerOpen {
+        continue
+      }
+
       let fittingWidth = entry.hostingView.fittingSize.width
 
       let panelX: CGFloat
@@ -304,6 +321,109 @@ class DisplayInstance {
 
       let panelFrame = NSRect(x: panelX, y: statusBarY, width: fittingWidth, height: barHeight)
       entry.panel.setFrame(panelFrame, display: true)
+    }
+  }
+
+  // MARK: - Drawer Animation
+
+  func animateDrawerToggle(open: Bool) {
+    guard let screen = resolveScreen() else { return }
+    drawerOpen = open
+    let statusBarY = statusBarY(for: screen)
+
+    let nativeItems = MenuBarItemDetector.detectItems(for: screen)
+    let maskedEntries = groupPanels.compactMap { entry -> (alignment: String, mask: MaskConfig)? in
+      guard entry.group.modules.count == 1, let mask = entry.group.modules[0].moduleConfig.mask
+      else { return nil }
+      return (entry.group.alignment, mask)
+    }
+    var (leftX, rightX) = computeMaskBoundaries(
+      screen: screen, nativeItems: nativeItems, maskedGroups: maskedEntries)
+
+    // Calculate target frames for all non-masked panels
+    var targetFrames:
+      [(
+        entry: (panel: NSPanel, hostingView: NSHostingView<ModuleGroupView>, group: ModuleGroup),
+        frame: NSRect
+      )] = []
+
+    for entry in groupPanels {
+      // Skip masked panels (they don't move)
+      if entry.group.modules.count == 1 && entry.group.modules[0].moduleConfig.mask != nil {
+        continue
+      }
+
+      // Skip drawer content when closing
+      if entry.group.isDrawerContent && !open {
+        continue
+      }
+
+      let fittingWidth = entry.hostingView.fittingSize.width
+      let panelX: CGFloat
+      if entry.group.alignment == "left" {
+        panelX = leftX
+        leftX += fittingWidth
+      } else {
+        rightX -= fittingWidth
+        panelX = rightX
+      }
+
+      let frame = NSRect(x: panelX, y: statusBarY, width: fittingWidth, height: barHeight)
+      targetFrames.append((entry: entry, frame: frame))
+    }
+
+    let drawerContentPanels = groupPanels.filter { $0.group.isDrawerContent }
+
+    if open {
+      // Opening: position drawer-content panels at target with alpha 0, then animate in
+      for entry in drawerContentPanels {
+        if let target = targetFrames.first(where: { $0.entry.panel === entry.panel }) {
+          entry.panel.setFrame(target.frame, display: true)
+        }
+        entry.panel.alphaValue = 0
+        entry.panel.orderFrontRegardless()
+      }
+
+      NSAnimationContext.runAnimationGroup { context in
+        context.duration = 0.25
+        context.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
+
+        // Fade in drawer content
+        for entry in drawerContentPanels {
+          entry.panel.animator().alphaValue = 1
+        }
+
+        // Slide non-drawer-content panels to their new positions
+        for target in targetFrames where !target.entry.group.isDrawerContent {
+          target.entry.panel.animator().setFrame(target.frame, display: true)
+        }
+      }
+    } else {
+      // Closing: animate drawer-content panels out, slide others to closed positions
+      NSAnimationContext.runAnimationGroup(
+        { context in
+          context.duration = 0.25
+          context.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
+
+          // Fade out drawer content
+          for entry in drawerContentPanels {
+            entry.panel.animator().alphaValue = 0
+          }
+
+          // Slide non-drawer-content panels to their closed positions
+          for target in targetFrames {
+            target.entry.panel.animator().setFrame(target.frame, display: true)
+          }
+        },
+        completionHandler: {
+          DispatchQueue.main.async {
+            MainActor.assumeIsolated {
+              for entry in drawerContentPanels {
+                entry.panel.orderOut(nil)
+              }
+            }
+          }
+        })
     }
   }
 
@@ -379,12 +499,19 @@ class DisplayInstance {
 
   // MARK: - Slide Animation
 
+  /// All panels that should be visible (excludes drawer-content panels when closed).
+  var visiblePanels: [NSPanel] {
+    [bgPanel].compactMap { $0 }
+      + groupPanels.filter { !$0.group.isDrawerContent || drawerOpen }.map { $0.panel }
+  }
+
+  /// All panels including hidden drawer-content panels.
   var allPanels: [NSPanel] {
     [bgPanel].compactMap { $0 } + groupPanels.map { $0.panel }
   }
 
   func slideOut() {
-    let panels = allPanels
+    let panels = visiblePanels
     NSAnimationContext.runAnimationGroup(
       { context in
         context.duration = 0.2
@@ -408,7 +535,7 @@ class DisplayInstance {
   func slideIn() {
     repositionPanels()
 
-    let panels = allPanels
+    let panels = visiblePanels
     for panel in panels {
       panel.alphaValue = 0
       panel.orderFrontRegardless()
@@ -550,6 +677,18 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         }
         .store(in: &visibilityCancellables)
     }
+
+    // Subscribe to drawer state changes and animate panels
+    bar.$drawerOpen
+      .removeDuplicates()
+      .dropFirst()
+      .sink { [weak self] open in
+        guard let self else { return }
+        for instance in self.displayInstances {
+          instance.animateDrawerToggle(open: open)
+        }
+      }
+      .store(in: &visibilityCancellables)
 
     restartRepositionTimer()
 

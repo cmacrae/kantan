@@ -145,6 +145,7 @@ nonisolated(unsafe) let moduleFactories: [String: ModuleConfigurationFactory] = 
   "wifi": WiFiConfigFactory(),
   "bluetooth": BluetoothConfigFactory(),
   "icon": IconConfigFactory(),
+  "drawer": DrawerConfigFactory(),
 ]
 
 // MARK: - Module Config Builder

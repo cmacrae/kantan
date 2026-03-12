@@ -21,6 +21,10 @@ class ModuleViewModel: ObservableObject, Identifiable {
 
   @Published var dynamicStyle: DynamicStyleOverride?
 
+  /// Closure invoked when this module is clicked with type "drawer".
+  /// Set by BarViewModel for the drawer module.
+  var toggleAction: (() -> Void)?
+
   private var updateGeneration: UInt64 = 0
   nonisolated(unsafe) private var timer: Timer?
   nonisolated(unsafe) private var durationTimer: Timer?
@@ -255,6 +259,7 @@ struct ModuleGroup: Identifiable {
   let modules: [ModuleViewModel]
   let isPassthrough: Bool
   let alignment: String
+  let isDrawerContent: Bool
 }
 
 // MARK: - Bar View Model
@@ -270,6 +275,11 @@ class BarViewModel: ObservableObject {
   let allModules: [ModuleViewModel]
   let leftGroups: [ModuleGroup]
   let rightGroups: [ModuleGroup]
+
+  @Published var drawerOpen: Bool = false
+  private var drawerVM: ModuleViewModel?
+  private var drawerShowIcon: String = "〈"
+  private var drawerHideIcon: String = "〉"
 
   init(config: Config) {
     self.config = config
@@ -292,6 +302,19 @@ class BarViewModel: ObservableObject {
     self.leftGroups = BarViewModel.buildGroups(from: left, alignment: "left")
     self.rightGroups = BarViewModel.buildGroups(from: right, alignment: "right")
 
+    // Wire up drawer module
+    if let dvm = allModules.first(where: { $0.moduleConfig.type == "drawer" }) {
+      self.drawerVM = dvm
+      if let drawerConfig = dvm.moduleConfig.config as? DrawerConfig {
+        self.drawerShowIcon = drawerConfig.showIcon
+        self.drawerHideIcon = drawerConfig.hideIcon
+      }
+      dvm.displayIcon = drawerShowIcon
+      dvm.toggleAction = { [weak self] in
+        self?.toggleDrawer()
+      }
+    }
+
     eventObserver = EventObserver(
       onRefresh: { [weak self] in
         self?.refreshAll()
@@ -312,63 +335,73 @@ class BarViewModel: ObservableObject {
     -> [ModuleGroup]
   {
     guard !modules.isEmpty else { return [] }
+
+    // Find the drawer module index (if any) to mark pre-drawer groups as drawer content.
+    // Modules at indices before the drawer are hidden behind it.
+    let drawerIndex = modules.firstIndex { $0.moduleConfig.type == "drawer" }
+
+    // Tag each module with whether it's drawer content
+    let isDrawerContent: [Bool] = modules.enumerated().map { idx, _ in
+      guard let di = drawerIndex else { return false }
+      return idx < di
+    }
+
     var groups: [ModuleGroup] = []
     var current: [ModuleViewModel] = []
     var currentPassthrough = false
+    var currentDrawerContent = false
 
-    for vm in modules {
-      let isMasked = vm.moduleConfig.mask != nil
-      let pt = vm.moduleConfig.isPassthrough
-
-      if isMasked {
-        if !current.isEmpty {
-          groups.append(
-            ModuleGroup(
-              id: "\(alignment)-\(groups.count)",
-              modules: current,
-              isPassthrough: currentPassthrough,
-              alignment: alignment
-            ))
-          current = []
-        }
-        groups.append(
-          ModuleGroup(
-            id: "\(alignment)-\(groups.count)",
-            modules: [vm],
-            isPassthrough: true,
-            alignment: alignment
-          ))
-      } else {
-        if current.isEmpty {
-          currentPassthrough = pt
-          current.append(vm)
-        } else if pt == currentPassthrough {
-          current.append(vm)
-        } else {
-          groups.append(
-            ModuleGroup(
-              id: "\(alignment)-\(groups.count)",
-              modules: current,
-              isPassthrough: currentPassthrough,
-              alignment: alignment
-            ))
-          current = [vm]
-          currentPassthrough = pt
-        }
-      }
-    }
-
-    if !current.isEmpty {
+    func flushCurrent() {
+      guard !current.isEmpty else { return }
       groups.append(
         ModuleGroup(
           id: "\(alignment)-\(groups.count)",
           modules: current,
           isPassthrough: currentPassthrough,
-          alignment: alignment
+          alignment: alignment,
+          isDrawerContent: currentDrawerContent
         ))
+      current = []
     }
 
+    for (idx, vm) in modules.enumerated() {
+      let isMasked = vm.moduleConfig.mask != nil
+      let pt = vm.moduleConfig.isPassthrough
+      let dc = isDrawerContent[idx]
+
+      if isMasked {
+        flushCurrent()
+        groups.append(
+          ModuleGroup(
+            id: "\(alignment)-\(groups.count)",
+            modules: [vm],
+            isPassthrough: true,
+            alignment: alignment,
+            isDrawerContent: dc
+          ))
+      } else {
+        if current.isEmpty {
+          currentPassthrough = pt
+          currentDrawerContent = dc
+          current.append(vm)
+        } else if pt == currentPassthrough && dc == currentDrawerContent {
+          current.append(vm)
+        } else {
+          flushCurrent()
+          current = [vm]
+          currentPassthrough = pt
+          currentDrawerContent = dc
+        }
+      }
+    }
+
+    flushCurrent()
     return groups
+  }
+
+  func toggleDrawer() {
+    drawerOpen.toggle()
+    drawerVM?.displayIcon = drawerOpen ? drawerHideIcon : drawerShowIcon
   }
 
   func refreshAll() {

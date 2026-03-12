@@ -625,6 +625,15 @@ func parseModuleConfig(from moduleYaml: Yaml, configDir: String? = nil) -> Modul
     }
   }
 
+  // Drawer modules automatically get a click interaction
+  if type == "drawer" && moduleYaml["interaction"]["click"]["type"].string == nil {
+    builder.setInteraction(
+      InteractionConfig(
+        hover: nil,
+        click: ClickConfig(type: "drawer")
+      ))
+  }
+
   let moduleDisplays = parseDisplaysConfig(from: moduleYaml["displays"])
   if case .main = moduleDisplays {
     // Only set if not the default (.main), to avoid overriding unset state
