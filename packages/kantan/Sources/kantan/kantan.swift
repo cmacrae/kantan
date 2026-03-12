@@ -3,6 +3,39 @@ import Combine
 import SwiftUI
 import Yaml
 
+// MARK: - Click-Through Background View
+
+/// A transparent overlay view for the background panel that selectively
+/// passes clicks through to the native menu bar. Returns `nil` from
+/// `hitTest` (letting the click fall through) only when the click point
+/// overlaps a passthrough module panel (masked items). Otherwise absorbs
+/// the click so it doesn't reach native menu bar items underneath.
+class ClickThroughBgView: NSView {
+  /// Returns screen-space rects of passthrough panels. Set by DisplayInstance.
+  var passthroughRects: (() -> [NSRect])?
+
+  /// Called when a click lands on empty bar space (non-passthrough area).
+  var onClickEmptySpace: (() -> Void)?
+
+  override func hitTest(_ point: NSPoint) -> NSView? {
+    guard let window = self.window else { return nil }
+    let screenPoint = window.convertPoint(toScreen: convert(point, to: nil))
+    if let rects = passthroughRects?() {
+      for rect in rects {
+        if rect.contains(screenPoint) {
+          return nil
+        }
+      }
+    }
+    // Return self (not a subview) so mouseDown is delivered here
+    return self
+  }
+
+  override func mouseDown(with event: NSEvent) {
+    onClickEmptySpace?()
+  }
+}
+
 // MARK: - Display Instance
 
 @MainActor
@@ -117,8 +150,23 @@ class DisplayInstance {
       contentRect: bgRect, styleMask: [.borderless, .nonactivatingPanel], backing: .buffered,
       defer: false)
     configurePanelDefaults(panel, level: statusWindowLevel)
-    panel.ignoresMouseEvents = true
     bgPanel = panel
+
+    let containerView = ClickThroughBgView(frame: NSRect(origin: .zero, size: bgRect.size))
+    containerView.autoresizingMask = [.width, .height]
+    containerView.passthroughRects = { [weak self] in
+      guard let self else { return [] }
+      return self.groupPanels.compactMap { entry in
+        guard entry.group.isPassthrough, entry.panel.isVisible else { return nil }
+        return entry.panel.frame
+      }
+    }
+    if bar.hasDrawer {
+      containerView.onClickEmptySpace = { [weak bar] in
+        bar?.toggleDrawer()
+      }
+    }
+    panel.contentView = containerView
 
     if config.blur > 0 {
       // blur 1 = most transparent (heavy blur), 6 = most opaque (subtle blur)
@@ -141,12 +189,13 @@ class DisplayInstance {
       tintView.autoresizingMask = [.width, .height]
       effectView.addSubview(tintView)
 
-      panel.contentView = effectView
+      containerView.addSubview(effectView)
 
       bgColorCancellable = theme.$isDarkMode.sink { [weak self] isDark in
         guard let self = self,
           let bgPanel = self.bgPanel,
-          let effectView = bgPanel.contentView as? NSVisualEffectView,
+          let containerView = bgPanel.contentView,
+          let effectView = containerView.subviews.first as? NSVisualEffectView,
           let tintView = effectView.subviews.first
         else { return }
         let mode = self.resolveStyleMode(isDark: isDark)
@@ -162,7 +211,7 @@ class DisplayInstance {
       effectView.layer?.cornerRadius = radius
       effectView.layer?.masksToBounds = true
       effectView.autoresizingMask = [.width, .height]
-      panel.contentView = effectView
+      containerView.addSubview(effectView)
     } else {
       let bgView = NSView(frame: NSRect(origin: .zero, size: bgRect.size))
       bgView.wantsLayer = true
@@ -171,15 +220,16 @@ class DisplayInstance {
       bgView.layer?.cornerRadius = radius
       bgView.layer?.masksToBounds = true
       bgView.autoresizingMask = [.width, .height]
-      panel.contentView = bgView
+      containerView.addSubview(bgView)
 
       bgColorCancellable = theme.$isDarkMode.sink { [weak self] isDark in
         guard let self = self,
           let bgPanel = self.bgPanel,
-          let view = bgPanel.contentView
+          let containerView = bgPanel.contentView,
+          let bgView = containerView.subviews.first
         else { return }
         let mode = self.resolveStyleMode(isDark: isDark)
-        view.layer?.backgroundColor = NSColor(hex: mode.bg ?? "000000").cgColor
+        bgView.layer?.backgroundColor = NSColor(hex: mode.bg ?? "000000").cgColor
       }
     }
 
@@ -695,6 +745,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     if autohideConfig.enabled {
       startMenuBarMonitoring()
     }
+
   }
 
   private func teardownBar() {

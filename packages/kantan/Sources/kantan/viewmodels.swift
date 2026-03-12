@@ -277,6 +277,7 @@ class BarViewModel: ObservableObject {
   let rightGroups: [ModuleGroup]
 
   @Published var drawerOpen: Bool = false
+  private(set) var hasDrawer: Bool = false
   private var drawerVM: ModuleViewModel?
   private var drawerShowIcon: String = "〈"
   private var drawerHideIcon: String = "〉"
@@ -304,6 +305,7 @@ class BarViewModel: ObservableObject {
 
     // Wire up drawer module
     if let dvm = allModules.first(where: { $0.moduleConfig.type == "drawer" }) {
+      self.hasDrawer = true
       self.drawerVM = dvm
       if let drawerConfig = dvm.moduleConfig.config as? DrawerConfig {
         self.drawerShowIcon = drawerConfig.showIcon
