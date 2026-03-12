@@ -33,6 +33,11 @@ extension NSScreen {
   }
 }
 
+/// Returns "left" or "right" for any placement value.
+private func drawerSide(for placement: String) -> String {
+  placement.contains("right") ? "right" : "left"
+}
+
 // MARK: - Click-Through Background View
 
 /// A transparent overlay view for the background panel that selectively
@@ -45,7 +50,8 @@ class ClickThroughBgView: NSView {
   var passthroughRects: (() -> [NSRect])?
 
   /// Called when a click lands on empty bar space (non-passthrough area).
-  var onClickEmptySpace: (() -> Void)?
+  /// Receives the click point in screen coordinates.
+  var onClickEmptySpace: ((NSPoint) -> Void)?
 
   override func hitTest(_ point: NSPoint) -> NSView? {
     guard let window = self.window else { return nil }
@@ -62,7 +68,10 @@ class ClickThroughBgView: NSView {
   }
 
   override func mouseDown(with event: NSEvent) {
-    onClickEmptySpace?()
+    guard let window = self.window else { return }
+    let localPoint = convert(event.locationInWindow, from: nil)
+    let screenPoint = window.convertPoint(toScreen: convert(localPoint, to: nil))
+    onClickEmptySpace?(screenPoint)
   }
 }
 
@@ -75,7 +84,8 @@ class DisplayInstance {
   var groupPanels:
     [(panel: NSPanel, hostingView: NSHostingView<ModuleGroupView>, group: ModuleGroup)] = []
   var bgColorCancellable: AnyCancellable?
-  var drawerOpen: Bool = false
+  var leftDrawerOpen: Bool = false
+  var rightDrawerOpen: Bool = false
 
   var isMenuBarShowing: Bool = false
   var isHoveringTopEdge: Bool = false
@@ -102,6 +112,17 @@ class DisplayInstance {
     case .named(let names):
       return names.contains(screen.localizedName)
     }
+  }
+
+  /// Whether the drawer for the given side is open.
+  func isDrawerOpen(side: String) -> Bool {
+    side == "left" ? leftDrawerOpen : rightDrawerOpen
+  }
+
+  /// Whether a drawer-content group should currently be hidden.
+  func isDrawerContentHidden(_ group: ModuleGroup) -> Bool {
+    guard group.isDrawerContent else { return false }
+    return !isDrawerOpen(side: drawerSide(for: group.placement))
   }
 
   /// Groups that become empty after filtering are removed entirely.
@@ -251,8 +272,14 @@ class DisplayInstance {
       }
     }
     if bar.hasDrawer {
-      containerView.onClickEmptySpace = { [weak bar] in
-        bar?.toggleDrawer()
+      containerView.onClickEmptySpace = { [weak bar, weak self] screenPoint in
+        guard let bar, let self, let screen = self.resolveScreen() else { return }
+        let screenMidX = screen.frame.origin.x + screen.frame.width / 2
+        if screenPoint.x < screenMidX && bar.hasLeftDrawer {
+          bar.toggleDrawer(side: "left")
+        } else if screenPoint.x >= screenMidX && bar.hasRightDrawer {
+          bar.toggleDrawer(side: "right")
+        }
       }
     }
     panel.contentView = containerView
@@ -346,8 +373,8 @@ class DisplayInstance {
       )
       let hostingView = NSHostingView(rootView: groupView)
 
-      // Skip drawer content in positioning when drawer is closed
-      let skipPositioning = group.isDrawerContent && !drawerOpen
+      // Skip drawer content in positioning when its side's drawer is closed
+      let skipPositioning = isDrawerContentHidden(group)
 
       let panelRect: NSRect
       if group.modules.count == 1,
@@ -464,8 +491,8 @@ class DisplayInstance {
         continue
       }
 
-      // Skip drawer content panels when drawer is closed
-      if entry.group.isDrawerContent && !drawerOpen {
+      // Skip drawer content panels when their side's drawer is closed
+      if isDrawerContentHidden(entry.group) {
         continue
       }
 
@@ -479,9 +506,13 @@ class DisplayInstance {
 
   // MARK: - Drawer Animation
 
-  func animateDrawerToggle(open: Bool) {
+  func animateDrawerToggle(side: String, open: Bool) {
     guard let screen = resolveScreen() else { return }
-    drawerOpen = open
+    if side == "left" {
+      leftDrawerOpen = open
+    } else {
+      rightDrawerOpen = open
+    }
     let statusBarY = statusBarY(for: screen)
 
     let nativeItems = MenuBarItemDetector.detectItems(for: screen)
@@ -492,6 +523,11 @@ class DisplayInstance {
     }
     var bounds = computePlacementBounds(
       screen: screen, nativeItems: nativeItems, maskedGroups: maskedEntries)
+
+    // Helper: is this group's drawer content for the toggled side?
+    let isToggledDrawerContent = { (group: ModuleGroup) -> Bool in
+      group.isDrawerContent && drawerSide(for: group.placement) == side
+    }
 
     // Calculate target frames for all non-masked panels
     var targetFrames:
@@ -506,8 +542,15 @@ class DisplayInstance {
         continue
       }
 
-      // Skip drawer content when closing
-      if entry.group.isDrawerContent && !open {
+      // Skip this side's drawer content when closing
+      if isToggledDrawerContent(entry.group) && !open {
+        continue
+      }
+
+      // Skip the OTHER side's drawer content if that side is closed
+      if entry.group.isDrawerContent && !isToggledDrawerContent(entry.group)
+        && !isDrawerOpen(side: drawerSide(for: entry.group.placement))
+      {
         continue
       }
 
@@ -518,19 +561,20 @@ class DisplayInstance {
       targetFrames.append((entry: entry, frame: frame))
     }
 
-    let drawerContentPanels = groupPanels.filter { $0.group.isDrawerContent }
+    let drawerContentPanels = groupPanels.filter { isToggledDrawerContent($0.group) }
 
-    // Detect notch-placed panels that would be overlapped by expanded drawer content.
-    // These are faded out/in alongside the drawer animation.
+    // Detect notch-placed panels that would be overlapped by the toggled side's
+    // expanded drawer content. Only drawer content rects can displace notch panels.
     let isNotchPlacement = { (p: String) in p == "notchleft" || p == "notchright" }
 
     if open {
-      // Compute which notch panels overlap with the expanded layout
-      let targetRects = targetFrames.map { $0.frame }
+      let drawerContentRects = targetFrames.filter { isToggledDrawerContent($0.entry.group) }.map {
+        $0.frame
+      }
       let displacedNotchPanels = groupPanels.filter { entry in
         guard isNotchPlacement(entry.group.placement) else { return false }
         let panelFrame = entry.panel.frame
-        return targetRects.contains { $0.intersects(panelFrame) }
+        return drawerContentRects.contains { $0.intersects(panelFrame) }
       }
       // Opening: position drawer-content panels at target with alpha 0, then animate in
       for entry in drawerContentPanels {
@@ -545,44 +589,36 @@ class DisplayInstance {
         context.duration = 0.25
         context.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
 
-        // Fade in drawer content
         for entry in drawerContentPanels {
           entry.panel.animator().alphaValue = 1
         }
 
-        // Slide non-drawer-content panels to their new positions
-        for target in targetFrames where !target.entry.group.isDrawerContent {
+        for target in targetFrames where !isToggledDrawerContent(target.entry.group) {
           target.entry.panel.animator().setFrame(target.frame, display: true)
         }
 
-        // Fade out notch panels that would be overlapped
         for entry in displacedNotchPanels {
           entry.panel.animator().alphaValue = 0
         }
       }
     } else {
-      // Find notch panels that were hidden when the drawer opened (alpha == 0)
       let displacedNotchPanels = groupPanels.filter { entry in
         isNotchPlacement(entry.group.placement) && entry.panel.alphaValue == 0
       }
 
-      // Closing: animate drawer-content panels out, slide others to closed positions
       NSAnimationContext.runAnimationGroup(
         { context in
           context.duration = 0.25
           context.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
 
-          // Fade out drawer content
           for entry in drawerContentPanels {
             entry.panel.animator().alphaValue = 0
           }
 
-          // Slide non-drawer-content panels to their closed positions
           for target in targetFrames {
             target.entry.panel.animator().setFrame(target.frame, display: true)
           }
 
-          // Fade back in notch panels that were displaced
           for entry in displacedNotchPanels {
             entry.panel.animator().alphaValue = 1
           }
@@ -671,10 +707,10 @@ class DisplayInstance {
 
   // MARK: - Slide Animation
 
-  /// All panels that should be visible (excludes drawer-content panels when closed).
+  /// All panels that should be visible (excludes drawer-content panels when their side is closed).
   var visiblePanels: [NSPanel] {
     [bgPanel].compactMap { $0 }
-      + groupPanels.filter { !$0.group.isDrawerContent || drawerOpen }.map { $0.panel }
+      + groupPanels.filter { !isDrawerContentHidden($0.group) }.map { $0.panel }
   }
 
   /// All panels including hidden drawer-content panels.
@@ -850,14 +886,25 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         .store(in: &visibilityCancellables)
     }
 
-    // Subscribe to drawer state changes and animate panels
-    bar.$drawerOpen
+    // Subscribe to drawer state changes and animate panels per-side
+    bar.$leftDrawerOpen
       .removeDuplicates()
       .dropFirst()
       .sink { [weak self] open in
         guard let self else { return }
         for instance in self.displayInstances {
-          instance.animateDrawerToggle(open: open)
+          instance.animateDrawerToggle(side: "left", open: open)
+        }
+      }
+      .store(in: &visibilityCancellables)
+
+    bar.$rightDrawerOpen
+      .removeDuplicates()
+      .dropFirst()
+      .sink { [weak self] open in
+        guard let self else { return }
+        for instance in self.displayInstances {
+          instance.animateDrawerToggle(side: "right", open: open)
         }
       }
       .store(in: &visibilityCancellables)
