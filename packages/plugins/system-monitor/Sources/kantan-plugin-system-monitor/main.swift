@@ -496,7 +496,7 @@ func main() {
   let load = loadAverage()
   let procs = topProcesses(count: settings.processCount)
 
-  let cpuStr = String(format: "%.0f%%", cpu)
+  let cpuStr = String(format: "%3.0f%%", cpu)
   let memUsedStr = String(format: "%.1f", mem.usedGB)
   let memTotalStr = String(format: "%.0f", mem.totalGB)
   let memStr = "\(memUsedStr)/\(memTotalStr) GB"
