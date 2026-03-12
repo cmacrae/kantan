@@ -124,6 +124,52 @@ struct MaskConfig: Codable {
   }
 }
 
+// MARK: - Placement Spec
+
+/// Represents a placement specification from config.
+/// Can be a single value ("left", "right", "notchleft", "notchright")
+/// or an or-wise pair ("right|notchright", "left|notchleft").
+struct PlacementSpec: Equatable, Sendable {
+  let raw: String
+
+  /// Resolve the effective placement for a given screen.
+  /// Returns nil if the module should be hidden on this screen.
+  func resolve(hasNotch: Bool) -> String? {
+    let parts = raw.split(separator: "|").map(String.init)
+    if parts.count == 2 {
+      let notchPart = parts.first { $0 == "notchleft" || $0 == "notchright" }
+      let normalPart = parts.first { $0 == "left" || $0 == "right" }
+      if hasNotch {
+        return notchPart ?? normalPart
+      } else {
+        return normalPart
+      }
+    }
+    // Single value
+    if raw == "notchleft" || raw == "notchright" {
+      return hasNotch ? raw : nil
+    }
+    return raw
+  }
+
+  /// Whether this spec belongs to the right side for mergeModules ordering.
+  var isRightSide: Bool {
+    raw.contains("right")
+  }
+}
+
+extension PlacementSpec: Codable {
+  init(from decoder: Decoder) throws {
+    let container = try decoder.singleValueContainer()
+    self.raw = try container.decode(String.self)
+  }
+
+  func encode(to encoder: Encoder) throws {
+    var container = encoder.singleValueContainer()
+    try container.encode(raw)
+  }
+}
+
 protocol ModuleConfigurationFactory {
   func configuration(from yaml: Yaml, configDir: String?) throws -> ModuleConfiguration
   func defaultConfiguration() -> ModuleConfiguration?
@@ -152,7 +198,7 @@ nonisolated(unsafe) let moduleFactories: [String: ModuleConfigurationFactory] = 
 
 struct ModuleConfigBuilder {
   private var name: String = ""
-  private var placement: String = ""
+  private var placement: PlacementSpec = PlacementSpec(raw: "")
   private var type: String = ""
   private var icon: String? = nil
   private var textFont: FontConfig? = nil
@@ -165,7 +211,7 @@ struct ModuleConfigBuilder {
   private var configFactory: ModuleConfigurationFactory?
 
   mutating func setName(_ name: String) { self.name = name }
-  mutating func setPlacement(_ placement: String) { self.placement = placement }
+  mutating func setPlacement(_ placement: String) { self.placement = PlacementSpec(raw: placement) }
   mutating func setType(_ type: String) { self.type = type }
   mutating func setIcon(_ icon: String) { self.icon = icon }
   mutating func setTextFont(_ textFont: FontConfig) { self.textFont = textFont }
@@ -209,7 +255,7 @@ enum BuilderError: Error {
 
 struct ModuleConfig: Codable {
   let name: String
-  let placement: String
+  let placement: PlacementSpec
   let type: String
   let icon: String?
   let textFont: FontConfig?
@@ -229,7 +275,8 @@ struct ModuleConfig: Codable {
   }
 
   init(
-    name: String, placement: String, type: String, icon: String? = nil, textFont: FontConfig? = nil,
+    name: String, placement: PlacementSpec, type: String, icon: String? = nil,
+    textFont: FontConfig? = nil,
     iconFont: FontConfig? = nil, style: StyleConfig? = nil, config: ModuleConfiguration? = nil,
     interaction: InteractionConfig? = nil, mask: MaskConfig? = nil, displays: DisplaysConfig? = nil
   ) {
@@ -249,7 +296,7 @@ struct ModuleConfig: Codable {
   init(from decoder: Decoder) throws {
     let container = try decoder.container(keyedBy: CodingKeys.self)
     name = try container.decode(String.self, forKey: .name)
-    placement = try container.decode(String.self, forKey: .placement)
+    placement = try container.decode(PlacementSpec.self, forKey: .placement)
     type = try container.decode(String.self, forKey: .type)
     icon = try container.decodeIfPresent(String.self, forKey: .icon)
     textFont = try container.decodeIfPresent(FontConfig.self, forKey: .textFont)
@@ -272,7 +319,7 @@ struct ModuleConfig: Codable {
   func encode(to encoder: Encoder) throws {
     var container = encoder.container(keyedBy: CodingKeys.self)
     try container.encode(name, forKey: .name)
-    try container.encode(placement, forKey: .placement)
+    try container.encode(placement.raw, forKey: .placement)
     try container.encode(type, forKey: .type)
     try container.encodeIfPresent(icon, forKey: .icon)
     try container.encodeIfPresent(textFont, forKey: .textFont)

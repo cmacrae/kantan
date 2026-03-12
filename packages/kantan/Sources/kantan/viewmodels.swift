@@ -25,6 +25,11 @@ class ModuleViewModel: ObservableObject, Identifiable {
   /// Set by BarViewModel for the drawer module.
   var toggleAction: (() -> Void)?
 
+  /// Whether this module is suspended because no display currently shows it
+  /// (e.g. notch-only placement on all non-notch screens). Separate from
+  /// sleep pause — suspension only applies to placement-based hiding.
+  private(set) var isSuspended: Bool = false
+
   private var updateGeneration: UInt64 = 0
   nonisolated(unsafe) private var timer: Timer?
   nonisolated(unsafe) private var durationTimer: Timer?
@@ -113,6 +118,9 @@ class ModuleViewModel: ObservableObject, Identifiable {
   }
 
   func resume() {
+    // Don't resume if suspended (notch-only module on non-notch displays).
+    // unsuspend() will call resume() when a notched display appears.
+    guard !isSuspended else { return }
     if let eventModule = moduleConfig.config as? EventDrivenModule {
       startEventObservation(eventModule)
     } else {
@@ -120,6 +128,20 @@ class ModuleViewModel: ObservableObject, Identifiable {
     }
     startWatchIfConfigured()
     update()
+  }
+
+  /// Suspend this module because no display currently shows it.
+  func suspend() {
+    guard !isSuspended else { return }
+    isSuspended = true
+    pause()
+  }
+
+  /// Unsuspend this module because at least one display now shows it.
+  func unsuspend() {
+    guard isSuspended else { return }
+    isSuspended = false
+    resume()
   }
 
   private func startEventObservation(_ eventModule: EventDrivenModule) {
@@ -266,15 +288,11 @@ struct ModuleGroup: Identifiable {
 
 @MainActor
 class BarViewModel: ObservableObject {
-  let leftModules: [ModuleViewModel]
-  let rightModules: [ModuleViewModel]
   let config: Config
   let popupManager = PopupManager()
   private var eventObserver: EventObserver?
 
   let allModules: [ModuleViewModel]
-  let leftGroups: [ModuleGroup]
-  let rightGroups: [ModuleGroup]
 
   @Published var drawerOpen: Bool = false
   private(set) var hasDrawer: Bool = false
@@ -285,23 +303,11 @@ class BarViewModel: ObservableObject {
   init(config: Config) {
     self.config = config
 
-    var left: [ModuleViewModel] = []
-    var right: [ModuleViewModel] = []
-
+    var modules: [ModuleViewModel] = []
     for moduleConfig in config.modules {
-      let vm = ModuleViewModel(moduleConfig: moduleConfig)
-      if moduleConfig.placement == "right" {
-        right.append(vm)
-      } else {
-        left.append(vm)
-      }
+      modules.append(ModuleViewModel(moduleConfig: moduleConfig))
     }
-
-    self.leftModules = left
-    self.rightModules = right
-    self.allModules = left + right
-    self.leftGroups = BarViewModel.buildGroups(from: left, placement: "left")
-    self.rightGroups = BarViewModel.buildGroups(from: right, placement: "right")
+    self.allModules = modules
 
     // Wire up drawer module
     if let dvm = allModules.first(where: { $0.moduleConfig.type == "drawer" }) {
@@ -333,7 +339,51 @@ class BarViewModel: ObservableObject {
     )
   }
 
-  private static func buildGroups(from modules: [ModuleViewModel], placement: String)
+  /// Build module groups for a specific screen, resolving placement specs
+  /// based on whether the screen has a notch.
+  func buildGroups(hasNotch: Bool) -> [ModuleGroup] {
+    // Resolve each module's effective placement for this screen.
+    // Modules that resolve to nil (notch-only on non-notch screen) are excluded.
+    struct ResolvedModule {
+      let vm: ModuleViewModel
+      let placement: String
+    }
+
+    var resolved: [ResolvedModule] = []
+    for vm in allModules {
+      guard let placement = vm.moduleConfig.placement.resolve(hasNotch: hasNotch) else {
+        continue
+      }
+      resolved.append(ResolvedModule(vm: vm, placement: placement))
+    }
+
+    // Partition by effective placement. Config order is preserved within each bucket.
+    // Layout order: left → notchleft → [NOTCH] → notchright → right
+    let buckets: [(placement: String, modules: [ResolvedModule])] = [
+      ("left", resolved.filter { $0.placement == "left" }),
+      ("notchleft", resolved.filter { $0.placement == "notchleft" }),
+      ("notchright", resolved.filter { $0.placement == "notchright" }),
+      ("right", resolved.filter { $0.placement == "right" }),
+    ]
+
+    var allGroups: [ModuleGroup] = []
+    for (placement, bucket) in buckets {
+      var groups = BarViewModel.buildGroupsForPlacement(
+        from: bucket.map { $0.vm }, placement: placement)
+      // Right-to-left placements (right, notchleft) need groups reversed so the
+      // positioning loop processes the outermost group (closest to screen/notch edge)
+      // first, consuming space inward.
+      if placement == "right" || placement == "notchleft" {
+        groups.reverse()
+      }
+      allGroups.append(contentsOf: groups)
+    }
+    return allGroups
+  }
+
+  private static func buildGroupsForPlacement(
+    from modules: [ModuleViewModel], placement: String
+  )
     -> [ModuleGroup]
   {
     guard !modules.isEmpty else { return [] }

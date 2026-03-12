@@ -762,10 +762,10 @@ func loadModulesFromDirectory(path: String) -> [ModuleConfig] {
 /// Left-aligned: modules.d entries are appended so they appear to the
 /// RIGHT of config.yaml left modules (closer to center).
 func mergeModules(base: [ModuleConfig], extra: [ModuleConfig]) -> [ModuleConfig] {
-  let extraRight = extra.filter { $0.placement == "right" }
-  let extraLeft = extra.filter { $0.placement != "right" }
-  let baseRight = base.filter { $0.placement == "right" }
-  let baseLeft = base.filter { $0.placement != "right" }
+  let extraRight = extra.filter { $0.placement.isRightSide }
+  let extraLeft = extra.filter { !$0.placement.isRightSide }
+  let baseRight = base.filter { $0.placement.isRightSide }
+  let baseLeft = base.filter { !$0.placement.isRightSide }
   return baseLeft + extraLeft + extraRight + baseRight
 }
 

@@ -3,6 +3,36 @@ import Combine
 import SwiftUI
 import Yaml
 
+// MARK: - NSScreen Notch Detection
+
+extension NSScreen {
+  /// Whether this screen has a camera housing (notch) at the top.
+  var hasNotch: Bool {
+    if #available(macOS 12.0, *) {
+      return safeAreaInsets.top != 0
+    }
+    return false
+  }
+
+  /// The usable area to the left of the notch (the left "ear").
+  /// Returns .zero on non-notch screens.
+  var notchLeftArea: NSRect {
+    if #available(macOS 12.0, *) {
+      return auxiliaryTopLeftArea ?? .zero
+    }
+    return .zero
+  }
+
+  /// The usable area to the right of the notch (the right "ear").
+  /// Returns .zero on non-notch screens.
+  var notchRightArea: NSRect {
+    if #available(macOS 12.0, *) {
+      return auxiliaryTopRightArea ?? .zero
+    }
+    return .zero
+  }
+}
+
 // MARK: - Click-Through Background View
 
 /// A transparent overlay view for the background panel that selectively
@@ -111,26 +141,85 @@ class DisplayInstance {
     panel.backgroundColor = NSColor.clear
   }
 
-  private func computeMaskBoundaries(
+  /// Positioning boundaries for all four placement zones.
+  struct PlacementBounds {
+    /// Left placement: grows rightward from screen left edge.
+    var leftX: CGFloat
+    /// Left placement: maximum X boundary (notch left edge or screen center).
+    var leftBound: CGFloat
+    /// Right placement: grows leftward from screen right edge.
+    var rightX: CGFloat
+    /// Right placement: minimum X boundary (notch right edge or screen center).
+    var rightBound: CGFloat
+    /// Notchleft placement: grows leftward from notch left edge.
+    var notchLeftX: CGFloat
+    /// Notchleft placement: minimum X boundary.
+    var notchLeftBound: CGFloat
+    /// Notchright placement: grows rightward from notch right edge.
+    var notchRightX: CGFloat
+    /// Notchright placement: maximum X boundary.
+    var notchRightBound: CGFloat
+  }
+
+  private func computePlacementBounds(
     screen: NSScreen,
     nativeItems: [NativeMenuBarItem],
     maskedGroups: [(placement: String, mask: MaskConfig)]
-  ) -> (leftX: CGFloat, rightX: CGFloat) {
+  ) -> PlacementBounds {
     let gaps = config.gaps
-    var leftX = screen.frame.origin.x + gaps.left
-    var rightX = screen.frame.origin.x + screen.frame.width - gaps.right
+    let screenLeft = screen.frame.origin.x
+    let screenRight = screen.frame.origin.x + screen.frame.width
+
+    var leftX = screenLeft + gaps.left
+    var rightX = screenRight - gaps.right
+
+    var notchLeftX: CGFloat = 0
+    var notchLeftBound: CGFloat = 0
+    var notchRightX: CGFloat = 0
+    var notchRightBound: CGFloat = 0
+    var leftBound = screenRight
+    var rightBound = screenLeft
+
+    if screen.hasNotch {
+      let leftEar = screen.notchLeftArea
+      let rightEar = screen.notchRightArea
+      // Left placement bounded by notch left edge
+      leftBound = leftEar.maxX
+      // Right placement bounded by notch right edge
+      rightBound = rightEar.minX
+      // Notchleft: starts at notch left edge, grows leftward
+      notchLeftX = leftEar.maxX
+      notchLeftBound = screenLeft + gaps.left
+      // Notchright: starts at notch right edge, grows rightward
+      notchRightX = rightEar.minX
+      notchRightBound = screenRight - gaps.right
+    }
+
+    // Adjust boundaries for masked modules
     for (placement, mask) in maskedGroups {
       guard let nativeItem = MenuBarItemDetector.resolveItem(for: mask, from: nativeItems) else {
         continue
       }
       let nativeRect = MenuBarItemDetector.appKitRect(from: nativeItem.cgRect, on: screen)
-      if placement == "right" {
+      switch placement {
+      case "right":
         rightX = min(rightX, nativeRect.origin.x)
-      } else {
+      case "left":
         leftX = max(leftX, nativeRect.origin.x + nativeRect.width)
+      case "notchleft":
+        notchLeftX = min(notchLeftX, nativeRect.origin.x)
+      case "notchright":
+        notchRightX = max(notchRightX, nativeRect.origin.x + nativeRect.width)
+      default:
+        break
       }
     }
-    return (leftX, rightX)
+
+    return PlacementBounds(
+      leftX: leftX, leftBound: leftBound,
+      rightX: rightX, rightBound: rightBound,
+      notchLeftX: notchLeftX, notchLeftBound: notchLeftBound,
+      notchRightX: notchRightX, notchRightBound: notchRightBound)
   }
 
   func createPanels(for screen: NSScreen, bar: BarViewModel, theme: ThemeProvider) {
@@ -236,7 +325,7 @@ class DisplayInstance {
     panel.orderFrontRegardless()
 
     let moduleGroupLevel = NSWindow.Level(rawValue: statusWindowLevel.rawValue + 1)
-    let allGroups = filterGroups(bar.leftGroups + bar.rightGroups.reversed(), for: screen)
+    let allGroups = filterGroups(bar.buildGroups(hasNotch: screen.hasNotch), for: screen)
 
     let nativeItems = MenuBarItemDetector.detectItems(for: screen)
 
@@ -246,7 +335,7 @@ class DisplayInstance {
       }
       return (group.placement, mask)
     }
-    var (leftX, rightX) = computeMaskBoundaries(
+    var bounds = computePlacementBounds(
       screen: screen, nativeItems: nativeItems, maskedGroups: maskedGroups)
 
     for group in allGroups {
@@ -270,18 +359,12 @@ class DisplayInstance {
           x: nativeRect.origin.x, y: statusBarY, width: nativeRect.width, height: barHeight)
       } else if skipPositioning {
         // Place off-screen; will be positioned correctly when drawer opens
-        panelRect = NSRect(x: rightX, y: statusBarY, width: 0, height: barHeight)
+        panelRect = NSRect(x: bounds.rightX, y: statusBarY, width: 0, height: barHeight)
       } else {
         let fittingWidth = hostingView.fittingSize.width
-        let panelX: CGFloat
-        if group.placement == "left" {
-          panelX = leftX
-          leftX += fittingWidth
-        } else {
-          rightX -= fittingWidth
-          panelX = rightX
-        }
-        panelRect = NSRect(x: panelX, y: statusBarY, width: fittingWidth, height: barHeight)
+        panelRect = positionPanel(
+          placement: group.placement, fittingWidth: fittingWidth,
+          statusBarY: statusBarY, bounds: &bounds)
       }
 
       let groupPanel = NSPanel(
@@ -302,6 +385,34 @@ class DisplayInstance {
 
       groupPanels.append((panel: groupPanel, hostingView: hostingView, group: group))
     }
+  }
+
+  /// Position a panel within a placement zone and advance the boundary cursor.
+  private func positionPanel(
+    placement: String, fittingWidth: CGFloat, statusBarY: CGFloat,
+    bounds: inout PlacementBounds
+  ) -> NSRect {
+    let panelX: CGFloat
+    switch placement {
+    case "left":
+      panelX = bounds.leftX
+      bounds.leftX += fittingWidth
+    case "right":
+      bounds.rightX -= fittingWidth
+      panelX = bounds.rightX
+    case "notchleft":
+      // Grows leftward from notch left edge
+      bounds.notchLeftX -= fittingWidth
+      panelX = bounds.notchLeftX
+    case "notchright":
+      // Grows rightward from notch right edge
+      panelX = bounds.notchRightX
+      bounds.notchRightX += fittingWidth
+    default:
+      panelX = bounds.leftX
+      bounds.leftX += fittingWidth
+    }
+    return NSRect(x: panelX, y: statusBarY, width: fittingWidth, height: barHeight)
   }
 
   func repositionPanels() {
@@ -326,7 +437,7 @@ class DisplayInstance {
       else { return nil }
       return (entry.group.placement, mask)
     }
-    var (leftX, rightX) = computeMaskBoundaries(
+    var bounds = computePlacementBounds(
       screen: screen, nativeItems: nativeItems, maskedGroups: maskedEntries)
 
     for entry in groupPanels {
@@ -359,17 +470,9 @@ class DisplayInstance {
       }
 
       let fittingWidth = entry.hostingView.fittingSize.width
-
-      let panelX: CGFloat
-      if entry.group.placement == "left" {
-        panelX = leftX
-        leftX += fittingWidth
-      } else {
-        rightX -= fittingWidth
-        panelX = rightX
-      }
-
-      let panelFrame = NSRect(x: panelX, y: statusBarY, width: fittingWidth, height: barHeight)
+      let panelFrame = positionPanel(
+        placement: entry.group.placement, fittingWidth: fittingWidth,
+        statusBarY: statusBarY, bounds: &bounds)
       entry.panel.setFrame(panelFrame, display: true)
     }
   }
@@ -387,7 +490,7 @@ class DisplayInstance {
       else { return nil }
       return (entry.group.placement, mask)
     }
-    var (leftX, rightX) = computeMaskBoundaries(
+    var bounds = computePlacementBounds(
       screen: screen, nativeItems: nativeItems, maskedGroups: maskedEntries)
 
     // Calculate target frames for all non-masked panels
@@ -409,22 +512,26 @@ class DisplayInstance {
       }
 
       let fittingWidth = entry.hostingView.fittingSize.width
-      let panelX: CGFloat
-      if entry.group.placement == "left" {
-        panelX = leftX
-        leftX += fittingWidth
-      } else {
-        rightX -= fittingWidth
-        panelX = rightX
-      }
-
-      let frame = NSRect(x: panelX, y: statusBarY, width: fittingWidth, height: barHeight)
+      let frame = positionPanel(
+        placement: entry.group.placement, fittingWidth: fittingWidth,
+        statusBarY: statusBarY, bounds: &bounds)
       targetFrames.append((entry: entry, frame: frame))
     }
 
     let drawerContentPanels = groupPanels.filter { $0.group.isDrawerContent }
 
+    // Detect notch-placed panels that would be overlapped by expanded drawer content.
+    // These are faded out/in alongside the drawer animation.
+    let isNotchPlacement = { (p: String) in p == "notchleft" || p == "notchright" }
+
     if open {
+      // Compute which notch panels overlap with the expanded layout
+      let targetRects = targetFrames.map { $0.frame }
+      let displacedNotchPanels = groupPanels.filter { entry in
+        guard isNotchPlacement(entry.group.placement) else { return false }
+        let panelFrame = entry.panel.frame
+        return targetRects.contains { $0.intersects(panelFrame) }
+      }
       // Opening: position drawer-content panels at target with alpha 0, then animate in
       for entry in drawerContentPanels {
         if let target = targetFrames.first(where: { $0.entry.panel === entry.panel }) {
@@ -447,8 +554,18 @@ class DisplayInstance {
         for target in targetFrames where !target.entry.group.isDrawerContent {
           target.entry.panel.animator().setFrame(target.frame, display: true)
         }
+
+        // Fade out notch panels that would be overlapped
+        for entry in displacedNotchPanels {
+          entry.panel.animator().alphaValue = 0
+        }
       }
     } else {
+      // Find notch panels that were hidden when the drawer opened (alpha == 0)
+      let displacedNotchPanels = groupPanels.filter { entry in
+        isNotchPlacement(entry.group.placement) && entry.panel.alphaValue == 0
+      }
+
       // Closing: animate drawer-content panels out, slide others to closed positions
       NSAnimationContext.runAnimationGroup(
         { context in
@@ -463,6 +580,11 @@ class DisplayInstance {
           // Slide non-drawer-content panels to their closed positions
           for target in targetFrames {
             target.entry.panel.animator().setFrame(target.frame, display: true)
+          }
+
+          // Fade back in notch panels that were displaced
+          for entry in displacedNotchPanels {
+            entry.panel.animator().alphaValue = 1
           }
         },
         completionHandler: {
@@ -740,6 +862,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
       }
       .store(in: &visibilityCancellables)
 
+    updateModuleSuspension()
     restartRepositionTimer()
 
     if autohideConfig.enabled {
@@ -802,6 +925,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     repositionAllDisplays()
+    updateModuleSuspension()
     restartRepositionTimer()
   }
 
@@ -810,6 +934,24 @@ class AppDelegate: NSObject, NSApplicationDelegate {
   func repositionAllDisplays() {
     for instance in displayInstances {
       instance.repositionPanels()
+    }
+  }
+
+  /// Suspend modules that are not visible on any active display (e.g. notch-only
+  /// placement when all displays lack a notch). Unsuspend modules that become
+  /// visible on at least one display.
+  func updateModuleSuspension() {
+    guard let bar = barViewModel else { return }
+    for vm in bar.allModules {
+      let visibleOnAny = displayInstances.contains { instance in
+        guard let screen = instance.resolveScreen() else { return false }
+        return vm.moduleConfig.placement.resolve(hasNotch: screen.hasNotch) != nil
+      }
+      if visibleOnAny {
+        vm.unsuspend()
+      } else {
+        vm.suspend()
+      }
     }
   }
 
