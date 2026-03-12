@@ -21,7 +21,7 @@ activate() {
     caffeinate -d &
   fi
 
-  echo $! > "$PID_FILE"
+  echo $! >"$PID_FILE"
 }
 
 deactivate() {
@@ -48,8 +48,8 @@ default_mode() {
 }
 
 case "${1:-}" in
-  --toggle)   toggle ;;
-  --activate) activate ;;
-  --deactivate) deactivate ;;
-  *)          default_mode ;;
+--toggle) toggle ;;
+--activate) activate ;;
+--deactivate) deactivate ;;
+*) default_mode ;;
 esac
