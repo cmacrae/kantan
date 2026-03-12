@@ -130,6 +130,13 @@ class ModuleViewModel: ObservableObject, Identifiable {
 
   private func startPolling() {
     update()
+    // When a watch process is configured, it is responsible for triggering
+    // all subsequent refreshes (via `kantan trigger`). Running a polling
+    // timer alongside it causes redundant command invocations and potential
+    // cache races on the shared CommandOutputData.
+    if let watchCmd = moduleConfig.config?.getWatchCommand(), !watchCmd.isEmpty {
+      return
+    }
     let interval = moduleConfig.config?.redrawInterval ?? 1.0
     guard interval > 0 else { return }
     let t = Timer(timeInterval: interval, repeats: true) { [weak self] _ in

@@ -18,7 +18,6 @@ style:
 config:
   command: kantan-plugin-reminders
   output: json
-  interval: 0
   watch: kantan-plugin-reminders --watch
   settings:
     format: "{title}"
