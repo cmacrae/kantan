@@ -3,56 +3,42 @@
 
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
+    treefmt.url = "github:numtide/treefmt-nix";
   };
 
   outputs =
-    { nixpkgs, ... }:
+    {
+      self,
+      nixpkgs,
+      treefmt,
+      ...
+    }:
     let
       system = "aarch64-darwin";
       pkgs = nixpkgs.legacyPackages.${system};
 
-      # NOTE: We depend on system installed Xcode & Swift until Swift 6 lands
-      #       in nixpkgs
-      swiftBuildPhase = bin: ''
-        runHook preBuild
+      go = import ./nix/go.nix { inherit pkgs; };
+      swift = import ./nix/swift.nix { inherit pkgs; };
+      shell = import ./nix/shell.nix { inherit pkgs; };
 
-        export DEVELOPER_DIR=$(/usr/bin/xcode-select -p)
-        export SDKROOT=$(/usr/bin/xcrun --show-sdk-path)
-        export TOOLCHAINS=default
-        export PATH="$DEVELOPER_DIR/Toolchains/XcodeDefault.xctoolchain/usr/bin:$DEVELOPER_DIR/usr/bin:/usr/bin:$PATH"
-        export HOME="$TMPDIR"
+      plugins = import ./nix/plugins.nix {
+        inherit pkgs;
+        inherit (go) buildGoPlugin;
+        inherit (swift) buildSwiftPlugin;
+        inherit (shell) buildShellPlugin;
+        pluginsDir = ./packages/plugins;
+      };
 
-        swift build -c release --disable-sandbox --scratch-path .build
+      inherit (swift) buildSwiftPackage;
+      inherit (plugins) pluginPackages;
 
-        runHook postBuild
-      '';
-
-      swiftInstallPhase = bin: ''
-        runHook preInstall
-        mkdir -p $out/bin
-        cp .build/arm64-apple-macosx/release/${bin} $out/bin/${bin}
-        runHook postInstall
-      '';
-
-      buildSwiftPackage =
-        {
-          pname,
-          version ? "0.1.0",
-          src,
-          meta ? { },
-        }:
-        pkgs.stdenvNoCC.mkDerivation {
-          inherit pname version src;
-
-          buildPhase = swiftBuildPhase pname;
-          installPhase = swiftInstallPhase pname;
-          dontFixup = true;
-
-          meta = {
-            platforms = [ "aarch64-darwin" ];
-          }
-          // meta;
-        };
+      treefmtEval = treefmt.lib.evalModule pkgs {
+        projectRootFile = "flake.nix";
+        programs.nixfmt.enable = true;
+        programs.swift-format.enable = true;
+        programs.gofmt.enable = true;
+        programs.shfmt.enable = true;
+      };
 
       _kantan = buildSwiftPackage {
         pname = "kantan";
@@ -63,114 +49,13 @@
             let
               baseName = baseNameOf (toString name);
             in
-            pkgs.lib.cleanSourceFilter name type && baseName != "config.yaml" && baseName != "README.org";
+            pkgs.lib.cleanSourceFilter name type && baseName != "README.org" && baseName != "examples";
         };
         meta = {
           description = "A beautifully simple status bar for macOS";
           mainProgram = "kantan";
         };
       };
-
-      buildSwiftPlugin =
-        {
-          name,
-          src,
-        }:
-        let
-          bin = "kantan-plugin-${name}";
-          built = buildSwiftPackage {
-            pname = bin;
-            inherit src;
-          };
-        in
-        pkgs.stdenvNoCC.mkDerivation {
-          pname = bin;
-          version = "0.1.0";
-          dontUnpack = true;
-          dontFixup = true;
-          installPhase = ''
-            runHook preInstall
-
-            mkdir -p $out/bin
-            cp ${built}/bin/${bin} $out/bin/${bin}
-
-            if [ -d "${src}/examples" ]; then
-              mkdir -p $out/share/examples
-              cp ${src}/examples/* $out/share/examples/
-            fi
-
-            runHook postInstall
-          '';
-          meta = {
-            platforms = [ "aarch64-darwin" ];
-          };
-        };
-
-      buildShellPlugin =
-        {
-          name,
-          src,
-        }:
-        let
-          bin = "kantan-plugin-${name}";
-        in
-        pkgs.stdenvNoCC.mkDerivation {
-          pname = bin;
-          version = "0.1.0";
-          inherit src;
-          dontFixup = true;
-          installPhase = ''
-            runHook preInstall
-
-            mkdir -p $out/bin
-            cp main.sh $out/bin/${bin}
-            chmod +x $out/bin/${bin}
-
-            if [ -d "examples" ]; then
-              mkdir -p $out/share/examples
-              cp examples/* $out/share/examples/
-            fi
-
-            runHook postInstall
-          '';
-          meta = {
-            platforms = [ "aarch64-darwin" ];
-          };
-        };
-
-      buildPlugin =
-        {
-          name,
-          src,
-        }:
-        let
-          dirContents = builtins.readDir (./packages/plugins + "/${name}");
-        in
-        if dirContents ? "Package.swift" then
-          buildSwiftPlugin { inherit name src; }
-        else if dirContents ? "main.sh" then
-          buildShellPlugin { inherit name src; }
-        else
-          throw "Plugin '${name}' has no Package.swift or main.sh";
-
-      pluginDirs = builtins.readDir ./packages/plugins;
-      pluginPackages = builtins.listToAttrs (
-        builtins.filter (entry: entry != null) (
-          builtins.map (
-            dirName:
-            if pluginDirs.${dirName} == "directory" then
-              {
-                name = dirName;
-                value = buildPlugin {
-                  name = dirName;
-                  src = pkgs.lib.cleanSource ./packages/plugins/${dirName};
-                };
-              }
-            else
-              null
-          ) (builtins.attrNames pluginDirs)
-        )
-      );
 
       kantanWithPlugins =
         {
@@ -209,40 +94,10 @@
         plugins = pluginPackages;
       };
 
-      swiftPluginNames = builtins.filter (
-        name:
-        let
-          dirContents = builtins.readDir (./packages/plugins + "/${name}");
-        in
-        dirContents ? "Package.swift"
-      ) (builtins.attrNames pluginPackages);
-
-      allSwiftSourceDirs = [
-        "packages/kantan/Sources"
-      ]
-      ++ builtins.map (name: "packages/plugins/${name}/Sources") swiftPluginNames;
     in
     {
       packages.${system}.default = kantan;
-
-      formatter.${system} = pkgs.writeShellApplication {
-        name = "swift-fmt";
-        runtimeInputs = [ pkgs.swift-format ];
-        text =
-          let
-            formatCmds = builtins.map (dir: ''
-              if [ -d "${dir}" ]; then
-                swift-format format --in-place --recursive --parallel "${dir}"
-              fi
-            '') allSwiftSourceDirs;
-          in
-          builtins.concatStringsSep "\n" formatCmds;
-      };
-
-      devShells.${system}.default = pkgs.mkShell {
-        nativeBuildInputs = with pkgs; [
-          swift-format
-        ];
-      };
+      formatter.${system} = treefmtEval.config.build.wrapper;
+      checks.${system}.formatting = treefmtEval.config.build.check self;
     };
 }
