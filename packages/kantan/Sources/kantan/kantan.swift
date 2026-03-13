@@ -38,40 +38,26 @@ private func drawerSide(for placement: String) -> String {
   placement.contains("right") ? "right" : "left"
 }
 
-// MARK: - Click-Through Background View
+// MARK: - Drawer Click View
 
-/// A transparent overlay view for the background panel that selectively
-/// passes clicks through to the native menu bar. Returns `nil` from
-/// `hitTest` (letting the click fall through) only when the click point
-/// overlaps a passthrough module panel (masked items). Otherwise absorbs
-/// the click so it doesn't reach native menu bar items underneath.
-class ClickThroughBgView: NSView {
-  /// Returns screen-space rects of passthrough panels. Set by DisplayInstance.
-  var passthroughRects: (() -> [NSRect])?
+/// Content view for drawer-toggle panels that cover gaps between module
+/// group panels. Catches clicks and forwards them as screen-coordinate
+/// points to the `onClick` closure (drawer toggle logic).
+class DrawerClickView: NSView {
+  var onClick: ((NSPoint) -> Void)?
 
-  /// Called when a click lands on empty bar space (non-passthrough area).
-  /// Receives the click point in screen coordinates.
-  var onClickEmptySpace: ((NSPoint) -> Void)?
+  override func acceptsFirstMouse(for event: NSEvent?) -> Bool {
+    return true
+  }
 
   override func hitTest(_ point: NSPoint) -> NSView? {
-    guard let window = self.window else { return nil }
-    let screenPoint = window.convertPoint(toScreen: convert(point, to: nil))
-    if let rects = passthroughRects?() {
-      for rect in rects {
-        if rect.contains(screenPoint) {
-          return nil
-        }
-      }
-    }
-    // Return self (not a subview) so mouseDown is delivered here
     return self
   }
 
   override func mouseDown(with event: NSEvent) {
     guard let window = self.window else { return }
-    let localPoint = convert(event.locationInWindow, from: nil)
-    let screenPoint = window.convertPoint(toScreen: convert(localPoint, to: nil))
-    onClickEmptySpace?(screenPoint)
+    let screenPoint = window.convertPoint(toScreen: event.locationInWindow)
+    onClick?(screenPoint)
   }
 }
 
@@ -83,9 +69,11 @@ class DisplayInstance {
   var bgPanel: NSPanel?
   var groupPanels:
     [(panel: NSPanel, hostingView: NSHostingView<ModuleGroupView>, group: ModuleGroup)] = []
+  var drawerClickPanels: [NSPanel] = []
   var bgColorCancellable: AnyCancellable?
   var leftDrawerOpen: Bool = false
   var rightDrawerOpen: Bool = false
+  private weak var barViewModel: BarViewModel?
 
   var isMenuBarShowing: Bool = false
   var isHoveringTopEdge: Bool = false
@@ -260,28 +248,12 @@ class DisplayInstance {
       contentRect: bgRect, styleMask: [.borderless, .nonactivatingPanel], backing: .buffered,
       defer: false)
     configurePanelDefaults(panel, level: statusWindowLevel)
+    panel.ignoresMouseEvents = true
     bgPanel = panel
+    self.barViewModel = bar
 
-    let containerView = ClickThroughBgView(frame: NSRect(origin: .zero, size: bgRect.size))
+    let containerView = NSView(frame: NSRect(origin: .zero, size: bgRect.size))
     containerView.autoresizingMask = [.width, .height]
-    containerView.passthroughRects = { [weak self] in
-      guard let self else { return [] }
-      return self.groupPanels.compactMap { entry in
-        guard entry.group.isPassthrough, entry.panel.isVisible else { return nil }
-        return entry.panel.frame
-      }
-    }
-    if bar.hasDrawer {
-      containerView.onClickEmptySpace = { [weak bar, weak self] screenPoint in
-        guard let bar, let self, let screen = self.resolveScreen() else { return }
-        let screenMidX = screen.frame.origin.x + screen.frame.width / 2
-        if screenPoint.x < screenMidX && bar.hasLeftDrawer {
-          bar.toggleDrawer(side: "left")
-        } else if screenPoint.x >= screenMidX && bar.hasRightDrawer {
-          bar.toggleDrawer(side: "right")
-        }
-      }
-    }
     panel.contentView = containerView
 
     if config.blur > 0 {
@@ -412,6 +384,8 @@ class DisplayInstance {
 
       groupPanels.append((panel: groupPanel, hostingView: hostingView, group: group))
     }
+
+    updateDrawerClickPanels()
   }
 
   /// Position a panel within a placement zone and advance the boundary cursor.
@@ -502,6 +476,81 @@ class DisplayInstance {
         statusBarY: statusBarY, bounds: &bounds)
       entry.panel.setFrame(panelFrame, display: true)
     }
+
+    updateDrawerClickPanels()
+  }
+
+  // MARK: - Drawer Click Panels
+
+  /// Creates transparent panels in the horizontal gaps between group panels.
+  /// These catch clicks for the "click empty space to toggle drawer" feature
+  /// while keeping the bgPanel fully `ignoresMouseEvents` for passthrough.
+  func updateDrawerClickPanels() {
+    for panel in drawerClickPanels { panel.orderOut(nil) }
+    drawerClickPanels.removeAll()
+
+    guard let bgPanel = bgPanel, let bar = barViewModel, bar.hasDrawer else { return }
+
+    let barFrame = bgPanel.frame
+    let level = bgPanel.level
+
+    // Collect x-ranges of all visible group panels.
+    var ranges: [(minX: CGFloat, maxX: CGFloat)] = []
+    for entry in groupPanels where entry.panel.isVisible {
+      let f = entry.panel.frame
+      ranges.append((f.minX, f.maxX))
+    }
+    ranges.sort { $0.minX < $1.minX }
+
+    // Merge overlapping/adjacent ranges.
+    var merged: [(minX: CGFloat, maxX: CGFloat)] = []
+    for r in ranges {
+      if let last = merged.last, r.minX <= last.maxX {
+        merged[merged.count - 1].maxX = max(last.maxX, r.maxX)
+      } else {
+        merged.append(r)
+      }
+    }
+
+    // Compute gap rects.
+    var gapRects: [NSRect] = []
+    var x = barFrame.minX
+    for r in merged {
+      if r.minX > x {
+        gapRects.append(NSRect(x: x, y: barFrame.minY, width: r.minX - x, height: barFrame.height))
+      }
+      x = r.maxX
+    }
+    if x < barFrame.maxX {
+      gapRects.append(
+        NSRect(x: x, y: barFrame.minY, width: barFrame.maxX - x, height: barFrame.height))
+    }
+
+    for rect in gapRects {
+      let panel = NSPanel(
+        contentRect: rect, styleMask: [.borderless, .nonactivatingPanel], backing: .buffered,
+        defer: false)
+      configurePanelDefaults(panel, level: level)
+      // A fully transparent window is skipped by the WindowServer for hit
+      // testing. Use a near-invisible background so it registers as a click
+      // target (same principle as .background(.black.opacity(0.001)) in SwiftUI).
+      panel.backgroundColor = NSColor.black.withAlphaComponent(0.001)
+
+      let clickView = DrawerClickView(frame: NSRect(origin: .zero, size: rect.size))
+      clickView.autoresizingMask = [.width, .height]
+      clickView.onClick = { [weak bar, weak self] screenPoint in
+        guard let bar, let self, let screen = self.resolveScreen() else { return }
+        let screenMidX = screen.frame.origin.x + screen.frame.width / 2
+        if screenPoint.x < screenMidX && bar.hasLeftDrawer {
+          bar.toggleDrawer(side: "left")
+        } else if screenPoint.x >= screenMidX && bar.hasRightDrawer {
+          bar.toggleDrawer(side: "right")
+        }
+      }
+      panel.contentView = clickView
+      panel.orderFrontRegardless()
+      drawerClickPanels.append(panel)
+    }
   }
 
   // MARK: - Drawer Animation
@@ -585,22 +634,30 @@ class DisplayInstance {
         entry.panel.orderFrontRegardless()
       }
 
-      NSAnimationContext.runAnimationGroup { context in
-        context.duration = 0.25
-        context.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
+      NSAnimationContext.runAnimationGroup(
+        { context in
+          context.duration = 0.25
+          context.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
 
-        for entry in drawerContentPanels {
-          entry.panel.animator().alphaValue = 1
-        }
+          for entry in drawerContentPanels {
+            entry.panel.animator().alphaValue = 1
+          }
 
-        for target in targetFrames where !isToggledDrawerContent(target.entry.group) {
-          target.entry.panel.animator().setFrame(target.frame, display: true)
-        }
+          for target in targetFrames where !isToggledDrawerContent(target.entry.group) {
+            target.entry.panel.animator().setFrame(target.frame, display: true)
+          }
 
-        for entry in displacedNotchPanels {
-          entry.panel.animator().alphaValue = 0
-        }
-      }
+          for entry in displacedNotchPanels {
+            entry.panel.animator().alphaValue = 0
+          }
+        },
+        completionHandler: { [weak self] in
+          DispatchQueue.main.async {
+            MainActor.assumeIsolated {
+              self?.updateDrawerClickPanels()
+            }
+          }
+        })
     } else {
       let displacedNotchPanels = groupPanels.filter { entry in
         isNotchPlacement(entry.group.placement) && entry.panel.alphaValue == 0
@@ -623,12 +680,13 @@ class DisplayInstance {
             entry.panel.animator().alphaValue = 1
           }
         },
-        completionHandler: {
+        completionHandler: { [weak self] in
           DispatchQueue.main.async {
             MainActor.assumeIsolated {
               for entry in drawerContentPanels {
                 entry.panel.orderOut(nil)
               }
+              self?.updateDrawerClickPanels()
             }
           }
         })
@@ -711,11 +769,12 @@ class DisplayInstance {
   var visiblePanels: [NSPanel] {
     [bgPanel].compactMap { $0 }
       + groupPanels.filter { !isDrawerContentHidden($0.group) }.map { $0.panel }
+      + drawerClickPanels
   }
 
   /// All panels including hidden drawer-content panels.
   var allPanels: [NSPanel] {
-    [bgPanel].compactMap { $0 } + groupPanels.map { $0.panel }
+    [bgPanel].compactMap { $0 } + groupPanels.map { $0.panel } + drawerClickPanels
   }
 
   func slideOut() {
@@ -767,6 +826,7 @@ class DisplayInstance {
       panel.orderOut(nil)
     }
     groupPanels.removeAll()
+    drawerClickPanels.removeAll()
     bgPanel = nil
   }
 }
