@@ -653,7 +653,6 @@ func main() {
         foreach(
           items: "processes",
           child: hstack(children: [
-            icon("\u{f085}"),
             text("{name}"),
             spacer(),
             text("{cpu_pct}"),
