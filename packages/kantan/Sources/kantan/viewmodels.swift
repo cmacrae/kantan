@@ -12,6 +12,7 @@ class ModuleViewModel: ObservableObject, Identifiable {
   @Published var displayIcon: String?
   @Published var iconFontNameOverride: String?
   @Published var iconScaleFactor: CGFloat = 1.0
+  @Published var backgroundIcon: String?
   @Published var isActive: Bool = true
   @Published var shouldDisplay: Bool = true
   @Published var templateVariables: [String: String] = [:]
@@ -98,6 +99,8 @@ class ModuleViewModel: ObservableObject, Identifiable {
     let icon = config.getIcon()
     let rawIcon = icon.isEmpty ? moduleConfig.icon : icon
     let resolved = rawIcon.map { resolveIconName($0) }
+    let bgIcon = config.getBackgroundIcon()
+    let resolvedBgGlyph = bgIcon.map { resolveIconName($0).glyph }
 
     config.getValue { [weak self] newValue in
       DispatchQueue.main.async {
@@ -107,6 +110,7 @@ class ModuleViewModel: ObservableObject, Identifiable {
         self.displayIcon = resolved?.glyph ?? rawIcon
         self.iconFontNameOverride = resolved?.fontNameOverride
         self.iconScaleFactor = resolved?.scaleFactor ?? 1.0
+        self.backgroundIcon = resolvedBgGlyph
         self.isActive = config.isActive()
         self.shouldDisplay = config.shouldDisplay()
         self.templateVariables = config.getTemplateVariables()

@@ -156,6 +156,17 @@ final class WiFiConfig: NSObject, ModuleConfiguration, EventDrivenModule, @unche
     return iconForLevel(level, icons: icons)
   }
 
+  func getBackgroundIcon() -> String? {
+    let status = getCachedStatus()
+    guard status.isConnected, icons.count > 1 else { return nil }
+    let level = Int(status.signalQuality * 100)
+    let currentIcon = iconForLevel(level, icons: icons)
+    let maxIcon = icons.last!
+    // Only show background when not already at full strength
+    guard currentIcon != maxIcon else { return nil }
+    return maxIcon
+  }
+
   // MARK: - WiFi Status Reading
 
   static func readWiFiStatus() -> WiFiStatus {

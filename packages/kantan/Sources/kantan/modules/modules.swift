@@ -23,6 +23,7 @@ protocol ModuleConfiguration: Codable, Sendable {
   func getViewTree() -> ViewNode?
   func getDynamicStyle() -> DynamicStyleOverride?
   func getWatchCommand() -> String?
+  func getBackgroundIcon() -> String?
 }
 
 extension ModuleConfiguration {
@@ -34,6 +35,7 @@ extension ModuleConfiguration {
   func getViewTree() -> ViewNode? { nil }
   func getDynamicStyle() -> DynamicStyleOverride? { nil }
   func getWatchCommand() -> String? { nil }
+  func getBackgroundIcon() -> String? { nil }
 }
 
 /// Sentinel interval for modules that don't poll (event-driven or static).

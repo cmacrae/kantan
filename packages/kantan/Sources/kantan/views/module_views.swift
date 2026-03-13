@@ -190,9 +190,20 @@ struct StandardModuleView: View {
   var body: some View {
     HStack(spacing: themeProvider.iconTextSpacing) {
       if let icon = viewModel.displayIcon, !icon.isEmpty {
-        Text(icon)
-          .font(themeProvider.iconFont(for: viewModel))
-          .foregroundStyle(iconColor)
+        if let bgIcon = viewModel.backgroundIcon, !bgIcon.isEmpty {
+          Text(bgIcon)
+            .font(themeProvider.iconFont(for: viewModel))
+            .foregroundStyle(iconColor.opacity(0.15))
+            .overlay {
+              Text(icon)
+                .font(themeProvider.iconFont(for: viewModel))
+                .foregroundStyle(iconColor)
+            }
+        } else {
+          Text(icon)
+            .font(themeProvider.iconFont(for: viewModel))
+            .foregroundStyle(iconColor)
+        }
       }
       if let value = viewModel.displayValue, !value.isEmpty {
         Text(value)
