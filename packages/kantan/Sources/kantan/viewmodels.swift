@@ -10,6 +10,7 @@ class ModuleViewModel: ObservableObject, Identifiable {
 
   @Published var displayValue: String?
   @Published var displayIcon: String?
+  @Published var iconFontNameOverride: String?
   @Published var isActive: Bool = true
   @Published var shouldDisplay: Bool = true
   @Published var templateVariables: [String: String] = [:]
@@ -38,10 +39,27 @@ class ModuleViewModel: ObservableObject, Identifiable {
   nonisolated(unsafe) private var watchRestartCount: Int = 0
   nonisolated(unsafe) private var watchStopped: Bool = false
 
+  /// Sets the display icon, resolving named icons (e.g. "IconMug") to glyphs.
+  func setIcon(_ raw: String?) {
+    guard let raw, !raw.isEmpty else {
+      displayIcon = raw
+      iconFontNameOverride = nil
+      return
+    }
+    let resolved = resolveIconName(raw)
+    displayIcon = resolved.glyph
+    iconFontNameOverride = resolved.fontNameOverride
+  }
+
   init(moduleConfig: ModuleConfig) {
     self.id = moduleConfig.name
     self.moduleConfig = moduleConfig
-    self.displayIcon = moduleConfig.icon
+    // Resolve named icons at init time
+    if let icon = moduleConfig.icon {
+      let resolved = resolveIconName(icon)
+      self.displayIcon = resolved.glyph
+      self.iconFontNameOverride = resolved.fontNameOverride
+    }
 
     if let eventModule = moduleConfig.config as? EventDrivenModule {
       update()
@@ -74,14 +92,16 @@ class ModuleViewModel: ObservableObject, Identifiable {
     let gen = updateGeneration
 
     let icon = config.getIcon()
-    let newIcon = icon.isEmpty ? moduleConfig.icon : icon
+    let rawIcon = icon.isEmpty ? moduleConfig.icon : icon
+    let resolved = rawIcon.map { resolveIconName($0) }
 
     config.getValue { [weak self] newValue in
       DispatchQueue.main.async {
         guard let self else { return }
         guard self.updateGeneration == gen else { return }
         self.displayValue = newValue
-        self.displayIcon = newIcon
+        self.displayIcon = resolved?.glyph ?? rawIcon
+        self.iconFontNameOverride = resolved?.fontNameOverride
         self.isActive = config.isActive()
         self.shouldDisplay = config.shouldDisplay()
         self.templateVariables = config.getTemplateVariables()
@@ -327,7 +347,7 @@ class BarViewModel: ObservableObject {
       }
       drawerShowIcons[side] = showIcon
       drawerHideIcons[side] = hideIcon
-      dvm.displayIcon = showIcon
+      dvm.setIcon(showIcon)
       if side == "left" {
         hasLeftDrawer = true
       } else {
@@ -477,8 +497,8 @@ class BarViewModel: ObservableObject {
       rightDrawerOpen.toggle()
     }
     let isOpen = side == "left" ? leftDrawerOpen : rightDrawerOpen
-    drawerVMs[side]?.displayIcon =
-      isOpen ? drawerHideIcons[side] ?? "〉" : drawerShowIcons[side] ?? "〈"
+    let newIcon = isOpen ? drawerHideIcons[side] ?? "〉" : drawerShowIcons[side] ?? "〈"
+    drawerVMs[side]?.setIcon(newIcon)
   }
 
   func refreshAll() {
@@ -519,7 +539,7 @@ class BarViewModel: ObservableObject {
           vm.displayValue = value.isEmpty ? nil : value
         }
         if let icon = userInfo["icon"] {
-          vm.displayIcon = icon.isEmpty ? nil : icon
+          vm.setIcon(icon.isEmpty ? nil : icon)
         }
         if let fg = userInfo["fg"] {
           vm.fgOverride = fg.isEmpty ? nil : fg
@@ -544,7 +564,10 @@ class BarViewModel: ObservableObject {
 
 private let defaultStyleMode = StyleModeConfig(
   fg: "FFFFFF", bg: "000000", text: nil, icon: nil, shape: nil)
-private let defaultFontConfig = FontConfig(descriptor: "HelveticaNeue:regular:14")
+private let defaultTextFontConfig = FontConfig(
+  descriptor: "Helvetica Neue:13", source: .system)
+private let defaultIconFontConfig = FontConfig(
+  descriptor: "tabler-icons:regular:15", source: .bundled)
 
 @MainActor
 class ThemeProvider: ObservableObject {
@@ -667,12 +690,19 @@ class ThemeProvider: ObservableObject {
   // MARK: - Font Resolution
 
   func iconFont(for vm: ModuleViewModel) -> Font {
-    let fontConfig = vm.moduleConfig.iconFont ?? config.iconFont ?? defaultFontConfig
-    return fontConfig.swiftUIFont
+    let base = vm.moduleConfig.iconFont ?? config.iconFont ?? defaultIconFontConfig
+    // If the icon was resolved from a named glyph (e.g. "IconMug"), override
+    // the font family name while keeping the configured size.
+    if let override = vm.iconFontNameOverride {
+      let overrideConfig = FontConfig(
+        descriptor: "\(override):\(Int(base.size))", source: .bundled)
+      return overrideConfig.swiftUIFont
+    }
+    return base.swiftUIFont
   }
 
   func textFont(for vm: ModuleViewModel) -> Font {
-    let fontConfig = vm.moduleConfig.textFont ?? config.textFont ?? defaultFontConfig
+    let fontConfig = vm.moduleConfig.textFont ?? config.textFont ?? defaultTextFontConfig
     return fontConfig.swiftUIFont
   }
 

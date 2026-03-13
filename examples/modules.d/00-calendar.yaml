@@ -1,7 +1,7 @@
 name: calendar
 type: command
 placement: right
-icon: "\uf073"
+icon: calendar-event-filled
 style:
   light:
     fg: "#8caaee"
@@ -13,7 +13,10 @@ config:
   watch: kantan-plugin-calendar --watch
   settings:
     format: "{next_title} in {next_countdown}"
-    upcoming: 1h
+    upcoming: 1d
+    calendars:
+      include:
+        - Kantan Testing
 interaction:
   hover:
     type: tooltip

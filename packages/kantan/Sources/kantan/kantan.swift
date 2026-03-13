@@ -886,6 +886,10 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     let extraModules = loadModulesFromDirectory(path: modulesDirPath)
     config.modules = mergeModules(base: config.modules, extra: extraModules)
 
+    if config.needsBundledIconFonts {
+      initIconFonts()
+    }
+
     self.config = config
     barHeight = CGFloat(config.height)
     autohideConfig = config.autohide
@@ -1276,6 +1280,10 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     if let dir = modulesDirPath {
       let extraModules = loadModulesFromDirectory(path: dir)
       newConfig.modules = mergeModules(base: newConfig.modules, extra: extraModules)
+    }
+
+    if newConfig.needsBundledIconFonts {
+      initIconFonts()
     }
 
     print("Hot-reload: config changed, rebuilding bar")

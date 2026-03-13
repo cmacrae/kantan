@@ -289,7 +289,7 @@ struct WorkspaceModuleView: View {
       }
       ForEach(Array(window.segments.enumerated()), id: \.offset) { _, segment in
         Text(segment.label)
-          .font(themeProvider.textFont(for: viewModel))
+          .font(segmentFont(segment))
           .foregroundStyle(segment.isActive ? activeColor : inactiveColor)
       }
       if window.overflowAfter {
@@ -330,12 +330,35 @@ struct WorkspaceModuleView: View {
 
   // MARK: - Overflow Indicator
 
+  /// Returns the appropriate font for a workspace segment. If the segment's
+  /// label was resolved from a named icon, uses the override font at the
+  /// text font's size; otherwise falls back to the normal text font.
+  private func segmentFont(_ segment: WorkspaceSegment) -> Font {
+    if let override = segment.fontNameOverride {
+      let base = viewModel.moduleConfig.textFont ?? themeProvider.config.textFont
+      let size = base?.size ?? 14
+      return FontConfig(descriptor: "\(override):\(Int(size))", source: .bundled).swiftUIFont
+    }
+    return themeProvider.textFont(for: viewModel)
+  }
+
   @ViewBuilder
   private func overflowIndicatorView(icon: String, config: WorkspaceConfig?) -> some View {
     if let of = config?.overflow, of.enabled, of.showIcon {
-      Text(icon)
-        .font(themeProvider.textFont(for: viewModel))
-        .foregroundStyle(overflowColor(config: config))
+      let resolved = resolveIconName(icon)
+      if let override = resolved.fontNameOverride {
+        let base = viewModel.moduleConfig.textFont ?? themeProvider.config.textFont
+        let size = base?.size ?? 14
+        Text(resolved.glyph)
+          .font(
+            FontConfig(descriptor: "\(override):\(Int(size))", source: .bundled).swiftUIFont
+          )
+          .foregroundStyle(overflowColor(config: config))
+      } else {
+        Text(resolved.glyph)
+          .font(themeProvider.textFont(for: viewModel))
+          .foregroundStyle(overflowColor(config: config))
+      }
     }
   }
 

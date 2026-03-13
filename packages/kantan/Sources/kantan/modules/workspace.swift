@@ -6,6 +6,15 @@ import Yaml
 struct WorkspaceSegment: Sendable {
   let label: String
   let isActive: Bool
+  /// When the label came from a named icon (e.g. "IconPointFilled"),
+  /// this holds the font family name to render it with.
+  let fontNameOverride: String?
+
+  init(label: String, isActive: Bool, fontNameOverride: String? = nil) {
+    self.label = label
+    self.isActive = isActive
+    self.fontNameOverride = fontNameOverride
+  }
 }
 
 // Module-level cache for structured workspace data.
@@ -151,15 +160,18 @@ struct WorkspaceConfig: ModuleConfiguration {
       }
 
       let segments = spaces.map { space -> WorkspaceSegment in
-        let icon: String
+        let rawIcon: String
         if space.index < iconList.count {
-          icon = iconList[space.index]
+          rawIcon = iconList[space.index]
         } else if !fallbackIcon.isEmpty {
-          icon = fallbackIcon
+          rawIcon = fallbackIcon
         } else {
-          icon = space.label
+          rawIcon = space.label
         }
-        return WorkspaceSegment(label: icon, isActive: space.isActive)
+        let resolved = resolveIconName(rawIcon)
+        return WorkspaceSegment(
+          label: resolved.glyph, isActive: space.isActive,
+          fontNameOverride: resolved.fontNameOverride)
       }
 
       setWorkspaceSegments(segments)

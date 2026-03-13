@@ -32,6 +32,8 @@
       inherit (swift) buildSwiftPackage;
       inherit (plugins) pluginPackages;
 
+      tabler-icons = pkgs.callPackage ./packages/tabler-icons { };
+
       treefmtEval = treefmt.lib.evalModule pkgs {
         projectRootFile = "flake.nix";
         programs.nixfmt.enable = true;
@@ -70,7 +72,11 @@
         else
           pkgs.symlinkJoin {
             name = "kantan-${_kantan.version}";
-            paths = [ _kantan ] ++ allPlugins;
+            paths = [
+              _kantan
+              tabler-icons
+            ]
+            ++ allPlugins;
             nativeBuildInputs = [ pkgs.makeBinaryWrapper ];
             postBuild = ''
               wrapProgram $out/bin/kantan \

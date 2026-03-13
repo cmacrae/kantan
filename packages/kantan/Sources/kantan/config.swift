@@ -1,4 +1,5 @@
 import AppKit
+import CoreText
 import Foundation
 import SwiftUI
 import Yaml
@@ -70,6 +71,19 @@ struct Config {
   let autohide: AutohideConfig
   let displays: DisplaysConfig
   var modules: [ModuleConfig]
+
+  /// Whether this config requires the bundled tabler-icons fonts.
+  /// True when the global icon font is unset (defaults to tabler-icons)
+  /// or any font config in the hierarchy uses a bundled (non-system) source.
+  var needsBundledIconFonts: Bool {
+    // Global icon font unset → defaults to bundled tabler-icons
+    guard let globalIconFont = iconFont else { return true }
+    // Global icon font is bundled
+    if globalIconFont.source == .bundled { return true }
+    // Check per-module overrides: any explicit bundled icon font means we need them.
+    // Modules with nil iconFont inherit the global (which is system here), so skip those.
+    return modules.contains { $0.iconFont?.source == .bundled }
+  }
 }
 
 /// Controls whether tooltips, menus, and popups use the native system
@@ -79,8 +93,22 @@ enum AppearanceStyle: String, Codable, Sendable {
   case theme
 }
 
+/// Where a font is loaded from.
+enum FontSource: Codable, Sendable {
+  /// System-installed font (resolved via NSFontDescriptor).
+  case system
+  /// Bundled font shipped in share/fonts/ alongside the kantan binary.
+  case bundled
+}
+
 struct FontConfig: Codable {
   let descriptor: String
+  let source: FontSource
+
+  init(descriptor: String, source: FontSource = .bundled) {
+    self.descriptor = descriptor
+    self.source = source
+  }
 
   private static let defaultSize: CGFloat = 14
 
@@ -96,39 +124,43 @@ struct FontConfig: Codable {
     return firstComponent
   }
 
-  var weight: NSFont.Weight {
-    guard components.count > 1 else {
-      return .regular
-    }
-    let weightString = components[1]
-    switch weightString.lowercased() {
-    case "ultralight":
-      return .ultraLight
-    case "thin":
-      return .thin
-    case "light":
-      return .light
-    case "regular":
-      return .regular
-    case "medium":
-      return .medium
-    case "semibold", "demi-bold":
-      return .semibold
-    case "bold":
-      return .bold
-    case "heavy", "extrabold":
-      return .heavy
-    case "black":
-      return .black
-    default:
-      return .regular
+  /// Parses a weight string into an NSFont.Weight.
+  /// Returns nil if the string is not a recognised weight name.
+  private static func parseWeight(_ s: String) -> NSFont.Weight? {
+    switch s.lowercased() {
+    case "ultralight": return .ultraLight
+    case "thin": return .thin
+    case "light": return .light
+    case "regular": return .regular
+    case "medium": return .medium
+    case "semibold", "demi-bold": return .semibold
+    case "bold": return .bold
+    case "heavy", "extrabold": return .heavy
+    case "black": return .black
+    default: return nil
     }
   }
 
+  /// Supports "Name:Size", "Name:Weight:Size", or just "Name".
+  /// When there are two components and the second is numeric, it is
+  /// treated as the size (weight defaults to regular).
+  var weight: NSFont.Weight {
+    guard components.count > 1 else { return .regular }
+    if components.count == 2 {
+      // Two components: could be Name:Weight or Name:Size.
+      // If the second parses as a number it is the size, not a weight.
+      if Double(components[1]) != nil { return .regular }
+    }
+    return Self.parseWeight(components[1]) ?? .regular
+  }
+
   var size: CGFloat {
-    guard components.count > 2 else {
+    if components.count == 2 {
+      // Two components: second may be a size (Name:Size) or a weight (Name:Weight).
+      if let s = Double(components[1]) { return CGFloat(s) }
       return Self.defaultSize
     }
+    guard components.count > 2 else { return Self.defaultSize }
     return Double(components[2]).map { CGFloat($0) } ?? Self.defaultSize
   }
 
@@ -146,6 +178,146 @@ struct FontConfig: Codable {
       ?? NSFont.systemFont(ofSize: size)
     return Font(nsFont)
   }
+}
+
+// MARK: - Bundled Font Registration
+
+/// Resolves the share/fonts/ directory relative to the kantan binary.
+/// The binary lives at <prefix>/bin/kantan; fonts are at <prefix>/share/fonts/.
+/// Resolves symlinks so it works with nix-built wrappers.
+func bundledFontsDirectory() -> URL? {
+  let execURL = URL(fileURLWithPath: CommandLine.arguments[0]).resolvingSymlinksInPath()
+  // <prefix>/bin/kantan -> <prefix>/share/fonts
+  let prefixURL = execURL.deletingLastPathComponent().deletingLastPathComponent()
+  let fontsDir = prefixURL.appendingPathComponent("share/fonts")
+  guard FileManager.default.fileExists(atPath: fontsDir.path) else { return nil }
+  return fontsDir
+}
+
+/// Registers all .ttf fonts found in the bundled fonts directory with CoreText.
+/// Called once at startup so bundled fonts become available via NSFont/CTFont by name.
+/// Guarded by `bundledFontsRegistered` to avoid redundant registration on hot-reload.
+nonisolated(unsafe) private var bundledFontsRegistered = false
+
+func registerBundledFonts() {
+  guard !bundledFontsRegistered else { return }
+  guard let fontsDir = bundledFontsDirectory() else {
+    print("No bundled fonts directory found")
+    return
+  }
+
+  let fm = FileManager.default
+  guard let enumerator = fm.enumerator(at: fontsDir, includingPropertiesForKeys: nil) else {
+    return
+  }
+
+  for case let fileURL as URL in enumerator where fileURL.pathExtension == "ttf" {
+    var errorRef: Unmanaged<CFError>?
+    let success = CTFontManagerRegisterFontsForURL(
+      fileURL as CFURL, .process, &errorRef)
+    if !success {
+      let error = errorRef?.takeRetainedValue()
+      print(
+        "Failed to register font \(fileURL.lastPathComponent): \(error.map { "\($0)" } ?? "unknown error")"
+      )
+    }
+  }
+
+  bundledFontsRegistered = true
+}
+
+/// Parses a font descriptor string, extracting the source prefix if present.
+/// Format: "system:FontName:Weight:Size" or "FontName:Weight:Size" (bundled by default).
+func parseFontDescriptor(_ raw: String) -> FontConfig {
+  if raw.hasPrefix("system:") {
+    let rest = String(raw.dropFirst("system:".count))
+    return FontConfig(descriptor: rest, source: .system)
+  }
+  return FontConfig(descriptor: raw, source: .bundled)
+}
+
+// MARK: - Icon Resolution
+
+/// A resolved icon: either a named icon from a bundled font (with font info)
+/// or a literal glyph string.
+struct ResolvedIcon {
+  /// The character(s) to render.
+  let glyph: String
+  /// If non-nil, override the module's icon font family name (e.g. "tabler-icons-filled").
+  /// The size is inherited from the module's configured icon font.
+  let fontNameOverride: String?
+}
+
+private let outlineFontFamily = "tabler-icons"
+private let filledFontFamily = "tabler-icons-filled"
+private let filledSuffix = "-filled"
+
+/// Maps icon glyph names (e.g. "bell") to their resolved Unicode scalar
+/// and font family. Built once at startup from the bundled font cmap tables.
+/// Outline icons are keyed by their glyph name; filled icons are keyed
+/// with a "-filled" suffix (e.g. "bell-filled").
+nonisolated(unsafe) private var iconNameMap: [String: (scalar: Unicode.Scalar, font: String)] = [:]
+nonisolated(unsafe) private var iconFontsInitialized = false
+
+/// Builds the icon name lookup table from the bundled icon fonts' cmap tables.
+/// Registers bundled fonts first if not already done. Guarded to run at most once.
+func initIconFonts() {
+  guard !iconFontsInitialized else { return }
+  registerBundledFonts()
+  iconFontsInitialized = true
+  func buildMap(fontFamily: String, suffix: String) {
+    let ctFont = CTFontCreateWithName(fontFamily as CFString, 16, nil)
+    let glyphCount = CTFontGetGlyphCount(ctFont)
+    guard glyphCount > 0 else { return }
+
+    // Build a reverse map: glyphID → codepoint, from the font's character set.
+    var glyphToScalar: [CGGlyph: Unicode.Scalar] = [:]
+    if let charset = CTFontCopyCharacterSet(ctFont) as? CharacterSet {
+      for plane: UInt8 in 0...16 {
+        guard charset.hasMember(inPlane: plane) else { continue }
+        let base = UInt32(plane) << 16
+        for cp in base...(base + 0xFFFF) {
+          guard let scalar = Unicode.Scalar(cp), charset.contains(scalar) else { continue }
+          let utf16 = Array(String(scalar).utf16)
+          var glyphs = [CGGlyph](repeating: 0, count: utf16.count)
+          if CTFontGetGlyphsForCharacters(ctFont, utf16, &glyphs, utf16.count) {
+            glyphToScalar[glyphs[0]] = scalar
+          }
+        }
+      }
+    }
+
+    // Map each glyph's PostScript name to its codepoint.
+    for glyphID in 0..<CGGlyph(glyphCount) {
+      guard let nameRef = CTFontCopyNameForGlyph(ctFont, glyphID),
+        let scalar = glyphToScalar[glyphID]
+      else { continue }
+      let name = nameRef as String
+      guard !name.isEmpty, name != ".notdef", name != ".null" else { continue }
+      iconNameMap[name + suffix] = (scalar: scalar, font: fontFamily)
+    }
+  }
+
+  buildMap(fontFamily: outlineFontFamily, suffix: "")
+  buildMap(fontFamily: filledFontFamily, suffix: filledSuffix)
+}
+
+/// Resolves an icon string by looking up its name in the bundled icon fonts.
+///
+/// Convention:
+/// - "bell" → outline icon (glyph name "bell" in tabler-icons font)
+/// - "bell-filled" → filled icon (glyph name "bell" in tabler-icons-filled font)
+///
+/// If the name doesn't match any bundled icon glyph, the raw string is
+/// returned as-is (allowing literal Unicode characters to pass through).
+func resolveIconName(_ raw: String) -> ResolvedIcon {
+  if let entry = iconNameMap[raw] {
+    return ResolvedIcon(
+      glyph: String(entry.scalar),
+      fontNameOverride: entry.font
+    )
+  }
+  return ResolvedIcon(glyph: raw, fontNameOverride: nil)
 }
 
 // MARK: - Style Parsing Helpers
@@ -501,8 +673,9 @@ func loadConfig(from yaml: Yaml, configDir: String? = nil) -> Config? {
 
   let iconTextSpacing = yaml["iconTextSpacing"].int ?? 5
 
-  let iconFont = yaml["iconFont"].string.map { FontConfig(descriptor: $0) }
-  let textFont = yaml["textFont"].string.map { FontConfig(descriptor: $0) }
+  let fontsYaml = yaml["fonts"]
+  let iconFont = fontsYaml["icon"].string.map { parseFontDescriptor($0) }
+  let textFont = fontsYaml["text"].string.map { parseFontDescriptor($0) }
 
   let cornerRadius = yamlCGFloat(yaml["cornerRadius"])
 
@@ -588,14 +761,13 @@ func parseModuleConfig(from moduleYaml: Yaml, configDir: String? = nil) -> Modul
     builder.setIcon(fixYamlUnicodeEscapes(icon))
   }
 
-  if let textFontDescriptor = moduleYaml["textFont"].string {
-    let moduleTextFont = FontConfig(descriptor: textFontDescriptor)
-    builder.setTextFont(moduleTextFont)
+  let moduleFontsYaml = moduleYaml["fonts"]
+  if let textFontDescriptor = moduleFontsYaml["text"].string {
+    builder.setTextFont(parseFontDescriptor(textFontDescriptor))
   }
 
-  if let iconFontDescriptor = moduleYaml["iconFont"].string {
-    let moduleIconFont = FontConfig(descriptor: iconFontDescriptor)
-    builder.setIconFont(moduleIconFont)
+  if let iconFontDescriptor = moduleFontsYaml["icon"].string {
+    builder.setIconFont(parseFontDescriptor(iconFontDescriptor))
   }
 
   if let moduleStyle = parseStyleConfig(from: moduleYaml["style"]) {
