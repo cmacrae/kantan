@@ -11,6 +11,7 @@ class ModuleViewModel: ObservableObject, Identifiable {
   @Published var displayValue: String?
   @Published var displayIcon: String?
   @Published var iconFontNameOverride: String?
+  @Published var iconScaleFactor: CGFloat = 1.0
   @Published var isActive: Bool = true
   @Published var shouldDisplay: Bool = true
   @Published var templateVariables: [String: String] = [:]
@@ -39,16 +40,18 @@ class ModuleViewModel: ObservableObject, Identifiable {
   nonisolated(unsafe) private var watchRestartCount: Int = 0
   nonisolated(unsafe) private var watchStopped: Bool = false
 
-  /// Sets the display icon, resolving named icons (e.g. "IconMug") to glyphs.
+  /// Sets the display icon, resolving named icons (e.g. "bell") to glyphs.
   func setIcon(_ raw: String?) {
     guard let raw, !raw.isEmpty else {
       displayIcon = raw
       iconFontNameOverride = nil
+      iconScaleFactor = 1.0
       return
     }
     let resolved = resolveIconName(raw)
     displayIcon = resolved.glyph
     iconFontNameOverride = resolved.fontNameOverride
+    iconScaleFactor = resolved.scaleFactor
   }
 
   init(moduleConfig: ModuleConfig) {
@@ -59,6 +62,7 @@ class ModuleViewModel: ObservableObject, Identifiable {
       let resolved = resolveIconName(icon)
       self.displayIcon = resolved.glyph
       self.iconFontNameOverride = resolved.fontNameOverride
+      self.iconScaleFactor = resolved.scaleFactor
     }
 
     if let eventModule = moduleConfig.config as? EventDrivenModule {
@@ -102,6 +106,7 @@ class ModuleViewModel: ObservableObject, Identifiable {
         self.displayValue = newValue
         self.displayIcon = resolved?.glyph ?? rawIcon
         self.iconFontNameOverride = resolved?.fontNameOverride
+        self.iconScaleFactor = resolved?.scaleFactor ?? 1.0
         self.isActive = config.isActive()
         self.shouldDisplay = config.shouldDisplay()
         self.templateVariables = config.getTemplateVariables()
@@ -691,12 +696,20 @@ class ThemeProvider: ObservableObject {
 
   func iconFont(for vm: ModuleViewModel) -> Font {
     let base = vm.moduleConfig.iconFont ?? config.iconFont ?? defaultIconFontConfig
-    // If the icon was resolved from a named glyph (e.g. "IconMug"), override
-    // the font family name while keeping the configured size.
+    let scaledSize = Int(round(base.size * vm.iconScaleFactor))
+    // If the icon was resolved from a named glyph (e.g. "bell"), override
+    // the font family name and apply the dynamic scale factor.
     if let override = vm.iconFontNameOverride {
       let overrideConfig = FontConfig(
-        descriptor: "\(override):\(Int(base.size))", source: .bundled)
+        descriptor: "\(override):\(scaledSize)", source: .bundled)
       return overrideConfig.swiftUIFont
+    }
+    // No font name override but still apply scale factor for literal glyphs
+    // from a bundled font that were resolved with a scale.
+    if vm.iconScaleFactor != 1.0 {
+      let scaledConfig = FontConfig(
+        descriptor: "\(base.name):\(scaledSize)", source: base.source)
+      return scaledConfig.swiftUIFont
     }
     return base.swiftUIFont
   }

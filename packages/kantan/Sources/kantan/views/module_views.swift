@@ -337,7 +337,8 @@ struct WorkspaceModuleView: View {
     if let override = segment.fontNameOverride {
       let base = viewModel.moduleConfig.textFont ?? themeProvider.config.textFont
       let size = base?.size ?? 14
-      return FontConfig(descriptor: "\(override):\(Int(size))", source: .bundled).swiftUIFont
+      let scaled = Int(round(size * segment.scaleFactor))
+      return FontConfig(descriptor: "\(override):\(scaled)", source: .bundled).swiftUIFont
     }
     return themeProvider.textFont(for: viewModel)
   }
@@ -349,9 +350,10 @@ struct WorkspaceModuleView: View {
       if let override = resolved.fontNameOverride {
         let base = viewModel.moduleConfig.textFont ?? themeProvider.config.textFont
         let size = base?.size ?? 14
+        let scaled = Int(round(size * resolved.scaleFactor))
         Text(resolved.glyph)
           .font(
-            FontConfig(descriptor: "\(override):\(Int(size))", source: .bundled).swiftUIFont
+            FontConfig(descriptor: "\(override):\(scaled)", source: .bundled).swiftUIFont
           )
           .foregroundStyle(overflowColor(config: config))
       } else {

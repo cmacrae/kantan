@@ -6,14 +6,17 @@ import Yaml
 struct WorkspaceSegment: Sendable {
   let label: String
   let isActive: Bool
-  /// When the label came from a named icon (e.g. "IconPointFilled"),
+  /// When the label came from a named icon (e.g. "point-filled"),
   /// this holds the font family name to render it with.
   let fontNameOverride: String?
+  /// Dynamic scale factor for the icon glyph (1.0 = no adjustment).
+  let scaleFactor: CGFloat
 
-  init(label: String, isActive: Bool, fontNameOverride: String? = nil) {
+  init(label: String, isActive: Bool, fontNameOverride: String? = nil, scaleFactor: CGFloat = 1.0) {
     self.label = label
     self.isActive = isActive
     self.fontNameOverride = fontNameOverride
+    self.scaleFactor = scaleFactor
   }
 }
 
@@ -171,7 +174,8 @@ struct WorkspaceConfig: ModuleConfiguration {
         let resolved = resolveIconName(rawIcon)
         return WorkspaceSegment(
           label: resolved.glyph, isActive: space.isActive,
-          fontNameOverride: resolved.fontNameOverride)
+          fontNameOverride: resolved.fontNameOverride,
+          scaleFactor: resolved.scaleFactor)
       }
 
       setWorkspaceSegments(segments)

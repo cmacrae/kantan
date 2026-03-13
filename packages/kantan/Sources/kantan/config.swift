@@ -246,27 +246,50 @@ struct ResolvedIcon {
   /// If non-nil, override the module's icon font family name (e.g. "tabler-icons-filled").
   /// The size is inherited from the module's configured icon font.
   let fontNameOverride: String?
+  /// Multiplier to apply to the configured font size so that the glyph's
+  /// visual height fills a consistent proportion of the em square.
+  /// 1.0 means no adjustment (glyph already fills the target area).
+  let scaleFactor: CGFloat
 }
 
 private let outlineFontFamily = "tabler-icons"
 private let filledFontFamily = "tabler-icons-filled"
 private let filledSuffix = "-filled"
 
-/// Maps icon glyph names (e.g. "bell") to their resolved Unicode scalar
-/// and font family. Built once at startup from the bundled font cmap tables.
+/// Maps icon glyph names (e.g. "bell") to their resolved Unicode scalar,
+/// font family, and dynamic scale factor. Built once at startup from the
+/// bundled font cmap tables.
 /// Outline icons are keyed by their glyph name; filled icons are keyed
 /// with a "-filled" suffix (e.g. "bell-filled").
-nonisolated(unsafe) private var iconNameMap: [String: (scalar: Unicode.Scalar, font: String)] = [:]
+nonisolated(unsafe) private var iconNameMap:
+  [String: (scalar: Unicode.Scalar, font: String, scaleFactor: CGFloat)] = [:]
 nonisolated(unsafe) private var iconFontsInitialized = false
 
 /// Builds the icon name lookup table from the bundled icon fonts' cmap tables.
 /// Registers bundled fonts first if not already done. Guarded to run at most once.
+///
+/// For each glyph, measures its bounding box to compute a scale factor that
+/// normalises visual height across glyphs with different proportions within
+/// the em square. The target is for each glyph's visual height to fill
+/// ~85% of the em square; glyphs already at or above that get scaleFactor 1.0.
 func initIconFonts() {
   guard !iconFontsInitialized else { return }
   registerBundledFonts()
   iconFontsInitialized = true
+
+  // Reference size used for bounding box measurement. The actual value
+  // doesn't matter because we compute ratios, but a reasonable size
+  // avoids floating-point noise.
+  let refSize: CGFloat = 100
+
+  // Target: glyph visual height should be this fraction of the em square.
+  let targetRatio: CGFloat = 0.85
+
+  // Cap the scale factor to avoid blowing up extremely tiny decorative glyphs.
+  let maxScale: CGFloat = 1.6
+
   func buildMap(fontFamily: String, suffix: String) {
-    let ctFont = CTFontCreateWithName(fontFamily as CFString, 16, nil)
+    let ctFont = CTFontCreateWithName(fontFamily as CFString, refSize, nil)
     let glyphCount = CTFontGetGlyphCount(ctFont)
     guard glyphCount > 0 else { return }
 
@@ -287,14 +310,32 @@ func initIconFonts() {
       }
     }
 
-    // Map each glyph's PostScript name to its codepoint.
+    let targetHeight = refSize * targetRatio
+
+    // Map each glyph's PostScript name to its codepoint and scale factor.
     for glyphID in 0..<CGGlyph(glyphCount) {
       guard let nameRef = CTFontCopyNameForGlyph(ctFont, glyphID),
         let scalar = glyphToScalar[glyphID]
       else { continue }
       let name = nameRef as String
       guard !name.isEmpty, name != ".notdef", name != ".null" else { continue }
-      iconNameMap[name + suffix] = (scalar: scalar, font: fontFamily)
+
+      // Measure the glyph's tight bounding box at the reference size.
+      var glyph = glyphID
+      var bounds = CGRect.zero
+      CTFontGetBoundingRectsForGlyphs(ctFont, .default, &glyph, &bounds, 1)
+
+      var scale: CGFloat = 1.0
+      if bounds.height > 0 {
+        let ratio = targetHeight / bounds.height
+        // Only scale up glyphs that are smaller than the target.
+        // Glyphs already at or above the target keep scale 1.0.
+        if ratio > 1.0 {
+          scale = min(ratio, maxScale)
+        }
+      }
+
+      iconNameMap[name + suffix] = (scalar: scalar, font: fontFamily, scaleFactor: scale)
     }
   }
 
@@ -314,10 +355,11 @@ func resolveIconName(_ raw: String) -> ResolvedIcon {
   if let entry = iconNameMap[raw] {
     return ResolvedIcon(
       glyph: String(entry.scalar),
-      fontNameOverride: entry.font
+      fontNameOverride: entry.font,
+      scaleFactor: entry.scaleFactor
     )
   }
-  return ResolvedIcon(glyph: raw, fontNameOverride: nil)
+  return ResolvedIcon(glyph: raw, fontNameOverride: nil, scaleFactor: 1.0)
 }
 
 // MARK: - Style Parsing Helpers
