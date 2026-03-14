@@ -387,13 +387,32 @@ struct DSLRendererView: View {
       isNative: isNative,
       fallback: .primary)
 
-    // If the name is all ASCII, treat as an SF Symbol name.
-    // Otherwise treat as a glyph string (e.g. icon font character).
-    if resolvedName.allSatisfy({ $0.isASCII }) && !resolvedName.isEmpty {
+    if iconFontsAvailable {
+      let resolved = resolveIconName(resolvedName)
+      if let fontOverride = resolved.fontNameOverride {
+        // Bundled icon font glyph — render with the correct font family and scale.
+        let scaledSize = Int(round(fontSize * resolved.scaleFactor))
+        Text(resolved.glyph)
+          .font(
+            FontConfig(descriptor: "\(fontOverride):\(scaledSize)", source: .bundled).swiftUIFont
+          )
+          .foregroundStyle(fgColor)
+      } else if resolvedName.allSatisfy({ $0.isASCII }) && !resolvedName.isEmpty {
+        Image(systemName: resolvedName)
+          .font(.system(size: CGFloat(fontSize)))
+          .foregroundStyle(fgColor)
+      } else {
+        Text(resolved.glyph)
+          .font(.system(size: CGFloat(fontSize)))
+          .foregroundStyle(fgColor)
+      }
+    } else if resolvedName.allSatisfy({ $0.isASCII }) && !resolvedName.isEmpty {
+      // No bundled fonts — treat ASCII names as SF Symbols.
       Image(systemName: resolvedName)
         .font(.system(size: CGFloat(fontSize)))
         .foregroundStyle(fgColor)
     } else {
+      // Non-ASCII literal glyph — render as text.
       Text(resolvedName)
         .font(.system(size: CGFloat(fontSize)))
         .foregroundStyle(fgColor)
@@ -759,14 +778,36 @@ private struct DSLActionView: View {
     let resolvedIcon = icon.map { resolver.resolve($0) }
 
     HStack(spacing: 8) {
-      if let icon = resolvedIcon, !icon.isEmpty {
-        if icon.allSatisfy({ $0.isASCII }) {
-          Image(systemName: icon)
+      if let iconName = resolvedIcon, !iconName.isEmpty {
+        if iconFontsAvailable {
+          let resolved = resolveIconName(iconName)
+          if let fontOverride = resolved.fontNameOverride {
+            let scaledSize = Int(round(13.0 * resolved.scaleFactor))
+            Text(resolved.glyph)
+              .font(
+                FontConfig(descriptor: "\(fontOverride):\(scaledSize)", source: .bundled)
+                  .swiftUIFont
+              )
+              .foregroundStyle(hoverFgColor)
+              .frame(width: 16, alignment: .center)
+          } else if iconName.allSatisfy({ $0.isASCII }) {
+            Image(systemName: iconName)
+              .font(.system(size: 13))
+              .foregroundStyle(hoverFgColor)
+              .frame(width: 16, alignment: .center)
+          } else {
+            Text(resolved.glyph)
+              .font(.system(size: 13))
+              .foregroundStyle(hoverFgColor)
+              .frame(width: 16, alignment: .center)
+          }
+        } else if iconName.allSatisfy({ $0.isASCII }) {
+          Image(systemName: iconName)
             .font(.system(size: 13))
             .foregroundStyle(hoverFgColor)
             .frame(width: 16, alignment: .center)
         } else {
-          Text(icon)
+          Text(iconName)
             .font(.system(size: 13))
             .foregroundStyle(hoverFgColor)
             .frame(width: 16, alignment: .center)
@@ -902,12 +943,27 @@ private struct DSLButtonView: View {
       runCommand(resolved)
     }) {
       HStack(spacing: 6) {
-        if let icon = resolvedIcon, !icon.isEmpty {
-          if icon.allSatisfy({ $0.isASCII }) {
-            Image(systemName: icon)
+        if let iconName = resolvedIcon, !iconName.isEmpty {
+          if iconFontsAvailable {
+            let resolved = resolveIconName(iconName)
+            if let fontOverride = resolved.fontNameOverride {
+              let scaledSize = Int(round(12.0 * resolved.scaleFactor))
+              Text(resolved.glyph)
+                .font(
+                  FontConfig(descriptor: "\(fontOverride):\(scaledSize)", source: .bundled)
+                    .swiftUIFont)
+            } else if iconName.allSatisfy({ $0.isASCII }) {
+              Image(systemName: iconName)
+                .font(.system(size: 12))
+            } else {
+              Text(resolved.glyph)
+                .font(.system(size: 12))
+            }
+          } else if iconName.allSatisfy({ $0.isASCII }) {
+            Image(systemName: iconName)
               .font(.system(size: 12))
           } else {
-            Text(icon)
+            Text(iconName)
               .font(.system(size: 12))
           }
         }

@@ -97,10 +97,20 @@ func buildNativeMenu(from rootNode: ViewNode, resolver: TemplateResolver) -> NSM
 // MARK: - HStack Composition
 
 /// Styling metadata extracted from text/icon children when composing hstack items.
-private struct HStackTextPart {
+fileprivate struct HStackTextPart {
   let text: String
   let isSecondary: Bool
   let isStrikethrough: Bool
+  /// When set, this part is a bundled icon glyph and must be rendered with this font
+  /// instead of the system menu font.
+  let iconFont: Font?
+
+  init(text: String, isSecondary: Bool, isStrikethrough: Bool, iconFont: Font? = nil) {
+    self.text = text
+    self.isSecondary = isSecondary
+    self.isStrikethrough = isStrikethrough
+    self.iconFont = iconFont
+  }
 }
 
 /// Collect the visible text content from an hstack's children into a single
@@ -138,10 +148,28 @@ private func addHStackItem(
       } else {
         labelParts.append(part)
       }
-    case .icon(let name, _, _, _, _):
-      let resolved = resolver.resolve(name)
-      if !resolved.isEmpty {
-        let part = HStackTextPart(text: resolved, isSecondary: false, isStrikethrough: false)
+    case .icon(let name, let size, _, _, _):
+      let templateResolved = resolver.resolve(name)
+      if !templateResolved.isEmpty {
+        let part: HStackTextPart
+        if iconFontsAvailable {
+          let resolved = resolveIconName(templateResolved)
+          if let fontOverride = resolved.fontNameOverride {
+            let fontSize = size ?? Double(NSFont.menuFont(ofSize: 0).pointSize)
+            let scaledSize = Int(round(fontSize * resolved.scaleFactor))
+            let font = FontConfig(
+              descriptor: "\(fontOverride):\(scaledSize)", source: .bundled
+            ).swiftUIFont
+            part = HStackTextPart(
+              text: resolved.glyph, isSecondary: false, isStrikethrough: false, iconFont: font)
+          } else {
+            part = HStackTextPart(
+              text: resolved.glyph, isSecondary: false, isStrikethrough: false)
+          }
+        } else {
+          part = HStackTextPart(
+            text: templateResolved, isSecondary: false, isStrikethrough: false)
+        }
         if hitSpacer {
           detailParts.append(part)
         } else {
@@ -170,31 +198,21 @@ private func addHStackItem(
     }
   }
 
-  let label = labelParts.map(\.text).joined(separator: " ")
-  let detail = detailParts.map(\.text).joined(separator: " ")
-
-  guard !label.isEmpty || !detail.isEmpty else { return }
-
-  // Determine overall row styling from children
-  let allParts = labelParts + detailParts
-  let isSecondary = !allParts.isEmpty && allParts.allSatisfy(\.isSecondary)
-  let isStrikethrough = !allParts.isEmpty && allParts.allSatisfy(\.isStrikethrough)
+  guard !labelParts.isEmpty || !detailParts.isEmpty else { return }
 
   let item = NSMenuItem(title: "", action: nil, keyEquivalent: "")
 
   // Use a custom NSHostingView so macOS doesn't apply disabled muting.
   let rowView: NSView
-  if !detail.isEmpty {
+  if !detailParts.isEmpty {
     let view = NativeMenuRowView(
-      label: label, detail: detail, isSecondary: isSecondary, isStrikethrough: isStrikethrough,
-      indicatorColor: indicatorColor)
+      labelParts: labelParts, detailParts: detailParts, indicatorColor: indicatorColor)
     let hosting = NSHostingView(rootView: view)
     hosting.frame = NSRect(x: 0, y: 0, width: 280, height: 22)
     rowView = hosting
   } else {
     let view = NativeMenuLabelView(
-      label: label, isSecondary: isSecondary, isStrikethrough: isStrikethrough,
-      indicatorColor: indicatorColor)
+      parts: labelParts, indicatorColor: indicatorColor)
     let hosting = NSHostingView(rootView: view)
     hosting.frame = NSRect(x: 0, y: 0, width: 280, height: 22)
     rowView = hosting
@@ -224,10 +242,25 @@ private func extractStyledParts(from node: ViewNode, resolver: TemplateResolver)
       HStackTextPart(
         text: resolved, isSecondary: style == .secondary, isStrikethrough: strikethrough == true)
     ]
-  case .icon(let name, _, _, _, _):
-    let resolved = resolver.resolve(name)
-    guard !resolved.isEmpty else { return [] }
-    return [HStackTextPart(text: resolved, isSecondary: false, isStrikethrough: false)]
+  case .icon(let name, let size, _, _, _):
+    let templateResolved = resolver.resolve(name)
+    guard !templateResolved.isEmpty else { return [] }
+    if iconFontsAvailable {
+      let resolved = resolveIconName(templateResolved)
+      if let fontOverride = resolved.fontNameOverride {
+        let fontSize = size ?? Double(NSFont.menuFont(ofSize: 0).pointSize)
+        let scaledSize = Int(round(fontSize * resolved.scaleFactor))
+        let font = FontConfig(
+          descriptor: "\(fontOverride):\(scaledSize)", source: .bundled
+        ).swiftUIFont
+        return [
+          HStackTextPart(
+            text: resolved.glyph, isSecondary: false, isStrikethrough: false, iconFont: font)
+        ]
+      }
+      return [HStackTextPart(text: resolved.glyph, isSecondary: false, isStrikethrough: false)]
+    }
+    return [HStackTextPart(text: templateResolved, isSecondary: false, isStrikethrough: false)]
   case .vstack(_, _, _, let children, _),
     .hstack(_, _, _, let children, _, _),
     .group(let children, _):
@@ -298,14 +331,33 @@ private func addItems(from node: ViewNode, to menu: NSMenu, resolver: TemplateRe
 
   case .action(let label, let iconGlyph, let command, _, _):
     let resolvedLabel = resolver.resolve(label ?? "")
-    var title = resolvedLabel
+    let menuFontSize = NSFont.menuFont(ofSize: 0).pointSize
+    let title = NSMutableAttributedString()
     if let glyph = iconGlyph {
-      let resolvedGlyph = resolver.resolve(glyph)
-      if !resolvedGlyph.isEmpty {
-        title = "\(resolvedGlyph) \(resolvedLabel)"
+      let templateResolved = resolver.resolve(glyph)
+      if !templateResolved.isEmpty {
+        if iconFontsAvailable {
+          let resolved = resolveIconName(templateResolved)
+          if let fontOverride = resolved.fontNameOverride {
+            let scaledSize = CGFloat(round(Double(menuFontSize) * resolved.scaleFactor))
+            let fc = FontConfig(descriptor: "\(fontOverride):\(Int(scaledSize))", source: .bundled)
+            let nsFont =
+              NSFont(name: fc.name, size: scaledSize) ?? NSFont.menuFont(ofSize: menuFontSize)
+            title.append(
+              NSAttributedString(string: resolved.glyph, attributes: [.font: nsFont]))
+          } else {
+            title.append(NSAttributedString(string: resolved.glyph))
+          }
+        } else {
+          title.append(NSAttributedString(string: templateResolved))
+        }
+        title.append(NSAttributedString(string: " "))
       }
     }
-    let item = NSMenuItem(title: title, action: nil, keyEquivalent: "")
+    title.append(NSAttributedString(string: resolvedLabel))
+
+    let item = NSMenuItem(title: "", action: nil, keyEquivalent: "")
+    item.attributedTitle = title
     if let command = command {
       let resolvedCommand = resolver.resolve(command)
       let target = NativeMenuTarget {
@@ -459,14 +511,35 @@ struct NativeMenuHeaderView: View {
   }
 }
 
-/// A key/value row for native NSMenu: bold label on the left, secondary detail
+/// Renders a sequence of `HStackTextPart` values, using each part's `iconFont`
+/// when present and falling back to the system menu font otherwise.
+private struct NativeMenuPartsView: View {
+  let parts: [HStackTextPart]
+  let secondaryOverride: Bool
+
+  init(parts: [HStackTextPart], secondaryOverride: Bool = false) {
+    self.parts = parts
+    self.secondaryOverride = secondaryOverride
+  }
+
+  var body: some View {
+    let menuFont = Font.system(size: NSFont.menuFont(ofSize: 0).pointSize)
+    ForEach(Array(parts.enumerated()), id: \.offset) { _, part in
+      let isSecondary = secondaryOverride || part.isSecondary
+      Text(part.text)
+        .font(part.iconFont ?? menuFont)
+        .strikethrough(part.isStrikethrough)
+        .foregroundStyle(isSecondary ? .secondary : .primary)
+    }
+  }
+}
+
+/// A key/value row for native NSMenu: label parts on the left, detail parts
 /// right-aligned. Rendered via NSHostingView to bypass NSMenu's disabled muting.
-/// Supports secondary (muted) and strikethrough styling for past events etc.
-struct NativeMenuRowView: View {
-  let label: String
-  let detail: String
-  var isSecondary: Bool = false
-  var isStrikethrough: Bool = false
+/// Each part carries its own font so bundled icon glyphs render correctly.
+private struct NativeMenuRowView: View {
+  let labelParts: [HStackTextPart]
+  let detailParts: [HStackTextPart]
   var indicatorColor: String?
 
   var body: some View {
@@ -477,15 +550,13 @@ struct NativeMenuRowView: View {
           .frame(width: 3, height: 16)
           .padding(.trailing, 8)
       }
-      Text(label)
-        .font(.system(size: NSFont.menuFont(ofSize: 0).pointSize))
-        .strikethrough(isStrikethrough)
-        .foregroundStyle(isSecondary ? .secondary : .primary)
+      HStack(spacing: 4) {
+        NativeMenuPartsView(parts: labelParts)
+      }
       Spacer(minLength: 16)
-      Text(detail)
-        .font(.system(size: NSFont.menuFont(ofSize: 0).pointSize))
-        .strikethrough(isStrikethrough)
-        .foregroundStyle(.secondary)
+      HStack(spacing: 4) {
+        NativeMenuPartsView(parts: detailParts, secondaryOverride: true)
+      }
     }
     .padding(.horizontal, 14)
     .frame(maxWidth: .infinity, minHeight: 22)
@@ -493,25 +564,20 @@ struct NativeMenuRowView: View {
 }
 
 /// A label-only row for native NSMenu.
-/// Supports secondary (muted) and strikethrough styling.
-struct NativeMenuLabelView: View {
-  let label: String
-  var isSecondary: Bool = false
-  var isStrikethrough: Bool = false
+/// Each part carries its own font so bundled icon glyphs render correctly.
+private struct NativeMenuLabelView: View {
+  let parts: [HStackTextPart]
   var indicatorColor: String?
 
   var body: some View {
-    HStack {
+    HStack(spacing: 4) {
       if let hex = indicatorColor, let color = nativeMenuColorFromHex(hex) {
         RoundedRectangle(cornerRadius: 1.5)
           .fill(color)
           .frame(width: 3, height: 16)
-          .padding(.trailing, 8)
+          .padding(.trailing, 4)
       }
-      Text(label)
-        .font(.system(size: NSFont.menuFont(ofSize: 0).pointSize))
-        .strikethrough(isStrikethrough)
-        .foregroundStyle(isSecondary ? .secondary : .primary)
+      NativeMenuPartsView(parts: parts)
       Spacer()
     }
     .padding(.horizontal, 14)

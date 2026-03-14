@@ -263,7 +263,12 @@ private let filledSuffix = "-filled"
 /// with a "-filled" suffix (e.g. "bell-filled").
 nonisolated(unsafe) private var iconNameMap:
   [String: (scalar: Unicode.Scalar, font: String, scaleFactor: CGFloat)] = [:]
-nonisolated(unsafe) private var iconFontsInitialized = false
+nonisolated(unsafe) private var _iconFontsInitialized = false
+
+/// Whether the bundled icon fonts have been registered and the icon name map
+/// has been built. When false, `resolveIconName()` will pass names through as-is
+/// (no font override, no glyph mapping).
+var iconFontsAvailable: Bool { _iconFontsInitialized }
 
 /// Builds the icon name lookup table from the bundled icon fonts' cmap tables.
 /// Registers bundled fonts first if not already done. Guarded to run at most once.
@@ -273,9 +278,9 @@ nonisolated(unsafe) private var iconFontsInitialized = false
 /// the em square. The target is for each glyph's visual height to fill
 /// ~85% of the em square; glyphs already at or above that get scaleFactor 1.0.
 func initIconFonts() {
-  guard !iconFontsInitialized else { return }
+  guard !_iconFontsInitialized else { return }
   registerBundledFonts()
-  iconFontsInitialized = true
+  _iconFontsInitialized = true
 
   // Reference size used for bounding box measurement. The actual value
   // doesn't matter because we compute ratios, but a reasonable size

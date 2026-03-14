@@ -32,12 +32,93 @@ struct StyleColors: Decodable {
   init() {}
 }
 
+/// Icon configuration for each menu section.
+/// Values are icon names resolved by kantan's bundled icon font system
+/// (e.g. "cpu", "server", "clock"). Raw Unicode glyphs are also accepted.
+struct IconConfig: Decodable {
+  var cpu: String
+  var memory: String
+  var disk: String
+  var thermalNominal: String
+  var thermalFair: String
+  var thermalSerious: String
+  var thermalCritical: String
+  var uptime: String
+  var load: String
+  var activityMonitor: String
+
+  private enum CodingKeys: String, CodingKey {
+    case cpu
+    case memory
+    case disk
+    case thermalNominal = "thermal_nominal"
+    case thermalFair = "thermal_fair"
+    case thermalSerious = "thermal_serious"
+    case thermalCritical = "thermal_critical"
+    case uptime
+    case load
+    case activityMonitor = "activity_monitor"
+  }
+
+  static let defaults = IconConfig(
+    cpu: "cpu",
+    memory: "script",
+    disk: "device-floppy",
+    thermalNominal: "thermometer",
+    thermalFair: "thermometer",
+    thermalSerious: "thermometer",
+    thermalCritical: "thermometer",
+    uptime: "clock",
+    load: "graph",
+    activityMonitor: "dashboard"
+  )
+
+  init(
+    cpu: String, memory: String, disk: String,
+    thermalNominal: String, thermalFair: String,
+    thermalSerious: String, thermalCritical: String,
+    uptime: String, load: String, activityMonitor: String
+  ) {
+    self.cpu = cpu
+    self.memory = memory
+    self.disk = disk
+    self.thermalNominal = thermalNominal
+    self.thermalFair = thermalFair
+    self.thermalSerious = thermalSerious
+    self.thermalCritical = thermalCritical
+    self.uptime = uptime
+    self.load = load
+    self.activityMonitor = activityMonitor
+  }
+
+  init(from decoder: Decoder) throws {
+    let d = IconConfig.defaults
+    let container = try decoder.container(keyedBy: CodingKeys.self)
+    self.cpu = try container.decodeIfPresent(String.self, forKey: .cpu) ?? d.cpu
+    self.memory = try container.decodeIfPresent(String.self, forKey: .memory) ?? d.memory
+    self.disk = try container.decodeIfPresent(String.self, forKey: .disk) ?? d.disk
+    self.thermalNominal =
+      try container.decodeIfPresent(String.self, forKey: .thermalNominal) ?? d.thermalNominal
+    self.thermalFair =
+      try container.decodeIfPresent(String.self, forKey: .thermalFair) ?? d.thermalFair
+    self.thermalSerious =
+      try container.decodeIfPresent(String.self, forKey: .thermalSerious) ?? d.thermalSerious
+    self.thermalCritical =
+      try container.decodeIfPresent(String.self, forKey: .thermalCritical) ?? d.thermalCritical
+    self.uptime = try container.decodeIfPresent(String.self, forKey: .uptime) ?? d.uptime
+    self.load = try container.decodeIfPresent(String.self, forKey: .load) ?? d.load
+    self.activityMonitor =
+      try container.decodeIfPresent(String.self, forKey: .activityMonitor) ?? d.activityMonitor
+  }
+}
+
 /// Plugin settings decoded from the KANTAN_SETTINGS environment variable.
 /// Style colors support light/dark variants matching kantan's convention.
 struct Settings: Decodable {
   var format: String
   var colorTarget: String
   var style: StyleConfig?
+  var icons: IconConfig
   var processCount: Int
   var showCores: Bool
 
@@ -50,6 +131,7 @@ struct Settings: Decodable {
     case format
     case colorTarget = "color_target"
     case style
+    case icons
     case processCount = "process_count"
     case showCores = "show_cores"
   }
@@ -58,6 +140,7 @@ struct Settings: Decodable {
     self.format = "CPU {cpu}"
     self.colorTarget = "both"
     self.style = nil
+    self.icons = .defaults
     self.processCount = 5
     self.showCores = false
   }
@@ -69,6 +152,7 @@ struct Settings: Decodable {
     self.colorTarget =
       try container.decodeIfPresent(String.self, forKey: .colorTarget) ?? defaults.colorTarget
     self.style = try container.decodeIfPresent(StyleConfig.self, forKey: .style)
+    self.icons = try container.decodeIfPresent(IconConfig.self, forKey: .icons) ?? defaults.icons
     self.processCount =
       try container.decodeIfPresent(Int.self, forKey: .processCount) ?? defaults.processCount
     self.showCores =
@@ -473,12 +557,12 @@ func colorForThermal(_ level: Int, colors: StyleColors) -> String? {
   }
 }
 
-func iconForThermal(_ level: Int) -> String {
+func iconForThermal(_ level: Int, icons: IconConfig) -> String {
   switch level {
-  case 0: return "\u{f2cb}"  // thermometer-empty
-  case 1: return "\u{f2c9}"  // thermometer-quarter
-  case 2: return "\u{f2c8}"  // thermometer-half
-  default: return "\u{f2c7}"  // thermometer-full
+  case 0: return icons.thermalNominal
+  case 1: return icons.thermalFair
+  case 2: return icons.thermalSerious
+  default: return icons.thermalCritical
   }
 }
 
@@ -507,7 +591,7 @@ func main() {
   let diskPctStr = String(format: "%.0f%%", disk.usedPercent)
   let loadStr = String(format: "%.2f %.2f %.2f", load.one, load.five, load.fifteen)
 
-  let thermalIcon = iconForThermal(thermal.level)
+  let thermalIcon = iconForThermal(thermal.level, icons: settings.icons)
   let thermalColor = colorForThermal(thermal.level, colors: colors)
   let cpuColor = colorForCPU(cpu, colors: colors)
 
@@ -575,7 +659,7 @@ func main() {
   // CPU row
   viewChildren.append(
     hstack(children: [
-      icon("\u{f2db}"),
+      icon(settings.icons.cpu),
       text("CPU"),
       spacer(),
       text("{cpu}"),
@@ -584,7 +668,7 @@ func main() {
   // Memory row
   viewChildren.append(
     hstack(children: [
-      icon("\u{f538}"),
+      icon(settings.icons.memory),
       text("Memory"),
       spacer(),
       text("{mem}"),
@@ -593,7 +677,7 @@ func main() {
   // Disk row
   viewChildren.append(
     hstack(children: [
-      icon("\u{f0a0}"),
+      icon(settings.icons.disk),
       text("Disk"),
       spacer(),
       text("{disk}"),
@@ -611,7 +695,7 @@ func main() {
   // Uptime row
   viewChildren.append(
     hstack(children: [
-      icon("\u{f017}"),
+      icon(settings.icons.uptime),
       text("Uptime"),
       spacer(),
       text("{uptime}"),
@@ -620,7 +704,7 @@ func main() {
   // Load row
   viewChildren.append(
     hstack(children: [
-      icon("\u{f080}"),
+      icon(settings.icons.load),
       text("Load"),
       spacer(),
       text("{load}"),
@@ -663,7 +747,7 @@ func main() {
   // Activity Monitor action
   viewChildren.append(
     action(
-      label: "Activity Monitor", icon: "\u{f0e4}",
+      label: "Activity Monitor", icon: settings.icons.activityMonitor,
       command: "open -a 'Activity Monitor'"))
 
   let view = vstack(
