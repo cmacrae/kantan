@@ -12,6 +12,9 @@ class TemplateResolver {
   var variables: [String: String]
   let data: [String: [[String: String]]]
   private(set) var scopeStack: [[String: String]] = []
+  /// Optional fallback for resolving keys not found in variables/scopes
+  /// (e.g. `theme(name)` patterns resolved via ThemeProvider).
+  var fallbackResolver: ((String) -> String?)?
 
   init(variables: [String: String], data: [String: [[String: String]]]) {
     self.variables = variables
@@ -74,7 +77,9 @@ class TemplateResolver {
       }
     }
     // Fall back to top-level variables
-    return variables[key]
+    if let value = variables[key] { return value }
+    // Fall back to external resolver (e.g. theme templates)
+    return fallbackResolver?(key)
   }
 }
 

@@ -138,6 +138,20 @@ class PopupManager {
     themeProvider?.globalFgNSColor() ?? .labelColor
   }
 
+  /// The theme's resolved fg color for use as the default text color in DSL views.
+  var defaultTextColor: Color {
+    if isNative { return .primary }
+    return Color(nsColor: effectiveFgColor)
+  }
+
+  /// Configure a TemplateResolver to resolve `{theme(name)}` patterns via ThemeProvider.
+  func configureThemeResolution(_ resolver: TemplateResolver) {
+    resolver.fallbackResolver = { [weak self] key in
+      guard key.hasPrefix("theme("), key.hasSuffix(")") else { return nil }
+      return self?.themeProvider?.resolveColorString("{\(key)}")
+    }
+  }
+
   var effectiveBgColor: NSColor {
     themeProvider?.globalBgNSColor() ?? .windowBackgroundColor
   }
@@ -264,6 +278,7 @@ class PopupManager {
       variables: liveContent.templateVariables,
       data: liveContent.data
     )
+    configureThemeResolution(resolver)
     if let value = liveContent.displayValue {
       resolver.variables["value"] = value
     }
@@ -271,10 +286,12 @@ class PopupManager {
       resolver.variables["icon"] = icon
     }
 
+    let themeFg = defaultTextColor
     let dslView = DSLRendererView(
       node: viewTree, resolver: resolver, isNative: isNative,
       dismissHandler: {}, depth: 0
     )
+    .environment(\.defaultTextColor, themeFg)
     .padding(8)
 
     let hostingView = NSHostingView(rootView: dslView)
@@ -350,6 +367,7 @@ class PopupManager {
       variables: liveContent.templateVariables,
       data: liveContent.data
     )
+    configureThemeResolution(resolver)
     if let value = liveContent.displayValue {
       resolver.variables["value"] = value
     }
@@ -390,6 +408,7 @@ class PopupManager {
           variables: liveContent.templateVariables,
           data: liveContent.data
         )
+        configureThemeResolution(r)
         if let value = liveContent.displayValue {
           r.variables["value"] = value
         }
@@ -399,10 +418,12 @@ class PopupManager {
         return r
       }()
 
+    let themeFg = defaultTextColor
     let dslView = DSLRendererView(
       node: viewTree, resolver: effectiveResolver, isNative: isNative,
       dismissHandler: { [weak self] in self?.dismissPopup() }, depth: 0
     )
+    .environment(\.defaultTextColor, themeFg)
     .padding(.vertical, 8)
 
     let hostingView = NSHostingView(rootView: dslView)

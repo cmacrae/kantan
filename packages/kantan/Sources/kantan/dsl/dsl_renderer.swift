@@ -1,6 +1,21 @@
 import AppKit
 import SwiftUI
 
+// MARK: - Default Text Color Environment Key
+
+/// Custom environment key for propagating the theme's foreground color into
+/// DSL-rendered popup/menu views. Falls back to `.primary` when no theme is set.
+private struct DefaultTextColorKey: EnvironmentKey {
+  static let defaultValue: Color = .primary
+}
+
+extension EnvironmentValues {
+  var defaultTextColor: Color {
+    get { self[DefaultTextColorKey.self] }
+    set { self[DefaultTextColorKey.self] = newValue }
+  }
+}
+
 // MARK: - Color Parsing
 
 /// Parse a hex color string (with or without leading #) to a SwiftUI Color.
@@ -158,6 +173,7 @@ struct DSLRendererView: View {
   let isNative: Bool
   let dismissHandler: () -> Void
   var depth: Int = 0
+  @Environment(\.defaultTextColor) private var defaultTextColor
 
   var body: some View {
     if depth > maxRecursionDepth {
@@ -366,7 +382,7 @@ struct DSLRendererView: View {
     let fgColor = resolveColor(
       color.map { resolver.resolve($0) },
       isNative: isNative,
-      fallback: .primary)
+      fallback: defaultTextColor)
 
     Text(resolved)
       .font(.system(size: CGFloat(fontSize), weight: fwt))
@@ -385,7 +401,7 @@ struct DSLRendererView: View {
     let fgColor = resolveColor(
       color.map { resolver.resolve($0) },
       isNative: isNative,
-      fallback: .primary)
+      fallback: defaultTextColor)
 
     if iconFontsAvailable {
       let resolved = resolveIconName(resolvedName)
@@ -473,7 +489,7 @@ struct DSLRendererView: View {
     let resolved = resolver.resolve(content)
     Text(resolved)
       .font(.system(size: 12, weight: .bold))
-      .foregroundStyle(Color.primary)
+      .foregroundStyle(defaultTextColor)
       .frame(height: 22, alignment: .leading)
   }
 
@@ -772,6 +788,7 @@ private struct DSLActionView: View {
   let isNative: Bool
   let dismissHandler: () -> Void
   @State private var isHovered = false
+  @Environment(\.defaultTextColor) private var defaultTextColor
 
   var body: some View {
     let resolvedLabel = resolver.resolve(label ?? "")
@@ -841,7 +858,7 @@ private struct DSLActionView: View {
     if isHovered && isNative {
       return .white
     }
-    return .primary
+    return defaultTextColor
   }
 }
 
@@ -855,12 +872,13 @@ private struct DSLCheckView: View {
   let isNative: Bool
   let dismissHandler: () -> Void
   @State private var isToggled = false
+  @Environment(\.defaultTextColor) private var defaultTextColor
 
   var body: some View {
     let resolvedLabel = resolver.resolve(label ?? "")
     let initialChecked = checked.map { resolver.resolveBool($0) } ?? false
     let isChecked = isToggled != initialChecked
-    let fgColor: Color = .primary
+    let fgColor = defaultTextColor
 
     HStack(spacing: 8) {
       Image(systemName: isChecked ? "checkmark.circle.fill" : "circle")
@@ -897,6 +915,7 @@ private struct DSLToggleView: View {
   let isNative: Bool
   let dismissHandler: () -> Void
   @State private var isOn: Bool = false
+  @Environment(\.defaultTextColor) private var defaultTextColor
 
   var body: some View {
     let resolvedLabel = resolver.resolve(label ?? "")
@@ -905,7 +924,7 @@ private struct DSLToggleView: View {
       .toggleStyle(.switch)
       .controlSize(.small)
       .tint(.accentColor)
-      .foregroundStyle(Color.primary)
+      .foregroundStyle(defaultTextColor)
       .padding(.horizontal, 14)
       .frame(height: 26)
       .onAppear {

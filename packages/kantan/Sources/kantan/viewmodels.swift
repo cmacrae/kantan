@@ -616,6 +616,12 @@ class ThemeProvider: ObservableObject {
     Color(nsColor: NSColor(hex: resolveColor(value)))
   }
 
+  /// Resolve a raw colour string to its hex representation. Used by
+  /// TemplateResolver's fallbackResolver to handle `{theme(name)}` patterns.
+  func resolveColorString(_ value: String) -> String {
+    resolveColor(value)
+  }
+
   /// Resolve a colour string that may be a `{theme(name)}` template.
   /// Returns the resolved hex colour, or the original string if not a template.
   private func resolveColor(_ value: String) -> String {
