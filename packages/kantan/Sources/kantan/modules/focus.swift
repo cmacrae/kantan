@@ -95,12 +95,15 @@ final class FocusConfig: ModuleConfiguration, @unchecked Sendable {
     for window in windowList {
       let level = window[kCGWindowLayer as String] as? Int ?? -999
       guard level == statusLevel else { continue }
+
+      let owner = window[kCGWindowOwnerName as String] as? String ?? ""
+      guard owner != "kantan" else { continue }
+
       guard let boundsDict = window[kCGWindowBounds as String] as? NSDictionary,
         let bounds = CGRect(dictionaryRepresentation: boundsDict)
       else { continue }
       // Only menu bar items (top of primary screen, y ≈ 0)
       guard bounds.origin.y < 30 else { continue }
-      let owner = window[kCGWindowOwnerName as String] as? String ?? ""
       items.append((maxX: Double(bounds.maxX), owner: owner))
     }
 
