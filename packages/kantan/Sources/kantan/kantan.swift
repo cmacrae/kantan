@@ -763,6 +763,8 @@ class DisplayInstance {
     }
   }
 
+  // MARK: - Fullscreen Visibility
+
   // MARK: - Slide Animation
 
   /// All panels that should be visible (excludes drawer-content panels when their side is closed).
@@ -980,6 +982,8 @@ class AppDelegate: NSObject, NSApplicationDelegate {
       startMenuBarMonitoring()
     }
 
+    warnIfMenuBarAutoHides()
+
   }
 
   private func teardownBar() {
@@ -1105,6 +1109,38 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     for instance in displayInstances {
       instance.checkMenuBar(mouseLocation: mouseLocation, autohideConfig: autohideConfig)
     }
+  }
+
+  // MARK: - Menu Bar Auto-Hide Warning
+
+  /// Emit a warning at startup if the user's system menu bar is configured to auto-hide.
+  /// Masked menu bar items won't render correctly when the native menu bar is hidden.
+  func warnIfMenuBarAutoHides() {
+    let defaults = UserDefaults.standard
+    let hideOnDesktop = defaults.bool(forKey: "_HIHideMenuBar")
+    let visibleInFullscreen: Bool
+    if defaults.object(forKey: "AppleMenuBarVisibleInFullscreen") != nil {
+      visibleInFullscreen = defaults.bool(forKey: "AppleMenuBarVisibleInFullscreen")
+    } else {
+      visibleInFullscreen = false
+    }
+
+    let mode: String
+    switch (hideOnDesktop, visibleInFullscreen) {
+    case (false, true):
+      return  // "Never" — nothing to warn about
+    case (false, false):
+      mode = "In Full Screen Only"
+    case (true, true):
+      mode = "On Desktop Only"
+    case (true, false):
+      mode = "Always"
+    }
+
+    print(
+      "warning: system menu bar is set to hide (\(mode)). "
+        + "Masked menu bar items may not render correctly when the native menu bar is hidden."
+    )
   }
 
   // MARK: - Config Hot-Reload
