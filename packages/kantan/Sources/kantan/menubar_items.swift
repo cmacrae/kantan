@@ -22,6 +22,7 @@ struct MenuBarItemDetector {
     "Volume": "Sound",
     "Camera": "AudioVideoModule",
     "Microphone": "AudioVideoModule",
+    "Focus": "FocusModes",
   ]
 
   /// Query native menu bar items on a given screen.

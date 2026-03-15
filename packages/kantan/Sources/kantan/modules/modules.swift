@@ -194,6 +194,7 @@ nonisolated(unsafe) let moduleFactories: [String: ModuleConfigurationFactory] = 
   "bluetooth": BluetoothConfigFactory(),
   "icon": IconConfigFactory(),
   "drawer": DrawerConfigFactory(),
+  "focus": FocusConfigFactory(),
 ]
 
 // MARK: - Module Config Builder
