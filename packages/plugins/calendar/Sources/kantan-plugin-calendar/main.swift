@@ -48,7 +48,7 @@ struct Settings: Decodable {
   }
 
   init() {
-    self.format = "{next_title} in {next_countdown}"
+    self.format = "{next_title}{?is_upcoming: in} {next_countdown}"
     self.upcoming = nil
     self.calendars = nil
     self.icons = .defaults
@@ -258,6 +258,24 @@ func shellQuote(_ s: String) -> String {
 
 func applyFormat(_ format: String, variables: [String: String]) -> String {
   var result = format
+
+  // Process conditional sections: {?var:text} (include when truthy) and {?!var:text} (include when falsy)
+  let conditionalPattern = try! NSRegularExpression(
+    pattern: #"\{\?(!?)(\w+):([^}]*)\}"#, options: [])
+  let fullRange = NSRange(result.startIndex..., in: result)
+  let matches = conditionalPattern.matches(in: result, range: fullRange).reversed()
+  for match in matches {
+    let negated = Range(match.range(at: 1), in: result).map { !result[$0].isEmpty } ?? false
+    let varName = Range(match.range(at: 2), in: result).map { String(result[$0]) } ?? ""
+    let text = Range(match.range(at: 3), in: result).map { String(result[$0]) } ?? ""
+    let matchRange = Range(match.range, in: result)!
+
+    let isTruthy = !(variables[varName] ?? "").isEmpty
+    let shouldInclude = negated ? !isTruthy : isTruthy
+    result.replaceSubrange(matchRange, with: shouldInclude ? text : "")
+  }
+
+  // Process simple variable substitutions
   for (key, value) in variables {
     result = result.replacingOccurrences(of: "{\(key)}", with: value)
   }
@@ -523,6 +541,7 @@ func defaultMode() -> Int32 {
   let todayCount = todayAllDay.count + todayTimed.count
   let tomorrowCount = tomorrowAllDay.count + tomorrowTimed.count
   let nextTitle = nextEvent?.title ?? ""
+  let nextIsActive = nextEvent.map { $0.startDate <= now } ?? false
   let nextCountdown =
     nextEvent.map { event in
       if event.startDate <= now {
@@ -541,6 +560,8 @@ func defaultMode() -> Int32 {
     "has_allday": todayAllDay.isEmpty ? "" : "true",
     "has_tomorrow": tomorrowCount > 0 ? "true" : "",
     "has_past": pastTimed.isEmpty ? "" : "true",
+    "is_active": nextIsActive ? "true" : "",
+    "is_upcoming": nextIsActive ? "" : (nextEvent != nil ? "true" : ""),
   ]
 
   if let next = nextEvent {
