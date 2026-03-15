@@ -592,7 +592,8 @@ func defaultMode() -> Int32 {
   }
 
   viewChildren.append(divider())
-  viewChildren.append(action(label: "Open Reminders...", command: "open x-apple-reminderkit://"))
+  viewChildren.append(
+    action(label: "Reminders", icon: "list-check", command: "open x-apple-reminderkit://"))
 
   let view = vstack(
     spacing: 8,

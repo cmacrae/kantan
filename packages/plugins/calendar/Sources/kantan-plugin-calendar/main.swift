@@ -654,7 +654,8 @@ func defaultMode() -> Int32 {
 
   // Open Calendar action
   viewChildren.append(divider())
-  viewChildren.append(action(label: "Open Calendar", icon: "\u{f073}", command: "open -a Calendar"))
+  viewChildren.append(
+    action(label: "Calendar", icon: "calendar-event-filled", command: "open -a Calendar"))
 
   let view = vstack(
     spacing: 8,
