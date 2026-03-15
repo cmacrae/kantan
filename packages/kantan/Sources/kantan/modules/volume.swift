@@ -4,29 +4,68 @@ import Foundation
 import Yaml
 
 struct VolumeConfigFactory: ModuleConfigurationFactory {
+  /// Default tabler-icons for volume levels, muted state, and common devices.
+  static let defaultLevelIcons = ["volume-4", "volume-2", "volume"]
+  static let defaultMutedIcon = "volume-off"
+  static let defaultDeviceIcons: [String: String] = [
+    "AirPods": "device-airpods",
+    "Headphones": "headphones",
+  ]
+
   func configuration(from yaml: Yaml, configDir: String?) throws -> ModuleConfiguration {
     let showLevel = yaml["showLevel"].bool ?? false
 
-    let icons = yaml["icons"].array?.compactMap { $0.string } ?? []
-    guard !icons.isEmpty else {
+    let iconsYaml = yaml["icons"]
+
+    let levelIcons =
+      iconsYaml["level"].array?.compactMap { $0.string } ?? Self.defaultLevelIcons
+
+    guard !levelIcons.isEmpty else {
       throw DecodingError.dataCorrupted(
         DecodingError.Context(
           codingPath: [],
-          debugDescription: "VolumeConfig requires a non-empty 'icons' array"
+          debugDescription: "VolumeConfig requires a non-empty 'icons.level' array"
         ))
     }
 
-    let mutedIcon = yaml["mutedIcon"].string ?? icons.first ?? ""
+    let mutedIcon = iconsYaml["muted"].string ?? Self.defaultMutedIcon
 
-    return VolumeConfig(showLevel: showLevel, icons: icons, mutedIcon: mutedIcon)
+    // Device-specific icon overrides: icons.device maps device name
+    // substrings to icon names. Keys are matched case-insensitively
+    // against the CoreAudio device name.
+    // Defaults to common device entries; set `device: {}` to disable.
+    var deviceIcons: [String: String]
+    if let deviceYaml = iconsYaml["device"].dictionary {
+      deviceIcons = [:]
+      for (key, value) in deviceYaml {
+        if let k = key.string, let v = value.string {
+          deviceIcons[k] = v
+        }
+      }
+    } else {
+      deviceIcons = Self.defaultDeviceIcons
+    }
+
+    return VolumeConfig(
+      showLevel: showLevel, levelIcons: levelIcons, mutedIcon: mutedIcon, deviceIcons: deviceIcons)
+  }
+
+  func defaultConfiguration() -> ModuleConfiguration? {
+    VolumeConfig(
+      showLevel: false,
+      levelIcons: Self.defaultLevelIcons,
+      mutedIcon: Self.defaultMutedIcon,
+      deviceIcons: Self.defaultDeviceIcons
+    )
   }
 }
 
 struct VolumeStatus: Sendable {
   let volume: Float  // 0.0 – 1.0
   let isMuted: Bool
+  let deviceName: String
 
-  static let unavailable = VolumeStatus(volume: 0, isMuted: false)
+  static let unavailable = VolumeStatus(volume: 0, isMuted: false, deviceName: "")
   var isAvailable: Bool { volume >= 0 }
 
   /// Volume as an integer percentage (0–100).
@@ -40,8 +79,12 @@ struct VolumeStatus: Sendable {
 final class VolumeConfig: ModuleConfiguration, EventDrivenModule {
   var type: String { "volume" }
   let showLevel: Bool
-  let icons: [String]
+  let levelIcons: [String]
   let mutedIcon: String
+  /// Maps device name substrings (case-insensitive) to icon names.
+  /// When the current output device name contains a matching key,
+  /// that icon is used instead of the level-based icons.
+  let deviceIcons: [String: String]
 
   var redrawInterval: TimeInterval { 0 }
 
@@ -50,16 +93,20 @@ final class VolumeConfig: ModuleConfiguration, EventDrivenModule {
   nonisolated(unsafe) private var _cachedStatus: VolumeStatus?
   private let _statusLock = NSLock()
 
-  init(showLevel: Bool, icons: [String], mutedIcon: String) {
+  init(
+    showLevel: Bool, levelIcons: [String], mutedIcon: String, deviceIcons: [String: String] = [:]
+  ) {
     self.showLevel = showLevel
-    self.icons = icons
+    self.levelIcons = levelIcons
     self.mutedIcon = mutedIcon
+    self.deviceIcons = deviceIcons
   }
 
   required init(from decoder: Decoder) throws {
     self.showLevel = false
-    self.icons = []
+    self.levelIcons = []
     self.mutedIcon = ""
+    self.deviceIcons = [:]
   }
 
   deinit {
@@ -203,7 +250,24 @@ final class VolumeConfig: ModuleConfiguration, EventDrivenModule {
     if status.isMuted {
       return mutedIcon
     }
-    return iconForLevel(status.level, icons: icons)
+    // Check for device-specific icon override (case-insensitive substring match).
+    if let deviceIcon = iconForDevice(status.deviceName) {
+      return deviceIcon
+    }
+    return iconForLevel(status.level, icons: levelIcons)
+  }
+
+  /// Returns the configured icon for a device name, or nil if no match.
+  /// Matches are case-insensitive substrings of the CoreAudio device name.
+  private func iconForDevice(_ deviceName: String) -> String? {
+    guard !deviceName.isEmpty, !deviceIcons.isEmpty else { return nil }
+    let lowered = deviceName.lowercased()
+    for (key, icon) in deviceIcons {
+      if lowered.contains(key.lowercased()) {
+        return icon
+      }
+    }
+    return nil
   }
 
   // MARK: - CoreAudio
@@ -226,6 +290,9 @@ final class VolumeConfig: ModuleConfiguration, EventDrivenModule {
   static func readVolumeStatus() -> VolumeStatus {
     let deviceID = defaultOutputDeviceID()
     guard deviceID != 0 else { return .unavailable }
+
+    // Read device name
+    let deviceName = deviceName(for: deviceID)
 
     // Read volume
     var volume: Float32 = 0
@@ -257,7 +324,20 @@ final class VolumeConfig: ModuleConfiguration, EventDrivenModule {
     )
     let isMuted = (muteStatus == noErr) ? (muted != 0) : false
 
-    return VolumeStatus(volume: volume, isMuted: isMuted)
+    return VolumeStatus(volume: volume, isMuted: isMuted, deviceName: deviceName)
+  }
+
+  /// Read the human-readable name of an audio device via CoreAudio.
+  private static func deviceName(for deviceID: AudioDeviceID) -> String {
+    var nameRef: CFString = "" as CFString
+    var size = UInt32(MemoryLayout<CFString>.size)
+    var addr = AudioObjectPropertyAddress(
+      mSelector: kAudioObjectPropertyName,
+      mScope: kAudioObjectPropertyScopeGlobal,
+      mElement: kAudioObjectPropertyElementMain
+    )
+    let status = AudioObjectGetPropertyData(deviceID, &addr, 0, nil, &size, &nameRef)
+    return status == noErr ? nameRef as String : ""
   }
 }
 
