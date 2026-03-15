@@ -388,16 +388,10 @@ struct WorkspaceModuleView: View {
   // MARK: - Colors
 
   private var activeColor: Color {
-    if let wsConfig, let activeHex = wsConfig.activeColour {
-      return Color(nsColor: NSColor(hex: activeHex))
-    }
-    return themeProvider.textFgColor(for: viewModel)
+    themeProvider.textFgColor(for: viewModel)
   }
 
   private var inactiveColor: Color {
-    if let wsConfig, let inactiveHex = wsConfig.inactiveColour {
-      return Color(nsColor: NSColor(hex: inactiveHex))
-    }
-    return themeProvider.textFgColor(for: viewModel).opacity(0.4)
+    themeProvider.textFgColor(for: viewModel).opacity(0.4)
   }
 }

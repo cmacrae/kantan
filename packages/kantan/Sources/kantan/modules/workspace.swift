@@ -76,11 +76,11 @@ struct WorkspaceConfig: ModuleConfiguration {
 
   let providerType: String  // "native" or "aerospace"
   let icons: [String]
-  let defaultIcon: String
-  let activeColour: String?
-  let inactiveColour: String?
   let aerospacePath: String?
   let overflow: OverflowConfig
+  /// Module-level icon (from top-level `icon:` key), used as fallback
+  /// when `config.icons` doesn't cover a space.
+  var moduleIcon: String?
 
   // No polling needed — native uses NSWorkspace notifications via
   // EventObserver, aerospace uses CLI triggers. Both call refreshAll()
@@ -90,9 +90,6 @@ struct WorkspaceConfig: ModuleConfiguration {
   init(yaml: Yaml?) {
     self.providerType = yaml?["type"].string ?? "native"
     self.icons = yaml?["icons"].array?.compactMap { $0.string } ?? []
-    self.defaultIcon = yaml?["defaultIcon"].string ?? ""
-    self.activeColour = yaml?["activeColour"].string
-    self.inactiveColour = yaml?["inactiveColour"].string
     self.aerospacePath = yaml?["aerospacePath"].string
 
     if let ofYaml = yaml?["overflow"].dictionary {
@@ -134,9 +131,6 @@ struct WorkspaceConfig: ModuleConfiguration {
   init(from decoder: Decoder) throws {
     self.providerType = "native"
     self.icons = []
-    self.defaultIcon = ""
-    self.activeColour = nil
-    self.inactiveColour = nil
     self.aerospacePath = nil
     self.overflow = .disabled
   }
@@ -146,7 +140,7 @@ struct WorkspaceConfig: ModuleConfiguration {
   func getValue(completion: @escaping @Sendable (String) -> Void) {
     let provider = self.providerType
     let iconList = self.icons
-    let fallbackIcon = self.defaultIcon
+    let modIcon = self.moduleIcon
     let aeroPathOverride = self.aerospacePath
 
     DispatchQueue.global(qos: .userInitiated).async {
@@ -168,8 +162,8 @@ struct WorkspaceConfig: ModuleConfiguration {
         let rawIcon: String
         if space.index < iconList.count {
           rawIcon = iconList[space.index]
-        } else if !fallbackIcon.isEmpty {
-          rawIcon = fallbackIcon
+        } else if let mi = modIcon, !mi.isEmpty {
+          rawIcon = mi
         } else {
           rawIcon = space.label
         }

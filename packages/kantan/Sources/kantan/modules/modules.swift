@@ -239,6 +239,12 @@ struct ModuleConfigBuilder {
     } else {
       self.config = factory.defaultConfiguration()
     }
+    // Inject the module-level icon into workspace configs so it can serve
+    // as the default indicator icon when config.icons doesn't cover a space.
+    if var ws = self.config as? WorkspaceConfig {
+      ws.moduleIcon = self.icon
+      self.config = ws
+    }
   }
 
   func build() throws -> ModuleConfig {
