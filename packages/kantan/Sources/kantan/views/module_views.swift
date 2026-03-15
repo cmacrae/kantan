@@ -301,7 +301,7 @@ struct WorkspaceModuleView: View {
       ForEach(Array(window.segments.enumerated()), id: \.offset) { _, segment in
         Text(segment.label)
           .font(segmentFont(segment))
-          .foregroundStyle(segment.isActive ? activeColor : inactiveColor)
+          .foregroundStyle(segmentColor(segment))
       }
       if window.overflowAfter {
         overflowIndicatorView(icon: wsConfig?.overflow.iconRight ?? "›", config: wsConfig)
@@ -386,6 +386,14 @@ struct WorkspaceModuleView: View {
   }
 
   // MARK: - Colors
+
+  private func segmentColor(_ segment: WorkspaceSegment) -> Color {
+    if let colorStr = segment.colorOverride {
+      let base = themeProvider.resolvedColor(colorStr)
+      return segment.isActive ? base : base.opacity(0.4)
+    }
+    return segment.isActive ? activeColor : inactiveColor
+  }
 
   private var activeColor: Color {
     themeProvider.textFgColor(for: viewModel)

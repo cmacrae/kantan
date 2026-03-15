@@ -611,6 +611,11 @@ class ThemeProvider: ObservableObject {
     return isDarkMode ? theme.darkPalette : theme.lightPalette
   }
 
+  /// Resolve a raw colour string (hex or `{theme(name)}` template) to a SwiftUI Color.
+  func resolvedColor(_ value: String) -> Color {
+    Color(nsColor: NSColor(hex: resolveColor(value)))
+  }
+
   /// Resolve a colour string that may be a `{theme(name)}` template.
   /// Returns the resolved hex colour, or the original string if not a template.
   private func resolveColor(_ value: String) -> String {

@@ -18,9 +18,27 @@ modules:
     placement: left
     icon: point-filled
     style:
-      fg: "{theme(overlay2)}"
+      fg: "{theme(peach)}"
     config:
       type: aerospace
+      rainbow:
+        enabled: true
+        colors:
+          - "{theme(rosewater)}"
+          - "{theme(flamingo)}"
+          - "{theme(pink)}"
+          - "{theme(mauve)}"
+          - "{theme(red)}"
+          - "{theme(maroon)}"
+          - "{theme(peach)}"
+          - "{theme(yellow)}"
+          - "{theme(green)}"
+          - "{theme(teal)}"
+          - "{theme(sky)}"
+          - "{theme(sapphire)}"
+          - "{theme(blue)}"
+          - "{theme(lavender)}"
+
       overflow:
         enabled: true
         max: 5
