@@ -1,24 +1,39 @@
 import AppKit
 import CoreWLAN
 import Foundation
+import IOKit
 import Yaml
 
 struct WiFiConfigFactory: ModuleConfigurationFactory {
   func configuration(from yaml: Yaml, configDir: String?) throws -> ModuleConfiguration {
     let showSSID = yaml["showSSID"].bool ?? false
 
-    let icons = yaml["icons"].array?.compactMap { $0.string } ?? []
-    guard !icons.isEmpty else {
+    let iconsYaml = yaml["icons"]
+    let disconnectedIcon = iconsYaml["disconnected"].string ?? "wifi-off"
+    let strengthIcons =
+      iconsYaml["strength"].array?.compactMap { $0.string } ?? ["wifi-1", "wifi-2", "wifi"]
+
+    guard !strengthIcons.isEmpty else {
       throw DecodingError.dataCorrupted(
         DecodingError.Context(
           codingPath: [],
-          debugDescription: "WiFiConfig requires a non-empty 'icons' array"
+          debugDescription: "WiFiConfig requires a non-empty 'icons.strength' array"
         ))
     }
 
-    let disconnectedIcon = yaml["disconnectedIcon"].string ?? icons.first ?? ""
+    var ssidIcons: [String: String] = [:]
+    if let ssidDict = iconsYaml["ssid"].dictionary {
+      for (key, value) in ssidDict {
+        if let k = key.string, let v = value.string {
+          ssidIcons[k] = v
+        }
+      }
+    }
 
-    return WiFiConfig(showSSID: showSSID, icons: icons, disconnectedIcon: disconnectedIcon)
+    return WiFiConfig(
+      showSSID: showSSID, strengthIcons: strengthIcons, disconnectedIcon: disconnectedIcon,
+      ssidIcons: ssidIcons
+    )
   }
 }
 
@@ -38,35 +53,48 @@ struct WiFiStatus: Sendable {
   }
 }
 
-/// Event-driven WiFi module using CoreWLAN event monitoring.
-/// Listens for SSID changes, link state changes, and power state changes
-/// via CWWiFiClient delegate. Keeps a 30s poll for RSSI updates only,
-/// since signal strength has no event API.
-final class WiFiConfig: NSObject, ModuleConfiguration, EventDrivenModule, @unchecked Sendable {
+/// Fully event-driven WiFi module using CoreWLAN event monitoring.
+/// Listens for SSID, BSSID, link state, link quality (RSSI), and power state
+/// changes via CWWiFiClient delegate. No polling — all updates are event-driven.
+/// SSID is read from IOKit's IORegistry (no Location Services required).
+final class WiFiConfig: NSObject, ModuleConfiguration, EventDrivenModule, CWEventDelegate,
+  @unchecked Sendable
+{
   var type: String { "wifi" }
   let showSSID: Bool
-  let icons: [String]
+  let strengthIcons: [String]
   let disconnectedIcon: String
+  /// SSID → icon overrides. When the current SSID matches a key, that icon is shown
+  /// instead of the signal-strength icon.
+  let ssidIcons: [String: String]
 
   var redrawInterval: TimeInterval { 0 }
 
   nonisolated(unsafe) private var onChange: (@Sendable () -> Void)?
-  nonisolated(unsafe) private var rssiTimer: Timer?
   nonisolated(unsafe) private var wifiClient: CWWiFiClient?
   nonisolated(unsafe) private var _cachedStatus: WiFiStatus?
+  nonisolated(unsafe) private var _cacheIsFresh = false
   private let _statusLock = NSLock()
+  /// Managed exclusively on the main thread — guards against rapid-fire event bursts
+  /// during network transitions where IORegistry state may not yet reflect the final state.
+  nonisolated(unsafe) private var coalesceWorkItem: DispatchWorkItem?
 
-  init(showSSID: Bool, icons: [String], disconnectedIcon: String) {
+  init(
+    showSSID: Bool, strengthIcons: [String], disconnectedIcon: String,
+    ssidIcons: [String: String]
+  ) {
     self.showSSID = showSSID
-    self.icons = icons
+    self.strengthIcons = strengthIcons
     self.disconnectedIcon = disconnectedIcon
+    self.ssidIcons = ssidIcons
     super.init()
   }
 
   required init(from decoder: Decoder) throws {
     self.showSSID = false
-    self.icons = []
+    self.strengthIcons = []
     self.disconnectedIcon = ""
+    self.ssidIcons = [:]
     super.init()
   }
 
@@ -81,22 +109,21 @@ final class WiFiConfig: NSObject, ModuleConfiguration, EventDrivenModule, @unche
     client.delegate = self
     do {
       try client.startMonitoringEvent(with: .ssidDidChange)
+      try client.startMonitoringEvent(with: .bssidDidChange)
       try client.startMonitoringEvent(with: .linkDidChange)
+      try client.startMonitoringEvent(with: .linkQualityDidChange)
       try client.startMonitoringEvent(with: .powerDidChange)
-    } catch {
-      print("WiFi event monitoring failed: \(error)")
-    }
-    self.wifiClient = client
+    } catch {}
 
-    // RSSI has no event API — poll at a reduced 30s interval
-    rssiTimer = Timer.scheduledTimer(withTimeInterval: 30.0, repeats: true) { [weak self] _ in
-      self?.onChange?()
-    }
+    self.wifiClient = client
   }
 
   func stopObserving() {
-    rssiTimer?.invalidate()
-    rssiTimer = nil
+    // coalesceWorkItem is main-thread-only; dispatch cleanup there
+    DispatchQueue.main.async { [weak self] in
+      self?.coalesceWorkItem?.cancel()
+      self?.coalesceWorkItem = nil
+    }
 
     if let client = wifiClient {
       do {
@@ -108,21 +135,86 @@ final class WiFiConfig: NSObject, ModuleConfiguration, EventDrivenModule, @unche
     onChange = nil
   }
 
-  func ssidDidChangeForWiFiInterface(withName interfaceName: String) {
+  // MARK: - CWEventDelegate
+
+  /// Fires onChange immediately, then schedules a coalesced re-read after a brief delay.
+  /// Network transitions produce a burst of events and the underlying state (IORegistry,
+  /// CWInterface) may not reflect the final state when the first event fires.
+  private func notifyWithCoalescing() {
     onChange?()
+
+    DispatchQueue.main.async { [weak self] in
+      guard let self else { return }
+      self.coalesceWorkItem?.cancel()
+      let work = DispatchWorkItem { [weak self] in
+        self?.onChange?()
+      }
+      self.coalesceWorkItem = work
+      DispatchQueue.main.asyncAfter(deadline: .now() + 0.15, execute: work)
+    }
+  }
+
+  func ssidDidChangeForWiFiInterface(withName interfaceName: String) {
+    notifyWithCoalescing()
+  }
+
+  func bssidDidChangeForWiFiInterface(withName interfaceName: String) {
+    notifyWithCoalescing()
   }
 
   func linkDidChangeForWiFiInterface(withName interfaceName: String) {
+    notifyWithCoalescing()
+  }
+
+  func linkQualityDidChangeForWiFiInterface(
+    withName interfaceName: String, rssi: Int, transmitRate: Double
+  ) {
+    // RSSI is delivered directly — update the cache without a full re-read.
+    // This is the most frequent event; avoids ~5ms of CWInterface + IOKit calls.
+    // The _cacheIsFresh flag tells getIcon() to skip refreshCache().
+    _statusLock.lock()
+    guard let cached = _cachedStatus, cached.isConnected else {
+      _statusLock.unlock()
+      return
+    }
+    let oldRssi = cached.rssi
+    _cachedStatus = WiFiStatus(ssid: cached.ssid, rssi: rssi, isConnected: true)
+    _cacheIsFresh = true
+    _statusLock.unlock()
+
+    // Only trigger a UI update if the RSSI change would actually affect the
+    // displayed icon. Small fluctuations within the same icon tier are silent.
+    let oldLevel = signalLevel(rssi: oldRssi)
+    let newLevel = signalLevel(rssi: rssi)
+    guard oldLevel != newLevel else { return }
     onChange?()
   }
 
+  /// Maps RSSI to a signal level index for the configured strength icons.
+  /// Used to detect whether an RSSI change crosses an icon threshold.
+  private func signalLevel(rssi: Int) -> Int {
+    let clamped = max(-90, min(-30, rssi))
+    let quality = Int(Float(clamped + 90) / 60.0 * 100)
+    let step = max(1, 100 / strengthIcons.count)
+    return min(quality / step, strengthIcons.count - 1)
+  }
+
   func powerStateDidChangeForWiFiInterface(withName interfaceName: String) {
-    onChange?()
+    notifyWithCoalescing()
   }
 
   // MARK: - Status Caching
 
   private func refreshCache() {
+    _statusLock.lock()
+    let fresh = _cacheIsFresh
+    _cacheIsFresh = false
+    _statusLock.unlock()
+
+    // Skip the full re-read if the cache was just updated by an event
+    // (e.g. linkQualityDidChange delivers RSSI directly).
+    guard !fresh else { return }
+
     let status = Self.readWiFiStatus()
     _statusLock.lock()
     _cachedStatus = status
@@ -152,19 +244,43 @@ final class WiFiConfig: NSObject, ModuleConfiguration, EventDrivenModule, @unche
     guard status.isConnected else {
       return disconnectedIcon
     }
+    if let override = iconForSSID(status.ssid) {
+      return override
+    }
     let level = Int(status.signalQuality * 100)
-    return iconForLevel(level, icons: icons)
+    return iconForLevel(level, icons: strengthIcons)
   }
 
   func getBackgroundIcon() -> String? {
     let status = getCachedStatus()
-    guard status.isConnected, icons.count > 1 else { return nil }
+    guard status.isConnected, strengthIcons.count > 1 else { return nil }
+    // No background icon when an SSID-specific icon is active
+    if iconForSSID(status.ssid) != nil {
+      return nil
+    }
     let level = Int(status.signalQuality * 100)
-    let currentIcon = iconForLevel(level, icons: icons)
-    let maxIcon = icons.last!
+    let currentIcon = iconForLevel(level, icons: strengthIcons)
+    let maxIcon = strengthIcons.last!
     // Only show background when not already at full strength
     guard currentIcon != maxIcon else { return nil }
     return maxIcon
+  }
+
+  /// Returns an SSID-specific icon override, checking the explicit ssid map first,
+  /// then falling back to iPhone hotspot detection (SSIDs ending with "iPhone").
+  private func iconForSSID(_ ssid: String?) -> String? {
+    guard let ssid else { return nil }
+    // Explicit SSID → icon map takes priority
+    if let icon = ssidIcons[ssid] {
+      return icon
+    }
+    // Fallback: detect iPhone hotspots by SSID suffix.
+    // Default iPhone hotspot names are "<Name>'s iPhone" (with curly apostrophe)
+    // or "<Name>'s iPhone" (with straight apostrophe).
+    if ssid.hasSuffix("iPhone") {
+      return ssidIcons["iPhone"] ?? "circles-relation"
+    }
+    return nil
   }
 
   // MARK: - WiFi Status Reading
@@ -175,68 +291,77 @@ final class WiFiConfig: NSObject, ModuleConfiguration, EventDrivenModule, @unche
       return .disconnected
     }
 
-    // Check power state first
     guard interface.powerOn() else {
       return .disconnected
     }
 
-    let rssi = interface.rssiValue()
+    // Read SSID and BSSID from IOKit in one pass.
+    // BSSID presence is the definitive association indicator — it's only set
+    // when the radio is associated with an access point. This is more reliable
+    // than RSSI (which can return stale values during transitions).
+    let ioInfo = readIORegistryWiFiInfo()
 
-    // Detect connection: if powered on and RSSI is non-zero,
-    // the interface is associated with a network
-    guard rssi != 0 else {
+    guard ioInfo.hasBSSID else {
       return .disconnected
     }
 
-    // Try CoreWLAN SSID first (requires location authorization)
-    if let ssid = interface.ssid() {
-      return WiFiStatus(ssid: ssid, rssi: rssi, isConnected: true)
-    }
-
-    // Fallback: read SSID from IORegistry (fast, no permissions needed)
-    let ssid = readSSIDFromIORegistry()
+    let rssi = interface.rssiValue()
+    let ssid = interface.ssid() ?? ioInfo.ssid
     return WiFiStatus(ssid: ssid, rssi: rssi, isConnected: true)
   }
 
-  /// Reads the WiFi SSID from the IORegistry via ioreg.
-  /// This works without Location Services authorization.
-  /// Takes ~20ms — fast enough for periodic polling.
-  private static func readSSIDFromIORegistry() -> String? {
-    let process = Process()
-    process.executableURL = URL(fileURLWithPath: "/usr/sbin/ioreg")
-    process.arguments = ["-r", "-c", "IOUserNetworkWLAN"]
+  private struct IORegistryWiFiInfo {
+    let ssid: String?
+    let hasBSSID: Bool
+  }
 
-    let pipe = Pipe()
-    process.standardOutput = pipe
-    process.standardError = FileHandle.nullDevice
+  /// Reads WiFi SSID and BSSID from IOKit's IORegistry in a single pass.
+  /// In-process API — no subprocess, no Location Services required.
+  private static func readIORegistryWiFiInfo() -> IORegistryWiFiInfo {
+    var iterator: io_iterator_t = 0
+    let kr = IOServiceGetMatchingServices(
+      kIOMainPortDefault, IOServiceMatching("IOUserNetworkWLAN"), &iterator)
+    guard kr == KERN_SUCCESS else { return IORegistryWiFiInfo(ssid: nil, hasBSSID: false) }
+    defer { IOObjectRelease(iterator) }
 
-    do {
-      try process.run()
-    } catch {
-      return nil
-    }
+    while true {
+      let service = IOIteratorNext(iterator)
+      guard service != 0 else { break }
+      defer { IOObjectRelease(service) }
 
-    let data = pipe.fileHandleForReading.readDataToEndOfFile()
-    process.waitUntilExit()
+      // Check for BSSID — its presence means the radio is associated
+      let hasBSSID: Bool
+      if let bssidProp = IORegistryEntryCreateCFProperty(
+        service, "IO80211BSSID" as CFString, kCFAllocatorDefault, 0)
+      {
+        let val = bssidProp.takeRetainedValue()
+        if let data = val as? Data, !data.isEmpty {
+          hasBSSID = true
+        } else {
+          hasBSSID = false
+        }
+      } else {
+        continue  // Not the infrastructure interface
+      }
 
-    guard let output = String(data: data, encoding: .utf8) else {
-      return nil
-    }
-
-    // Parse: "IO80211SSID" = "NetworkName"
-    for line in output.components(separatedBy: "\n") {
-      let trimmed = line.trimmingCharacters(in: .whitespaces)
-      if trimmed.contains("\"IO80211SSID\"") && !trimmed.contains("BSSID") {
-        // Extract value between last pair of quotes
-        let parts = trimmed.components(separatedBy: "\"")
-        // Format: "IO80211SSID" = "value"
-        // parts: ["", "IO80211SSID", " = ", "value", ""]
-        if parts.count >= 4 {
-          return parts[3]
+      // Read SSID
+      var ssid: String?
+      if let ssidProp = IORegistryEntryCreateCFProperty(
+        service, "IO80211SSID" as CFString, kCFAllocatorDefault, 0)
+      {
+        let val = ssidProp.takeRetainedValue()
+        if let s = val as? String, !s.isEmpty {
+          ssid = s
+        } else if let data = val as? Data,
+          let s = String(data: data, encoding: .utf8), !s.isEmpty
+        {
+          ssid = s
         }
       }
+
+      return IORegistryWiFiInfo(ssid: ssid, hasBSSID: hasBSSID)
     }
 
-    return nil
+    return IORegistryWiFiInfo(ssid: nil, hasBSSID: false)
   }
 }

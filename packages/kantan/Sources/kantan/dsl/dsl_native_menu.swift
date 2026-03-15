@@ -97,7 +97,7 @@ func buildNativeMenu(from rootNode: ViewNode, resolver: TemplateResolver) -> NSM
 // MARK: - HStack Composition
 
 /// Styling metadata extracted from text/icon children when composing hstack items.
-fileprivate struct HStackTextPart {
+private struct HStackTextPart {
   let text: String
   let isSecondary: Bool
   let isStrikethrough: Bool
