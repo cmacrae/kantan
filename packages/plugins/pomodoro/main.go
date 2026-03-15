@@ -22,10 +22,16 @@ type Settings struct {
 }
 
 var defaultIcons = map[string]string{
-	"idle":        "\uf111", // circle
-	"work":        "\uf253", // hourglass-half
-	"short_break": "\uf186", // moon
-	"long_break":  "\uf186", // moon
+	"idle":        "circle-filled",
+	"work":        "hourglass",
+	"short_break": "moon-filled",
+	"long_break":  "moon-filled",
+	"sessions":    "trophy-filled",
+	"start":       "player-play-filled",
+	"resume":      "player-play-filled",
+	"pause":       "player-pause-filled",
+	"skip":        "player-track-next-filled",
+	"reset":       "x",
 }
 
 func defaultSettings() Settings {
@@ -314,7 +320,7 @@ func buildOutput(settings Settings) {
 
 	// Sessions row
 	viewChildren = append(viewChildren, hstackView(
-		iconView("\uf091", nil), // trophy
+		iconView(settings.iconFor("sessions"), nil),
 		textView("Sessions", nil, nil),
 		spacerView(),
 		textView("{sessions}", nil, nil),
@@ -325,27 +331,27 @@ func buildOutput(settings Settings) {
 	// Actions depend on state
 	if !isActive {
 		viewChildren = append(viewChildren, actionView(
-			"Start", "\uf04b", // play
+			"Start", settings.iconFor("start"),
 			fmt.Sprintf("kantan-plugin-pomodoro --start && kantan trigger %s refresh", shellQuote(pluginName)),
 		))
 	} else {
 		if isPaused {
 			viewChildren = append(viewChildren, actionView(
-				"Resume", "\uf04b",
+				"Resume", settings.iconFor("resume"),
 				fmt.Sprintf("kantan-plugin-pomodoro --resume && kantan trigger %s refresh", shellQuote(pluginName)),
 			))
 		} else {
 			viewChildren = append(viewChildren, actionView(
-				"Pause", "\uf04c", // pause
+				"Pause", settings.iconFor("pause"),
 				fmt.Sprintf("kantan-plugin-pomodoro --pause && kantan trigger %s refresh", shellQuote(pluginName)),
 			))
 		}
 		viewChildren = append(viewChildren, actionView(
-			"Skip", "\uf04e", // forward
+			"Skip", settings.iconFor("skip"),
 			fmt.Sprintf("kantan-plugin-pomodoro --skip && kantan trigger %s refresh", shellQuote(pluginName)),
 		))
 		viewChildren = append(viewChildren, actionView(
-			"Reset", "\uf00d", // times
+			"Reset", settings.iconFor("reset"),
 			fmt.Sprintf("kantan-plugin-pomodoro --reset && kantan trigger %s refresh", shellQuote(pluginName)),
 		))
 	}

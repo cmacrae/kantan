@@ -38,23 +38,49 @@ struct ListConfig: Decodable {
   }
 }
 
+/// Icon configuration for the reminders plugin.
+/// Values are icon names resolved by kantan's bundled icon font system
+/// (e.g. "list-check"). Raw Unicode glyphs are also accepted.
+struct IconConfig: Decodable {
+  var action: String
+
+  static let defaults = IconConfig(action: "list-check")
+
+  private enum CodingKeys: String, CodingKey {
+    case action
+  }
+
+  init(action: String) {
+    self.action = action
+  }
+
+  init(from decoder: Decoder) throws {
+    let d = Self.defaults
+    let container = try decoder.container(keyedBy: CodingKeys.self)
+    self.action = try container.decodeIfPresent(String.self, forKey: .action) ?? d.action
+  }
+}
+
 struct Settings: Decodable {
   var lists: [ListConfig]
   var format: String
+  var icons: IconConfig
 
   private enum CodingKeys: String, CodingKey {
-    case lists, format
+    case lists, format, icons
   }
 
   init() {
     self.lists = []
     self.format = "{title}"
+    self.icons = .defaults
   }
 
   init(from decoder: Decoder) throws {
     let container = try decoder.container(keyedBy: CodingKeys.self)
     self.lists = try container.decodeIfPresent([ListConfig].self, forKey: .lists) ?? []
     self.format = try container.decodeIfPresent(String.self, forKey: .format) ?? "{title}"
+    self.icons = try container.decodeIfPresent(IconConfig.self, forKey: .icons) ?? .defaults
   }
 }
 
@@ -593,7 +619,7 @@ func defaultMode() -> Int32 {
 
   viewChildren.append(divider())
   viewChildren.append(
-    action(label: "Reminders", icon: "list-check", command: "open x-apple-reminderkit://"))
+    action(label: "Reminders", icon: settings.icons.action, command: "open x-apple-reminderkit://"))
 
   let view = vstack(
     spacing: 8,

@@ -1,12 +1,8 @@
 name: pomodoro
 type: command
 placement: right
-icon: "\uf253"
 style:
-  light:
-    fg: "#e06c75"
-  dark:
-    fg: "#f38ba8"
+  fg: "{theme(red)}"
 config:
   command: kantan-plugin-pomodoro
   output: json
@@ -19,11 +15,6 @@ config:
     long_break_interval: 4
     auto_start_breaks: true
     auto_start_work: false
-    # icons:
-    #   idle: "\uf111"        # circle
-    #   work: "\uf253"        # hourglass-half
-    #   short_break: "\uf186" # moon
-    #   long_break: "\uf186"  # moon
 interaction:
   hover:
     type: tooltip

@@ -8,19 +8,50 @@ struct CalendarFilter: Decodable {
   var exclude: [String]?
 }
 
+/// Icon configuration for the calendar plugin.
+/// Values are icon names resolved by kantan's bundled icon font system
+/// (e.g. "calendar-event-filled"). Raw Unicode glyphs are also accepted.
+struct IconConfig: Decodable {
+  var icon: String
+  var action: String
+
+  static let defaults = IconConfig(
+    icon: "calendar-event-filled",
+    action: "calendar-event-filled"
+  )
+
+  private enum CodingKeys: String, CodingKey {
+    case icon, action
+  }
+
+  init(icon: String, action: String) {
+    self.icon = icon
+    self.action = action
+  }
+
+  init(from decoder: Decoder) throws {
+    let d = Self.defaults
+    let container = try decoder.container(keyedBy: CodingKeys.self)
+    self.icon = try container.decodeIfPresent(String.self, forKey: .icon) ?? d.icon
+    self.action = try container.decodeIfPresent(String.self, forKey: .action) ?? d.action
+  }
+}
+
 struct Settings: Decodable {
   var format: String
   var upcoming: String?
   var calendars: CalendarFilter?
+  var icons: IconConfig
 
   private enum CodingKeys: String, CodingKey {
-    case format, upcoming, calendars
+    case format, upcoming, calendars, icons
   }
 
   init() {
     self.format = "{next_title} in {next_countdown}"
     self.upcoming = nil
     self.calendars = nil
+    self.icons = .defaults
   }
 
   init(from decoder: Decoder) throws {
@@ -28,6 +59,7 @@ struct Settings: Decodable {
     let container = try decoder.container(keyedBy: CodingKeys.self)
     self.format = try container.decodeIfPresent(String.self, forKey: .format) ?? defaults.format
     self.upcoming = try container.decodeIfPresent(String.self, forKey: .upcoming)
+    self.icons = try container.decodeIfPresent(IconConfig.self, forKey: .icons) ?? defaults.icons
 
     // calendars can be either an object with include/exclude or a simple string array (include shorthand)
     if let filter = try? container.decodeIfPresent(CalendarFilter.self, forKey: .calendars) {
@@ -655,7 +687,7 @@ func defaultMode() -> Int32 {
   // Open Calendar action
   viewChildren.append(divider())
   viewChildren.append(
-    action(label: "Calendar", icon: "calendar-event-filled", command: "open -a Calendar"))
+    action(label: "Calendar", icon: settings.icons.action, command: "open -a Calendar"))
 
   let view = vstack(
     spacing: 8,
@@ -669,7 +701,7 @@ func defaultMode() -> Int32 {
 
   let output = PluginOutput(
     value: value,
-    icon: "calendar-event-filled",
+    icon: settings.icons.icon,
     hidden: !hasEvents,
     variables: variables,
     data: dataCollections,

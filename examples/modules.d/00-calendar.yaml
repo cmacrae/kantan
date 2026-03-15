@@ -1,12 +1,8 @@
 name: calendar
 type: command
 placement: right
-icon: calendar-event-filled
 style:
-  light:
-    fg: "#8caaee"
-  dark:
-    fg: "#89b4fa"
+  fg: "{theme(blue)}"
 config:
   command: kantan-plugin-calendar
   output: json
