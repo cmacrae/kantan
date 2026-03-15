@@ -5,13 +5,17 @@ import IOKit
 import Yaml
 
 struct WiFiConfigFactory: ModuleConfigurationFactory {
+  /// Default tabler-icons for wifi states.
+  static let defaultStrengthIcons = ["wifi-1", "wifi-2", "wifi"]
+  static let defaultDisconnectedIcon = "wifi-off"
+
   func configuration(from yaml: Yaml, configDir: String?) throws -> ModuleConfiguration {
     let showSSID = yaml["showSSID"].bool ?? false
 
     let iconsYaml = yaml["icons"]
-    let disconnectedIcon = iconsYaml["disconnected"].string ?? "wifi-off"
+    let disconnectedIcon = iconsYaml["disconnected"].string ?? Self.defaultDisconnectedIcon
     let strengthIcons =
-      iconsYaml["strength"].array?.compactMap { $0.string } ?? ["wifi-1", "wifi-2", "wifi"]
+      iconsYaml["strength"].array?.compactMap { $0.string } ?? Self.defaultStrengthIcons
 
     guard !strengthIcons.isEmpty else {
       throw DecodingError.dataCorrupted(
@@ -34,6 +38,12 @@ struct WiFiConfigFactory: ModuleConfigurationFactory {
       showSSID: showSSID, strengthIcons: strengthIcons, disconnectedIcon: disconnectedIcon,
       ssidIcons: ssidIcons
     )
+  }
+
+  func defaultConfiguration() -> ModuleConfiguration? {
+    WiFiConfig(
+      showSSID: false, strengthIcons: Self.defaultStrengthIcons,
+      disconnectedIcon: Self.defaultDisconnectedIcon, ssidIcons: [:])
   }
 }
 

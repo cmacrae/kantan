@@ -3,22 +3,42 @@ import IOKit.ps
 import Yaml
 
 struct PowerConfigFactory: ModuleConfigurationFactory {
+  /// Default tabler-icons for power/battery states.
+  static let defaultChargingIcon = "bolt-filled"
+  static let defaultBatteryIcons = [
+    "battery-filled", "battery-1-filled", "battery-2-filled",
+    "battery-3-filled", "battery-4-filled",
+  ]
+
   func configuration(from yaml: Yaml, configDir: String?) throws -> ModuleConfiguration {
-    guard let showLevel = yaml["showLevel"].bool,
-      let chargingYaml = yaml["charging"].dictionary,
-      let batteryYaml = yaml["battery"].dictionary,
-      let chargingIcon = chargingYaml["icon"]?.string,
-      let batteryIcons = batteryYaml["icons"]?.array?.compactMap({ $0.string })
-    else {
+    let showLevel = yaml["showLevel"].bool ?? false
+
+    let chargingIcon =
+      yaml["charging"].dictionary?["icon"]?.string ?? Self.defaultChargingIcon
+    let batteryIcons =
+      yaml["battery"].dictionary?["icons"]?.array?.compactMap({ $0.string })
+      ?? Self.defaultBatteryIcons
+
+    guard !batteryIcons.isEmpty else {
       throw DecodingError.dataCorrupted(
         DecodingError.Context(
-          codingPath: [], debugDescription: "Unable to decode PowerConfig from Yaml"))
+          codingPath: [],
+          debugDescription: "PowerConfig requires a non-empty 'battery.icons' array"
+        ))
     }
 
     let chargingConfig = ChargingConfig(icon: chargingIcon)
     let batteryConfig = BatteryConfig(icons: batteryIcons)
 
     return PowerConfig(showLevel: showLevel, charging: chargingConfig, battery: batteryConfig)
+  }
+
+  func defaultConfiguration() -> ModuleConfiguration? {
+    PowerConfig(
+      showLevel: false,
+      charging: ChargingConfig(icon: Self.defaultChargingIcon),
+      battery: BatteryConfig(icons: Self.defaultBatteryIcons)
+    )
   }
 }
 

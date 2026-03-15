@@ -4,20 +4,21 @@ import IOBluetooth
 import Yaml
 
 struct BluetoothConfigFactory: ModuleConfigurationFactory {
+  /// Default tabler-icons for bluetooth states.
+  static let defaultIcon = "bluetooth"
+  static let defaultDisabledIcon = "bluetooth-off"
+
   func configuration(from yaml: Yaml, configDir: String?) throws -> ModuleConfiguration {
     let showCount = yaml["showCount"].bool ?? false
-
-    guard let icon = yaml["icon"].string else {
-      throw DecodingError.dataCorrupted(
-        DecodingError.Context(
-          codingPath: [],
-          debugDescription: "BluetoothConfig requires an 'icon' string"
-        ))
-    }
-
-    let disabledIcon = yaml["disabledIcon"].string ?? icon
+    let icon = yaml["icon"].string ?? Self.defaultIcon
+    let disabledIcon = yaml["disabledIcon"].string ?? Self.defaultDisabledIcon
 
     return BluetoothConfig(showCount: showCount, icon: icon, disabledIcon: disabledIcon)
+  }
+
+  func defaultConfiguration() -> ModuleConfiguration? {
+    BluetoothConfig(
+      showCount: false, icon: Self.defaultIcon, disabledIcon: Self.defaultDisabledIcon)
   }
 }
 
