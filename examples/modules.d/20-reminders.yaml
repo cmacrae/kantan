@@ -1,0 +1,24 @@
+name: todo
+type: command
+placement: right
+icon: bell-filled
+style:
+  shape: box
+  icon:
+    fg: "{theme(maroon)}"
+config:
+  command: kantan-plugin-reminders
+  output: json
+  watch: kantan-plugin-reminders --watch
+  settings:
+    lists:
+      - name: kantan testing
+        icon: bell-filled
+        lookahead: 10m
+        overdue: true
+        undated: false
+        completedRetention: 1h
+        maxChars: 30
+interaction:
+  click:
+    type: menu

@@ -1,0 +1,9 @@
+name: drawer
+type: drawer
+placement: right
+style:
+  fg: "{theme(overlay0)}"
+config:
+  icons:
+    show: box-align-right
+    hide: box-align-left

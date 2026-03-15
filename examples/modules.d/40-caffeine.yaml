@@ -1,0 +1,17 @@
+name: caffeine
+type: command
+placement: right
+icon: mug-filled
+style:
+  fg: "{theme(rosewater)}"
+config:
+  command: kantan-plugin-caffeine
+  output: json
+  interval: 0
+  toggle: kantan-plugin-caffeine --toggle
+interaction:
+  hover:
+    type: tooltip
+    content: "Caffeine: {status}"
+  click:
+    type: toggle

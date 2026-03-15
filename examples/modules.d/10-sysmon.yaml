@@ -1,0 +1,23 @@
+name: system-monitor
+type: command
+placement: right
+icon: activity
+config:
+  command: kantan-plugin-system-monitor
+  output: json
+  interval: 3
+  settings:
+    format: "{cpu}"
+    color_target: both
+    style:
+      cpu_medium: "{theme(yellow)}"
+      cpu_high: "{theme(peach)}"
+      cpu_critical: "{theme(red)}"
+    process_count: 5
+    show_cores: false
+interaction:
+  hover:
+    type: tooltip
+    content: "CPU {cpu} | Mem {mem} | Temp {thermal}"
+  click:
+    type: menu

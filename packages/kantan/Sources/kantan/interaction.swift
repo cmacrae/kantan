@@ -129,10 +129,10 @@ class PopupManager {
   private var tooltipRefreshTimer: Timer?
   private var tooltipRefreshProvider: (() -> String)?
   weak var themeProvider: ThemeProvider?
-  var appearance: AppearanceStyle = .theme
+  var isNativeAppearance: Bool = false
 
   /// Whether we're in native appearance mode (use system colors throughout).
-  var isNative: Bool { appearance == .native }
+  var isNative: Bool { isNativeAppearance }
 
   var effectiveFgColor: NSColor {
     themeProvider?.globalFgNSColor() ?? .labelColor

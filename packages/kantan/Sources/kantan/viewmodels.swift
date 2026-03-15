@@ -219,13 +219,13 @@ class ModuleViewModel: ObservableObject, Identifiable {
 
     var env = ProcessInfo.processInfo.environment
     env["KANTAN_MODULE_NAME"] = self.id
+    let names: [NSAppearance.Name] = [.darkAqua, .aqua]
+    let isDark = NSApp.effectiveAppearance.bestMatch(from: names) == .darkAqua
     if let cmdConfig = moduleConfig.config as? CommandConfig {
-      if let settings = cmdConfig.settingsJSON {
+      if let settings = cmdConfig.resolvedSettings(isDark: isDark) {
         env["KANTAN_SETTINGS"] = settings
       }
     }
-    let names: [NSAppearance.Name] = [.darkAqua, .aqua]
-    let isDark = NSApp.effectiveAppearance.bestMatch(from: names) == .darkAqua
     env["KANTAN_APPEARANCE"] = isDark ? "dark" : "light"
     env["KANTAN_PID"] = "\(ProcessInfo.processInfo.processIdentifier)"
     process.environment = env
@@ -585,7 +585,7 @@ class ThemeProvider: ObservableObject {
   private var appearanceObservation: NSKeyValueObservation?
 
   var isNative: Bool {
-    config.appearance == .native
+    config.isNativeAppearance
   }
 
   init(config: Config) {
@@ -601,6 +601,21 @@ class ThemeProvider: ObservableObject {
           NSApp.effectiveAppearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
       }
     }
+  }
+
+  // MARK: - Theme Template Resolution
+
+  /// The active theme palette for the current appearance mode.
+  private var activePalette: ThemePalette? {
+    guard let theme = config.theme else { return nil }
+    return isDarkMode ? theme.darkPalette : theme.lightPalette
+  }
+
+  /// Resolve a colour string that may be a `{theme(name)}` template.
+  /// Returns the resolved hex colour, or the original string if not a template.
+  private func resolveColor(_ value: String) -> String {
+    guard let palette = activePalette else { return value }
+    return resolveThemeTemplate(value, palette: palette)
   }
 
   // MARK: - Style Resolution Helpers
@@ -623,21 +638,21 @@ class ThemeProvider: ObservableObject {
   func globalColors() -> (fg: Color, bg: Color) {
     let mode = resolveGlobalStyleMode()
     return (
-      Color(nsColor: NSColor(hex: mode.fg ?? "FFFFFF")),
-      Color(nsColor: NSColor(hex: mode.bg ?? "000000"))
+      Color(nsColor: NSColor(hex: resolveColor(mode.fg ?? "FFFFFF"))),
+      Color(nsColor: NSColor(hex: resolveColor(mode.bg ?? "000000")))
     )
   }
 
   func globalFgNSColor() -> NSColor {
     if isNative { return .labelColor }
     let mode = resolveGlobalStyleMode()
-    return NSColor(hex: mode.fg ?? "FFFFFF")
+    return NSColor(hex: resolveColor(mode.fg ?? "FFFFFF"))
   }
 
   func globalBgNSColor() -> NSColor {
     if isNative { return .windowBackgroundColor }
     let mode = resolveGlobalStyleMode()
-    return NSColor(hex: mode.bg ?? "000000")
+    return NSColor(hex: resolveColor(mode.bg ?? "000000"))
   }
 
   private func elementFgColor(
@@ -649,16 +664,20 @@ class ThemeProvider: ObservableObject {
       return Color(nsColor: NSColor(hex: override))
     }
     if let ds = vm.dynamicStyle {
-      if let fg = ds[keyPath: dynamicFg] { return Color(nsColor: NSColor(hex: fg)) }
-      if let fg = ds.fg { return Color(nsColor: NSColor(hex: fg)) }
+      if let fg = ds[keyPath: dynamicFg] { return Color(nsColor: NSColor(hex: resolveColor(fg))) }
+      if let fg = ds.fg { return Color(nsColor: NSColor(hex: resolveColor(fg))) }
     }
     if isNative { return Color(nsColor: .labelColor) }
     let moduleMode = resolveModuleStyleMode(vm.moduleConfig.style)
     let globalMode = resolveGlobalStyleMode()
-    if let fg = moduleMode?[keyPath: elementFg]?.fg { return Color(nsColor: NSColor(hex: fg)) }
-    if let fg = moduleMode?.fg { return Color(nsColor: NSColor(hex: fg)) }
-    if let fg = globalMode[keyPath: elementFg]?.fg { return Color(nsColor: NSColor(hex: fg)) }
-    return Color(nsColor: NSColor(hex: globalMode.fg ?? "FFFFFF"))
+    if let fg = moduleMode?[keyPath: elementFg]?.fg {
+      return Color(nsColor: NSColor(hex: resolveColor(fg)))
+    }
+    if let fg = moduleMode?.fg { return Color(nsColor: NSColor(hex: resolveColor(fg))) }
+    if let fg = globalMode[keyPath: elementFg]?.fg {
+      return Color(nsColor: NSColor(hex: resolveColor(fg)))
+    }
+    return Color(nsColor: NSColor(hex: resolveColor(globalMode.fg ?? "FFFFFF")))
   }
 
   func textFgColor(for vm: ModuleViewModel) -> Color {
@@ -674,21 +693,28 @@ class ThemeProvider: ObservableObject {
       return Color(nsColor: NSColor(hex: override))
     }
     if let ds = vm.dynamicStyle, let bg = ds.bg, !bg.isEmpty {
-      return Color(nsColor: NSColor(hex: bg))
+      return Color(nsColor: NSColor(hex: resolveColor(bg)))
     }
     if isNative { return .clear }
 
     let moduleMode = resolveModuleStyleMode(vm.moduleConfig.style)
     let globalMode = resolveGlobalStyleMode()
 
-    if let bg = moduleMode?.bg { return Color(nsColor: NSColor(hex: bg)) }
-    return Color(nsColor: NSColor(hex: globalMode.bg ?? "000000"))
+    if let bg = moduleMode?.bg { return Color(nsColor: NSColor(hex: resolveColor(bg))) }
+
+    // When a module has a shape but no explicit bg, use the theme's shape
+    // colour so the shape is visible against the bar background.
+    if moduleMode?.shape != nil, let palette = activePalette, let shapeBg = palette.shape {
+      return Color(nsColor: NSColor(hex: shapeBg))
+    }
+
+    return Color(nsColor: NSColor(hex: resolveColor(globalMode.bg ?? "000000")))
   }
 
   func barBgColor() -> Color {
     if isNative { return .clear }
     let mode = resolveGlobalStyleMode()
-    return Color(nsColor: NSColor(hex: mode.bg ?? "000000"))
+    return Color(nsColor: NSColor(hex: resolveColor(mode.bg ?? "000000")))
   }
 
   func shape(for vm: ModuleViewModel) -> ModuleShape? {

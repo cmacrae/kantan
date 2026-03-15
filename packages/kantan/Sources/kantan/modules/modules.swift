@@ -173,7 +173,8 @@ extension PlacementSpec: Codable {
 }
 
 protocol ModuleConfigurationFactory {
-  func configuration(from yaml: Yaml, configDir: String?) throws -> ModuleConfiguration
+  func configuration(from yaml: Yaml, configDir: String?, theme: ThemeConfig?) throws
+    -> ModuleConfiguration
   func defaultConfiguration() -> ModuleConfiguration?
 }
 
@@ -227,12 +228,14 @@ struct ModuleConfigBuilder {
     self.configFactory = factory
   }
 
-  mutating func buildConfiguration(from yaml: Yaml?, configDir: String? = nil) throws {
+  mutating func buildConfiguration(
+    from yaml: Yaml?, configDir: String? = nil, theme: ThemeConfig? = nil
+  ) throws {
     guard let factory = self.configFactory else {
       throw BuilderError.missingConfigurationFactory
     }
     if let yaml = yaml {
-      self.config = try factory.configuration(from: yaml, configDir: configDir)
+      self.config = try factory.configuration(from: yaml, configDir: configDir, theme: theme)
     } else {
       self.config = factory.defaultConfiguration()
     }
@@ -309,7 +312,7 @@ struct ModuleConfig: Codable {
     let configYaml = configDict.map(ModuleConfig.yaml(from:))
 
     if let configYaml = configYaml, let factory = moduleFactories[type] {
-      config = try factory.configuration(from: configYaml, configDir: nil)
+      config = try factory.configuration(from: configYaml, configDir: nil, theme: nil)
     } else {
       config = nil
     }

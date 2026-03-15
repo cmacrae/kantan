@@ -10,7 +10,9 @@ struct PowerConfigFactory: ModuleConfigurationFactory {
     "battery-3-filled", "battery-4-filled",
   ]
 
-  func configuration(from yaml: Yaml, configDir: String?) throws -> ModuleConfiguration {
+  func configuration(from yaml: Yaml, configDir: String?, theme: ThemeConfig?) throws
+    -> ModuleConfiguration
+  {
     let showLevel = yaml["showLevel"].bool ?? false
 
     let chargingIcon =

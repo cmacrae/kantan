@@ -9,7 +9,9 @@ struct WiFiConfigFactory: ModuleConfigurationFactory {
   static let defaultStrengthIcons = ["wifi-1", "wifi-2", "wifi"]
   static let defaultDisconnectedIcon = "wifi-off"
 
-  func configuration(from yaml: Yaml, configDir: String?) throws -> ModuleConfiguration {
+  func configuration(from yaml: Yaml, configDir: String?, theme: ThemeConfig?) throws
+    -> ModuleConfiguration
+  {
     let showSSID = yaml["showSSID"].bool ?? false
 
     let iconsYaml = yaml["icons"]

@@ -2,7 +2,9 @@ import Foundation
 import Yaml
 
 struct ClockConfigFactory: ModuleConfigurationFactory {
-  func configuration(from yaml: Yaml, configDir: String?) throws -> ModuleConfiguration {
+  func configuration(from yaml: Yaml, configDir: String?, theme: ThemeConfig?) throws
+    -> ModuleConfiguration
+  {
     return try ClockConfig(yaml: yaml)
   }
 }

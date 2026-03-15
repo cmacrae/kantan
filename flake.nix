@@ -29,8 +29,14 @@
         pluginsDir = ./packages/plugins;
       };
 
+      themes = import ./nix/themes.nix {
+        inherit pkgs;
+        themesDir = ./packages/themes;
+      };
+
       inherit (swift) buildSwiftPackage;
       inherit (plugins) pluginPackages;
+      inherit (themes) themePackages;
 
       tabler-icons = pkgs.callPackage ./packages/tabler-icons { };
 
@@ -63,20 +69,23 @@
         {
           plugins ? builtins.attrValues pluginPackages,
           extraPlugins ? [ ],
+          themes ? builtins.attrValues themePackages,
         }:
         let
           allPlugins = plugins ++ extraPlugins;
+          allPaths = [
+            _kantan
+            tabler-icons
+          ]
+          ++ allPlugins
+          ++ themes;
         in
-        if allPlugins == [ ] then
+        if allPlugins == [ ] && themes == [ ] then
           _kantan
         else
           pkgs.symlinkJoin {
             name = "kantan-${_kantan.version}";
-            paths = [
-              _kantan
-              tabler-icons
-            ]
-            ++ allPlugins;
+            paths = allPaths;
             nativeBuildInputs = [ pkgs.makeBinaryWrapper ];
             postBuild = ''
               wrapProgram $out/bin/kantan \
@@ -98,6 +107,7 @@
         withoutPlugins = _kantan;
         withPlugins = kantanWithPlugins;
         plugins = pluginPackages;
+        themes = themePackages;
       };
 
     in

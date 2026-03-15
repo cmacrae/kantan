@@ -40,7 +40,9 @@ private func setWorkspaceSegments(_ segments: [WorkspaceSegment]) {
 // MARK: - Factory
 
 struct WorkspaceConfigFactory: ModuleConfigurationFactory {
-  func configuration(from yaml: Yaml, configDir: String?) throws -> ModuleConfiguration {
+  func configuration(from yaml: Yaml, configDir: String?, theme: ThemeConfig?) throws
+    -> ModuleConfiguration
+  {
     return WorkspaceConfig(yaml: yaml)
   }
 

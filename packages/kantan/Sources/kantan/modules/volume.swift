@@ -12,7 +12,9 @@ struct VolumeConfigFactory: ModuleConfigurationFactory {
     "Headphones": "headphones",
   ]
 
-  func configuration(from yaml: Yaml, configDir: String?) throws -> ModuleConfiguration {
+  func configuration(from yaml: Yaml, configDir: String?, theme: ThemeConfig?) throws
+    -> ModuleConfiguration
+  {
     let showLevel = yaml["showLevel"].bool ?? false
 
     let iconsYaml = yaml["icons"]

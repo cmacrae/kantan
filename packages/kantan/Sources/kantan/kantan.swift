@@ -290,7 +290,7 @@ class DisplayInstance {
         tintView.layer?.backgroundColor =
           NSColor(hex: mode.bg ?? "000000").withAlphaComponent(tintOpacity).cgColor
       }
-    } else if config.appearance == .native {
+    } else if config.isNativeAppearance {
       let effectView = NSVisualEffectView(frame: NSRect(origin: .zero, size: bgRect.size))
       effectView.material = .headerView
       effectView.state = .active
@@ -883,7 +883,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
       return
     }
 
-    let extraModules = loadModulesFromDirectory(path: modulesDirPath)
+    let extraModules = loadModulesFromDirectory(path: modulesDirPath, theme: config.theme)
     config.modules = mergeModules(base: config.modules, extra: extraModules)
 
     if config.needsBundledIconFonts {
@@ -911,7 +911,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     let theme = ThemeProvider(config: config)
     let bar = BarViewModel(config: config)
     bar.popupManager.themeProvider = theme
-    bar.popupManager.appearance = config.appearance
+    bar.popupManager.isNativeAppearance = config.isNativeAppearance
 
     self.barViewModel = bar
     self.themeProvider = theme
@@ -1278,7 +1278,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     if let dir = modulesDirPath {
-      let extraModules = loadModulesFromDirectory(path: dir)
+      let extraModules = loadModulesFromDirectory(path: dir, theme: newConfig.theme)
       newConfig.modules = mergeModules(base: newConfig.modules, extra: extraModules)
     }
 

@@ -1,0 +1,96 @@
+height: 33
+padding: 10
+# fonts:
+#   text: "system:Helvetica Neue:13"
+#   icon: "system:Material Icons:Regular:15"
+theme:
+  light: catppuccin[latte]
+  dark: catppuccin[mocha]
+# blur: 3
+# displays: main
+displays: all
+# autohide:
+#   enabled: false
+
+modules:
+  - name: spaces
+    type: workspace
+    placement: left
+    icon: point-filled
+    style:
+      fg: "{theme(overlay2)}"
+    config:
+      type: aerospace
+      overflow:
+        enabled: true
+        max: 5
+        icon:
+          left: ‹
+          right: ›
+
+  - name: focus
+    type: focus
+    placement: right
+    style:
+      fg: "{theme(pink)}"
+    mask:
+      name: Focus
+
+  - name: bluetooth
+    type: bluetooth
+    placement: right
+    config:
+      showCount: false
+    style:
+      fg: "{theme(blue)}"
+    mask:
+      name: Bluetooth
+
+  - name: volume
+    type: volume
+    placement: right
+    style:
+      fg: "{theme(lavender)}"
+    config:
+      showLevel: false
+    mask:
+      name: Volume
+
+  - name: wifi
+    type: wifi
+    placement: right
+    style:
+      fg: "{theme(sky)}"
+    config:
+      showSSID: false
+    mask:
+      name: WiFi
+
+  - name: power
+    type: power
+    placement: right
+    style:
+      fg: "{theme(yellow)}"
+    config:
+      showLevel: false
+    mask:
+      name: Battery
+
+  - name: control-centre
+    type: icon
+    placement: right
+    icon: adjustments-horizontal-filled
+    style:
+      fg: "{theme(mauve)}"
+    mask:
+      name: ControlCenter
+
+  - name: clock
+    type: clock
+    placement: right
+    style:
+      fg: "{theme(flamingo)}"
+    config:
+      format: "HH:mm"
+    mask:
+      name: Clock

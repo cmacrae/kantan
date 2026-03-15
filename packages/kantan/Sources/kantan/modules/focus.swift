@@ -3,7 +3,9 @@ import Foundation
 import Yaml
 
 struct FocusConfigFactory: ModuleConfigurationFactory {
-  func configuration(from yaml: Yaml, configDir: String?) throws -> ModuleConfiguration {
+  func configuration(from yaml: Yaml, configDir: String?, theme: ThemeConfig?) throws
+    -> ModuleConfiguration
+  {
     FocusConfig()
   }
 }

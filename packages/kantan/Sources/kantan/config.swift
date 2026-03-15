@@ -58,7 +58,7 @@ struct AutohideConfig: Codable, Sendable {
 // MARK: - Config
 
 struct Config {
-  let appearance: AppearanceStyle
+  let theme: ThemeConfig?
   let style: StyleConfig
   let height: Int
   let padding: Int
@@ -84,13 +84,11 @@ struct Config {
     // Modules with nil iconFont inherit the global (which is system here), so skip those.
     return modules.contains { $0.iconFont?.source == .bundled }
   }
-}
 
-/// Controls whether tooltips, menus, and popups use the native system
-/// appearance ("native") or the kantan-themed appearance ("theme").
-enum AppearanceStyle: String, Codable, Sendable {
-  case native
-  case theme
+  /// Native appearance when no theme and no explicit style colours.
+  var isNativeAppearance: Bool {
+    theme == nil && style.light?.fg == nil && style.dark?.fg == nil
+  }
 }
 
 /// Where a font is loaded from.
@@ -401,12 +399,22 @@ func parseStyleModeConfig(from yaml: Yaml) -> StyleModeConfig? {
 func parseStyleConfig(from yaml: Yaml) -> StyleConfig? {
   guard let dict = yaml.dictionary else { return nil }
 
+  // Check for nested light/dark blocks (existing format)
   let light = dict["light"].flatMap { parseStyleModeConfig(from: $0) }
   let dark = dict["dark"].flatMap { parseStyleModeConfig(from: $0) }
 
-  if light == nil && dark == nil { return nil }
+  if light != nil || dark != nil {
+    return StyleConfig(light: light, dark: dark)
+  }
 
-  return StyleConfig(light: light, dark: dark)
+  // Check for flat style block (same values for both modes).
+  // Useful with theme templates: style: { fg: "{theme(text)}" }
+  let flat = parseStyleModeConfig(from: yaml)
+  if flat != nil {
+    return StyleConfig(light: flat, dark: flat)
+  }
+
+  return nil
 }
 
 // MARK: - Config Parsing Helpers
@@ -704,19 +712,50 @@ func loadConfig(from yaml: Yaml, configDir: String? = nil) -> Config? {
     return nil
   }
 
-  guard let styleYaml = yaml["style"].dictionary,
-    let lightYaml = styleYaml["light"],
-    let darkYaml = styleYaml["dark"],
-    let lightMode = parseStyleModeConfig(from: lightYaml),
-    let darkMode = parseStyleModeConfig(from: darkYaml),
-    lightMode.fg != nil, lightMode.bg != nil,
-    darkMode.fg != nil, darkMode.bg != nil
-  else {
-    print("Failed to load config: style.light and style.dark must have fg and bg")
-    return nil
+  // Parse theme (optional)
+  var theme: ThemeConfig?
+  let themeYaml = yaml["theme"]
+  if themeYaml.string != nil || themeYaml.dictionary != nil {
+    theme = loadThemeConfig(from: themeYaml, configDir: configDir)
+    if theme == nil {
+      print("Failed to load theme")
+      return nil
+    }
   }
 
-  let style = StyleConfig(light: lightMode, dark: darkMode)
+  // Parse style — optional when theme is set, required otherwise.
+  // Supports both nested (light/dark blocks) and flat (same values for both modes).
+  let style: StyleConfig
+  if let parsedStyle = parseStyleConfig(from: yaml["style"]) {
+    style = parsedStyle
+  } else if theme != nil {
+    // No explicit style — synthesise from theme palette defaults
+    let light = StyleModeConfig(
+      fg: theme!.lightPalette.fg, bg: theme!.lightPalette.bg,
+      text: nil, icon: nil, shape: nil)
+    let dark = StyleModeConfig(
+      fg: theme!.darkPalette.fg, bg: theme!.darkPalette.bg,
+      text: nil, icon: nil, shape: nil)
+    style = StyleConfig(light: light, dark: dark)
+  } else if yaml["style"].dictionary != nil {
+    // style: was present but couldn't parse — missing fg/bg
+    print("Failed to load config: style.light and style.dark must have fg and bg")
+    return nil
+  } else {
+    // No theme, no style — native appearance
+    style = StyleConfig(light: nil, dark: nil)
+  }
+
+  // When no theme is set and style has values, validate completeness
+  if theme == nil && (style.light != nil || style.dark != nil) {
+    guard let light = style.light, let dark = style.dark,
+      light.fg != nil, light.bg != nil,
+      dark.fg != nil, dark.bg != nil
+    else {
+      print("Failed to load config: style without theme requires light and dark with fg and bg")
+      return nil
+    }
+  }
 
   let iconTextSpacing = yaml["iconTextSpacing"].int ?? 5
 
@@ -745,9 +784,6 @@ func loadConfig(from yaml: Yaml, configDir: String? = nil) -> Config? {
     gaps = .default
   }
 
-  let appearanceStr = yaml["appearance"].string ?? "theme"
-  let appearance = AppearanceStyle(rawValue: appearanceStr) ?? .theme
-
   let displays = parseDisplaysConfig(from: yaml["displays"])
 
   let autohide: AutohideConfig
@@ -763,14 +799,14 @@ func loadConfig(from yaml: Yaml, configDir: String? = nil) -> Config? {
   var modules: [ModuleConfig] = []
   if let modulesYaml = yaml["modules"].array {
     for moduleYaml in modulesYaml {
-      if let module = parseModuleConfig(from: moduleYaml, configDir: configDir) {
+      if let module = parseModuleConfig(from: moduleYaml, configDir: configDir, theme: theme) {
         modules.append(module)
       }
     }
   }
 
   return Config(
-    appearance: appearance,
+    theme: theme,
     style: style,
     height: height,
     padding: padding,
@@ -792,11 +828,13 @@ func loadConfig(from yaml: Yaml, configDir: String? = nil) -> Config? {
 /// doesn't specify an `icon:` field. Only modules that need a
 /// default display icon are listed here.
 private let defaultModuleIcons: [String: String] = [
-  "focus": "brain",
+  "focus": "brain"
 ]
 
 /// `configDir` resolves relative paths (e.g. command scripts).
-func parseModuleConfig(from moduleYaml: Yaml, configDir: String? = nil) -> ModuleConfig? {
+func parseModuleConfig(from moduleYaml: Yaml, configDir: String? = nil, theme: ThemeConfig? = nil)
+  -> ModuleConfig?
+{
   var builder = ModuleConfigBuilder()
 
   guard let name = moduleYaml["name"].string,
@@ -880,7 +918,7 @@ func parseModuleConfig(from moduleYaml: Yaml, configDir: String? = nil) -> Modul
   builder.setConfigFactory(factory)
 
   do {
-    try builder.buildConfiguration(from: moduleYaml["config"], configDir: configDir)
+    try builder.buildConfiguration(from: moduleYaml["config"], configDir: configDir, theme: theme)
     return try builder.build()
   } catch {
     print("Failed to build module config: \(error)")
@@ -943,7 +981,7 @@ func resolveModulesDir(explicit: String?, configPath: String) -> String {
 /// Load individual module YAML files from a directory.
 /// Files are sorted alphabetically (numeric prefix controls order).
 /// Non-existent directory is silently ignored.
-func loadModulesFromDirectory(path: String) -> [ModuleConfig] {
+func loadModulesFromDirectory(path: String, theme: ThemeConfig? = nil) -> [ModuleConfig] {
   let fm = FileManager.default
   guard fm.fileExists(atPath: path) else { return [] }
 
@@ -967,7 +1005,7 @@ func loadModulesFromDirectory(path: String) -> [ModuleConfig] {
     }
     do {
       let yaml = try Yaml.load(fileData)
-      if let module = parseModuleConfig(from: yaml, configDir: path) {
+      if let module = parseModuleConfig(from: yaml, configDir: path, theme: theme) {
         modules.append(module)
       } else {
         print("modules.d: failed to parse module from \(filename)")

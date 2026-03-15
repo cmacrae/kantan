@@ -66,8 +66,10 @@ private func yamlToNative(_ yaml: Yaml) -> Any? {
 // MARK: - Factory
 
 struct CommandConfigFactory: ModuleConfigurationFactory {
-  func configuration(from yaml: Yaml, configDir: String?) throws -> ModuleConfiguration {
-    return try CommandConfig(yaml: yaml, configDir: configDir)
+  func configuration(from yaml: Yaml, configDir: String?, theme: ThemeConfig?) throws
+    -> ModuleConfiguration
+  {
+    return try CommandConfig(yaml: yaml, configDir: configDir, theme: theme)
   }
 }
 
@@ -84,8 +86,9 @@ struct CommandConfig: ModuleConfiguration {
   let settingsJSON: String?  // Opaque plugin settings serialized as JSON
   let watchCommand: String?  // Long-lived watcher process command
   let toggleCommand: String?  // Command to run on toggle interaction
+  let theme: ThemeConfig?  // For resolving {theme(...)} templates in settings
 
-  init(yaml: Yaml, configDir: String? = nil) throws {
+  init(yaml: Yaml, configDir: String? = nil, theme: ThemeConfig? = nil) throws {
     guard let rawCommand = yaml["command"].string else {
       throw DecodingError.dataCorrupted(
         DecodingError.Context(
@@ -121,6 +124,16 @@ struct CommandConfig: ModuleConfiguration {
     } else {
       self.settingsJSON = nil
     }
+
+    self.theme = theme
+  }
+
+  /// Resolve `{theme(...)}` templates in the settings JSON for the given appearance.
+  func resolvedSettings(isDark: Bool) -> String? {
+    guard let settings = settingsJSON else { return nil }
+    guard let theme = theme else { return settings }
+    let palette = isDark ? theme.darkPalette : theme.lightPalette
+    return resolveAllThemeTemplates(settings, palette: palette)
   }
 
   private static func shellQuote(_ s: String) -> String {
@@ -137,11 +150,11 @@ struct CommandConfig: ModuleConfiguration {
     process.executableURL = URL(fileURLWithPath: launchPath)
     process.arguments = launchArgs + [toggle]
     var env = ProcessInfo.processInfo.environment
-    if let settings = settingsJSON {
-      env["KANTAN_SETTINGS"] = settings
-    }
     let names: [NSAppearance.Name] = [.darkAqua, .aqua]
     let isDark = NSApp.effectiveAppearance.bestMatch(from: names) == .darkAqua
+    if let settings = resolvedSettings(isDark: isDark) {
+      env["KANTAN_SETTINGS"] = settings
+    }
     env["KANTAN_APPEARANCE"] = isDark ? "dark" : "light"
     env["KANTAN_PID"] = "\(ProcessInfo.processInfo.processIdentifier)"
     process.environment = env
@@ -157,11 +170,11 @@ struct CommandConfig: ModuleConfiguration {
     let args = self.launchArgs
     let timeoutInterval = self.timeout
     let mode = self.outputMode
-    let settings = self.settingsJSON
 
     // Capture appearance on main thread before dispatching to background.
     let names: [NSAppearance.Name] = [.darkAqua, .aqua]
     let isDark = NSApp.effectiveAppearance.bestMatch(from: names) == .darkAqua
+    let settings = resolvedSettings(isDark: isDark)
     let appearance = isDark ? "dark" : "light"
 
     DispatchQueue.global(qos: .userInitiated).async {

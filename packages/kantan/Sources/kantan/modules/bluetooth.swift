@@ -8,7 +8,9 @@ struct BluetoothConfigFactory: ModuleConfigurationFactory {
   static let defaultIcon = "bluetooth"
   static let defaultDisabledIcon = "bluetooth-off"
 
-  func configuration(from yaml: Yaml, configDir: String?) throws -> ModuleConfiguration {
+  func configuration(from yaml: Yaml, configDir: String?, theme: ThemeConfig?) throws
+    -> ModuleConfiguration
+  {
     let showCount = yaml["showCount"].bool ?? false
     let icon = yaml["icon"].string ?? Self.defaultIcon
     let disabledIcon = yaml["disabledIcon"].string ?? Self.defaultDisabledIcon

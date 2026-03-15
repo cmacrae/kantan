@@ -125,6 +125,25 @@ struct Settings: Decodable {
   struct StyleConfig: Decodable {
     var light: StyleColors?
     var dark: StyleColors?
+
+    init(from decoder: Decoder) throws {
+      let container = try decoder.container(keyedBy: CodingKeys.self)
+      let light = try container.decodeIfPresent(StyleColors.self, forKey: .light)
+      let dark = try container.decodeIfPresent(StyleColors.self, forKey: .dark)
+      if light != nil || dark != nil {
+        self.light = light
+        self.dark = dark
+      } else {
+        // Flat style: same colours for both modes (theme handles mode switching)
+        let flat = try StyleColors(from: decoder)
+        self.light = flat
+        self.dark = flat
+      }
+    }
+
+    private enum CodingKeys: String, CodingKey {
+      case light, dark
+    }
   }
 
   private enum CodingKeys: String, CodingKey {
