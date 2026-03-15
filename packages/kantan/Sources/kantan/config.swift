@@ -788,6 +788,13 @@ func loadConfig(from yaml: Yaml, configDir: String? = nil) -> Config? {
 
 // MARK: - Module Parsing
 
+/// Default module-level icons (tabler-icons) applied when the user
+/// doesn't specify an `icon:` field. Only modules that need a
+/// default display icon are listed here.
+private let defaultModuleIcons: [String: String] = [
+  "focus": "brain",
+]
+
 /// `configDir` resolves relative paths (e.g. command scripts).
 func parseModuleConfig(from moduleYaml: Yaml, configDir: String? = nil) -> ModuleConfig? {
   var builder = ModuleConfigBuilder()
@@ -806,6 +813,8 @@ func parseModuleConfig(from moduleYaml: Yaml, configDir: String? = nil) -> Modul
 
   if let icon = moduleYaml["icon"].string {
     builder.setIcon(fixYamlUnicodeEscapes(icon))
+  } else if let defaultIcon = defaultModuleIcons[type] {
+    builder.setIcon(defaultIcon)
   }
 
   let moduleFontsYaml = moduleYaml["fonts"]
