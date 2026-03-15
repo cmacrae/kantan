@@ -388,7 +388,7 @@ struct WorkspaceModuleView: View {
   // MARK: - Colors
 
   private func segmentColor(_ segment: WorkspaceSegment) -> Color {
-    if let colorStr = segment.colorOverride {
+    if !themeProvider.isNative, let colorStr = segment.colorOverride {
       let base = themeProvider.resolvedColor(colorStr)
       return segment.isActive ? base : base.opacity(0.4)
     }
