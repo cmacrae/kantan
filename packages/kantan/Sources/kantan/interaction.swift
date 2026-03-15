@@ -353,8 +353,8 @@ class PopupManager {
 
   // MARK: - Menu (DSL)
 
-  /// Show a menu from a ViewNode tree. Dispatches to native NSMenu or
-  /// themed SwiftUI panel based on appearance mode.
+  /// Show a menu from a ViewNode tree. Always uses native NSMenu for
+  /// consistent appearance; theme colors are threaded through when active.
   func showMenu(
     viewTree: ViewNode, moduleName: String, anchorPoint: NSPoint,
     moduleMinX: CGFloat? = nil, liveContent: LiveContentProvider
@@ -375,18 +375,13 @@ class PopupManager {
       resolver.variables["icon"] = icon
     }
 
-    if isNative {
-      var nativeAnchor = anchorPoint
-      if let minX = moduleMinX {
-        nativeAnchor.x = minX
-      }
-      let menu = buildNativeMenu(from: viewTree, resolver: resolver)
-      menu.popUp(positioning: nil, at: nativeAnchor, in: nil)
-    } else {
-      showDSLView(
-        viewTree: viewTree, moduleName: moduleName, anchorPoint: anchorPoint,
-        popupId: menuId, liveContent: liveContent, resolver: resolver)
+    var nativeAnchor = anchorPoint
+    if let minX = moduleMinX {
+      nativeAnchor.x = minX
     }
+    let textColor: Color? = isNative ? nil : Color(nsColor: effectiveFgColor)
+    let menu = buildNativeMenu(from: viewTree, resolver: resolver, textColor: textColor)
+    menu.popUp(positioning: nil, at: nativeAnchor, in: nil)
   }
 
   // MARK: - DSL View (PopupPanel + SwiftUI)
@@ -548,16 +543,20 @@ class PopupManager {
 // MARK: - Native Menu Toggle View
 
 /// SwiftUI Toggle embedded in a native NSMenuItem via NSHostingView.
-/// Used only for toggle nodes in native NSMenu mode.
+/// Used for toggle nodes in NSMenu menus.
 struct NativeMenuToggleView: View {
   let label: String
   @State var isOn: Bool
+  var textColor: Color?
   let action: () -> Void
+
+  private var fgColor: Color { textColor ?? .primary }
 
   var body: some View {
     Toggle(label, isOn: $isOn)
       .toggleStyle(.switch)
       .controlSize(.small)
+      .foregroundStyle(fgColor)
       .padding(.horizontal, 14)
       .frame(height: 28)
       .onChange(of: isOn) { _, _ in action() }

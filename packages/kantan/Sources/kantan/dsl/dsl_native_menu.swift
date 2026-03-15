@@ -92,10 +92,12 @@ class TemplateResolver {
 /// is collapsed. Unsupported node types (shapes, images, progress, gauge, badge,
 /// grid, spacer) are silently skipped.
 @MainActor
-func buildNativeMenu(from rootNode: ViewNode, resolver: TemplateResolver) -> NSMenu {
+func buildNativeMenu(
+  from rootNode: ViewNode, resolver: TemplateResolver, textColor: Color? = nil
+) -> NSMenu {
   let menu = NSMenu()
   menu.autoenablesItems = false
-  addItems(from: rootNode, to: menu, resolver: resolver)
+  addItems(from: rootNode, to: menu, resolver: resolver, textColor: textColor)
   return menu
 }
 
@@ -130,7 +132,8 @@ private struct HStackTextPart {
 /// so past events etc. render correctly in native menus.
 @MainActor
 private func addHStackItem(
-  children: [ViewNode], command: String? = nil, to menu: NSMenu, resolver: TemplateResolver
+  children: [ViewNode], command: String? = nil, to menu: NSMenu, resolver: TemplateResolver,
+  textColor: Color? = nil
 ) {
   // Separate children at the first spacer, preserving style metadata
   var labelParts: [HStackTextPart] = []
@@ -211,13 +214,14 @@ private func addHStackItem(
   let rowView: NSView
   if !detailParts.isEmpty {
     let view = NativeMenuRowView(
-      labelParts: labelParts, detailParts: detailParts, indicatorColor: indicatorColor)
+      labelParts: labelParts, detailParts: detailParts, indicatorColor: indicatorColor,
+      textColor: textColor)
     let hosting = NSHostingView(rootView: view)
     hosting.frame = NSRect(x: 0, y: 0, width: 280, height: 22)
     rowView = hosting
   } else {
     let view = NativeMenuLabelView(
-      parts: labelParts, indicatorColor: indicatorColor)
+      parts: labelParts, indicatorColor: indicatorColor, textColor: textColor)
     let hosting = NSHostingView(rootView: view)
     hosting.frame = NSRect(x: 0, y: 0, width: 280, height: 22)
     rowView = hosting
@@ -307,7 +311,9 @@ private func isInteractiveNode(_ node: ViewNode) -> Bool {
 
 /// Recursively walk the ViewNode tree and append NSMenuItems to the menu.
 @MainActor
-private func addItems(from node: ViewNode, to menu: NSMenu, resolver: TemplateResolver) {
+private func addItems(
+  from node: ViewNode, to menu: NSMenu, resolver: TemplateResolver, textColor: Color? = nil
+) {
   switch node {
   // MARK: Layout nodes -- flatten children (except hstack)
 
@@ -317,7 +323,7 @@ private func addItems(from node: ViewNode, to menu: NSMenu, resolver: TemplateRe
     .group(let children, _),
     .grid(_, _, let children, _):
     for child in children {
-      addItems(from: child, to: menu, resolver: resolver)
+      addItems(from: child, to: menu, resolver: resolver, textColor: textColor)
     }
 
   // MARK: HStack -- compose into a single menu item
@@ -326,10 +332,11 @@ private func addItems(from node: ViewNode, to menu: NSMenu, resolver: TemplateRe
     // Check if hstack contains any interactive nodes — if so, flatten normally
     if children.contains(where: { isInteractiveNode($0) }) {
       for child in children {
-        addItems(from: child, to: menu, resolver: resolver)
+        addItems(from: child, to: menu, resolver: resolver, textColor: textColor)
       }
     } else {
-      addHStackItem(children: children, command: command, to: menu, resolver: resolver)
+      addHStackItem(
+        children: children, command: command, to: menu, resolver: resolver, textColor: textColor)
     }
 
   // MARK: Action
@@ -361,6 +368,14 @@ private func addItems(from node: ViewNode, to menu: NSMenu, resolver: TemplateRe
     }
     title.append(NSAttributedString(string: resolvedLabel))
 
+    // Apply theme foreground color when set.
+    if let textColor = textColor {
+      let nsColor = NSColor(textColor)
+      title.addAttribute(
+        .foregroundColor, value: nsColor,
+        range: NSRange(location: 0, length: title.length))
+    }
+
     let item = NSMenuItem(title: "", action: nil, keyEquivalent: "")
     item.attributedTitle = title
     if let command = command {
@@ -391,7 +406,7 @@ private func addItems(from node: ViewNode, to menu: NSMenu, resolver: TemplateRe
     // the menu closing after each interaction.
     let checkView = NativeMenuCheckItemView(
       label: resolvedLabel, isChecked: isChecked, command: resolvedCommand,
-      uncheckedCommand: resolvedUncheckedCommand)
+      uncheckedCommand: resolvedUncheckedCommand, textColor: textColor)
     item.view = checkView
     menu.addItem(item)
 
@@ -403,7 +418,7 @@ private func addItems(from node: ViewNode, to menu: NSMenu, resolver: TemplateRe
 
     let item = NSMenuItem(title: "", action: nil, keyEquivalent: "")
 
-    let toggleView = NativeMenuToggleView(label: resolvedLabel, isOn: isOn) {
+    let toggleView = NativeMenuToggleView(label: resolvedLabel, isOn: isOn, textColor: textColor) {
       if let command = command {
         let resolvedCommand = resolver.resolve(command)
         runCommand(resolvedCommand)
@@ -419,7 +434,7 @@ private func addItems(from node: ViewNode, to menu: NSMenu, resolver: TemplateRe
   case .header(let content, _):
     let resolvedContent = resolver.resolve(content)
     let item = NSMenuItem(title: "", action: nil, keyEquivalent: "")
-    let view = NativeMenuHeaderView(content: resolvedContent)
+    let view = NativeMenuHeaderView(content: resolvedContent, textColor: textColor ?? .primary)
     let hosting = NSHostingView(rootView: view)
     hosting.frame = NSRect(x: 0, y: 0, width: 280, height: 22)
     item.view = hosting
@@ -440,7 +455,7 @@ private func addItems(from node: ViewNode, to menu: NSMenu, resolver: TemplateRe
     let isBold = weight == .bold || weight == .semibold || weight == .heavy || weight == .black
     let view = NativeMenuTextView(
       content: resolvedContent, isBold: isBold, isSecondary: isSecondary,
-      isStrikethrough: strikethrough == true)
+      isStrikethrough: strikethrough == true, textColor: textColor)
     let hosting = NSHostingView(rootView: view)
     hosting.frame = NSRect(x: 0, y: 0, width: 280, height: 22)
     item.view = hosting
@@ -452,7 +467,7 @@ private func addItems(from node: ViewNode, to menu: NSMenu, resolver: TemplateRe
     guard let dataArray = resolver.data[items] else { break }
     for element in dataArray {
       resolver.pushScope(element)
-      addItems(from: child, to: menu, resolver: resolver)
+      addItems(from: child, to: menu, resolver: resolver, textColor: textColor)
       resolver.popScope()
     }
 
@@ -460,9 +475,9 @@ private func addItems(from node: ViewNode, to menu: NSMenu, resolver: TemplateRe
 
   case .if(let condition, let thenNode, let elseNode, _):
     if evaluateCondition(condition, resolver: resolver) {
-      addItems(from: thenNode, to: menu, resolver: resolver)
+      addItems(from: thenNode, to: menu, resolver: resolver, textColor: textColor)
     } else if let elseNode = elseNode {
-      addItems(from: elseNode, to: menu, resolver: resolver)
+      addItems(from: elseNode, to: menu, resolver: resolver, textColor: textColor)
     }
 
   // MARK: Unsupported nodes -- silently skip
@@ -505,11 +520,12 @@ private func nativeMenuColorFromHex(_ hex: String) -> Color? {
 /// Header row for native NSMenu, matching the themed view's header style.
 struct NativeMenuHeaderView: View {
   let content: String
+  var textColor: Color = .primary
 
   var body: some View {
     Text(content)
       .font(.system(size: 12, weight: .bold))
-      .foregroundStyle(Color.primary)
+      .foregroundStyle(textColor)
       .frame(maxWidth: .infinity, alignment: .leading)
       .frame(height: 22)
       .padding(.horizontal, 14)
@@ -521,11 +537,16 @@ struct NativeMenuHeaderView: View {
 private struct NativeMenuPartsView: View {
   let parts: [HStackTextPart]
   let secondaryOverride: Bool
+  var textColor: Color?
 
-  init(parts: [HStackTextPart], secondaryOverride: Bool = false) {
+  init(parts: [HStackTextPart], secondaryOverride: Bool = false, textColor: Color? = nil) {
     self.parts = parts
     self.secondaryOverride = secondaryOverride
+    self.textColor = textColor
   }
+
+  private var primaryColor: Color { textColor ?? .primary }
+  private var secondaryColor: Color { textColor?.opacity(0.5) ?? Color.secondary }
 
   var body: some View {
     let menuFont = Font.system(size: NSFont.menuFont(ofSize: 0).pointSize)
@@ -534,7 +555,7 @@ private struct NativeMenuPartsView: View {
       Text(part.text)
         .font(part.iconFont ?? menuFont)
         .strikethrough(part.isStrikethrough)
-        .foregroundStyle(isSecondary ? .secondary : .primary)
+        .foregroundStyle(isSecondary ? secondaryColor : primaryColor)
     }
   }
 }
@@ -546,6 +567,7 @@ private struct NativeMenuRowView: View {
   let labelParts: [HStackTextPart]
   let detailParts: [HStackTextPart]
   var indicatorColor: String?
+  var textColor: Color?
 
   var body: some View {
     HStack(spacing: 0) {
@@ -556,11 +578,11 @@ private struct NativeMenuRowView: View {
           .padding(.trailing, 8)
       }
       HStack(spacing: 4) {
-        NativeMenuPartsView(parts: labelParts)
+        NativeMenuPartsView(parts: labelParts, textColor: textColor)
       }
       Spacer(minLength: 16)
       HStack(spacing: 4) {
-        NativeMenuPartsView(parts: detailParts, secondaryOverride: true)
+        NativeMenuPartsView(parts: detailParts, secondaryOverride: true, textColor: textColor)
       }
     }
     .padding(.horizontal, 14)
@@ -573,6 +595,7 @@ private struct NativeMenuRowView: View {
 private struct NativeMenuLabelView: View {
   let parts: [HStackTextPart]
   var indicatorColor: String?
+  var textColor: Color?
 
   var body: some View {
     HStack(spacing: 4) {
@@ -582,7 +605,7 @@ private struct NativeMenuLabelView: View {
           .frame(width: 3, height: 16)
           .padding(.trailing, 4)
       }
-      NativeMenuPartsView(parts: parts)
+      NativeMenuPartsView(parts: parts, textColor: textColor)
       Spacer()
     }
     .padding(.horizontal, 14)
@@ -596,6 +619,10 @@ struct NativeMenuTextView: View {
   let isBold: Bool
   let isSecondary: Bool
   var isStrikethrough: Bool = false
+  var textColor: Color?
+
+  private var primaryColor: Color { textColor ?? .primary }
+  private var secondaryColor: Color { textColor?.opacity(0.5) ?? Color.secondary }
 
   var body: some View {
     HStack {
@@ -606,7 +633,7 @@ struct NativeMenuTextView: View {
             weight: isBold ? .bold : .regular)
         )
         .strikethrough(isStrikethrough)
-        .foregroundStyle(isSecondary ? .secondary : .primary)
+        .foregroundStyle(isSecondary ? secondaryColor : primaryColor)
       Spacer()
     }
     .padding(.horizontal, 14)
@@ -620,16 +647,23 @@ struct NativeMenuTextView: View {
 /// reliably receive events inside NSMenuItem custom views).
 class NativeMenuCheckItemView: NSView {
   private var isChecked: Bool
+  private let label: String
   private let checkedCommand: String?
   private let uncheckedCommand: String?
+  private let textColor: Color?
   private var hostingView: NSHostingView<NativeMenuCheckContent>?
 
-  init(label: String, isChecked: Bool, command: String?, uncheckedCommand: String?) {
+  init(
+    label: String, isChecked: Bool, command: String?, uncheckedCommand: String?,
+    textColor: Color? = nil
+  ) {
     self.isChecked = isChecked
+    self.label = label
     self.checkedCommand = command
     self.uncheckedCommand = uncheckedCommand
+    self.textColor = textColor
     super.init(frame: NSRect(x: 0, y: 0, width: 280, height: 26))
-    let content = NativeMenuCheckContent(label: label, isChecked: isChecked)
+    let content = NativeMenuCheckContent(label: label, isChecked: isChecked, textColor: textColor)
     let hosting = NSHostingView(rootView: content)
     hosting.frame = bounds
     hosting.autoresizingMask = [.width, .height]
@@ -647,7 +681,7 @@ class NativeMenuCheckItemView: NSView {
     isChecked.toggle()
     if let hosting = hostingView {
       hosting.rootView = NativeMenuCheckContent(
-        label: hosting.rootView.label, isChecked: isChecked)
+        label: label, isChecked: isChecked, textColor: textColor)
     }
     if let command = command, !command.isEmpty {
       runCommand(command)
@@ -659,16 +693,20 @@ class NativeMenuCheckItemView: NSView {
 struct NativeMenuCheckContent: View {
   let label: String
   let isChecked: Bool
+  var textColor: Color?
+
+  private var primaryColor: Color { textColor ?? .primary }
+  private var secondaryColor: Color { textColor?.opacity(0.4) ?? Color.secondary }
 
   var body: some View {
     HStack(spacing: 8) {
       Image(systemName: isChecked ? "checkmark.circle.fill" : "circle")
-        .foregroundStyle(isChecked ? .secondary : .primary)
+        .foregroundStyle(isChecked ? secondaryColor : primaryColor)
         .imageScale(.medium)
       Text(label)
         .font(.system(size: NSFont.menuFont(ofSize: 0).pointSize))
         .strikethrough(isChecked)
-        .foregroundStyle(isChecked ? .secondary : .primary)
+        .foregroundStyle(isChecked ? secondaryColor : primaryColor)
       Spacer()
     }
     .padding(.horizontal, 14)
