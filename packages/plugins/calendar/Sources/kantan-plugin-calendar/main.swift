@@ -669,7 +669,7 @@ func defaultMode() -> Int32 {
 
   let output = PluginOutput(
     value: value,
-    icon: "\u{f073}",
+    icon: "calendar-event-filled",
     hidden: !hasEvents,
     variables: variables,
     data: dataCollections,
