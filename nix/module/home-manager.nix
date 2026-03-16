@@ -10,6 +10,7 @@ let
   yaml = pkgs.formats.yaml { };
 
   hasExtraArgs = cfg.extraArgs != [ ];
+  hasExtraPackages = cfg.extraPackages != [ ];
 
   wrappedPackage = pkgs.symlinkJoin {
     name = "kantan-configured";
@@ -17,11 +18,13 @@ let
     nativeBuildInputs = [ pkgs.makeBinaryWrapper ];
     postBuild = ''
       wrapProgram $out/bin/kantan \
-        --add-flags "${lib.escapeShellArgs cfg.extraArgs}"
+        ${lib.optionalString hasExtraArgs ''--add-flags "${lib.escapeShellArgs cfg.extraArgs}"''} \
+        ${lib.optionalString hasExtraPackages "--prefix PATH : ${lib.makeBinPath cfg.extraPackages}"}
     '';
   };
 
-  package = if hasExtraArgs then wrappedPackage else cfg.package;
+  needsWrapping = hasExtraArgs || hasExtraPackages;
+  package = if needsWrapping then wrappedPackage else cfg.package;
 in
 {
   options.programs.kantan = import ./options.nix {

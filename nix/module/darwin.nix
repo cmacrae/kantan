@@ -12,6 +12,7 @@ let
   hasConfig = cfg.settings != { };
   hasThemes = cfg.themes != { };
   hasExtraArgs = cfg.extraArgs != [ ];
+  hasExtraPackages = cfg.extraPackages != [ ];
 
   configFile = yaml.generate "kantan-config.yaml" cfg.settings;
 
@@ -36,11 +37,12 @@ let
       wrapProgram $out/bin/kantan \
         ${lib.optionalString hasConfig ''--add-flags "--config ${configFile}"''} \
         ${lib.optionalString hasThemes ''--add-flags "--themes-dir ${themesDir}"''} \
-        ${lib.optionalString hasExtraArgs ''--add-flags "${lib.escapeShellArgs cfg.extraArgs}"''}
+        ${lib.optionalString hasExtraArgs ''--add-flags "${lib.escapeShellArgs cfg.extraArgs}"''} \
+        ${lib.optionalString hasExtraPackages "--prefix PATH : ${lib.makeBinPath cfg.extraPackages}"}
     '';
   };
 
-  needsWrapping = hasConfig || hasThemes || hasExtraArgs;
+  needsWrapping = hasConfig || hasThemes || hasExtraArgs || hasExtraPackages;
   package = if needsWrapping then wrappedPackage else cfg.package;
 in
 {

@@ -32,4 +32,13 @@
     default = [ ];
     description = "Extra command-line arguments to pass to kantan.";
   };
+
+  extraPackages = lib.mkOption {
+    type = lib.types.listOf lib.types.package;
+    default = [ ];
+    description = ''
+      Extra packages to add to kantan's PATH at runtime.
+      Useful for tools that kantan modules shell out to, such as aerospace.
+    '';
+  };
 }
