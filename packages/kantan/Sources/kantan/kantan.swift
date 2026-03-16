@@ -853,6 +853,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
   nonisolated(unsafe) var modulesDirSource: DispatchSourceFileSystemObject?
   nonisolated(unsafe) var moduleFileSources: [DispatchSourceFileSystemObject] = []
   nonisolated(unsafe) var reloadDebounceTimer: Timer?
+  nonisolated(unsafe) var configPollTimer: Timer?
 
   func applicationDidFinishLaunching(_ aNotification: Notification) {
     NSApp.setActivationPolicy(.accessory)
@@ -893,6 +894,10 @@ class AppDelegate: NSObject, NSApplicationDelegate {
       config = .welcome
     }
 
+    if config.modules.isEmpty {
+      config.modules = Config.welcome.modules
+    }
+
     if config.needsBundledIconFonts {
       initIconFonts()
     }
@@ -910,6 +915,8 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
     if let configPath = configFilePath {
       startWatchingConfig(path: configPath)
+    } else {
+      startPollingForConfig()
     }
     if let modulesDirPath = modulesDirPath {
       startWatchingModulesDir(path: modulesDirPath)
@@ -1150,6 +1157,33 @@ class AppDelegate: NSObject, NSApplicationDelegate {
       "warning: system menu bar is set to hide (\(mode)). "
         + "Masked menu bar items may not render correctly when the native menu bar is hidden."
     )
+  }
+
+  // MARK: - Config Discovery Polling
+
+  /// Periodically re-run config path resolution until a config file appears.
+  /// Used when kantan starts with no config (welcome mode).
+  private func startPollingForConfig() {
+    configPollTimer = Timer.scheduledTimer(withTimeInterval: 2.0, repeats: true) {
+      [weak self] _ in
+      MainActor.assumeIsolated {
+        guard let self = self else { return }
+        guard let configPath = resolveConfigPath(explicit: Kantan.configPath, silent: true)
+        else { return }
+
+        self.configPollTimer?.invalidate()
+        self.configPollTimer = nil
+
+        self.configFilePath = configPath
+        let modulesDirPath = resolveModulesDir(
+          explicit: Kantan.modulesDirPath, configPath: configPath)
+        self.modulesDirPath = modulesDirPath
+
+        self.reloadConfig()
+        self.startWatchingConfig(path: configPath)
+        self.startWatchingModulesDir(path: modulesDirPath)
+      }
+    }
   }
 
   // MARK: - Config Hot-Reload
@@ -1394,6 +1428,10 @@ class AppDelegate: NSObject, NSApplicationDelegate {
       newConfig.modules = mergeModules(base: newConfig.modules, extra: extraModules)
     }
 
+    if newConfig.modules.isEmpty {
+      newConfig.modules = Config.welcome.modules
+    }
+
     if newConfig.needsBundledIconFonts {
       initIconFonts()
     }
@@ -1410,6 +1448,8 @@ class AppDelegate: NSObject, NSApplicationDelegate {
   }
 
   func applicationWillTerminate(_ aNotification: Notification) {
+    configPollTimer?.invalidate()
+    configPollTimer = nil
     configFileSource?.cancel()
     configFileSource = nil
     configSymlinkDirSource?.cancel()

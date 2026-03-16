@@ -999,7 +999,7 @@ func parseModuleConfig(from moduleYaml: Yaml, configDir: String? = nil, theme: T
 /// 1. Explicit path (from --config flag)
 /// 2. config.yaml in CWD
 /// 3. $XDG_CONFIG_HOME/kantan/config.yaml (default ~/.config/kantan/config.yaml)
-func resolveConfigPath(explicit: String?) -> String? {
+func resolveConfigPath(explicit: String?, silent: Bool = false) -> String? {
   let fm = FileManager.default
 
   if let explicit = explicit {
@@ -1007,7 +1007,7 @@ func resolveConfigPath(explicit: String?) -> String? {
     if fm.fileExists(atPath: url.path) {
       return url.path
     }
-    print("Config file not found: \(explicit)")
+    if !silent { print("Config file not found: \(explicit)") }
     return nil
   }
 
@@ -1028,7 +1028,7 @@ func resolveConfigPath(explicit: String?) -> String? {
     return xdgPath
   }
 
-  print("No config file found (tried CWD and \(xdgPath))")
+  if !silent { print("No config file found (tried CWD and \(xdgPath))") }
   return nil
 }
 
