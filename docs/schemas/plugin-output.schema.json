@@ -1,0 +1,545 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/cmacrae/kantan/docs/schemas/plugin-output.schema.json",
+  "title": "Kantan Plugin Output",
+  "description": "JSON schema for the stdout output of a kantan plugin. Plugins print a single JSON object to stdout and exit. If JSON parsing fails, the raw output is treated as plain text for the module's display value.",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "value": {
+      "type": "string",
+      "description": "Display text shown in the status bar. If omitted, the raw stdout output is used as the display value. Supports template variable substitution with {variable_name} syntax, resolved from the 'variables' object."
+    },
+    "icon": {
+      "type": "string",
+      "description": "Override the module's icon. Accepts an icon name from the bundled font (e.g. \"brain\", \"bolt-filled\") which is resolved via the icon name map, or a literal Unicode glyph. The '-filled' suffix selects the filled variant. When set, replaces the static icon from the module's YAML config."
+    },
+    "hidden": {
+      "type": "boolean",
+      "default": false,
+      "description": "When true, the module is hidden from the bar. Useful for conditionally hiding modules based on state."
+    },
+    "active": {
+      "type": "boolean",
+      "default": true,
+      "description": "Module's active/inactive state. When false, the module is rendered in a dimmed/inactive style."
+    },
+    "variables": {
+      "type": "object",
+      "additionalProperties": { "type": "string" },
+      "description": "Template variables available for substitution in 'value', tooltip 'content', and view DSL text nodes. Use {key} syntax in strings to reference these. Example: if variables is {\"cpu\": \"45%\"}, then \"CPU {cpu}\" resolves to \"CPU 45%\"."
+    },
+    "data": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "additionalProperties": true
+        }
+      },
+      "description": "Named data collections for 'foreach' iteration in the view DSL. Each key is a collection name referenced by foreach's 'items' field. Values are arrays of objects whose keys become template variables within the foreach child. Values may be any JSON type (string, number, boolean); non-string values are coerced to strings internally."
+    },
+    "style": {
+      "$ref": "#/$defs/StyleOverride",
+      "description": "Dynamic style overrides applied at runtime. These take priority over the module's static YAML style config."
+    },
+    "view": {
+      "$ref": "#/$defs/ViewNode",
+      "description": "A structured view tree for rich popup/menu/tooltip content. Rendered as native SwiftUI views. This defines what appears when the user interacts with the module (hover tooltip or click menu/popup)."
+    }
+  },
+  "$defs": {
+    "StyleOverride": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Runtime style overrides. Colors are hex strings (e.g. \"#FF3B30\" or \"FF3B30\"). These override the module's YAML-defined style for the current update cycle.",
+      "properties": {
+        "fg": {
+          "type": "string",
+          "pattern": "^#?[0-9a-fA-F]{6}$",
+          "description": "Foreground color override (applies to both icon and text unless overridden individually)."
+        },
+        "bg": {
+          "type": "string",
+          "pattern": "^#?[0-9a-fA-F]{6}$",
+          "description": "Background color override for the module's background shape."
+        },
+        "icon": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "fg": {
+              "type": "string",
+              "pattern": "^#?[0-9a-fA-F]{6}$",
+              "description": "Icon-specific foreground color override."
+            }
+          }
+        },
+        "text": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "fg": {
+              "type": "string",
+              "pattern": "^#?[0-9a-fA-F]{6}$",
+              "description": "Text-specific foreground color override."
+            }
+          }
+        }
+      }
+    },
+    "CommonNodeProperties": {
+      "type": "object",
+      "description": "Shared optional properties that any view node can carry. These are applied as modifiers after the node's own content is rendered.",
+      "properties": {
+        "padding": {
+          "$ref": "#/$defs/Padding"
+        },
+        "frame": {
+          "$ref": "#/$defs/FrameProperties"
+        },
+        "opacity": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1,
+          "description": "Opacity of the node (0 = fully transparent, 1 = fully opaque)."
+        },
+        "background": {
+          "type": "string",
+          "pattern": "^#?[0-9a-fA-F]{6}$",
+          "description": "Background color for this node."
+        },
+        "cornerRadius": {
+          "type": "number",
+          "minimum": 0,
+          "description": "Corner radius for the node's background."
+        },
+        "visible": {
+          "type": "string",
+          "description": "Conditional visibility. Accepts a bare variable name without braces (e.g. \"has_events\", not \"{has_events}\"). The variable is resolved and the node is shown if the value is truthy (non-empty, not \"false\", not \"0\", not \"no\"). Unresolved variables default to visible."
+        }
+      }
+    },
+    "Padding": {
+      "oneOf": [
+        {
+          "type": "number",
+          "minimum": 0,
+          "description": "Uniform padding on all edges."
+        },
+        {
+          "type": "array",
+          "items": { "type": "number", "minimum": 0 },
+          "minItems": 4,
+          "maxItems": 4,
+          "description": "Per-edge padding as [top, leading, bottom, trailing]."
+        }
+      ]
+    },
+    "FrameProperties": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Constraint-based frame sizing. All values are in points.",
+      "properties": {
+        "w": { "type": "number", "description": "Fixed width." },
+        "h": { "type": "number", "description": "Fixed height." },
+        "maxW": { "type": "number", "description": "Maximum width constraint." },
+        "maxH": { "type": "number", "description": "Maximum height constraint." },
+        "minW": { "type": "number", "description": "Minimum width constraint." },
+        "minH": { "type": "number", "description": "Minimum height constraint." }
+      }
+    },
+    "ViewAlignment": {
+      "type": "string",
+      "enum": ["leading", "trailing", "center", "top", "bottom", "topLeading", "topTrailing", "bottomLeading", "bottomTrailing"]
+    },
+    "TextWeight": {
+      "type": "string",
+      "enum": ["ultraLight", "thin", "light", "regular", "medium", "semibold", "bold", "heavy", "black"]
+    },
+    "TextStyle": {
+      "type": "string",
+      "enum": ["normal", "italic", "monospaced", "secondary"],
+      "description": "'secondary' renders in a muted/subdued color."
+    },
+    "TextAlignment": {
+      "type": "string",
+      "enum": ["leading", "center", "trailing"]
+    },
+    "IconStyle": {
+      "type": "string",
+      "enum": ["regular", "filled"]
+    },
+    "ButtonStyle": {
+      "type": "string",
+      "enum": ["default", "bordered", "borderless", "plain"]
+    },
+    "ProgressStyle": {
+      "type": "string",
+      "enum": ["bar", "ring"]
+    },
+    "ScrollAxis": {
+      "type": "string",
+      "enum": ["vertical", "horizontal"]
+    },
+    "FlexibleValue": {
+      "description": "A value that can be a string, number, or boolean. Numbers and booleans are coerced to strings internally. Use template variable references like \"{cpu_percent}\" for dynamic values.",
+      "oneOf": [
+        { "type": "string" },
+        { "type": "number" },
+        { "type": "boolean" }
+      ]
+    },
+    "ViewNode": {
+      "type": "object",
+      "required": ["type"],
+      "description": "A node in the declarative view tree. The 'type' field determines which properties are relevant. All nodes may include CommonNodeProperties fields alongside their type-specific fields.",
+      "allOf": [
+        { "$ref": "#/$defs/CommonNodeProperties" },
+        {
+          "oneOf": [
+            { "$ref": "#/$defs/VStackNode" },
+            { "$ref": "#/$defs/HStackNode" },
+            { "$ref": "#/$defs/ZStackNode" },
+            { "$ref": "#/$defs/ScrollNode" },
+            { "$ref": "#/$defs/SpacerNode" },
+            { "$ref": "#/$defs/GroupNode" },
+            { "$ref": "#/$defs/TextNode" },
+            { "$ref": "#/$defs/IconNode" },
+            { "$ref": "#/$defs/ImageNode" },
+            { "$ref": "#/$defs/DividerNode" },
+            { "$ref": "#/$defs/HeaderNode" },
+            { "$ref": "#/$defs/RectNode" },
+            { "$ref": "#/$defs/CircleNode" },
+            { "$ref": "#/$defs/CapsuleNode" },
+            { "$ref": "#/$defs/ActionNode" },
+            { "$ref": "#/$defs/CheckNode" },
+            { "$ref": "#/$defs/ToggleNode" },
+            { "$ref": "#/$defs/ButtonNode" },
+            { "$ref": "#/$defs/ForEachNode" },
+            { "$ref": "#/$defs/IfNode" },
+            { "$ref": "#/$defs/ProgressNode" },
+            { "$ref": "#/$defs/GaugeNode" },
+            { "$ref": "#/$defs/BadgeNode" },
+            { "$ref": "#/$defs/GridNode" }
+          ]
+        }
+      ]
+    },
+
+    "VStackNode": {
+      "type": "object",
+      "description": "Vertical stack layout. Children are arranged top-to-bottom.",
+      "properties": {
+        "type": { "const": "vstack" },
+        "spacing": { "type": "number", "description": "Space between children in points." },
+        "alignment": { "$ref": "#/$defs/ViewAlignment" },
+        "children": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/ViewNode" },
+          "default": []
+        }
+      },
+      "required": ["type"]
+    },
+    "HStackNode": {
+      "type": "object",
+      "description": "Horizontal stack layout. Children are arranged leading-to-trailing. Optionally clickable via 'command'.",
+      "properties": {
+        "type": { "const": "hstack" },
+        "spacing": { "type": "number", "description": "Space between children in points." },
+        "alignment": { "$ref": "#/$defs/ViewAlignment" },
+        "children": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/ViewNode" },
+          "default": []
+        },
+        "command": {
+          "type": "string",
+          "description": "Shell command executed when the hstack row is clicked. Useful for making entire rows interactive."
+        }
+      },
+      "required": ["type"]
+    },
+    "ZStackNode": {
+      "type": "object",
+      "description": "Layered stack. Children are drawn on top of each other (first child at the back).",
+      "properties": {
+        "type": { "const": "zstack" },
+        "alignment": { "$ref": "#/$defs/ViewAlignment" },
+        "children": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/ViewNode" },
+          "default": []
+        }
+      },
+      "required": ["type"]
+    },
+    "ScrollNode": {
+      "type": "object",
+      "description": "Scrollable container.",
+      "properties": {
+        "type": { "const": "scroll" },
+        "axis": { "$ref": "#/$defs/ScrollAxis", "default": "vertical" },
+        "children": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/ViewNode" },
+          "default": []
+        }
+      },
+      "required": ["type"]
+    },
+    "SpacerNode": {
+      "type": "object",
+      "description": "Flexible space that expands to fill available room in a stack.",
+      "properties": {
+        "type": { "const": "spacer" },
+        "minLength": { "type": "number", "description": "Minimum size of the spacer in points." }
+      },
+      "required": ["type"]
+    },
+    "GroupNode": {
+      "type": "object",
+      "description": "Non-layout grouping container. Children inherit the group's common properties but are not arranged by the group itself.",
+      "properties": {
+        "type": { "const": "group" },
+        "children": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/ViewNode" },
+          "default": []
+        }
+      },
+      "required": ["type"]
+    },
+
+    "TextNode": {
+      "type": "object",
+      "description": "Text label. Supports template variable substitution with {variable_name} syntax.",
+      "properties": {
+        "type": { "const": "text" },
+        "content": { "type": "string", "description": "Text content. Supports {variable} substitution." },
+        "size": { "type": "number", "description": "Font size in points." },
+        "weight": { "$ref": "#/$defs/TextWeight" },
+        "style": { "$ref": "#/$defs/TextStyle" },
+        "color": { "type": "string", "pattern": "^#?[0-9a-fA-F]{6}$", "description": "Text color (hex)." },
+        "align": { "$ref": "#/$defs/TextAlignment" },
+        "strikethrough": { "type": "boolean", "description": "Render text with a strikethrough line." }
+      },
+      "required": ["type", "content"]
+    },
+    "IconNode": {
+      "type": "object",
+      "description": "Icon from the bundled icon font. Accepts an icon name (e.g. \"bell\", \"bolt-filled\") resolved via the icon name map, or a literal Unicode glyph.",
+      "properties": {
+        "type": { "const": "icon" },
+        "name": { "type": "string", "description": "Icon name from the bundled font (e.g. \"bell\", \"bolt-filled\") or a literal Unicode glyph. The '-filled' suffix selects the filled variant." },
+        "size": { "type": "number", "description": "Icon size in points." },
+        "color": { "type": "string", "pattern": "^#?[0-9a-fA-F]{6}$", "description": "Icon color (hex)." },
+        "style": { "$ref": "#/$defs/IconStyle" }
+      },
+      "required": ["type", "name"]
+    },
+    "ImageNode": {
+      "type": "object",
+      "description": "Remote image loaded from a URL.",
+      "properties": {
+        "type": { "const": "image" },
+        "url": { "type": "string", "format": "uri", "description": "URL of the image to load." },
+        "width": { "type": "number", "description": "Display width in points." },
+        "height": { "type": "number", "description": "Display height in points." },
+        "cornerRadius": { "type": "number", "description": "Corner radius for the image." }
+      },
+      "required": ["type", "url"]
+    },
+    "DividerNode": {
+      "type": "object",
+      "description": "A horizontal divider line.",
+      "properties": {
+        "type": { "const": "divider" }
+      },
+      "required": ["type"]
+    },
+    "HeaderNode": {
+      "type": "object",
+      "description": "Section header text, rendered bold and slightly larger.",
+      "properties": {
+        "type": { "const": "header" },
+        "content": { "type": "string", "description": "Header text content." }
+      },
+      "required": ["type", "content"]
+    },
+
+    "RectNode": {
+      "type": "object",
+      "description": "Rectangle shape. Useful for color bars, indicators, and decorative elements.",
+      "properties": {
+        "type": { "const": "rect" },
+        "width": { "type": "number" },
+        "height": { "type": "number" },
+        "color": { "type": "string", "pattern": "^#?[0-9a-fA-F]{6}$", "description": "Fill color." },
+        "cornerRadius": { "type": "number" },
+        "strokeColor": { "type": "string", "pattern": "^#?[0-9a-fA-F]{6}$" },
+        "strokeWidth": { "type": "number" }
+      },
+      "required": ["type"]
+    },
+    "CircleNode": {
+      "type": "object",
+      "description": "Circle shape.",
+      "properties": {
+        "type": { "const": "circle" },
+        "size": { "type": "number", "description": "Diameter of the circle in points." },
+        "color": { "type": "string", "pattern": "^#?[0-9a-fA-F]{6}$" },
+        "strokeColor": { "type": "string", "pattern": "^#?[0-9a-fA-F]{6}$" },
+        "strokeWidth": { "type": "number" }
+      },
+      "required": ["type"]
+    },
+    "CapsuleNode": {
+      "type": "object",
+      "description": "Capsule (pill) shape — a rectangle with fully rounded ends.",
+      "properties": {
+        "type": { "const": "capsule" },
+        "width": { "type": "number" },
+        "height": { "type": "number" },
+        "color": { "type": "string", "pattern": "^#?[0-9a-fA-F]{6}$" }
+      },
+      "required": ["type"]
+    },
+
+    "ActionNode": {
+      "type": "object",
+      "description": "Interactive row with an optional icon and label. Executes a shell command on click.",
+      "properties": {
+        "type": { "const": "action" },
+        "label": { "type": "string", "description": "Action text. Supports {variable} substitution." },
+        "icon": { "type": "string", "description": "Icon character for the action." },
+        "command": { "type": "string", "description": "Shell command to execute on click." },
+        "iconFont": { "type": "string", "description": "Override icon font name for this action's icon." }
+      },
+      "required": ["type"]
+    },
+    "CheckNode": {
+      "type": "object",
+      "description": "Checkbox item. Renders a toggleable check mark with a label. Executes different commands for check/uncheck.",
+      "properties": {
+        "type": { "const": "check" },
+        "label": { "type": "string", "description": "Checkbox label. Supports {variable} substitution." },
+        "checked": {
+          "$ref": "#/$defs/FlexibleValue",
+          "description": "Current checked state. Accepts boolean, number (0/1), or string (\"true\"/\"false\" or a template variable)."
+        },
+        "command": { "type": "string", "description": "Shell command executed when the item is checked." },
+        "uncheckedCommand": { "type": "string", "description": "Shell command executed when the item is unchecked. If omitted, 'command' is used for both states." }
+      },
+      "required": ["type"]
+    },
+    "ToggleNode": {
+      "type": "object",
+      "description": "Toggle switch with a label.",
+      "properties": {
+        "type": { "const": "toggle" },
+        "label": { "type": "string" },
+        "on": {
+          "$ref": "#/$defs/FlexibleValue",
+          "description": "Current toggle state. Accepts boolean, number, or string."
+        },
+        "command": { "type": "string", "description": "Shell command executed when toggled." }
+      },
+      "required": ["type"]
+    },
+    "ButtonNode": {
+      "type": "object",
+      "description": "Styled button.",
+      "properties": {
+        "type": { "const": "button" },
+        "label": { "type": "string" },
+        "icon": { "type": "string" },
+        "command": { "type": "string", "description": "Shell command executed on click." },
+        "style": { "$ref": "#/$defs/ButtonStyle" }
+      },
+      "required": ["type"]
+    },
+
+    "ForEachNode": {
+      "type": "object",
+      "description": "Iterates over a named data collection and renders 'child' for each item. The collection must be defined in the top-level 'data' object. Within the child, template variables from the current data item are available (e.g. {title}, {id}).",
+      "properties": {
+        "type": { "const": "foreach" },
+        "items": { "type": "string", "description": "Key name from the top-level 'data' object to iterate over." },
+        "child": { "$ref": "#/$defs/ViewNode", "description": "View node template rendered for each item in the collection." }
+      },
+      "required": ["type", "items", "child"]
+    },
+    "IfNode": {
+      "type": "object",
+      "description": "Conditional rendering. Shows 'then' if the condition is truthy, otherwise shows 'else'. A value is truthy if it is non-empty, not \"false\", not \"0\", and not \"no\". Unresolved variables are falsy.",
+      "properties": {
+        "type": { "const": "if" },
+        "condition": { "type": "string", "description": "Bare variable name (without braces) to evaluate as a boolean. For example, \"has_events\" (not \"{has_events}\"). The variable is resolved and tested for truthiness: non-empty, not \"false\", not \"0\", not \"no\" are truthy. Unresolved variables are falsy." },
+        "then": { "$ref": "#/$defs/ViewNode", "description": "View node shown when condition is truthy." },
+        "else": { "$ref": "#/$defs/ViewNode", "description": "View node shown when condition is falsy (optional)." }
+      },
+      "required": ["type", "condition", "then"]
+    },
+
+    "ProgressNode": {
+      "type": "object",
+      "description": "Progress bar or ring indicator.",
+      "properties": {
+        "type": { "const": "progress" },
+        "value": {
+          "$ref": "#/$defs/FlexibleValue",
+          "description": "Progress value (0-1 or 0-100). Accepts template variables."
+        },
+        "color": { "type": "string", "pattern": "^#?[0-9a-fA-F]{6}$", "description": "Progress fill color." },
+        "trackColor": { "type": "string", "pattern": "^#?[0-9a-fA-F]{6}$", "description": "Track (background) color." },
+        "style": { "$ref": "#/$defs/ProgressStyle" }
+      },
+      "required": ["type", "value"]
+    },
+    "GaugeNode": {
+      "type": "object",
+      "description": "Gauge/meter visualization.",
+      "properties": {
+        "type": { "const": "gauge" },
+        "value": {
+          "$ref": "#/$defs/FlexibleValue",
+          "description": "Current gauge value. Accepts template variables."
+        },
+        "min": { "type": "number", "default": 0 },
+        "max": { "type": "number", "default": 1 },
+        "label": { "type": "string" },
+        "color": { "type": "string", "pattern": "^#?[0-9a-fA-F]{6}$" }
+      },
+      "required": ["type", "value"]
+    },
+    "BadgeNode": {
+      "type": "object",
+      "description": "Rounded pill badge with text content and background color.",
+      "properties": {
+        "type": { "const": "badge" },
+        "content": { "type": "string", "description": "Badge text. Supports {variable} substitution." },
+        "color": { "type": "string", "pattern": "^#?[0-9a-fA-F]{6}$", "description": "Badge background color." },
+        "textColor": { "type": "string", "pattern": "^#?[0-9a-fA-F]{6}$", "description": "Badge text color." }
+      },
+      "required": ["type", "content"]
+    },
+    "GridNode": {
+      "type": "object",
+      "description": "Grid layout with a fixed number of columns.",
+      "properties": {
+        "type": { "const": "grid" },
+        "columns": { "type": "integer", "minimum": 1, "default": 2, "description": "Number of columns." },
+        "spacing": { "type": "number", "default": 8, "description": "Space between grid items." },
+        "children": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/ViewNode" },
+          "default": []
+        }
+      },
+      "required": ["type"]
+    }
+  }
+}

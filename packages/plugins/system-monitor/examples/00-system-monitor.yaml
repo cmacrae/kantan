@@ -33,12 +33,20 @@ config:
         thermal_critical: "#ff3b30"
     process_count: 5
     show_cores: false
+    # icons:
+    #   cpu: cpu
+    #   memory: script
+    #   disk: device-floppy
+    #   thermal_nominal: thermometer
+    #   thermal_fair: thermometer
+    #   thermal_serious: thermometer
+    #   thermal_critical: thermometer
+    #   uptime: clock
+    #   load: graph
+    #   activity_monitor: dashboard
 interaction:
   hover:
     type: tooltip
     content: "CPU {cpu} | Mem {mem} | {thermal}"
   click:
     type: menu
-    items:
-      - header: "System Monitor"
-      - dynamic: true

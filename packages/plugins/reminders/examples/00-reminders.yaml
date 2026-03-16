@@ -35,5 +35,3 @@ interaction:
     content: "{count} reminders"
   click:
     type: menu
-    items:
-      - dynamic: true

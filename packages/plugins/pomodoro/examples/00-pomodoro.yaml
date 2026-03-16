@@ -21,6 +21,3 @@ interaction:
     content: "{mode} — {remaining}"
   click:
     type: menu
-    items:
-      - header: "Pomodoro"
-      - dynamic: true

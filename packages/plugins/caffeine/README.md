@@ -2,6 +2,10 @@
 
 A shell-based caffeine plugin for [kantan](https://github.com/cmacrae/kantan) that prevents display sleep using the macOS `caffeinate` command.
 
+## Installation
+
+This plugin is bundled with kantan and requires no separate installation. It is included in both the [Nix flake](https://github.com/cmacrae/kantan) default package and the Homebrew `kantan` formula. The `kantan-without-plugins` variant (available via both Nix and Homebrew) does not include this plugin.
+
 ## Features
 
 - **Display sleep prevention** — Runs `caffeinate -d` to keep the display awake
@@ -24,7 +28,7 @@ Copy the example config into your kantan `modules.d/` directory:
 name: caffeine
 type: command
 placement: right
-icon: "\uf0f4"
+icon: "coffee"
 style:
   light:
     fg: "#e5c890"
@@ -58,7 +62,7 @@ interaction:
 
 The plugin is a simple shell script that wraps the macOS `caffeinate` command.
 
-**Default mode** (no arguments) --- Checks whether a background `caffeinate` process is alive by reading a PID file at `~/.cache/kantan/caffeine.pid`. Outputs JSON with the current `active` state and `{status}` template variable. When inactive, kantan renders the module icon at reduced opacity.
+**Default mode** (no arguments) --- Checks whether a background `caffeinate` process is alive by reading a PID file at `$XDG_CACHE_HOME/kantan/caffeine.pid` (falls back to `~/.cache/kantan/caffeine.pid` when `XDG_CACHE_HOME` is unset). Outputs JSON with the current `active` state and `{status}` template variable. When inactive, kantan renders the module icon at reduced opacity.
 
 **Toggle mode** (`--toggle`) --- Flips the current state. If active, kills the `caffeinate` process and removes the PID file. If inactive, spawns `caffeinate -d` in the background and writes its PID to the state file. When `KANTAN_PID` is available, the process is started with `caffeinate -d -w $KANTAN_PID` so it automatically exits if kantan terminates.
 

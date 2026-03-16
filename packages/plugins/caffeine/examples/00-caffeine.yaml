@@ -1,7 +1,7 @@
 name: caffeine
 type: command
 placement: right
-icon: "\uf0f4"
+icon: "coffee"
 style:
   light:
     fg: "#e5c890"

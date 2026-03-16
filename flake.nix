@@ -20,6 +20,10 @@
       go = import ./nix/go.nix { inherit pkgs; };
       swift = import ./nix/swift.nix { inherit pkgs; };
       shell = import ./nix/shell.nix { inherit pkgs; };
+      docs = import ./nix/docs.nix {
+        inherit pkgs;
+        pluginsDir = ./packages/plugins;
+      };
 
       plugins = import ./nix/plugins.nix {
         inherit pkgs;
@@ -129,6 +133,7 @@
       packages.${system} = {
         inherit kantan;
         default = kantan;
+        docs = docs.package;
         without-plugins = kantanWithPlugins { plugins = [ ]; };
         release = release.full;
         release-without-plugins = release.core;
@@ -136,7 +141,10 @@
         homebrew-formula-without-plugins = homebrew.kantan-without-plugins;
       };
 
-      apps.${system}.generate-homebrew-formulae = homebrew.generateApp;
+      apps.${system} = {
+        docs = docs.app;
+        generate-homebrew-formulae = homebrew.generateApp;
+      };
 
       darwinModules.default = import ./nix/module/darwin.nix kantan;
       homeManagerModules.default = import ./nix/module/home-manager.nix kantan;

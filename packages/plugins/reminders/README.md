@@ -3,6 +3,10 @@
 A native Apple Reminders plugin for [kantan](https://github.com/cmacrae/kantan) that tracks reminders in real time using EventKit,
 with complete/uncomplete support directly from the bar menu.
 
+## Installation
+
+This plugin is bundled with kantan and requires no separate installation. It is included in both the [Nix flake](https://github.com/cmacrae/kantan) default package and the Homebrew `kantan` formula. The `kantan-without-plugins` variant (available via both Nix and Homebrew) does not include this plugin.
+
 ## Features
 
 - **Event-driven updates** — Responds instantly to EventKit changes via a background watcher process
@@ -13,6 +17,8 @@ with complete/uncomplete support directly from the bar menu.
 - **Completed retention** — Show recently completed reminders for a configurable duration
 - **Complete/Uncomplete** — Toggle reminder completion directly from the bar menu
 - **Format string** — Customise the bar display with template variables
+- **Auto-hide** — Module hides automatically when there are no incomplete reminders
+- **Dynamic bar icon** — Bar icon changes to match the displayed reminder's list icon
 - **Permissions** — Automatically requests Reminders access on first run
 
 ### Template Variables
@@ -52,7 +58,6 @@ style:
 config:
   command: kantan-plugin-reminders
   output: json
-  interval: 0
   watch: kantan-plugin-reminders --watch
   settings:
     format: "{title}"
@@ -70,8 +75,6 @@ interaction:
     content: "{count} reminders"
   click:
     type: menu
-    items:
-      - dynamic: true
 ```
 
 ### Plugin Settings
@@ -82,6 +85,15 @@ Settings are passed to the plugin via the `config.settings` block. All settings 
 |----------|-----------|------------------------------------------------------------------------|
 | `format` | `{title}` | Format string for the bar display value                                |
 | `lists`  | `[]`      | Reminders lists to monitor (see [List Settings](#list-settings) below) |
+| `icons`  | —         | Icon overrides (see [Icon Settings](#icon-settings) below)             |
+
+#### Icon Settings
+
+The optional `icons` block lets you override the icons used in the plugin's menu view:
+
+| Setting  | Default      | Description                                                                  |
+|----------|--------------|------------------------------------------------------------------------------|
+| `action` | `list-check` | Icon for the "Reminders" action at the bottom of the menu (icon name or glyph) |
 
 #### List Settings
 
@@ -91,20 +103,29 @@ Each entry in the `lists` array configures a Reminders list to monitor:
 |----------------------|---------|----------------------------------------------------------|
 | `name`               | —       | **Required.** Name of the Reminders list                 |
 | `icon`               | —       | Icon glyph to display when this list's reminder is shown |
-| `lookahead`          | `10m`   | Time window for upcoming reminders (e.g. `10m`, `1h`)    |
+| `lookahead`          | `10m`   | Time window for upcoming reminders (e.g. `10m`, `1h`, `2d`) |
 | `overdue`            | `true`  | Include reminders past their due date                    |
 | `undated`            | `false` | Include reminders with no due date                       |
-| `completedRetention` | `0`     | How long to show completed reminders (e.g. `1h`, `30m`)  |
+| `completedRetention` | `0`     | How long to show completed reminders (e.g. `30m`, `1h`, `2d`) |
 | `maxChars`           | `30`    | Maximum characters for reminder titles before truncation |
 
 ### Module Options
 
 | Field                       | Value                             | Description                                                    |
 |-----------------------------|-----------------------------------|----------------------------------------------------------------|
-| `config.interval`           | `0`                               | When set to `0`, updates are driven by the watcher process     |
 | `config.watch`              | `kantan-plugin-reminders --watch` | Background process that triggers refreshes on EventKit changes |
 | `interaction.hover.content` | —                                 | Template string for tooltip (see variables above)              |
-| `interaction.click`         | —                                 | `menu` with `dynamic: true` for live check-item list           |
+| `interaction.click`         | —                                 | `menu` type renders the plugin's view tree as a native menu    |
+
+### Menu View
+
+The dynamic menu adapts to the current state:
+
+- **Multiple items** — Grouped check-items organised by list (with list headers when multiple lists are configured). Each item can be completed or uncompleted inline
+- **Single item** — A simple "Complete" action button instead of a check-item list
+- **No items** — Shows "No reminders" text
+
+Every menu view includes a persistent "Reminders" action at the bottom that launches Apple Reminders (using the `icons.action` icon).
 
 ### Format Examples
 

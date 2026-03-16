@@ -1,0 +1,17 @@
+[book]
+title = "kantan"
+authors = ["Calum MacRae"]
+description = "A beautifully simple status bar for macOS"
+language = "en"
+src = "src"
+
+[output.html]
+git-repository-url = "https://github.com/cmacrae/kantan"
+git-repository-icon = "fab-github"
+no-section-label = true
+
+[output.html.search]
+enable = true
+limit-results = 30
+use-boolean-and = true
+boost-title = 2

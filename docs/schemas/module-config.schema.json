@@ -1,0 +1,533 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/cmacrae/kantan/docs/schemas/module-config.schema.json",
+  "title": "Kantan Module Configuration",
+  "description": "JSON schema for a kantan module YAML configuration entry. Each module is defined either inline in config.yaml under 'modules:' or as a standalone file in modules.d/. This schema describes the structure of a single module definition.\n\nEnvironment variables available to command-type plugins:\n  - KANTAN_SETTINGS: JSON string of the module's 'settings:' block (plugin-defined structure)\n  - KANTAN_APPEARANCE: \"dark\" or \"light\" (current system appearance)\n  - KANTAN_PID: Kantan's process ID (for IPC via 'kantan trigger')\n  - KANTAN_MODULE_NAME: The module's 'name' field from config (only available to 'watch' processes)",
+  "type": "object",
+  "required": ["name", "type", "placement"],
+  "additionalProperties": false,
+  "properties": {
+    "name": {
+      "type": "string",
+      "description": "Unique identifier for this module. Used for CLI triggers ('kantan trigger <name> refresh') and display purposes."
+    },
+    "type": {
+      "type": "string",
+      "enum": ["text", "clock", "power", "command", "workspace", "volume", "wifi", "bluetooth", "icon", "drawer", "focus"],
+      "description": "Module type. Determines which configuration factory is used and what 'config:' fields are available. Plugin authors use 'command' type."
+    },
+    "placement": {
+      "$ref": "#/$defs/PlacementSpec",
+      "description": "Where this module appears in the bar. Supports or-wise syntax for notch-aware fallback."
+    },
+    "icon": {
+      "type": "string",
+      "description": "Static icon displayed before the module's text. Accepts an icon name from the bundled font (e.g. \"brain\", \"bolt-filled\") which is resolved via the icon name map, or a literal Unicode glyph. The '-filled' suffix selects the filled variant. Can be overridden at runtime by the plugin's JSON output 'icon' field."
+    },
+    "fonts": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Per-module font overrides. Format for each: \"FontName:Size\" or \"FontName:Weight:Size\". Prefix with \"system:\" for system-installed fonts (default is bundled). Example: \"system:Helvetica Neue:13\".",
+      "properties": {
+        "text": {
+          "type": "string",
+          "description": "Text font override. Example: \"system:SF Pro:Bold:14\"."
+        },
+        "icon": {
+          "type": "string",
+          "description": "Icon font override. Example: \"system:FontAwesome:Regular:15\"."
+        }
+      }
+    },
+    "style": {
+      "$ref": "#/$defs/StyleConfig",
+      "description": "Per-module style overrides for light and dark mode. Overrides the global style from config.yaml."
+    },
+    "interaction": {
+      "$ref": "#/$defs/InteractionConfig",
+      "description": "Hover and click behavior for this module."
+    },
+    "mask": {
+      "$ref": "#/$defs/MaskConfig",
+      "description": "Position this module over a native macOS menu bar item, effectively replacing it visually. The native item remains clickable underneath (passthrough)."
+    },
+    "displays": {
+      "description": "Control which displays this module appears on. Accepts 'main', 'all', or an array of display names. When omitted, the module inherits the global 'displays' setting (which defaults to 'main').",
+      "oneOf": [
+        { "type": "string", "enum": ["main", "all"] },
+        { "type": "array", "items": { "type": "string" } }
+      ]
+    },
+    "config": {
+      "description": "Module-type-specific configuration. The structure depends on the 'type' field. For 'command' type (used by plugins), see the CommandConfig definition.",
+      "oneOf": [
+        { "$ref": "#/$defs/CommandConfig" },
+        { "$ref": "#/$defs/ClockConfig" },
+        { "$ref": "#/$defs/PowerConfig" },
+        { "$ref": "#/$defs/VolumeConfig" },
+        { "$ref": "#/$defs/WiFiConfig" },
+        { "$ref": "#/$defs/BluetoothConfig" },
+        { "$ref": "#/$defs/WorkspaceConfig" },
+        { "$ref": "#/$defs/DrawerConfig" },
+        { "$ref": "#/$defs/TextConfig" },
+        { "$ref": "#/$defs/IconConfig" },
+        { "$ref": "#/$defs/FocusConfig" }
+      ]
+    }
+  },
+  "$defs": {
+    "PlacementSpec": {
+      "type": "string",
+      "description": "Placement specification. Single values position the module on a specific side. Or-wise syntax (e.g. \"right|notchright\") selects placement based on whether the display has a notch.\n\nOn a notched display, the four placements correspond to:\n  |← left →|← notchleft|[NOTCH]|notchright →|← right →|\n\nBehavior per placement:\n  - left: left side, grows rightward. Always visible.\n  - right: right side, grows leftward. Always visible.\n  - notchleft: adjacent to notch in left ear, grows leftward. Hidden on non-notch displays.\n  - notchright: adjacent to notch in right ear, grows rightward. Hidden on non-notch displays.\n  - right|notchright: notchright on notched displays, right on others.\n  - left|notchleft: notchleft on notched displays, left on others.",
+      "pattern": "^(left|right|notchleft|notchright)(\\|(left|right|notchleft|notchright))?$",
+      "examples": ["left", "right", "notchleft", "notchright", "right|notchright", "left|notchleft"]
+    },
+
+    "StyleConfig": {
+      "description": "Light/dark mode style configuration. Can be specified as nested light/dark objects, or as a flat StyleModeConfig that applies to both modes.",
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "description": "Explicit light/dark mode styles.",
+          "properties": {
+            "light": { "$ref": "#/$defs/StyleModeConfig" },
+            "dark": { "$ref": "#/$defs/StyleModeConfig" }
+          }
+        },
+        {
+          "$ref": "#/$defs/StyleModeConfig",
+          "description": "Flat style applied to both light and dark modes."
+        }
+      ]
+    },
+    "StyleModeConfig": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Per-appearance-mode style. Colors are hex strings (e.g. \"#FF3B30\" or \"FF3B30\").",
+      "properties": {
+        "fg": {
+          "type": "string",
+          "pattern": "^#?[0-9a-fA-F]{6}$",
+          "description": "Foreground color — applies to both icon and text unless overridden by 'text' or 'icon'."
+        },
+        "bg": {
+          "type": "string",
+          "pattern": "^#?[0-9a-fA-F]{6}$",
+          "description": "Background color for the module's shape."
+        },
+        "text": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "fg": { "type": "string", "pattern": "^#?[0-9a-fA-F]{6}$", "description": "Text-specific foreground color." }
+          }
+        },
+        "icon": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "fg": { "type": "string", "pattern": "^#?[0-9a-fA-F]{6}$", "description": "Icon-specific foreground color." }
+          }
+        },
+        "shape": {
+          "type": "string",
+          "enum": ["pill", "box", "underline", "overline"],
+          "description": "Module background shape. 'pill' = fully rounded, 'box' = square corners, 'underline'/'overline' = bottom/top border only."
+        }
+      }
+    },
+
+    "InteractionConfig": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Interaction configuration for hover and click behavior.",
+      "properties": {
+        "hover": {
+          "$ref": "#/$defs/HoverConfig"
+        },
+        "click": {
+          "$ref": "#/$defs/ClickConfig"
+        }
+      }
+    },
+    "HoverConfig": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Hover/tooltip interaction. Shows content when the user hovers over the module.",
+      "properties": {
+        "type": {
+          "type": "string",
+          "enum": ["tooltip"],
+          "default": "tooltip",
+          "description": "Hover type. 'tooltip' shows a floating panel near the module. Defaults to 'tooltip' when omitted."
+        },
+        "content": {
+          "type": "string",
+          "description": "Text content for the tooltip. Supports {variable} substitution from the module's template variables."
+        },
+        "view": {
+          "description": "View DSL tree for rich tooltip content. See plugin-output.schema.json for the ViewNode schema. When 'view' is present, it takes priority over 'content'.",
+          "type": "object"
+        }
+      }
+    },
+    "ClickConfig": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Click interaction. Defines what happens when the user clicks the module.",
+      "properties": {
+        "type": {
+          "type": "string",
+          "enum": ["menu", "popup", "toggle", "complete", "passthrough", "drawer"],
+          "default": "menu",
+          "description": "'menu' shows a dropdown menu (native or themed). 'popup' shows a themed SwiftUI panel. 'toggle' runs the module's toggle command and triggers a refresh. 'complete' runs the module's toggle command and triggers a refresh (identical to 'toggle'). 'passthrough' and 'drawer' are set internally for masked and drawer modules respectively. Defaults to 'menu' when omitted."
+        },
+        "view": {
+          "description": "View DSL tree for menu/popup content. See plugin-output.schema.json for the ViewNode schema. When omitted, the module's runtime view tree (from plugin JSON output) is used.",
+          "type": "object"
+        }
+      }
+    },
+
+    "MaskConfig": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Position this module over a native macOS menu bar item. The module visually replaces the native item while allowing click-through to the original.",
+      "properties": {
+        "index": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Zero-based index of the native menu bar item (from the right) to mask."
+        },
+        "name": {
+          "type": "string",
+          "description": "Name of the native menu bar item to mask. Resolved via system plist lookup or alias. Known values: Clock, Battery, WiFi, Bluetooth, Volume, Focus, ControlCenter, UserSwitcher, NowPlaying, Display, ScreenMirroring, Camera, Microphone. Aliases: Volume→Sound, Focus→FocusModes, ControlCenter→BentoBox-0, Camera/Microphone→AudioVideoModule. Raw plist identifiers (e.g. 'Sound', 'FocusModes') also work directly.",
+          "examples": ["Clock", "Battery", "WiFi", "Bluetooth", "Volume", "Focus", "FocusModes", "ControlCenter", "UserSwitcher", "NowPlaying", "Display", "ScreenMirroring", "Camera", "Microphone"]
+        }
+      },
+      "description": "Specify either 'index' or 'name', not both."
+    },
+
+    "PowerStateStyle": {
+      "description": "Power state style override. Accepts a hex color string shorthand (applied as fg) or an object with fg/bg/icon.fg/text.fg.",
+      "oneOf": [
+        {
+          "type": "string",
+          "pattern": "^#?[0-9a-fA-F]{6}$",
+          "description": "Hex color applied as the foreground color."
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "fg": { "type": "string", "pattern": "^#?[0-9a-fA-F]{6}$", "description": "Foreground color." },
+            "bg": { "type": "string", "pattern": "^#?[0-9a-fA-F]{6}$", "description": "Background color." },
+            "icon": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "fg": { "type": "string", "pattern": "^#?[0-9a-fA-F]{6}$", "description": "Icon-specific foreground color." }
+              }
+            },
+            "text": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "fg": { "type": "string", "pattern": "^#?[0-9a-fA-F]{6}$", "description": "Text-specific foreground color." }
+              }
+            }
+          }
+        }
+      ]
+    },
+
+    "CommandConfig": {
+      "type": "object",
+      "title": "Command Module Config",
+      "description": "Configuration for 'command' type modules (used by plugins). The command is executed periodically or on-demand, and its stdout is parsed as the module's display value.",
+      "properties": {
+        "command": {
+          "type": "string",
+          "description": "Shell command or executable path to run. Relative paths (starting with ./ or ../) are resolved against the config directory. The command receives KANTAN_SETTINGS, KANTAN_APPEARANCE, and KANTAN_PID as environment variables."
+        },
+        "output": {
+          "type": "string",
+          "enum": ["text", "json"],
+          "default": "text",
+          "description": "'text' treats stdout as the display value. 'json' parses stdout as a JSON object (see plugin-output.schema.json)."
+        },
+        "interval": {
+          "type": "number",
+          "minimum": 0,
+          "default": 1,
+          "description": "Polling interval in seconds. Set to 0 for event-driven modules (used with 'watch'). The command is re-executed every 'interval' seconds."
+        },
+        "timeout": {
+          "type": "number",
+          "minimum": 0,
+          "default": 10,
+          "description": "Maximum execution time in seconds before the command is terminated."
+        },
+        "watch": {
+          "type": "string",
+          "description": "Long-lived watcher process command. Launched as a background process that runs continuously. The watcher receives KANTAN_MODULE_NAME, KANTAN_SETTINGS, KANTAN_APPEARANCE, and KANTAN_PID env vars (KANTAN_MODULE_NAME is only available to the watch process, not the main command). Its stdin is piped — EOF signals shutdown. To trigger an update, the watcher executes: kantan trigger <module_name> refresh. Typically used with interval: 0 for purely event-driven modules."
+        },
+        "toggle": {
+          "type": "string",
+          "description": "Shell command executed when the module is toggled (click interaction type: 'toggle'). Receives the same environment variables as 'command'."
+        },
+        "settings": {
+          "type": "object",
+          "description": "Plugin-specific settings. This object is serialized to JSON and passed to the plugin via the KANTAN_SETTINGS environment variable. The structure is entirely plugin-defined — kantan passes it through opaquely.",
+          "additionalProperties": true
+        },
+        "launcher": {
+          "type": "object",
+          "additionalProperties": false,
+          "description": "Override the shell used to execute commands. Defaults to /bin/sh -c.",
+          "properties": {
+            "path": {
+              "type": "string",
+              "default": "/bin/sh",
+              "description": "Path to the shell or interpreter."
+            },
+            "args": {
+              "type": "array",
+              "items": { "type": "string" },
+              "default": ["-c"],
+              "description": "Arguments passed before the command string."
+            }
+          }
+        }
+      },
+      "required": ["command"]
+    },
+
+    "ClockConfig": {
+      "type": "object",
+      "title": "Clock Module Config",
+      "description": "Configuration for the built-in clock module.",
+      "required": ["format"],
+      "properties": {
+        "format": {
+          "type": "string",
+          "description": "Date/time format string using Unicode Date Format Patterns (e.g. \"HH:mm\", \"EEE d MMM HH:mm\")."
+        },
+        "timezone": {
+          "type": "string",
+          "description": "IANA timezone identifier (e.g. \"America/New_York\", \"Europe/London\"). Defaults to system timezone when omitted."
+        }
+      }
+    },
+    "PowerConfig": {
+      "type": "object",
+      "title": "Power/Battery Module Config",
+      "description": "Configuration for the built-in battery module. Uses nested 'icons' block. Supports per-state style overrides via 'style' sub-block.",
+      "properties": {
+        "showLevel": {
+          "type": "boolean",
+          "default": false,
+          "description": "Show the battery percentage text."
+        },
+        "lowThreshold": {
+          "type": "integer",
+          "default": 20,
+          "description": "Battery percentage below which the 'low' style is applied."
+        },
+        "icons": {
+          "type": "object",
+          "description": "Icon configuration for power states.",
+          "properties": {
+            "charging": {
+              "type": "string",
+              "description": "Icon shown when charging. Defaults to 'bolt-filled'."
+            },
+            "plugged": {
+              "type": "string",
+              "description": "Icon shown when plugged in but fully charged. Defaults to 'plug'."
+            },
+            "level": {
+              "type": "array",
+              "items": { "type": "string" },
+              "description": "Icons for battery levels (empty to full). The appropriate icon is selected based on current charge level. Defaults to tabler-icons battery icons."
+            }
+          }
+        },
+        "style": {
+          "type": "object",
+          "description": "Per-state style overrides. Each can be a hex color string (applied as fg) or an object with fg/bg/icon.fg/text.fg.",
+          "properties": {
+            "charging": { "$ref": "#/$defs/PowerStateStyle", "description": "Style when charging." },
+            "plugged": { "$ref": "#/$defs/PowerStateStyle", "description": "Style when plugged in and fully charged." },
+            "lowPowerMode": { "$ref": "#/$defs/PowerStateStyle", "description": "Style when Low Power Mode is active." },
+            "low": { "$ref": "#/$defs/PowerStateStyle", "description": "Style when battery is below lowThreshold." }
+          }
+        }
+      }
+    },
+    "VolumeConfig": {
+      "type": "object",
+      "title": "Volume Module Config",
+      "description": "Configuration for the built-in volume module. Icon-only display (no text). Uses nested 'icons' block.",
+      "properties": {
+        "icons": {
+          "type": "object",
+          "description": "Icon configuration for volume states.",
+          "properties": {
+            "level": {
+              "type": "array",
+              "items": { "type": "string" },
+              "description": "Icons for volume levels (silent to loud). Selected based on current volume. Defaults to tabler-icons volume icons."
+            },
+            "muted": {
+              "type": "string",
+              "description": "Icon shown when muted. Defaults to 'volume-off'."
+            },
+            "device": {
+              "type": "object",
+              "additionalProperties": { "type": "string" },
+              "description": "Device-specific icon overrides. Keys are matched case-insensitively as substrings of the CoreAudio device name. Example: {\"AirPods\": \"device-airpods\"}. Set to {} to disable defaults."
+            }
+          }
+        }
+      }
+    },
+    "WiFiConfig": {
+      "type": "object",
+      "title": "WiFi Module Config",
+      "description": "Configuration for the built-in WiFi module. Icon-only display (no text). Uses nested 'icons' block.",
+      "properties": {
+        "icons": {
+          "type": "object",
+          "description": "Icon configuration for WiFi states.",
+          "properties": {
+            "strength": {
+              "type": "array",
+              "items": { "type": "string" },
+              "description": "Icons for signal strength levels (weak to strong). Defaults to tabler-icons wifi icons."
+            },
+            "disconnected": {
+              "type": "string",
+              "description": "Icon shown when disconnected. Defaults to 'wifi-off'."
+            },
+            "ssid": {
+              "type": "object",
+              "additionalProperties": { "type": "string" },
+              "description": "SSID-specific icon overrides. When the current SSID matches a key, that icon is used instead of the signal-strength icon. The special key 'iPhone' is also matched as a fallback for SSIDs ending with 'iPhone' (hotspot detection)."
+            }
+          }
+        }
+      }
+    },
+    "BluetoothConfig": {
+      "type": "object",
+      "title": "Bluetooth Module Config",
+      "description": "Configuration for the built-in Bluetooth module. Icon-only display (no text). Shows active/inactive state based on whether devices are connected.",
+      "properties": {
+        "icon": {
+          "type": "string",
+          "description": "Icon shown when Bluetooth is enabled. Defaults to 'bluetooth'."
+        },
+        "disabledIcon": {
+          "type": "string",
+          "description": "Icon shown when Bluetooth is disabled. Defaults to 'bluetooth-off'."
+        }
+      }
+    },
+    "WorkspaceConfig": {
+      "type": "object",
+      "title": "Workspace Module Config",
+      "description": "Configuration for the built-in workspace/spaces module.",
+      "properties": {
+        "type": {
+          "type": "string",
+          "enum": ["native", "aerospace"],
+          "default": "native",
+          "description": "Workspace manager type. 'native' uses macOS native spaces (event-driven via NSWorkspace notifications). 'aerospace' uses the Aerospace tiling window manager (trigger-driven via CLI)."
+        },
+        "icons": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Ordered list of icons for workspaces. Index 0 maps to space 1, etc. Workspaces beyond the array length fall back to the module-level 'icon' field."
+        },
+        "aerospacePath": {
+          "type": "string",
+          "description": "Path to the aerospace binary. Only used when type is 'aerospace'."
+        },
+        "rainbow": {
+          "type": "object",
+          "description": "Per-workspace color cycling.",
+          "properties": {
+            "enabled": { "type": "boolean", "default": false },
+            "random": { "type": "boolean", "default": true, "description": "When true, colours are assigned in a deterministic random order avoiding adjacent repeats. When false, colours map index-wise." },
+            "colors": { "type": "array", "items": { "type": "string" }, "description": "Array of hex color strings to cycle through." }
+          }
+        },
+        "overflow": {
+          "type": "object",
+          "properties": {
+            "enabled": { "type": "boolean", "default": false },
+            "max": { "type": "integer", "minimum": 1, "default": 5, "description": "Maximum visible workspaces before overflow." },
+            "icon": {
+              "description": "Overflow indicator icon. Can be false (disable), a string (same icon for both directions), or an object with 'left' and 'right' keys.",
+              "oneOf": [
+                { "type": "boolean", "const": false },
+                { "type": "string" },
+                {
+                  "type": "object",
+                  "properties": {
+                    "left": { "type": "string" },
+                    "right": { "type": "string" }
+                  }
+                }
+              ]
+            },
+            "style": {
+              "$ref": "#/$defs/StyleConfig",
+              "description": "Style overrides for overflow indicator segments."
+            }
+          }
+        }
+      }
+    },
+    "DrawerConfig": {
+      "type": "object",
+      "title": "Drawer Module Config",
+      "description": "Configuration for drawer modules. A drawer hides/shows adjacent modules in the same placement group. For right-to-left placements (right, notchleft), the drawer controls modules listed before it in config. For left-to-right placements (left, notchright), it controls modules listed after it.",
+      "properties": {
+        "icons": {
+          "type": "object",
+          "properties": {
+            "show": { "type": "string", "default": "〈", "description": "Icon shown when drawer content is hidden (click to show)." },
+            "hide": { "type": "string", "default": "〉", "description": "Icon shown when drawer content is visible (click to hide)." }
+          }
+        }
+      }
+    },
+    "TextConfig": {
+      "type": "object",
+      "title": "Text Module Config",
+      "description": "Configuration for static text modules.",
+      "required": ["value"],
+      "properties": {
+        "value": {
+          "type": "string",
+          "description": "Static text to display."
+        }
+      }
+    },
+    "IconConfig": {
+      "type": "object",
+      "title": "Icon Module Config",
+      "description": "Configuration for icon-only modules. The icon is set via the top-level 'icon' field. This config block is typically empty or omitted.",
+      "properties": {}
+    },
+    "FocusConfig": {
+      "type": "object",
+      "title": "Focus Module Config",
+      "description": "Configuration for the Focus mode indicator module. Detects whether a Focus mode is active by checking for the system FocusModes indicator in the menu bar. The module is hidden when no Focus mode is active and shown with a default 'brain' icon when active. Polls every 2 seconds. This config block is typically empty or omitted.",
+      "properties": {}
+    }
+  }
+}
