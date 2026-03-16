@@ -79,8 +79,6 @@ modules:
     placement: right
     style:
       fg: "{theme(sky)}"
-    config:
-      showSSID: false
     mask:
       name: WiFi
 

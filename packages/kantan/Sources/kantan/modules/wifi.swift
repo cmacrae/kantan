@@ -11,8 +11,6 @@ struct WiFiConfigFactory: ModuleConfigurationFactory {
   func configuration(from yaml: Yaml, configDir: String?, theme: ThemeConfig?) throws
     -> ModuleConfiguration
   {
-    let showSSID = yaml["showSSID"].bool ?? false
-
     let iconsYaml = yaml["icons"]
     let disconnectedIcon = iconsYaml["disconnected"].string ?? Self.defaultDisconnectedIcon
     let strengthIcons =
@@ -36,14 +34,14 @@ struct WiFiConfigFactory: ModuleConfigurationFactory {
     }
 
     return WiFiConfig(
-      showSSID: showSSID, strengthIcons: strengthIcons, disconnectedIcon: disconnectedIcon,
+      strengthIcons: strengthIcons, disconnectedIcon: disconnectedIcon,
       ssidIcons: ssidIcons
     )
   }
 
   func defaultConfiguration() -> ModuleConfiguration? {
     WiFiConfig(
-      showSSID: false, strengthIcons: Self.defaultStrengthIcons,
+      strengthIcons: Self.defaultStrengthIcons,
       disconnectedIcon: Self.defaultDisconnectedIcon, ssidIcons: [:])
   }
 }
@@ -72,7 +70,6 @@ final class WiFiConfig: NSObject, ModuleConfiguration, EventDrivenModule, CWEven
   @unchecked Sendable
 {
   var type: String { "wifi" }
-  let showSSID: Bool
   let strengthIcons: [String]
   let disconnectedIcon: String
   /// SSID → icon overrides. When the current SSID matches a key, that icon is shown
@@ -91,10 +88,9 @@ final class WiFiConfig: NSObject, ModuleConfiguration, EventDrivenModule, CWEven
   nonisolated(unsafe) private var coalesceWorkItem: DispatchWorkItem?
 
   init(
-    showSSID: Bool, strengthIcons: [String], disconnectedIcon: String,
+    strengthIcons: [String], disconnectedIcon: String,
     ssidIcons: [String: String]
   ) {
-    self.showSSID = showSSID
     self.strengthIcons = strengthIcons
     self.disconnectedIcon = disconnectedIcon
     self.ssidIcons = ssidIcons
@@ -102,7 +98,6 @@ final class WiFiConfig: NSObject, ModuleConfiguration, EventDrivenModule, CWEven
   }
 
   required init(from decoder: Decoder) throws {
-    self.showSSID = false
     self.strengthIcons = []
     self.disconnectedIcon = ""
     self.ssidIcons = [:]
@@ -241,12 +236,7 @@ final class WiFiConfig: NSObject, ModuleConfiguration, EventDrivenModule, CWEven
   // MARK: - ModuleConfiguration
 
   func getValue(completion: @escaping @Sendable (String) -> Void) {
-    let status = getCachedStatus()
-    if showSSID {
-      completion(status.ssid ?? "")
-    } else {
-      completion("")
-    }
+    completion("")
   }
 
   func getIcon() -> String {
