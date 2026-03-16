@@ -90,7 +90,6 @@ modules:
     style:
       fg: "{theme(subtext1)}"
     config:
-      showLevel: true
       style:
         charging: "{theme(yellow)}"
         plugged: "{theme(green)}"

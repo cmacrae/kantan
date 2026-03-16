@@ -209,8 +209,10 @@ struct StandardModuleView: View {
         Text(value)
           .font(themeProvider.textFont(for: viewModel))
           .foregroundStyle(textColor)
+          .lineLimit(1)
       }
     }
+    .fixedSize(horizontal: true, vertical: false)
     .padding(.horizontal, moduleShape != nil ? 6 : 0)
     .padding(.vertical, modulePadding)
     .frame(maxHeight: expandsToBarHeight ? .infinity : nil)
