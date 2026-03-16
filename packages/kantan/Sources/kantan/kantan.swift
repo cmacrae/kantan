@@ -848,6 +848,8 @@ class AppDelegate: NSObject, NSApplicationDelegate {
   var configFilePath: String?
   var modulesDirPath: String?
   nonisolated(unsafe) var configFileSource: DispatchSourceFileSystemObject?
+  nonisolated(unsafe) var configSymlinkDirSource: DispatchSourceFileSystemObject?
+  var resolvedConfigPath: String?
   nonisolated(unsafe) var modulesDirSource: DispatchSourceFileSystemObject?
   nonisolated(unsafe) var moduleFileSources: [DispatchSourceFileSystemObject] = []
   nonisolated(unsafe) var reloadDebounceTimer: Timer?
@@ -1185,6 +1187,73 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
     self.configFileSource = source
     source.resume()
+
+    // If the config path is a symlink, also watch the parent directory.
+    // open() follows symlinks, so the fd above watches the target inode
+    // (e.g. /nix/store/...) which never changes when the symlink is replaced.
+    // Watching the parent directory catches symlink replacements.
+    startWatchingConfigSymlink(path: path)
+  }
+
+  private func startWatchingConfigSymlink(path: String) {
+    configSymlinkDirSource?.cancel()
+    configSymlinkDirSource = nil
+
+    let fm = FileManager.default
+    guard let attrs = try? fm.attributesOfItem(atPath: path),
+      let fileType = attrs[.type] as? FileAttributeType,
+      fileType == .typeSymbolicLink
+    else { return }
+
+    // Store the resolved target so we can detect when it changes.
+    resolvedConfigPath = (try? fm.destinationOfSymbolicLink(atPath: path))
+      .flatMap { target in
+        if target.hasPrefix("/") { return target }
+        let dir = (path as NSString).deletingLastPathComponent
+        return (dir as NSString).appendingPathComponent(target)
+      }
+
+    let parentDir = (path as NSString).deletingLastPathComponent
+    let fd = open(parentDir, O_EVTONLY)
+    guard fd >= 0 else { return }
+
+    let source = DispatchSource.makeFileSystemObjectSource(
+      fileDescriptor: fd,
+      eventMask: [.write],
+      queue: .main
+    )
+
+    source.setEventHandler { [weak self] in
+      MainActor.assumeIsolated {
+        guard let self = self, let configPath = self.configFilePath else { return }
+
+        // Check if the symlink target actually changed.
+        guard
+          let newTarget = try? fm.destinationOfSymbolicLink(atPath: configPath)
+        else { return }
+        let resolved =
+          newTarget.hasPrefix("/")
+          ? newTarget
+          : ((configPath as NSString).deletingLastPathComponent as NSString)
+            .appendingPathComponent(newTarget)
+
+        guard resolved != self.resolvedConfigPath else { return }
+        self.resolvedConfigPath = resolved
+
+        // Symlink target changed — re-watch the new target and reload.
+        self.configFileSource?.cancel()
+        self.configFileSource = nil
+        self.startWatchingConfig(path: configPath)
+        self.scheduleReload()
+      }
+    }
+
+    source.setCancelHandler {
+      close(fd)
+    }
+
+    self.configSymlinkDirSource = source
+    source.resume()
   }
 
   func startWatchingModulesDir(path: String) {
@@ -1335,6 +1404,8 @@ class AppDelegate: NSObject, NSApplicationDelegate {
   func applicationWillTerminate(_ aNotification: Notification) {
     configFileSource?.cancel()
     configFileSource = nil
+    configSymlinkDirSource?.cancel()
+    configSymlinkDirSource = nil
     modulesDirSource?.cancel()
     modulesDirSource = nil
     cancelModuleFileWatchers()
