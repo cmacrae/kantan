@@ -1,44 +1,85 @@
 import Foundation
 import IOKit.ps
 
+/// Style override for a specific power state (charging, plugged, low).
+/// Parsed from `config.style.<state>` — supports string shorthand (→ fg)
+/// or expanded dict with fg/bg/icon.fg/text.fg.
+struct PowerStateStyle: Sendable {
+  let fg: String?
+  let bg: String?
+  let iconFg: String?
+  let textFg: String?
+
+  func toDynamicStyle() -> DynamicStyleOverride {
+    DynamicStyleOverride(fg: fg, bg: bg, iconFg: iconFg, textFg: textFg)
+  }
+
+  static func parse(from yaml: Yaml) -> PowerStateStyle? {
+    // Shorthand: string → fg
+    if let str = yaml.string {
+      return PowerStateStyle(fg: str, bg: nil, iconFg: nil, textFg: nil)
+    }
+    // Expanded: dict with fg/bg/icon.fg/text.fg
+    guard yaml.dictionary != nil else { return nil }
+    let fg = yaml["fg"].string
+    let bg = yaml["bg"].string
+    let iconFg = yaml["icon"]["fg"].string
+    let textFg = yaml["text"]["fg"].string
+    guard fg != nil || bg != nil || iconFg != nil || textFg != nil else { return nil }
+    return PowerStateStyle(fg: fg, bg: bg, iconFg: iconFg, textFg: textFg)
+  }
+}
+
 struct PowerConfigFactory: ModuleConfigurationFactory {
   /// Default tabler-icons for power/battery states.
   static let defaultChargingIcon = "bolt-filled"
-  static let defaultBatteryIcons = [
+  static let defaultPluggedIcon = "plug"
+  static let defaultLevelIcons = [
     "battery-filled", "battery-1-filled", "battery-2-filled",
     "battery-3-filled", "battery-4-filled",
   ]
+  static let defaultLowThreshold = 20
 
   func configuration(from yaml: Yaml, configDir: String?, theme: ThemeConfig?) throws
     -> ModuleConfiguration
   {
     let showLevel = yaml["showLevel"].bool ?? false
+    let lowThreshold = yaml["lowThreshold"].int ?? Self.defaultLowThreshold
 
-    let chargingIcon =
-      yaml["charging"].dictionary?["icon"]?.string ?? Self.defaultChargingIcon
-    let batteryIcons =
-      yaml["battery"].dictionary?["icons"]?.array?.compactMap({ $0.string })
-      ?? Self.defaultBatteryIcons
+    let iconsYaml = yaml["icons"]
+    let chargingIcon = iconsYaml["charging"].string ?? Self.defaultChargingIcon
+    let pluggedIcon = iconsYaml["plugged"].string ?? Self.defaultPluggedIcon
+    let levelIcons =
+      iconsYaml["level"].array?.compactMap { $0.string } ?? Self.defaultLevelIcons
 
-    guard !batteryIcons.isEmpty else {
+    guard !levelIcons.isEmpty else {
       throw DecodingError.dataCorrupted(
         DecodingError.Context(
           codingPath: [],
-          debugDescription: "PowerConfig requires a non-empty 'battery.icons' array"
+          debugDescription: "PowerConfig requires a non-empty 'icons.level' array"
         ))
     }
 
-    let chargingConfig = ChargingConfig(icon: chargingIcon)
-    let batteryConfig = BatteryConfig(icons: batteryIcons)
+    let styleYaml = yaml["style"]
+    let chargingStyle = PowerStateStyle.parse(from: styleYaml["charging"])
+    let pluggedStyle = PowerStateStyle.parse(from: styleYaml["plugged"])
+    let lowPowerModeStyle = PowerStateStyle.parse(from: styleYaml["lowPowerMode"])
+    let lowStyle = PowerStateStyle.parse(from: styleYaml["low"])
 
-    return PowerConfig(showLevel: showLevel, charging: chargingConfig, battery: batteryConfig)
+    return PowerConfig(
+      showLevel: showLevel, lowThreshold: lowThreshold,
+      levelIcons: levelIcons, chargingIcon: chargingIcon, pluggedIcon: pluggedIcon,
+      chargingStyle: chargingStyle, pluggedStyle: pluggedStyle,
+      lowPowerModeStyle: lowPowerModeStyle, lowStyle: lowStyle
+    )
   }
 
   func defaultConfiguration() -> ModuleConfiguration? {
     PowerConfig(
-      showLevel: false,
-      charging: ChargingConfig(icon: Self.defaultChargingIcon),
-      battery: BatteryConfig(icons: Self.defaultBatteryIcons)
+      showLevel: false, lowThreshold: Self.defaultLowThreshold,
+      levelIcons: Self.defaultLevelIcons,
+      chargingIcon: Self.defaultChargingIcon, pluggedIcon: Self.defaultPluggedIcon,
+      chargingStyle: nil, pluggedStyle: nil, lowPowerModeStyle: nil, lowStyle: nil
     )
   }
 }
@@ -47,38 +88,63 @@ struct BatteryStatus: Sendable {
   let level: Int
   let isCharging: Bool
   let isPluggedIn: Bool
+  let isLowPowerMode: Bool
 
-  static let unavailable = BatteryStatus(level: -1, isCharging: false, isPluggedIn: false)
+  static let unavailable = BatteryStatus(
+    level: -1, isCharging: false, isPluggedIn: false, isLowPowerMode: false)
   var isAvailable: Bool { level >= 0 }
 }
 
 /// Event-driven battery module using IOKit power source notifications.
-/// Instead of polling every 5s, registers a CFRunLoopSource that fires
-/// only when the system's power state actually changes (plug/unplug,
-/// charge level change, etc.).
+/// Registers a CFRunLoopSource that fires only when the system's power
+/// state actually changes (plug/unplug, charge level change, etc.).
 final class PowerConfig: ModuleConfiguration, EventDrivenModule {
   var type: String { "power" }
   let showLevel: Bool
-  let charging: ChargingConfig
-  let battery: BatteryConfig
+  let lowThreshold: Int
+  let levelIcons: [String]
+  let chargingIcon: String
+  let pluggedIcon: String
+  let chargingStyle: PowerStateStyle?
+  let pluggedStyle: PowerStateStyle?
+  let lowPowerModeStyle: PowerStateStyle?
+  let lowStyle: PowerStateStyle?
 
   var redrawInterval: TimeInterval { 0 }
 
   nonisolated(unsafe) private var runLoopSource: CFRunLoopSource?
   nonisolated(unsafe) private var onChange: (@Sendable () -> Void)?
+  nonisolated(unsafe) private var lowPowerObserver: NSObjectProtocol?
   nonisolated(unsafe) private var _cachedStatus: BatteryStatus?
   private let _statusLock = NSLock()
 
-  init(showLevel: Bool, charging: ChargingConfig, battery: BatteryConfig) {
+  init(
+    showLevel: Bool, lowThreshold: Int,
+    levelIcons: [String], chargingIcon: String, pluggedIcon: String,
+    chargingStyle: PowerStateStyle?, pluggedStyle: PowerStateStyle?,
+    lowPowerModeStyle: PowerStateStyle?, lowStyle: PowerStateStyle?
+  ) {
     self.showLevel = showLevel
-    self.charging = charging
-    self.battery = battery
+    self.lowThreshold = lowThreshold
+    self.levelIcons = levelIcons
+    self.chargingIcon = chargingIcon
+    self.pluggedIcon = pluggedIcon
+    self.chargingStyle = chargingStyle
+    self.pluggedStyle = pluggedStyle
+    self.lowPowerModeStyle = lowPowerModeStyle
+    self.lowStyle = lowStyle
   }
 
   required init(from decoder: Decoder) throws {
     self.showLevel = false
-    self.charging = ChargingConfig(icon: "")
-    self.battery = BatteryConfig(icons: [])
+    self.lowThreshold = 20
+    self.levelIcons = []
+    self.chargingIcon = ""
+    self.pluggedIcon = ""
+    self.chargingStyle = nil
+    self.pluggedStyle = nil
+    self.lowPowerModeStyle = nil
+    self.lowStyle = nil
   }
 
   func encode(to encoder: Encoder) throws {}
@@ -104,12 +170,23 @@ final class PowerConfig: ModuleConfiguration, EventDrivenModule {
       self.runLoopSource = source
       CFRunLoopAddSource(CFRunLoopGetMain(), source, .defaultMode)
     }
+
+    // Listen for Low Power Mode changes
+    lowPowerObserver = NotificationCenter.default.addObserver(
+      forName: .NSProcessInfoPowerStateDidChange, object: nil, queue: .main
+    ) { [weak self] _ in
+      self?.onChange?()
+    }
   }
 
   func stopObserving() {
     if let source = runLoopSource {
       CFRunLoopRemoveSource(CFRunLoopGetMain(), source, .defaultMode)
       runLoopSource = nil
+    }
+    if let observer = lowPowerObserver {
+      NotificationCenter.default.removeObserver(observer)
+      lowPowerObserver = nil
     }
     onChange = nil
   }
@@ -144,13 +221,37 @@ final class PowerConfig: ModuleConfiguration, EventDrivenModule {
     refreshCache()
     let status = getCachedStatus()
     guard status.isAvailable else {
-      return battery.icons.first ?? ""
+      return levelIcons.first ?? ""
     }
-    if status.isCharging || status.isPluggedIn {
-      return charging.icon
+    if status.isCharging {
+      return chargingIcon
     }
-    return iconForLevel(status.level, icons: battery.icons)
+    if status.isPluggedIn {
+      return pluggedIcon
+    }
+    return iconForLevel(status.level, icons: levelIcons)
   }
+
+  func getDynamicStyle() -> DynamicStyleOverride? {
+    let status = getCachedStatus()
+    guard status.isAvailable else { return nil }
+    // Priority: charging > plugged > lowPower > low
+    if status.isCharging, let style = chargingStyle {
+      return style.toDynamicStyle()
+    }
+    if status.isPluggedIn, let style = pluggedStyle {
+      return style.toDynamicStyle()
+    }
+    if !status.isPluggedIn && status.isLowPowerMode, let style = lowPowerModeStyle {
+      return style.toDynamicStyle()
+    }
+    if !status.isPluggedIn && status.level < lowThreshold, let style = lowStyle {
+      return style.toDynamicStyle()
+    }
+    return nil
+  }
+
+  // MARK: - IOKit
 
   static func readBatteryStatus() -> BatteryStatus {
     guard let snapshot = IOPSCopyPowerSourcesInfo()?.takeRetainedValue(),
@@ -173,18 +274,13 @@ final class PowerConfig: ModuleConfiguration, EventDrivenModule {
       let isCharging = (sourceDict[kIOPSIsChargingKey as String] as? Bool) ?? false
       let powerSourceState = sourceDict[kIOPSPowerSourceStateKey as String] as? String
       let isPluggedIn = (powerSourceState == kIOPSACPowerValue as String)
+      let isLowPowerMode = ProcessInfo.processInfo.isLowPowerModeEnabled
 
-      return BatteryStatus(level: level, isCharging: isCharging, isPluggedIn: isPluggedIn)
+      return BatteryStatus(
+        level: level, isCharging: isCharging, isPluggedIn: isPluggedIn,
+        isLowPowerMode: isLowPowerMode)
     }
 
     return .unavailable
   }
-}
-
-struct ChargingConfig: Codable, Sendable {
-  let icon: String
-}
-
-struct BatteryConfig: Codable, Sendable {
-  let icons: [String]
 }

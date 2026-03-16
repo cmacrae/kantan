@@ -88,9 +88,14 @@ modules:
     type: power
     placement: right
     style:
-      fg: "{theme(yellow)}"
+      fg: "{theme(subtext1)}"
     config:
-      showLevel: false
+      showLevel: true
+      style:
+        charging: "{theme(yellow)}"
+        plugged: "{theme(green)}"
+        low: "{theme(red)}"
+        lowPowerMode: "{theme(peach)}"
     mask:
       name: Battery
 
