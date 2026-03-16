@@ -1348,6 +1348,8 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 struct Kantan {
   nonisolated(unsafe) static var configPath: String?
   nonisolated(unsafe) static var modulesDirPath: String?
+  nonisolated(unsafe) static var fontsDirPath: String?
+  nonisolated(unsafe) static var themesDirPath: String?
 
   static func main() {
     let args = CommandLine.arguments
@@ -1370,6 +1372,22 @@ struct Kantan {
           i += 2
         } else {
           print("--modules-dir requires a path argument")
+          i += 1
+        }
+      case "--fonts-dir":
+        if i + 1 < args.count {
+          fontsDirPath = (args[i + 1] as NSString).expandingTildeInPath
+          i += 2
+        } else {
+          print("--fonts-dir requires a path argument")
+          i += 1
+        }
+      case "--themes-dir":
+        if i + 1 < args.count {
+          themesDirPath = (args[i + 1] as NSString).expandingTildeInPath
+          i += 2
+        } else {
+          print("--themes-dir requires a path argument")
           i += 1
         }
       default:

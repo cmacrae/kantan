@@ -68,11 +68,15 @@ private func parseThemeSelection(from yaml: Yaml) -> ThemeSelection? {
 
 // MARK: - Theme File Resolution
 
-/// Resolves the share/themes/ directory relative to the kantan binary.
+/// Resolves the themes directory. Priority: --themes-dir flag, then <prefix>/share/themes/.
 func bundledThemesDirectory() -> URL? {
-  let execURL = URL(fileURLWithPath: CommandLine.arguments[0]).resolvingSymlinksInPath()
-  let prefixURL = execURL.deletingLastPathComponent().deletingLastPathComponent()
-  let themesDir = prefixURL.appendingPathComponent("share/themes")
+  if let explicit = Kantan.themesDirPath {
+    let url = URL(fileURLWithPath: explicit)
+    guard FileManager.default.fileExists(atPath: url.path) else { return nil }
+    return url
+  }
+  guard let prefix = bundledPrefix() else { return nil }
+  let themesDir = prefix.appendingPathComponent("share/themes")
   guard FileManager.default.fileExists(atPath: themesDir.path) else { return nil }
   return themesDir
 }

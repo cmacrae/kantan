@@ -110,9 +110,34 @@
         themes = themePackages;
       };
 
+      release = import ./nix/release.nix {
+        inherit pkgs tabler-icons;
+        inherit (_kantan) version;
+        kantanBin = _kantan;
+        plugins = builtins.attrValues pluginPackages;
+        themes = builtins.attrValues themePackages;
+      };
+
+      homebrew = import ./nix/homebrew.nix {
+        inherit pkgs;
+        inherit (_kantan) version;
+        tarballs = release;
+      };
+
     in
     {
-      packages.${system}.default = kantan;
+      packages.${system} = {
+        inherit kantan;
+        default = kantan;
+        without-plugins = kantanWithPlugins { plugins = [ ]; };
+        release = release.full;
+        release-without-plugins = release.core;
+        homebrew-formula = homebrew.kantan;
+        homebrew-formula-without-plugins = homebrew.kantan-without-plugins;
+      };
+
+      apps.${system}.generate-homebrew-formulae = homebrew.generateApp;
+
       formatter.${system} = treefmtEval.config.build.wrapper;
       checks.${system}.formatting = treefmtEval.config.build.check self;
     };

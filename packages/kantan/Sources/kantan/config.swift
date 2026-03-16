@@ -178,16 +178,35 @@ struct FontConfig: Codable {
   }
 }
 
+// MARK: - Bundled Asset Resolution
+
+/// Resolves the installation prefix (<prefix>) where bundled assets live.
+/// Tries argv[0] first (works with nix wrappers where argv[0] is the full wrapper path
+/// in the symlinkJoin output), falls back to Bundle.main.executableURL (works for
+/// PATH-based invocation like Homebrew where argv[0] is just the command name).
+func bundledPrefix() -> URL? {
+  let arg0 = CommandLine.arguments[0]
+  if arg0.contains("/") {
+    return URL(fileURLWithPath: arg0).resolvingSymlinksInPath()
+      .deletingLastPathComponent().deletingLastPathComponent()
+  }
+  if let execURL = Bundle.main.executableURL?.resolvingSymlinksInPath() {
+    return execURL.deletingLastPathComponent().deletingLastPathComponent()
+  }
+  return nil
+}
+
 // MARK: - Bundled Font Registration
 
-/// Resolves the share/fonts/ directory relative to the kantan binary.
-/// The binary lives at <prefix>/bin/kantan; fonts are at <prefix>/share/fonts/.
-/// Resolves symlinks so it works with nix-built wrappers.
+/// Resolves the fonts directory. Priority: --fonts-dir flag, then <prefix>/share/fonts/.
 func bundledFontsDirectory() -> URL? {
-  let execURL = URL(fileURLWithPath: CommandLine.arguments[0]).resolvingSymlinksInPath()
-  // <prefix>/bin/kantan -> <prefix>/share/fonts
-  let prefixURL = execURL.deletingLastPathComponent().deletingLastPathComponent()
-  let fontsDir = prefixURL.appendingPathComponent("share/fonts")
+  if let explicit = Kantan.fontsDirPath {
+    let url = URL(fileURLWithPath: explicit)
+    guard FileManager.default.fileExists(atPath: url.path) else { return nil }
+    return url
+  }
+  guard let prefix = bundledPrefix() else { return nil }
+  let fontsDir = prefix.appendingPathComponent("share/fonts")
   guard FileManager.default.fileExists(atPath: fontsDir.path) else { return nil }
   return fontsDir
 }
