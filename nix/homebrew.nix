@@ -39,6 +39,12 @@ let
           (share/"fonts").install Dir["share/fonts/*"]
           (share/"themes").install Dir["share/themes/*"] if Dir.exist?("share/themes")
         end
+
+        service do
+          run [opt_bin/"kantan"]
+          keep_alive true
+          process_type :interactive
+        end
       end
       FORMULA
     '';
