@@ -1,6 +1,5 @@
 import CoreGraphics
 import Foundation
-import Yaml
 
 struct FocusConfigFactory: ModuleConfigurationFactory {
   func configuration(from yaml: Yaml, configDir: String?, theme: ThemeConfig?) throws

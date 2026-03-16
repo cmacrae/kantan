@@ -1,12 +1,11 @@
 import Foundation
-import Yaml
 
 struct DrawerConfigFactory: ModuleConfigurationFactory {
   func configuration(from yaml: Yaml, configDir: String?, theme: ThemeConfig?) throws
     -> ModuleConfiguration
   {
-    let showIcon = fixYamlUnicodeEscapes(yaml["icons"]["show"].string ?? "〈")
-    let hideIcon = fixYamlUnicodeEscapes(yaml["icons"]["hide"].string ?? "〉")
+    let showIcon = yaml["icons"]["show"].string ?? "〈"
+    let hideIcon = yaml["icons"]["hide"].string ?? "〉"
     return DrawerConfig(showIcon: showIcon, hideIcon: hideIcon)
   }
 

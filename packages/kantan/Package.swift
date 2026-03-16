@@ -8,12 +8,12 @@ let package = Package(
     .macOS(.v15)
   ],
   dependencies: [
-    .package(url: "https://github.com/behrang/YamlSwift.git", from: "3.4.4")
+    .package(url: "https://github.com/jpsim/Yams.git", from: "5.1.3")
   ],
   targets: [
     .executableTarget(
       name: "kantan",
-      dependencies: [.product(name: "Yaml", package: "YamlSwift")]
+      dependencies: [.product(name: "Yams", package: "Yams")]
     ),
     .testTarget(
       name: "kantanTests",

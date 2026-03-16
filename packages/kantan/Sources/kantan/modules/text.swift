@@ -1,5 +1,4 @@
 import Foundation
-import Yaml
 
 struct TextConfigFactory: ModuleConfigurationFactory {
   func configuration(from yaml: Yaml, configDir: String?, theme: ThemeConfig?) throws

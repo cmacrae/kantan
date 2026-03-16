@@ -1,7 +1,6 @@
 import AudioToolbox
 import CoreAudio
 import Foundation
-import Yaml
 
 struct VolumeConfigFactory: ModuleConfigurationFactory {
   /// Default tabler-icons for volume levels, muted state, and common devices.

@@ -1,6 +1,5 @@
 import AppKit
 import Foundation
-import Yaml
 
 /// Dynamic style overrides returned by modules (e.g. command JSON output).
 /// Takes priority over static YAML style config when present.

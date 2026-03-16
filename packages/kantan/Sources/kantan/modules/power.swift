@@ -1,6 +1,5 @@
 import Foundation
 import IOKit.ps
-import Yaml
 
 struct PowerConfigFactory: ModuleConfigurationFactory {
   /// Default tabler-icons for power/battery states.

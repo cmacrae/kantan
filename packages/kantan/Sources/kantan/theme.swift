@@ -1,5 +1,4 @@
 import Foundation
-import Yaml
 
 // MARK: - Theme Types
 

@@ -2,7 +2,6 @@ import AppKit
 import CoreText
 import Foundation
 import SwiftUI
-import Yaml
 
 // MARK: - Style Types
 
@@ -480,7 +479,7 @@ func yamlCGFloat(
 private func parseHoverConfig(from yaml: Yaml?) -> HoverConfig? {
   guard let hoverYaml = yaml?.dictionary else { return nil }
   let hoverType = hoverYaml["type"]?.string ?? "tooltip"
-  let content = hoverYaml["content"]?.string.map(fixYamlUnicodeEscapes)
+  let content = hoverYaml["content"]?.string
   let viewTree = hoverYaml["view"].flatMap { parseViewNodeFromYaml($0) }
   return HoverConfig(type: hoverType, content: content, viewTree: viewTree)
 }
@@ -540,7 +539,7 @@ private func parseViewNodeFromYaml(_ yaml: Yaml) -> ViewNode? {
     return .group(children: children, common: common)
 
   case "text":
-    let content = fixYamlUnicodeEscapes(dict["content"]?.string ?? "")
+    let content = dict["content"]?.string ?? ""
     let size = yamlDouble(dict["size"])
     let weight = dict["weight"]?.string.flatMap { TextWeight(rawValue: $0) }
     let style = dict["style"]?.string.flatMap { TextStyle(rawValue: $0) }
@@ -552,7 +551,7 @@ private func parseViewNodeFromYaml(_ yaml: Yaml) -> ViewNode? {
       strikethrough: strikethrough, common: common)
 
   case "icon":
-    let name = fixYamlUnicodeEscapes(dict["name"]?.string ?? "")
+    let name = dict["name"]?.string ?? ""
     let size = yamlDouble(dict["size"])
     let color = dict["color"]?.string
     let style = dict["style"]?.string.flatMap { IconStyle(rawValue: $0) }
@@ -570,7 +569,7 @@ private func parseViewNodeFromYaml(_ yaml: Yaml) -> ViewNode? {
     return .divider(common: common)
 
   case "header":
-    let content = fixYamlUnicodeEscapes(dict["content"]?.string ?? "")
+    let content = dict["content"]?.string ?? ""
     return .header(content: content, common: common)
 
   case "rect":
@@ -599,15 +598,15 @@ private func parseViewNodeFromYaml(_ yaml: Yaml) -> ViewNode? {
     return .capsule(width: width, height: height, color: color, common: common)
 
   case "action":
-    let label = fixYamlUnicodeEscapes(dict["label"]?.string ?? "")
-    let icon = dict["icon"]?.string.map(fixYamlUnicodeEscapes)
+    let label = dict["label"]?.string ?? ""
+    let icon = dict["icon"]?.string
     let command = dict["command"]?.string
     let iconFont = dict["iconFont"]?.string
     return .action(
       label: label, icon: icon, command: command, iconFont: iconFont, common: common)
 
   case "check":
-    let label = fixYamlUnicodeEscapes(dict["label"]?.string ?? "")
+    let label = dict["label"]?.string ?? ""
     let checked = dict["checked"]?.string ?? dict["checked"]?.bool.map { "\($0)" } ?? "false"
     let command = dict["command"]?.string
     let uncheckedCommand = dict["uncheckedCommand"]?.string
@@ -616,14 +615,14 @@ private func parseViewNodeFromYaml(_ yaml: Yaml) -> ViewNode? {
       uncheckedCommand: uncheckedCommand, common: common)
 
   case "toggle":
-    let label = fixYamlUnicodeEscapes(dict["label"]?.string ?? "")
+    let label = dict["label"]?.string ?? ""
     let on = dict["on"]?.string ?? dict["on"]?.bool.map { "\($0)" } ?? "false"
     let command = dict["command"]?.string
     return .toggle(label: label, on: on, command: command, common: common)
 
   case "button":
-    let label = fixYamlUnicodeEscapes(dict["label"]?.string ?? "")
-    let icon = dict["icon"]?.string.map(fixYamlUnicodeEscapes)
+    let label = dict["label"]?.string ?? ""
+    let icon = dict["icon"]?.string
     let command = dict["command"]?.string
     let style = dict["style"]?.string.flatMap { DSLButtonStyle(rawValue: $0) }
     return .button(label: label, icon: icon, command: command, style: style, common: common)
@@ -660,7 +659,7 @@ private func parseViewNodeFromYaml(_ yaml: Yaml) -> ViewNode? {
     return .gauge(value: value, min: min, max: max, label: label, color: color, common: common)
 
   case "badge":
-    let content = fixYamlUnicodeEscapes(dict["content"]?.string ?? "")
+    let content = dict["content"]?.string ?? ""
     let color = dict["color"]?.string
     let textColor = dict["textColor"]?.string
     return .badge(content: content, color: color, textColor: textColor, common: common)
@@ -869,7 +868,7 @@ func parseModuleConfig(from moduleYaml: Yaml, configDir: String? = nil, theme: T
   builder.setType(type)
 
   if let icon = moduleYaml["icon"].string {
-    builder.setIcon(fixYamlUnicodeEscapes(icon))
+    builder.setIcon(icon)
   } else if let defaultIcon = defaultModuleIcons[type] {
     builder.setIcon(defaultIcon)
   }
@@ -1052,43 +1051,6 @@ func mergeModules(base: [ModuleConfig], extra: [ModuleConfig]) -> [ModuleConfig]
   let baseRight = base.filter { $0.placement.isRightSide }
   let baseLeft = base.filter { !$0.placement.isRightSide }
   return baseLeft + extraLeft + extraRight + baseRight
-}
-
-/// Fix YamlSwift bug: `String(describing: UnicodeScalar(n))` produces
-/// `Optional("\u{XXXX}")` instead of the actual character for `\uXXXX`
-/// escapes in double-quoted YAML strings. This unwraps the Optional
-/// wrapper and converts `\u{XXXX}` escape literals into real characters.
-func fixYamlUnicodeEscapes(_ s: String) -> String {
-  var result = s
-
-  // Step 1: Strip Optional("...") wrappers
-  if result.contains("Optional(\"") {
-    while let range = result.range(of: "Optional(\"") {
-      let afterOpen = range.upperBound
-      guard let closeQuote = result[afterOpen...].firstIndex(of: "\"") else { break }
-      let nextIndex = result.index(after: closeQuote)
-      guard nextIndex < result.endIndex, result[nextIndex] == ")" else { break }
-      let content = String(result[afterOpen..<closeQuote])
-      let fullRange = range.lowerBound..<result.index(after: nextIndex)
-      result.replaceSubrange(fullRange, with: content)
-    }
-  }
-
-  // Step 2: Convert literal \u{XXXX} sequences into actual unicode characters
-  while let range = result.range(of: "\\u{") {
-    guard let closeBrace = result[range.upperBound...].firstIndex(of: "}") else { break }
-    let hexStr = String(result[range.upperBound..<closeBrace])
-    let fullRange = range.lowerBound..<result.index(after: closeBrace)
-    if let codepoint = UInt32(hexStr, radix: 16),
-      let scalar = Unicode.Scalar(codepoint)
-    {
-      result.replaceSubrange(fullRange, with: String(scalar))
-    } else {
-      break
-    }
-  }
-
-  return result
 }
 
 func loadFileContents(filePath: String) -> String? {

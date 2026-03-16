@@ -1,6 +1,5 @@
 import AppKit
 import Foundation
-import Yaml
 
 // MARK: - Structured Command Output Cache
 
@@ -35,7 +34,7 @@ private func setCommandData(_ data: CommandOutputData, for key: String) {
 
 // MARK: - Yaml to Native Conversion
 
-/// Recursively converts a YamlSwift `Yaml` value to a native Swift type
+/// Recursively converts a `Yaml` value to a native Swift type
 /// suitable for `JSONSerialization`.
 private func yamlToNative(_ yaml: Yaml) -> Any? {
   switch yaml {

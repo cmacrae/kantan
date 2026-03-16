@@ -2,7 +2,6 @@ import AppKit
 import CoreWLAN
 import Foundation
 import IOKit
-import Yaml
 
 struct WiFiConfigFactory: ModuleConfigurationFactory {
   /// Default tabler-icons for wifi states.

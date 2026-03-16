@@ -1,7 +1,6 @@
 import AppKit
 import Foundation
 import IOBluetooth
-import Yaml
 
 struct BluetoothConfigFactory: ModuleConfigurationFactory {
   /// Default tabler-icons for bluetooth states.
