@@ -45,14 +45,21 @@ struct BluetoothStatus: Sendable {
   var hasConnectedDevices: Bool { connectedCount > 0 }
 }
 
-final class BluetoothConfig: ModuleConfiguration, @unchecked Sendable {
+/// Event-driven Bluetooth module using IOBluetooth notifications.
+/// Registers for device connect/disconnect events and power state changes.
+final class BluetoothConfig: NSObject, ModuleConfiguration, EventDrivenModule,
+  @unchecked Sendable
+{
   var type: String { "bluetooth" }
   let showCount: Bool
   let icon: String
   let disabledIcon: String
 
-  var redrawInterval: TimeInterval { 5.0 }
+  var redrawInterval: TimeInterval { 0 }
 
+  nonisolated(unsafe) private var onChange: (@Sendable () -> Void)?
+  nonisolated(unsafe) private var connectNotification: IOBluetoothUserNotification?
+  nonisolated(unsafe) private var disconnectNotifications: [IOBluetoothUserNotification] = []
   nonisolated(unsafe) private var _cachedStatus: (connected: [String], total: Int)?
   private let _statusLock = NSLock()
 
@@ -60,15 +67,117 @@ final class BluetoothConfig: ModuleConfiguration, @unchecked Sendable {
     self.showCount = showCount
     self.icon = icon
     self.disabledIcon = disabledIcon
+    super.init()
   }
 
   required init(from decoder: Decoder) throws {
     self.showCount = false
     self.icon = ""
     self.disabledIcon = ""
+    super.init()
+  }
+
+  deinit {
+    stopObserving()
   }
 
   func encode(to encoder: Encoder) throws {}
+
+  // MARK: - EventDrivenModule
+
+  func startObserving(onChange: @escaping @Sendable () -> Void) {
+    self.onChange = onChange
+
+    // Listen for any Bluetooth device connecting
+    connectNotification = IOBluetoothDevice.register(
+      forConnectNotifications: self,
+      selector: #selector(deviceConnected(_:device:))
+    )
+
+    // Register disconnect notifications on all currently paired devices
+    registerDisconnectNotifications()
+
+    // Listen for Bluetooth power state changes
+    NotificationCenter.default.addObserver(
+      self,
+      selector: #selector(powerStateChanged),
+      name: .IOBluetoothHostControllerPoweredOn,
+      object: nil
+    )
+    NotificationCenter.default.addObserver(
+      self,
+      selector: #selector(powerStateChanged),
+      name: .IOBluetoothHostControllerPoweredOff,
+      object: nil
+    )
+  }
+
+  func stopObserving() {
+    connectNotification?.unregister()
+    connectNotification = nil
+
+    for notif in disconnectNotifications {
+      notif.unregister()
+    }
+    disconnectNotifications.removeAll()
+
+    NotificationCenter.default.removeObserver(self)
+    onChange = nil
+  }
+
+  // MARK: - IOBluetooth Notifications
+
+  @objc private func deviceConnected(
+    _ notification: IOBluetoothUserNotification, device: IOBluetoothDevice
+  ) {
+    // Register for this device's future disconnect
+    if let notif = device.register(
+      forDisconnectNotification: self,
+      selector: #selector(deviceDisconnected(_:device:))
+    ) {
+      disconnectNotifications.append(notif)
+    }
+    DispatchQueue.main.async { [weak self] in
+      self?.onChange?()
+    }
+  }
+
+  @objc private func deviceDisconnected(
+    _ notification: IOBluetoothUserNotification, device: IOBluetoothDevice
+  ) {
+    DispatchQueue.main.async { [weak self] in
+      self?.onChange?()
+    }
+  }
+
+  @objc private func powerStateChanged(_ notification: Notification) {
+    // Re-register disconnect notifications since device list may have changed
+    for notif in disconnectNotifications {
+      notif.unregister()
+    }
+    disconnectNotifications.removeAll()
+    registerDisconnectNotifications()
+
+    DispatchQueue.main.async { [weak self] in
+      self?.onChange?()
+    }
+  }
+
+  /// Register disconnect notifications on all currently paired devices.
+  private func registerDisconnectNotifications() {
+    guard let devices = IOBluetoothDevice.pairedDevices() else { return }
+    for item in devices {
+      guard let device = item as? IOBluetoothDevice else { continue }
+      if let notif = device.register(
+        forDisconnectNotification: self,
+        selector: #selector(deviceDisconnected(_:device:))
+      ) {
+        disconnectNotifications.append(notif)
+      }
+    }
+  }
+
+  // MARK: - Status Caching
 
   private func getCachedStatus() -> (connected: [String], total: Int) {
     _statusLock.lock()
@@ -85,8 +194,9 @@ final class BluetoothConfig: ModuleConfiguration, @unchecked Sendable {
     _statusLock.unlock()
   }
 
+  // MARK: - ModuleConfiguration
+
   func getValue(completion: @escaping @Sendable (String) -> Void) {
-    refreshCache()
     let cached = getCachedStatus()
     if showCount && !cached.connected.isEmpty {
       completion("\(cached.connected.count)")
@@ -96,6 +206,7 @@ final class BluetoothConfig: ModuleConfiguration, @unchecked Sendable {
   }
 
   func getIcon() -> String {
+    refreshCache()
     let cached = getCachedStatus()
     if cached.total < 0 {
       return disabledIcon
