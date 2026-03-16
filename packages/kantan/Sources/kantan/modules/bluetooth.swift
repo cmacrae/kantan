@@ -10,16 +10,14 @@ struct BluetoothConfigFactory: ModuleConfigurationFactory {
   func configuration(from yaml: Yaml, configDir: String?, theme: ThemeConfig?) throws
     -> ModuleConfiguration
   {
-    let showCount = yaml["showCount"].bool ?? false
     let icon = yaml["icon"].string ?? Self.defaultIcon
     let disabledIcon = yaml["disabledIcon"].string ?? Self.defaultDisabledIcon
 
-    return BluetoothConfig(showCount: showCount, icon: icon, disabledIcon: disabledIcon)
+    return BluetoothConfig(icon: icon, disabledIcon: disabledIcon)
   }
 
   func defaultConfiguration() -> ModuleConfiguration? {
-    BluetoothConfig(
-      showCount: false, icon: Self.defaultIcon, disabledIcon: Self.defaultDisabledIcon)
+    BluetoothConfig(icon: Self.defaultIcon, disabledIcon: Self.defaultDisabledIcon)
   }
 }
 
@@ -41,8 +39,6 @@ struct BluetoothStatus: Sendable {
     pairedDevices.filter { $0.isConnected }
   }
 
-  var connectedCount: Int { connectedDevices.count }
-  var hasConnectedDevices: Bool { connectedCount > 0 }
 }
 
 /// Event-driven Bluetooth module using IOBluetooth notifications.
@@ -51,7 +47,6 @@ final class BluetoothConfig: NSObject, ModuleConfiguration, EventDrivenModule,
   @unchecked Sendable
 {
   var type: String { "bluetooth" }
-  let showCount: Bool
   let icon: String
   let disabledIcon: String
 
@@ -63,15 +58,13 @@ final class BluetoothConfig: NSObject, ModuleConfiguration, EventDrivenModule,
   nonisolated(unsafe) private var _cachedStatus: (connected: [String], total: Int)?
   private let _statusLock = NSLock()
 
-  init(showCount: Bool, icon: String, disabledIcon: String) {
-    self.showCount = showCount
+  init(icon: String, disabledIcon: String) {
     self.icon = icon
     self.disabledIcon = disabledIcon
     super.init()
   }
 
   required init(from decoder: Decoder) throws {
-    self.showCount = false
     self.icon = ""
     self.disabledIcon = ""
     super.init()
@@ -197,12 +190,7 @@ final class BluetoothConfig: NSObject, ModuleConfiguration, EventDrivenModule,
   // MARK: - ModuleConfiguration
 
   func getValue(completion: @escaping @Sendable (String) -> Void) {
-    let cached = getCachedStatus()
-    if showCount && !cached.connected.isEmpty {
-      completion("\(cached.connected.count)")
-    } else {
-      completion("")
-    }
+    completion("")
   }
 
   func getIcon() -> String {

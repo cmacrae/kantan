@@ -57,8 +57,6 @@ modules:
   - name: bluetooth
     type: bluetooth
     placement: right
-    config:
-      showCount: false
     style:
       fg: "{theme(blue)}"
     mask:
