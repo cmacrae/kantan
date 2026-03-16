@@ -14,8 +14,6 @@ struct VolumeConfigFactory: ModuleConfigurationFactory {
   func configuration(from yaml: Yaml, configDir: String?, theme: ThemeConfig?) throws
     -> ModuleConfiguration
   {
-    let showLevel = yaml["showLevel"].bool ?? false
-
     let iconsYaml = yaml["icons"]
 
     let levelIcons =
@@ -48,12 +46,11 @@ struct VolumeConfigFactory: ModuleConfigurationFactory {
     }
 
     return VolumeConfig(
-      showLevel: showLevel, levelIcons: levelIcons, mutedIcon: mutedIcon, deviceIcons: deviceIcons)
+      levelIcons: levelIcons, mutedIcon: mutedIcon, deviceIcons: deviceIcons)
   }
 
   func defaultConfiguration() -> ModuleConfiguration? {
     VolumeConfig(
-      showLevel: false,
       levelIcons: Self.defaultLevelIcons,
       mutedIcon: Self.defaultMutedIcon,
       deviceIcons: Self.defaultDeviceIcons
@@ -79,7 +76,6 @@ struct VolumeStatus: Sendable {
 /// polling every 2s.
 final class VolumeConfig: ModuleConfiguration, EventDrivenModule {
   var type: String { "volume" }
-  let showLevel: Bool
   let levelIcons: [String]
   let mutedIcon: String
   /// Maps device name substrings (case-insensitive) to icon names.
@@ -95,16 +91,14 @@ final class VolumeConfig: ModuleConfiguration, EventDrivenModule {
   private let _statusLock = NSLock()
 
   init(
-    showLevel: Bool, levelIcons: [String], mutedIcon: String, deviceIcons: [String: String] = [:]
+    levelIcons: [String], mutedIcon: String, deviceIcons: [String: String] = [:]
   ) {
-    self.showLevel = showLevel
     self.levelIcons = levelIcons
     self.mutedIcon = mutedIcon
     self.deviceIcons = deviceIcons
   }
 
   required init(from decoder: Decoder) throws {
-    self.showLevel = false
     self.levelIcons = []
     self.mutedIcon = ""
     self.deviceIcons = [:]
@@ -237,12 +231,7 @@ final class VolumeConfig: ModuleConfiguration, EventDrivenModule {
   // MARK: - ModuleConfiguration
 
   func getValue(completion: @escaping @Sendable (String) -> Void) {
-    let status = getCachedStatus()
-    if status.isMuted {
-      completion(showLevel ? "muted" : "")
-    } else {
-      completion(showLevel ? "\(status.level)%" : "")
-    }
+    completion("")
   }
 
   func getIcon() -> String {

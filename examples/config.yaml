@@ -67,8 +67,6 @@ modules:
     placement: right
     style:
       fg: "{theme(lavender)}"
-    config:
-      showLevel: false
     mask:
       name: Volume
 
