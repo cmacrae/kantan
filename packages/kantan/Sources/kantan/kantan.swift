@@ -857,37 +857,41 @@ class AppDelegate: NSObject, NSApplicationDelegate {
   func applicationDidFinishLaunching(_ aNotification: Notification) {
     NSApp.setActivationPolicy(.accessory)
 
-    guard let configPath = resolveConfigPath(explicit: Kantan.configPath) else {
-      print("Configuration not found")
-      return
+    var config: Config
+
+    if let configPath = resolveConfigPath(explicit: Kantan.configPath) {
+      self.configFilePath = configPath
+
+      let modulesDirPath = resolveModulesDir(
+        explicit: Kantan.modulesDirPath, configPath: configPath)
+      self.modulesDirPath = modulesDirPath
+
+      let configDir = URL(fileURLWithPath: configPath).deletingLastPathComponent().path
+
+      guard let fileData = loadFileContents(filePath: configPath) else {
+        print("Failed to load file contents")
+        return
+      }
+
+      let yaml: Yaml
+      do {
+        yaml = try Yaml.load(fileData)
+      } catch {
+        print(error)
+        return
+      }
+
+      guard var loadedConfig = loadConfig(from: yaml, configDir: configDir) else {
+        print("Configuration not loaded")
+        return
+      }
+
+      let extraModules = loadModulesFromDirectory(path: modulesDirPath, theme: loadedConfig.theme)
+      loadedConfig.modules = mergeModules(base: loadedConfig.modules, extra: extraModules)
+      config = loadedConfig
+    } else {
+      config = .welcome
     }
-    self.configFilePath = configPath
-
-    let modulesDirPath = resolveModulesDir(explicit: Kantan.modulesDirPath, configPath: configPath)
-    self.modulesDirPath = modulesDirPath
-
-    let configDir = URL(fileURLWithPath: configPath).deletingLastPathComponent().path
-
-    guard let fileData = loadFileContents(filePath: configPath) else {
-      print("Failed to load file contents")
-      return
-    }
-
-    let yaml: Yaml
-    do {
-      yaml = try Yaml.load(fileData)
-    } catch {
-      print(error)
-      return
-    }
-
-    guard var config = loadConfig(from: yaml, configDir: configDir) else {
-      print("Configuration not loaded")
-      return
-    }
-
-    let extraModules = loadModulesFromDirectory(path: modulesDirPath, theme: config.theme)
-    config.modules = mergeModules(base: config.modules, extra: extraModules)
 
     if config.needsBundledIconFonts {
       initIconFonts()
@@ -904,8 +908,12 @@ class AppDelegate: NSObject, NSApplicationDelegate {
       name: NSApplication.didChangeScreenParametersNotification, object: nil
     )
 
-    startWatchingConfig(path: configPath)
-    startWatchingModulesDir(path: modulesDirPath)
+    if let configPath = configFilePath {
+      startWatchingConfig(path: configPath)
+    }
+    if let modulesDirPath = modulesDirPath {
+      startWatchingModulesDir(path: modulesDirPath)
+    }
   }
 
   // MARK: - Bar Lifecycle

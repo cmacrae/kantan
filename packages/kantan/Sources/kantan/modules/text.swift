@@ -12,6 +12,10 @@ struct TextConfig: ModuleConfiguration {
   var type: String { "text" }
   let value: String
 
+  init(value: String) {
+    self.value = value
+  }
+
   init(yaml: Yaml) throws {
     guard let value = yaml["value"].string else {
       throw DecodingError.dataCorrupted(

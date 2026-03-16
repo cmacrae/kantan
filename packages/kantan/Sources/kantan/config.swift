@@ -88,6 +88,39 @@ struct Config {
   var isNativeAppearance: Bool {
     theme == nil && style.light?.fg == nil && style.dark?.fg == nil
   }
+
+  /// Default config shown when no configuration file is found.
+  static let welcome = Config(
+    theme: nil,
+    style: StyleConfig(light: nil, dark: nil),
+    height: 33,
+    padding: 10,
+    iconTextSpacing: 4,
+    iconFont: nil,
+    textFont: nil,
+    cornerRadius: 0,
+    blur: 0,
+    gaps: .default,
+    autohide: AutohideConfig(enabled: false, delay: 0),
+    displays: .main,
+    modules: [
+      ModuleConfig(
+        name: "welcome",
+        placement: PlacementSpec(raw: "notchleft|left"),
+        type: "text",
+        icon: "mood-smile-beam",
+        config: TextConfig(value: "Welcome to kantan!")
+      ),
+      ModuleConfig(
+        name: "setup-hint",
+        placement: PlacementSpec(raw: "notchright|right"),
+        type: "text",
+        icon: "file-smile",
+        config: TextConfig(
+          value: "Populate and customise your bar by writing a config file")
+      ),
+    ]
+  )
 }
 
 /// Where a font is loaded from.
@@ -184,13 +217,29 @@ struct FontConfig: Codable {
 /// in the symlinkJoin output), falls back to Bundle.main.executableURL (works for
 /// PATH-based invocation like Homebrew where argv[0] is just the command name).
 func bundledPrefix() -> URL? {
-  let arg0 = CommandLine.arguments[0]
-  if arg0.contains("/") {
-    return URL(fileURLWithPath: arg0).resolvingSymlinksInPath()
+  let fm = FileManager.default
+
+  func resolve(from url: URL) -> URL {
+    // Try the unresolved path first — Nix symlinkJoin combines packages
+    // (binary, fonts, themes) under one prefix via symlinks. Resolving
+    // would follow those symlinks into the bare binary package which
+    // doesn't contain share/fonts or share/themes.
+    let unresolved = url.deletingLastPathComponent().deletingLastPathComponent()
+    if fm.fileExists(atPath: unresolved.appendingPathComponent("share").path) {
+      return unresolved
+    }
+    // Fall back to resolved for installs where the binary is symlinked
+    // into a different prefix (e.g. Homebrew /opt/homebrew/bin → Cellar).
+    return url.resolvingSymlinksInPath()
       .deletingLastPathComponent().deletingLastPathComponent()
   }
-  if let execURL = Bundle.main.executableURL?.resolvingSymlinksInPath() {
-    return execURL.deletingLastPathComponent().deletingLastPathComponent()
+
+  let arg0 = CommandLine.arguments[0]
+  if arg0.contains("/") {
+    return resolve(from: URL(fileURLWithPath: arg0))
+  }
+  if let execURL = Bundle.main.executableURL {
+    return resolve(from: execURL)
   }
   return nil
 }
