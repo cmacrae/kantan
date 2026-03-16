@@ -1,3 +1,4 @@
+import AppKit
 import CoreGraphics
 import Foundation
 
@@ -15,7 +16,7 @@ struct FocusConfigFactory: ModuleConfigurationFactory {
 /// `_NSDoNotDisturbDisabledNotification` distributed notifications, so
 /// event-driven detection is not possible. Instead, this module detects
 /// focus state by checking whether the system FocusModes indicator window
-/// exists in the menu bar via `CGWindowListCopyWindowInfo`. This is the same
+/// exists in the menu bar via `MenuBarItemDetector`. This is the same
 /// mechanism kantan uses for menu bar masking — fast (~1ms) and requires
 /// no permissions.
 final class FocusConfig: ModuleConfiguration, @unchecked Sendable {
@@ -35,8 +36,15 @@ final class FocusConfig: ModuleConfiguration, @unchecked Sendable {
     return defaults?.object(forKey: "NSStatusItem Preferred Position FocusModes") as? Double
   }()
 
-  /// Tolerance in points for matching preferred position to detected item.
-  private static let positionTolerance: Double = 3.0
+  /// Maximum distance (in points) between a candidate item's actual
+  /// rightEdgeDist and the plist preferred position for FocusModes.
+  /// Must be large enough to handle position shifts (e.g. battery
+  /// percentage expanding the battery indicator by ~25px) but small
+  /// enough to reject the next item over when Focus is inactive
+  /// (typical gap ≥ 38px). 35px satisfies both constraints.
+  private static let focusPresenceTolerance: Double = 35.0
+
+  private static let focusMask = MaskConfig(name: "Focus")
 
   init() {}
 
@@ -79,44 +87,30 @@ final class FocusConfig: ModuleConfiguration, @unchecked Sendable {
   // MARK: - Focus Indicator Detection
 
   /// Checks whether the system FocusModes indicator window is present in
-  /// the menu bar by scanning CGWindowList for a Control Centre status-bar
-  /// window at the FocusModes preferred position.
-  /// Fast (~1ms), no permissions required.
+  /// the menu bar. Uses `MenuBarItemDetector.resolveItem` (which includes
+  /// rank-based fallback for handling position shifts), then applies a
+  /// tighter position check to distinguish "Focus active but shifted"
+  /// from "Focus inactive, wrong item at that rank."
   private static func isFocusIndicatorVisible() -> Bool {
-    guard let preferredPos = focusModesPreferredPosition else { return false }
+    guard let preferredPos = focusModesPreferredPosition,
+      let screen = NSScreen.main
+    else { return false }
 
-    let windowList =
-      CGWindowListCopyWindowInfo([.optionOnScreenOnly], kCGNullWindowID) as? [[String: Any]] ?? []
-    let statusLevel = Int(CGWindowLevelForKey(.statusWindow))
-
-    var items: [(maxX: Double, owner: String)] = []
-
-    for window in windowList {
-      let level = window[kCGWindowLayer as String] as? Int ?? -999
-      guard level == statusLevel else { continue }
-
-      let owner = window[kCGWindowOwnerName as String] as? String ?? ""
-      guard owner != "kantan" else { continue }
-
-      guard let boundsDict = window[kCGWindowBounds as String] as? NSDictionary,
-        let bounds = CGRect(dictionaryRepresentation: boundsDict)
-      else { continue }
-      // Only menu bar items (top of primary screen, y ≈ 0)
-      guard bounds.origin.y < 30 else { continue }
-      items.append((maxX: Double(bounds.maxX), owner: owner))
-    }
-
+    let items = MenuBarItemDetector.detectItems(for: screen)
     guard !items.isEmpty else { return false }
 
-    let effectiveRightEdge = items.map(\.maxX).max() ?? 0
-
-    for item in items {
-      let rightEdgeDist = effectiveRightEdge - item.maxX
-      if abs(rightEdgeDist - preferredPos) < positionTolerance {
-        return true
-      }
+    // Use the shared resolver (includes rank-based fallback for shifts).
+    guard let candidate = MenuBarItemDetector.resolveItem(for: focusMask, from: items) else {
+      return false
     }
 
-    return false
+    // The resolver's rank-based fallback uses an 80px sanity check, which
+    // is too loose for presence detection — when Focus is inactive the
+    // next item over (~38px gap) would pass. Apply a tighter check:
+    // the candidate must be within focusPresenceTolerance of the expected
+    // position to confirm it's actually the FocusModes indicator.
+    let effectiveRightEdge = items.map { Double($0.cgRect.maxX) }.max() ?? 0
+    let candidateDist = effectiveRightEdge - Double(candidate.cgRect.maxX)
+    return abs(candidateDist - preferredPos) < focusPresenceTolerance
   }
 }
