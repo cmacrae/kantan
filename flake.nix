@@ -138,6 +138,9 @@
 
       apps.${system}.generate-homebrew-formulae = homebrew.generateApp;
 
+      darwinModules.default = import ./nix/module/darwin.nix kantan;
+      homeManagerModules.default = import ./nix/module/home-manager.nix kantan;
+
       formatter.${system} = treefmtEval.config.build.wrapper;
       checks.${system}.formatting = treefmtEval.config.build.check self;
     };
