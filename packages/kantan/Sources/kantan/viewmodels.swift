@@ -629,6 +629,12 @@ class ThemeProvider: ObservableObject {
     return resolveThemeTemplate(value, palette: palette)
   }
 
+  /// Returns true when the value is a `{theme(...)}` template that cannot
+  /// be resolved because no theme palette is loaded (native mode).
+  private func isUnresolvableTemplate(_ value: String) -> Bool {
+    activePalette == nil && value.hasPrefix("{theme(") && value.hasSuffix(")}")
+  }
+
   // MARK: - Style Resolution Helpers
 
   private func resolveGlobalStyleMode() -> StyleModeConfig {
@@ -675,8 +681,12 @@ class ThemeProvider: ObservableObject {
       return Color(nsColor: NSColor(hex: override))
     }
     if let ds = vm.dynamicStyle {
-      if let fg = ds[keyPath: dynamicFg] { return Color(nsColor: NSColor(hex: resolveColor(fg))) }
-      if let fg = ds.fg { return Color(nsColor: NSColor(hex: resolveColor(fg))) }
+      if let fg = ds[keyPath: dynamicFg], !isUnresolvableTemplate(fg) {
+        return Color(nsColor: NSColor(hex: resolveColor(fg)))
+      }
+      if let fg = ds.fg, !isUnresolvableTemplate(fg) {
+        return Color(nsColor: NSColor(hex: resolveColor(fg)))
+      }
     }
     if isNative { return Color(nsColor: .labelColor) }
     let moduleMode = resolveModuleStyleMode(vm.moduleConfig.style)
@@ -703,7 +713,7 @@ class ThemeProvider: ObservableObject {
     if let override = vm.bgOverride {
       return Color(nsColor: NSColor(hex: override))
     }
-    if let ds = vm.dynamicStyle, let bg = ds.bg, !bg.isEmpty {
+    if let ds = vm.dynamicStyle, let bg = ds.bg, !bg.isEmpty, !isUnresolvableTemplate(bg) {
       return Color(nsColor: NSColor(hex: resolveColor(bg)))
     }
     if isNative { return .clear }
