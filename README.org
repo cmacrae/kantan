@@ -1,2 +1,0 @@
-* 簡単
-/kantan: A beautifully simple status bar for macOS/

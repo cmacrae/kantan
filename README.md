@@ -1,4 +1,4 @@
-# kantan (簡単)
+# kantan · かんたん
 
 A beautifully simple status bar for macOS
 

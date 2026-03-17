@@ -1,4 +1,4 @@
-# kantan (簡単)
+# kantan · かんたん
 
 A beautifully simple macOS status bar replacement, built with Swift and SwiftUI.
 
