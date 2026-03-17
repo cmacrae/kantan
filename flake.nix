@@ -24,6 +24,9 @@
         inherit pkgs;
         pluginsDir = ./packages/plugins;
       };
+      site = import ./nix/site.nix {
+        inherit pkgs docs;
+      };
 
       plugins = import ./nix/plugins.nix {
         inherit pkgs;
@@ -134,6 +137,7 @@
         inherit kantan;
         default = kantan;
         docs = docs.package;
+        site = site.package;
         without-plugins = kantanWithPlugins { plugins = [ ]; };
         release = release.full;
         release-without-plugins = release.core;
@@ -143,6 +147,7 @@
 
       apps.${system} = {
         docs = docs.app;
+        site = site.app;
         generate-homebrew-formulae = homebrew.generateApp;
       };
 

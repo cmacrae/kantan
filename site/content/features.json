@@ -1,0 +1,32 @@
+[
+  {
+    "icon": "brand-apple-filled",
+    "title": "Deeply native modules",
+    "description": "Battery via IOKit, volume via CoreAudio, WiFi via CoreWLAN, Bluetooth via IOBluetooth, workspaces via CoreGraphics. They're event-driven and update the instant something changes, with icons and colours that follow their state."
+  },
+  {
+    "icon": "code-dots",
+    "title": "Build plugins in any language",
+    "description": "A plugin reads its settings from environment variables and prints JSON. Write one in Swift, Go, shell, Python or any language you like."
+  },
+  {
+    "icon": "layout-filled",
+    "title": "Declarative view DSL",
+    "description": "Build rich popups and menus from a tree of layout, content and interactive nodes: stacks, grids, buttons, checkboxes, toggles, progress bars, conditionals and loops over collections. Describe them in your config or in a plugin's output."
+  },
+  {
+    "icon": "brush",
+    "title": "Themes with light/dark mode",
+    "description": "Use your own palettes or the built-in themes. Define separate light and dark schemes and kantan switches automatically. Reference theme colors anywhere with simple template syntax."
+  },
+  {
+    "icon": "masks-theater",
+    "title": "Menu bar masking",
+    "description": "Replace native system indicators (WiFi, Bluetooth, Clock, Volume and more) with fully styled kantan modules. Clicks pass through to the native indicators underneath. Their menus and actions keep working."
+  },
+  {
+    "icon": "books",
+    "title": "Keep things tidy",
+    "description": "Collapse modules into drawers. Place groups left, right or in the notch ears. kantan detects whether each display has a notch and places the groups to fit."
+  }
+]

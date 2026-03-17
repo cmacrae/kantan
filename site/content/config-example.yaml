@@ -1,0 +1,110 @@
+theme:
+  light: catppuccin[latte]
+  dark: catppuccin[mocha]
+
+modules:
+  # Workspace indicators on the left
+  - name: spaces
+    type: workspace
+    placement: left
+    icon: point-filled
+    config:
+      rainbow:
+        enabled: true
+
+  # Drawer contents
+  - name: system-monitor
+    type: command
+    placement: right
+    icon: activity
+    config:
+      command: kantan-plugin-system-monitor
+      output: json
+
+  - name: reminders
+    type: command
+    placement: right
+    icon: bell-filled
+    shape: true
+    style:
+      icon:
+        fg: "{theme(maroon)}"
+    config:
+      command: kantan-plugin-reminders
+      output: json
+      watch: kantan-plugin-reminders --watch
+      interval: 0
+
+  - type: drawer
+    placement: right
+
+  # Always visible
+  - name: caffeine
+    type: command
+    placement: right
+    icon: mug-filled
+    style:
+      fg: "{theme(rosewater)}"
+    config:
+      command: kantan-plugin-caffeine
+      output: json
+
+  - name: focus
+    type: focus
+    placement: right
+    icon: brain
+    style:
+      fg: "{theme(pink)}"
+    mask:
+      name: Focus
+
+  - name: bluetooth
+    type: bluetooth
+    placement: right
+    style:
+      fg: "{theme(blue)}"
+    mask:
+      name: Bluetooth
+
+  - name: volume
+    type: volume
+    placement: right
+    style:
+      fg: "{theme(lavender)}"
+    mask:
+      name: Volume
+
+  - name: wifi
+    type: wifi
+    placement: right
+    style:
+      fg: "{theme(sky)}"
+    mask:
+      name: WiFi
+
+  - name: power
+    type: power
+    placement: right
+    style:
+      fg: "{theme(subtext1)}"
+    mask:
+      name: Battery
+
+  - name: control-centre
+    type: icon
+    placement: right
+    icon: adjustments-horizontal-filled
+    style:
+      fg: "{theme(mauve)}"
+    mask:
+      name: ControlCenter
+
+  - name: clock
+    type: clock
+    placement: right
+    style:
+      fg: "{theme(flamingo)}"
+    config:
+      format: "HH:mm"
+    mask:
+      name: Clock
