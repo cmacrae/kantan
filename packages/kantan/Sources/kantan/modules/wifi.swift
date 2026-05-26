@@ -76,7 +76,7 @@ final class WiFiConfig: NSObject, ModuleConfiguration, EventDrivenModule, CWEven
   /// instead of the signal-strength icon.
   let ssidIcons: [String: String]
 
-  var redrawInterval: TimeInterval { 0 }
+  var redrawInterval: TimeInterval { noPoll }
 
   nonisolated(unsafe) private var onChange: (@Sendable () -> Void)?
   nonisolated(unsafe) private var wifiClient: CWWiFiClient?

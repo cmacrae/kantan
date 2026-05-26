@@ -50,7 +50,7 @@ final class BluetoothConfig: NSObject, ModuleConfiguration, EventDrivenModule,
   let icon: String
   let disabledIcon: String
 
-  var redrawInterval: TimeInterval { 0 }
+  var redrawInterval: TimeInterval { noPoll }
 
   nonisolated(unsafe) private var onChange: (@Sendable () -> Void)?
   nonisolated(unsafe) private var connectNotification: IOBluetoothUserNotification?

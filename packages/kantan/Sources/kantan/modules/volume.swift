@@ -83,7 +83,7 @@ final class VolumeConfig: ModuleConfiguration, EventDrivenModule {
   /// that icon is used instead of the level-based icons.
   let deviceIcons: [String: String]
 
-  var redrawInterval: TimeInterval { 0 }
+  var redrawInterval: TimeInterval { noPoll }
 
   nonisolated(unsafe) private var onChange: (@Sendable () -> Void)?
   nonisolated(unsafe) private var listenedDeviceID: AudioDeviceID = 0

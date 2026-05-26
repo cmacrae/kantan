@@ -110,7 +110,7 @@ final class PowerConfig: ModuleConfiguration, EventDrivenModule {
   let lowPowerModeStyle: PowerStateStyle?
   let lowStyle: PowerStateStyle?
 
-  var redrawInterval: TimeInterval { 0 }
+  var redrawInterval: TimeInterval { noPoll }
 
   nonisolated(unsafe) private var runLoopSource: CFRunLoopSource?
   nonisolated(unsafe) private var onChange: (@Sendable () -> Void)?
