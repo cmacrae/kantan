@@ -5,8 +5,7 @@
 }:
 
 let
-  themeName =
-    name: type: if type == "regular" then builtins.replaceStrings [ ".yaml" ] [ "" ] name else name;
+  themeName = name: type: if type == "regular" then pkgs.lib.removeSuffix ".yaml" name else name;
 
   buildTheme =
     name: type:
@@ -27,6 +26,8 @@ let
     );
 in
 {
+  inherit themeName;
+
   themePackages = discover {
     dir = themesDir;
     predicate =
