@@ -12,7 +12,6 @@ let
   hasConfig = cfg.settings != { };
   hasThemes = cfg.themes != { };
   hasExtraArgs = cfg.extraArgs != [ ];
-  hasExtraPackages = cfg.extraPackages != [ ];
 
   configFile = yaml.generate "kantan-config.yaml" cfg.settings;
 
@@ -29,21 +28,15 @@ let
     ${lib.concatMapStringsSep "\n" (t: "cp ${t.path} $out/${t.name}") customThemes}
   '';
 
-  wrappedPackage = pkgs.symlinkJoin {
-    name = "kantan-configured";
-    paths = [ cfg.package ];
-    nativeBuildInputs = [ pkgs.makeBinaryWrapper ];
-    postBuild = ''
-      wrapProgram $out/bin/kantan \
-        ${lib.optionalString hasConfig ''--add-flags "--config ${configFile}"''} \
-        ${lib.optionalString hasThemes ''--add-flags "--themes-dir ${themesDir}"''} \
-        ${lib.optionalString hasExtraArgs ''--add-flags "${lib.escapeShellArgs cfg.extraArgs}"''} \
-        ${lib.optionalString hasExtraPackages "--prefix PATH : ${lib.makeBinPath cfg.extraPackages}"}
-    '';
+  package = import ./wrap.nix {
+    inherit pkgs lib;
+    package = cfg.package;
+    addFlags =
+      lib.optional hasConfig "--config ${configFile}"
+      ++ lib.optional hasThemes "--themes-dir ${themesDir}"
+      ++ lib.optional hasExtraArgs (lib.escapeShellArgs cfg.extraArgs);
+    pathPackages = cfg.extraPackages;
   };
-
-  needsWrapping = hasConfig || hasThemes || hasExtraArgs || hasExtraPackages;
-  package = if needsWrapping then wrappedPackage else cfg.package;
 in
 {
   options.programs.kantan =
@@ -62,13 +55,6 @@ in
     environment.systemPackages = [ package ];
     fonts.packages = cfg.fonts;
 
-    launchd.user.agents.kantan = {
-      serviceConfig = {
-        ProgramArguments = [ "${package}/bin/kantan" ];
-        KeepAlive = true;
-        RunAtLoad = true;
-        ProcessType = "Interactive";
-      };
-    };
+    launchd.user.agents.kantan.serviceConfig = import ./launchd.nix { inherit package; };
   };
 }

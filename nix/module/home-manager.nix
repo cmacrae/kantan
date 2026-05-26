@@ -9,22 +9,12 @@ let
   cfg = config.programs.kantan;
   yaml = pkgs.formats.yaml { };
 
-  hasExtraArgs = cfg.extraArgs != [ ];
-  hasExtraPackages = cfg.extraPackages != [ ];
-
-  wrappedPackage = pkgs.symlinkJoin {
-    name = "kantan-configured";
-    paths = [ cfg.package ];
-    nativeBuildInputs = [ pkgs.makeBinaryWrapper ];
-    postBuild = ''
-      wrapProgram $out/bin/kantan \
-        ${lib.optionalString hasExtraArgs ''--add-flags "${lib.escapeShellArgs cfg.extraArgs}"''} \
-        ${lib.optionalString hasExtraPackages "--prefix PATH : ${lib.makeBinPath cfg.extraPackages}"}
-    '';
+  package = import ./wrap.nix {
+    inherit pkgs lib;
+    package = cfg.package;
+    addFlags = lib.optional (cfg.extraArgs != [ ]) (lib.escapeShellArgs cfg.extraArgs);
+    pathPackages = cfg.extraPackages;
   };
-
-  needsWrapping = hasExtraArgs || hasExtraPackages;
-  package = if needsWrapping then wrappedPackage else cfg.package;
 in
 {
   options.programs.kantan = import ./options.nix {
@@ -48,12 +38,7 @@ in
 
     launchd.agents.kantan = {
       enable = true;
-      config = {
-        ProgramArguments = [ "${package}/bin/kantan" ];
-        KeepAlive = true;
-        RunAtLoad = true;
-        ProcessType = "Interactive";
-      };
+      config = import ./launchd.nix { inherit package; };
     };
   };
 }
