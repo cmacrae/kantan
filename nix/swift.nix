@@ -12,7 +12,7 @@ let
     export PATH="$DEVELOPER_DIR/Toolchains/XcodeDefault.xctoolchain/usr/bin:$DEVELOPER_DIR/usr/bin:/usr/bin:$PATH"
     export HOME="$TMPDIR"
 
-    swift build -c release --disable-sandbox --scratch-path .build
+    swift build -c release --disable-sandbox --scratch-path .build --product ${bin}
 
     runHook postBuild
   '';
