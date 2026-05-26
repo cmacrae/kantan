@@ -254,14 +254,15 @@ final class WiFiConfig: NSObject, ModuleConfiguration, EventDrivenModule, CWEven
 
   func getBackgroundIcon() -> String? {
     let status = getCachedStatus()
-    guard status.isConnected, strengthIcons.count > 1 else { return nil }
+    guard status.isConnected, let maxIcon = strengthIcons.last, strengthIcons.count > 1 else {
+      return nil
+    }
     // No background icon when an SSID-specific icon is active
     if iconForSSID(status.ssid) != nil {
       return nil
     }
     let level = Int(status.signalQuality * 100)
     let currentIcon = iconForLevel(level, icons: strengthIcons)
-    let maxIcon = strengthIcons.last!
     // Only show background when not already at full strength
     guard currentIcon != maxIcon else { return nil }
     return maxIcon

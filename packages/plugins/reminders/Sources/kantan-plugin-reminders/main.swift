@@ -103,10 +103,9 @@ func loadSettings() -> Settings {
 /// Parses a duration string like "10m", "12h", "2d" into seconds.
 func parseDuration(_ string: String) -> TimeInterval? {
   let trimmed = string.trimmingCharacters(in: .whitespaces).lowercased()
-  guard trimmed.count >= 2 else { return nil }
-
-  let suffix = trimmed.last!
-  guard let value = Double(trimmed.dropLast()), value > 0 else { return nil }
+  guard let suffix = trimmed.last, trimmed.count >= 2,
+    let value = Double(trimmed.dropLast()), value > 0
+  else { return nil }
 
   switch suffix {
   case "m": return value * 60

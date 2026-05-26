@@ -95,10 +95,9 @@ func loadSettings() -> Settings {
 
 func parseDuration(_ string: String) -> TimeInterval? {
   let trimmed = string.trimmingCharacters(in: .whitespaces).lowercased()
-  guard trimmed.count >= 2 else { return nil }
-
-  let suffix = trimmed.last!
-  guard let value = Double(trimmed.dropLast()), value > 0 else { return nil }
+  guard let suffix = trimmed.last, trimmed.count >= 2,
+    let value = Double(trimmed.dropLast()), value > 0
+  else { return nil }
 
   switch suffix {
   case "m": return value * 60
@@ -256,12 +255,14 @@ func shellQuote(_ s: String) -> String {
   "'" + s.replacingOccurrences(of: "'", with: "'\\''") + "'"
 }
 
+// Conditional section pattern: {?var:text} (truthy) and {?!var:text} (falsy)
+private let conditionalPattern: NSRegularExpression? = try? NSRegularExpression(
+  pattern: #"\{\?(!?)(\w+):([^}]*)\}"#, options: [])
+
 func applyFormat(_ format: String, variables: [String: String]) -> String {
   var result = format
 
-  // Process conditional sections: {?var:text} (include when truthy) and {?!var:text} (include when falsy)
-  let conditionalPattern = try! NSRegularExpression(
-    pattern: #"\{\?(!?)(\w+):([^}]*)\}"#, options: [])
+  guard let conditionalPattern = conditionalPattern else { return result }
   let fullRange = NSRange(result.startIndex..., in: result)
   let matches = conditionalPattern.matches(in: result, range: fullRange).reversed()
   for match in matches {

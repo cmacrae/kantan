@@ -313,7 +313,7 @@ struct DSLRendererView: View {
     spacing: Double?, alignment: ViewAlignment?, children: [ViewNode], command: String? = nil
   ) -> some View {
     let resolvedCommand = command.map { resolver.resolve($0) }
-    let hasCommand = resolvedCommand != nil && !resolvedCommand!.isEmpty
+    let hasCommand = !(resolvedCommand?.isEmpty ?? true)
     DSLClickableHStack(
       spacing: spacing, alignment: verticalAlignment(from: alignment),
       command: hasCommand ? resolvedCommand : nil,

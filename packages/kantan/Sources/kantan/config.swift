@@ -795,13 +795,13 @@ func loadConfig(from yaml: Yaml, configDir: String? = nil) -> Config? {
   let style: StyleConfig
   if let parsedStyle = parseStyleConfig(from: yaml["style"]) {
     style = parsedStyle
-  } else if theme != nil {
+  } else if let theme = theme {
     // No explicit style — synthesise from theme palette defaults
     let light = StyleModeConfig(
-      fg: theme!.lightPalette.fg, bg: theme!.lightPalette.bg,
+      fg: theme.lightPalette.fg, bg: theme.lightPalette.bg,
       text: nil, icon: nil, shape: nil)
     let dark = StyleModeConfig(
-      fg: theme!.darkPalette.fg, bg: theme!.darkPalette.bg,
+      fg: theme.darkPalette.fg, bg: theme.darkPalette.bg,
       text: nil, icon: nil, shape: nil)
     style = StyleConfig(light: light, dark: dark)
   } else if yaml["style"].dictionary != nil {
