@@ -26,7 +26,7 @@ Places kantan modules over native macOS menu bar items and passes clicks through
 Apply named colour palettes via theme files with support for flavours, light/dark mode, and `{theme(...)}` template syntax. kantan ships with a Catppuccin theme. With no theme, it uses the native macOS appearance.
 
 **Auto-Hide, Blur & Shapes**
-Auto-hide the bar after a configurable delay, apply vibrancy blur, and add per-module background shapes (pill, box, underline, overline) with configurable gaps and corner radius.
+Hide the bar whenever the cursor reaches the top of the screen (with an optional dwell delay) so the native macOS menu bar is reachable underneath, apply vibrancy blur, and add per-module background shapes (pill, box, underline, overline) with configurable gaps and corner radius.
 
 ## Next Steps
 

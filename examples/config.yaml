@@ -9,6 +9,9 @@ theme:
 # blur: 3
 # displays: main
 displays: all
+# autohide is enabled by default — the bar is visible normally but hides
+# whenever the cursor sits at the top edge of the screen, yielding to the
+# native macOS menu bar. Uncomment to keep the bar always visible instead:
 # autohide:
 #   enabled: false
 

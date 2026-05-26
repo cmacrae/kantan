@@ -14,7 +14,7 @@ Top-level configuration options control the status bar's appearance and behavior
 | `cornerRadius` | number | no | `0` | Corner radius of the bar background |
 | `blur` | integer | no | `0` | Background blur level (0-6). 0 disables blur. Lower values produce a more transparent tint with prominent blur; higher values produce a more opaque tint with subtle blur |
 | `gaps` | object | no | all `0` | Gaps around the bar (see below) |
-| `autohide` | object | no | enabled, 0s delay | Auto-hide behavior (see below). **Note:** autohide is enabled by default even when this key is omitted |
+| `autohide` | object | no | enabled, 0s delay | Hover-to-hide behavior (see below). Enabled even when this key is omitted: the bar hides while the cursor rests at the very top of the screen, over the native macOS menu bar |
 | `displays` | string/array | no | `main` | Which displays to show the bar on |
 | `theme` | string/object | no | — | Theme configuration (see below) |
 
@@ -125,7 +125,7 @@ All values default to `0` and are clamped to non-negative integers.
 
 ## Auto-Hide Configuration
 
-The `autohide` key controls whether the bar hides automatically:
+The `autohide` key controls the bar's hover-to-hide behavior. When autohide is enabled, the bar is visible normally and hides itself only while the mouse cursor is at the very top of the screen — getting out of the way so you can interact with the native macOS menu bar underneath. As soon as the cursor moves away from the top edge, the bar slides back into view.
 
 ```yaml
 autohide:
@@ -135,10 +135,17 @@ autohide:
 
 | Property | Type | Default | Description |
 |----------|------|---------|-------------|
-| `enabled` | boolean | `true` | Whether auto-hide is active |
-| `delay` | number | `0.0` | Delay in seconds before hiding (0-5) |
+| `enabled` | boolean | `true` | Whether the bar should hide itself while the cursor is at the top of the screen |
+| `delay` | number | `0.0` | Seconds the cursor must dwell at the top edge before the bar hides (0-5). With `delay: 0` (the default) the bar hides immediately on hover |
 
-> **Note:** Autohide is enabled by default. Omitting the `autohide` key entirely is equivalent to `autohide: { enabled: true, delay: 0 }`. To disable autohide, explicitly set `autohide: { enabled: false }`.
+### How it works
+
+1. **Visible state (default).** When `enabled: true`, the bar is shown normally; the modules update and the bar is fully interactive.
+2. **Hide trigger.** kantan watches the mouse position on each screen. When the cursor enters the top 4 px of the screen the bar is on (its "trigger zone"), a hide is scheduled. Multi-display setups are evaluated per-screen.
+3. **Hide delay.** If `delay > 0`, the cursor must stay in the trigger zone for `delay` seconds before the bar fades out. Moving the cursor out of the trigger zone before the delay elapses cancels the pending hide. Setting `delay: 0` (the default) hides the bar immediately on hover.
+4. **Reveal trigger.** Once hidden, the bar fades back in as soon as the cursor moves below the menu bar region. There is no reveal delay; the bar follows the cursor.
+
+> Autohide is enabled by default: omitting the `autohide` key is equivalent to `autohide: { enabled: true, delay: 0 }`. The bar hides whenever the cursor reaches the very top of the screen, where macOS reveals its own menu bar. To keep the bar always visible, set `autohide: { enabled: false }`.
 
 ## Multi-Display Support
 
