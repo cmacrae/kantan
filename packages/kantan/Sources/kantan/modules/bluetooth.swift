@@ -64,17 +64,9 @@ final class BluetoothConfig: NSObject, ModuleConfiguration, EventDrivenModule,
     super.init()
   }
 
-  required init(from decoder: Decoder) throws {
-    self.icon = ""
-    self.disabledIcon = ""
-    super.init()
-  }
-
   deinit {
     stopObserving()
   }
-
-  func encode(to encoder: Encoder) throws {}
 
   // MARK: - EventDrivenModule
 

@@ -98,17 +98,9 @@ final class VolumeConfig: ModuleConfiguration, EventDrivenModule {
     self.deviceIcons = deviceIcons
   }
 
-  required init(from decoder: Decoder) throws {
-    self.levelIcons = []
-    self.mutedIcon = ""
-    self.deviceIcons = [:]
-  }
-
   deinit {
     stopObserving()
   }
-
-  func encode(to encoder: Encoder) throws {}
 
   // MARK: - EventDrivenModule
 

@@ -135,20 +135,6 @@ final class PowerConfig: ModuleConfiguration, EventDrivenModule {
     self.lowStyle = lowStyle
   }
 
-  required init(from decoder: Decoder) throws {
-    self.showLevel = false
-    self.lowThreshold = 20
-    self.levelIcons = []
-    self.chargingIcon = ""
-    self.pluggedIcon = ""
-    self.chargingStyle = nil
-    self.pluggedStyle = nil
-    self.lowPowerModeStyle = nil
-    self.lowStyle = nil
-  }
-
-  func encode(to encoder: Encoder) throws {}
-
   deinit {
     stopObserving()
   }

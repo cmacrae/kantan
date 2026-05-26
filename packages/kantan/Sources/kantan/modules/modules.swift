@@ -10,7 +10,7 @@ struct DynamicStyleOverride: Sendable {
   let textFg: String?
 }
 
-protocol ModuleConfiguration: Codable, Sendable {
+protocol ModuleConfiguration: Sendable {
   var type: String { get }
   var redrawInterval: TimeInterval { get }
   func getValue(completion: @escaping @Sendable (String) -> Void)
@@ -51,66 +51,34 @@ protocol EventDrivenModule: AnyObject {
 
 // MARK: - Interaction Config
 
-struct InteractionConfig: Codable {
+struct InteractionConfig {
   let hover: HoverConfig?
   let click: ClickConfig?
 }
 
-struct HoverConfig: Codable {
+struct HoverConfig {
   let type: String
   let content: String?
   let viewTree: ViewNode?
-
-  private enum CodingKeys: String, CodingKey {
-    case type, content
-  }
 
   init(type: String, content: String? = nil, viewTree: ViewNode? = nil) {
     self.type = type
     self.content = content
     self.viewTree = viewTree
   }
-
-  init(from decoder: Decoder) throws {
-    let container = try decoder.container(keyedBy: CodingKeys.self)
-    self.type = try container.decode(String.self, forKey: .type)
-    self.content = try container.decodeIfPresent(String.self, forKey: .content)
-    self.viewTree = nil
-  }
-
-  func encode(to encoder: Encoder) throws {
-    var container = encoder.container(keyedBy: CodingKeys.self)
-    try container.encode(type, forKey: .type)
-    try container.encodeIfPresent(content, forKey: .content)
-  }
 }
 
-struct ClickConfig: Codable {
+struct ClickConfig {
   let type: String
   let viewTree: ViewNode?
-
-  private enum CodingKeys: String, CodingKey {
-    case type
-  }
 
   init(type: String, viewTree: ViewNode? = nil) {
     self.type = type
     self.viewTree = viewTree
   }
-
-  init(from decoder: Decoder) throws {
-    let container = try decoder.container(keyedBy: CodingKeys.self)
-    self.type = try container.decode(String.self, forKey: .type)
-    self.viewTree = nil
-  }
-
-  func encode(to encoder: Encoder) throws {
-    var container = encoder.container(keyedBy: CodingKeys.self)
-    try container.encode(type, forKey: .type)
-  }
 }
 
-struct MaskConfig: Codable {
+struct MaskConfig {
   let index: Int?
   let name: String?
 
@@ -156,18 +124,6 @@ struct PlacementSpec: Equatable, Sendable {
   /// Whether this spec belongs to the right side for mergeModules ordering.
   var isRightSide: Bool {
     raw.contains("right")
-  }
-}
-
-extension PlacementSpec: Codable {
-  init(from decoder: Decoder) throws {
-    let container = try decoder.singleValueContainer()
-    self.raw = try container.decode(String.self)
-  }
-
-  func encode(to encoder: Encoder) throws {
-    var container = encoder.singleValueContainer()
-    try container.encode(raw)
   }
 }
 
@@ -264,7 +220,7 @@ enum BuilderError: Error {
 
 // MARK: - Module Config
 
-struct ModuleConfig: Codable {
+struct ModuleConfig {
   let name: String
   let placement: PlacementSpec
   let type: String
@@ -279,10 +235,6 @@ struct ModuleConfig: Codable {
 
   var isPassthrough: Bool {
     mask != nil || interaction?.click?.type == "passthrough"
-  }
-
-  private enum CodingKeys: String, CodingKey {
-    case name, type, placement, icon, textFont, iconFont, style, config, interaction, mask
   }
 
   init(
@@ -302,63 +254,6 @@ struct ModuleConfig: Codable {
     self.interaction = interaction
     self.mask = mask
     self.displays = displays
-  }
-
-  init(from decoder: Decoder) throws {
-    let container = try decoder.container(keyedBy: CodingKeys.self)
-    name = try container.decode(String.self, forKey: .name)
-    placement = try container.decode(PlacementSpec.self, forKey: .placement)
-    type = try container.decode(String.self, forKey: .type)
-    icon = try container.decodeIfPresent(String.self, forKey: .icon)
-    textFont = try container.decodeIfPresent(FontConfig.self, forKey: .textFont)
-    iconFont = try container.decodeIfPresent(FontConfig.self, forKey: .iconFont)
-
-    let configDict = try container.decodeIfPresent(ConfigDictionary.self, forKey: .config)?.values
-    let configYaml = configDict.map(ModuleConfig.yaml(from:))
-
-    if let configYaml = configYaml, let factory = moduleFactories[type] {
-      config = try factory.configuration(from: configYaml, configDir: nil, theme: nil)
-    } else {
-      config = nil
-    }
-
-    style = nil
-    interaction = try container.decodeIfPresent(InteractionConfig.self, forKey: .interaction)
-    mask = try container.decodeIfPresent(MaskConfig.self, forKey: .mask)
-  }
-
-  func encode(to encoder: Encoder) throws {
-    var container = encoder.container(keyedBy: CodingKeys.self)
-    try container.encode(name, forKey: .name)
-    try container.encode(placement.raw, forKey: .placement)
-    try container.encode(type, forKey: .type)
-    try container.encodeIfPresent(icon, forKey: .icon)
-    try container.encodeIfPresent(textFont, forKey: .textFont)
-    try container.encodeIfPresent(iconFont, forKey: .iconFont)
-    try container.encodeIfPresent(mask, forKey: .mask)
-  }
-
-  static func yaml(from dictionary: [String: Any]) -> Yaml {
-    var yamlDict: [Yaml: Yaml] = [:]
-    for (key, value) in dictionary {
-      if let stringValue = value as? String {
-        yamlDict[Yaml.string(key)] = Yaml.string(stringValue)
-      }
-    }
-    return Yaml.dictionary(yamlDict)
-  }
-}
-
-struct ConfigDictionary: Decodable {
-  var values: [String: Any] = [:]
-
-  init(from decoder: Decoder) throws {
-    let container = try decoder.singleValueContainer()
-    if let decodedDictionary = try? container.decode([String: String].self) {
-      for (key, value) in decodedDictionary {
-        values[key] = value
-      }
-    }
   }
 }
 

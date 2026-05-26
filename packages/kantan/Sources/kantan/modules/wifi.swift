@@ -97,15 +97,6 @@ final class WiFiConfig: NSObject, ModuleConfiguration, EventDrivenModule, CWEven
     super.init()
   }
 
-  required init(from decoder: Decoder) throws {
-    self.strengthIcons = []
-    self.disconnectedIcon = ""
-    self.ssidIcons = [:]
-    super.init()
-  }
-
-  func encode(to encoder: Encoder) throws {}
-
   // MARK: - EventDrivenModule
 
   func startObserving(onChange: @escaping @Sendable () -> Void) {
