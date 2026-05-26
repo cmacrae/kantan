@@ -58,15 +58,7 @@
 
       _kantan = buildSwiftPackage {
         pname = "kantan";
-        src = pkgs.lib.cleanSourceWith {
-          src = ./packages/kantan;
-          filter =
-            name: type:
-            let
-              baseName = baseNameOf (toString name);
-            in
-            pkgs.lib.cleanSourceFilter name type && baseName != "README.org" && baseName != "examples";
-        };
+        src = ./packages/kantan;
         meta = {
           description = "A beautifully simple status bar for macOS";
           mainProgram = "kantan";
