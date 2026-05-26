@@ -652,25 +652,11 @@ struct DSLRendererView: View {
       isNative: isNative,
       fallback: .accentColor)
 
-    if #available(macOS 14, *) {
-      Gauge(value: resolvedValue, in: minVal...maxVal) {
-        Text(resolvedLabel)
-          .font(.system(size: 11))
-      }
-      .tint(tint)
-    } else {
-      // Fallback: render as a progress bar
-      let range = maxVal - minVal
-      let normalized = range > 0 ? (resolvedValue - minVal) / range : 0.0
-      VStack(alignment: .leading, spacing: 4) {
-        if !resolvedLabel.isEmpty {
-          Text(resolvedLabel)
-            .font(.system(size: 11))
-            .foregroundStyle(.secondary)
-        }
-        renderProgress(value: "\(normalized)", color: color, trackColor: nil, style: .bar)
-      }
+    Gauge(value: resolvedValue, in: minVal...maxVal) {
+      Text(resolvedLabel)
+        .font(.system(size: 11))
     }
+    .tint(tint)
   }
 
   @ViewBuilder

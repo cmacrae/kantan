@@ -7,28 +7,19 @@ import SwiftUI
 extension NSScreen {
   /// Whether this screen has a camera housing (notch) at the top.
   var hasNotch: Bool {
-    if #available(macOS 12.0, *) {
-      return safeAreaInsets.top != 0
-    }
-    return false
+    safeAreaInsets.top != 0
   }
 
   /// The usable area to the left of the notch (the left "ear").
   /// Returns .zero on non-notch screens.
   var notchLeftArea: NSRect {
-    if #available(macOS 12.0, *) {
-      return auxiliaryTopLeftArea ?? .zero
-    }
-    return .zero
+    auxiliaryTopLeftArea ?? .zero
   }
 
   /// The usable area to the right of the notch (the right "ear").
   /// Returns .zero on non-notch screens.
   var notchRightArea: NSRect {
-    if #available(macOS 12.0, *) {
-      return auxiliaryTopRightArea ?? .zero
-    }
-    return .zero
+    auxiliaryTopRightArea ?? .zero
   }
 }
 
