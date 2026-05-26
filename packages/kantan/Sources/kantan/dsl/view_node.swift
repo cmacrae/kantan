@@ -572,6 +572,10 @@ extension ViewNode: Decodable {
 /// Decodes a JSON value that may be a string, number, or bool into a String.
 /// Used for fields like `progress.value`, `checked`, and `on` that accept
 /// both literal values and template strings (e.g. "{cpu_percent}").
+///
+/// Booleans and numbers funnel through `dslCanonicalBool`/`dslCanonicalNumber`
+/// so the type-erased payload always uses the canonical tokens consumed by
+/// `TemplateResolver.resolveBool` and `resolveDouble`.
 private struct FlexibleString: Decodable {
   let value: String
 
@@ -580,14 +584,9 @@ private struct FlexibleString: Decodable {
     if let s = try? container.decode(String.self) {
       self.value = s
     } else if let b = try? container.decode(Bool.self) {
-      self.value = b ? "true" : "false"
+      self.value = dslCanonicalBool(b)
     } else if let d = try? container.decode(Double.self) {
-      // Avoid trailing ".0" for integer values
-      if d == d.rounded() && !d.isInfinite {
-        self.value = String(Int(d))
-      } else {
-        self.value = String(d)
-      }
+      self.value = dslCanonicalNumber(d)
     } else {
       throw DecodingError.dataCorruptedError(
         in: container,

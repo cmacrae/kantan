@@ -170,6 +170,22 @@ final class TemplateResolverTests: XCTestCase {
   }
 }
 
+final class DSLCanonicalNormalisationTests: XCTestCase {
+  func testCanonicalBoolRoundTripsThroughResolveBool() {
+    let r = TemplateResolver(
+      variables: ["t": dslCanonicalBool(true), "f": dslCanonicalBool(false)],
+      data: [:])
+    XCTAssertTrue(r.resolveBool("{t}"))
+    XCTAssertFalse(r.resolveBool("{f}"))
+  }
+
+  func testCanonicalNumberRoundTripsThroughDouble() {
+    for value in [0.0, 1.0, 75.0, -3.0, 3.5, 0.125, 1e6] {
+      XCTAssertEqual(Double(dslCanonicalNumber(value)), value)
+    }
+  }
+}
+
 final class CachedStatusTests: XCTestCase {
   func testConcurrentSetAndGetDoesNotCrash() {
     let cache = CachedStatus<Int>(fallback: 0)
@@ -354,6 +370,14 @@ final class ParseViewNodeFromYamlTests: XCTestCase {
       return XCTFail("expected vstack")
     }
     XCTAssertEqual(children.count, 2)
+  }
+
+  func testCheckCoercesYamlYesToCanonicalTrue() throws {
+    let y = try yaml("type: check\nlabel: Done\nchecked: yes\n")
+    guard case .check(_, let checked, _, _, _) = parseViewNodeFromYaml(y) else {
+      return XCTFail("expected check")
+    }
+    XCTAssertEqual(checked, dslCanonicalBool(true))
   }
 
   func testForeachReturnsNilWithoutChild() throws {

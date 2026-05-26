@@ -56,6 +56,10 @@ class TemplateResolver {
   ///
   /// Returns `true` if the resolved string is "true", "1", "yes", or a non-empty
   /// string that isn't "false", "0", or "no".
+  ///
+  /// Canonical forms produced by `dslCanonicalBool(_:)` ("true"/"false") and
+  /// `dslCanonicalNumber(_:)` (decimal digits, no trailing ".0" for integer
+  /// values) always round-trip correctly through this function.
   func resolveBool(_ template: String) -> Bool {
     let resolved = resolve(template).lowercased().trimmingCharacters(in: .whitespaces)
     switch resolved {
@@ -103,6 +107,32 @@ func dslColorFromHex(_ hex: String) -> Color? {
   default:
     return nil
   }
+}
+
+// MARK: - Canonical String Normalisation
+
+/// Canonical string form for a boolean carried through the type-erased DSL
+/// pipeline (e.g. JSON/YAML `checked:`, `on:`, `condition:` operands).
+///
+/// Always returns `"true"` or `"false"` — the tokens `TemplateResolver`
+/// recognises in `resolveBool` and `dslEvaluateTruthy`. Pin this contract so
+/// every entry point that erases a boolean to a string produces the same shape.
+func dslCanonicalBool(_ value: Bool) -> String {
+  value ? "true" : "false"
+}
+
+/// Canonical string form for a numeric value carried through the DSL pipeline
+/// (e.g. JSON/YAML `progress.value:`, `gauge.value:`).
+///
+/// Integer-valued doubles render without a trailing `".0"`; everything else
+/// uses Swift's default `Double` description. The result is always parseable
+/// by `Double.init(_:)`, which is how downstream renderers consume it.
+func dslCanonicalNumber(_ value: Double) -> String {
+  guard value.isFinite else { return String(value) }
+  if value == value.rounded(), let int = Int(exactly: value) {
+    return String(int)
+  }
+  return String(value)
 }
 
 // MARK: - Condition Evaluation

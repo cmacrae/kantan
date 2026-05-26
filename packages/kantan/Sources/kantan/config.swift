@@ -654,7 +654,10 @@ func parseViewNodeFromYaml(_ yaml: Yaml) -> ViewNode? {
 
   case "check":
     let label = dict["label"]?.string ?? ""
-    let checked = dict["checked"]?.string ?? dict["checked"]?.bool.map { "\($0)" } ?? "false"
+    let checked =
+      dict["checked"]?.string
+      ?? dict["checked"]?.bool.map(dslCanonicalBool)
+      ?? dslCanonicalBool(false)
     let command = dict["command"]?.string
     let uncheckedCommand = dict["uncheckedCommand"]?.string
     return .check(
@@ -663,7 +666,10 @@ func parseViewNodeFromYaml(_ yaml: Yaml) -> ViewNode? {
 
   case "toggle":
     let label = dict["label"]?.string ?? ""
-    let on = dict["on"]?.string ?? dict["on"]?.bool.map { "\($0)" } ?? "false"
+    let on =
+      dict["on"]?.string
+      ?? dict["on"]?.bool.map(dslCanonicalBool)
+      ?? dslCanonicalBool(false)
     let command = dict["command"]?.string
     return .toggle(label: label, on: on, command: command, common: common)
 
@@ -687,8 +693,10 @@ func parseViewNodeFromYaml(_ yaml: Yaml) -> ViewNode? {
 
   case "progress":
     let value =
-      dict["value"]?.string ?? dict["value"]?.double.map { "\($0)" }
-      ?? dict["value"]?.int.map { "\($0)" } ?? "0"
+      dict["value"]?.string
+      ?? dict["value"]?.double.map(dslCanonicalNumber)
+      ?? dict["value"]?.int.map(String.init)
+      ?? dslCanonicalNumber(0)
     let color = dict["color"]?.string
     let trackColor = dict["trackColor"]?.string
     let style = dict["style"]?.string.flatMap { ProgressStyle(rawValue: $0) }
@@ -697,8 +705,10 @@ func parseViewNodeFromYaml(_ yaml: Yaml) -> ViewNode? {
 
   case "gauge":
     let value =
-      dict["value"]?.string ?? dict["value"]?.double.map { "\($0)" }
-      ?? dict["value"]?.int.map { "\($0)" } ?? "0"
+      dict["value"]?.string
+      ?? dict["value"]?.double.map(dslCanonicalNumber)
+      ?? dict["value"]?.int.map(String.init)
+      ?? dslCanonicalNumber(0)
     let min = yamlDouble(dict["min"])
     let max = yamlDouble(dict["max"])
     let label = dict["label"]?.string
