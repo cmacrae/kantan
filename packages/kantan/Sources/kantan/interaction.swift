@@ -205,21 +205,8 @@ class PopupManager {
     let panel = makeNonActivatingPanel(rect: panelRect)
     panel.ignoresMouseEvents = true
 
-    let effect = NSVisualEffectView(frame: NSRect(origin: .zero, size: panelRect.size))
-    effect.material = isNative ? .toolTip : .menu
-    effect.state = .active
-    effect.blendingMode = .behindWindow
-    effect.wantsLayer = true
-    effect.layer?.cornerRadius = 6
-    effect.layer?.masksToBounds = true
-
-    if !isNative {
-      let tint = NSView(frame: NSRect(origin: .zero, size: panelRect.size))
-      tint.wantsLayer = true
-      tint.layer?.backgroundColor = effectiveBgColor.withAlphaComponent(0.85).cgColor
-      tint.autoresizingMask = [.width, .height]
-      effect.addSubview(tint)
-    }
+    let effect = makeEffectView(
+      size: panelRect.size, material: isNative ? .toolTip : .menu)
 
     label.frame.origin = NSPoint(x: padding, y: padding)
     effect.addSubview(label)
@@ -467,13 +454,12 @@ class PopupManager {
     return panel
   }
 
-  /// Always uses NSVisualEffectView(.menu) for the native translucent
-  /// material. In theme mode, adds a semi-transparent tint overlay so
-  /// the user's configured color shows through while preserving the
-  /// native vibrancy effect.
-  func makePopupContainer(size: NSSize) -> NSView {
+  /// Builds an NSVisualEffectView with a rounded layer-backed corner.
+  /// In theme mode, adds a semi-transparent tint overlay so the user's
+  /// configured colour shows through while preserving native vibrancy.
+  func makeEffectView(size: NSSize, material: NSVisualEffectView.Material) -> NSVisualEffectView {
     let effect = NSVisualEffectView(frame: NSRect(origin: .zero, size: size))
-    effect.material = .menu
+    effect.material = material
     effect.state = .active
     effect.blendingMode = .behindWindow
     effect.wantsLayer = true
@@ -481,7 +467,6 @@ class PopupManager {
     effect.layer?.masksToBounds = true
 
     if !isNative {
-      // Tint overlay: semi-transparent theme color on top of native blur
       let tint = NSView(frame: NSRect(origin: .zero, size: size))
       tint.wantsLayer = true
       tint.layer?.backgroundColor = effectiveBgColor.withAlphaComponent(0.85).cgColor
@@ -490,6 +475,14 @@ class PopupManager {
     }
 
     return effect
+  }
+
+  /// Always uses NSVisualEffectView(.menu) for the native translucent
+  /// material. In theme mode, adds a semi-transparent tint overlay so
+  /// the user's configured color shows through while preserving the
+  /// native vibrancy effect.
+  func makePopupContainer(size: NSSize) -> NSView {
+    makeEffectView(size: size, material: .menu)
   }
 
   /// Present a SwiftUI hosting view in a popup panel, clamped to screen bounds.
