@@ -8,11 +8,62 @@ struct NativeMenuBarItem {
   let owner: String
 }
 
+/// TTL-based cache for the raw `CGWindowListCopyWindowInfo` result.
+/// Generic over time and fetch so the cache logic is independently testable.
+struct WindowListCache {
+  private var windows: [[String: Any]] = []
+  private var expiresAt: TimeInterval = 0
+
+  mutating func get(
+    now: TimeInterval, ttl: TimeInterval, fetch: () -> [[String: Any]]
+  ) -> [[String: Any]] {
+    if now < expiresAt { return windows }
+    let fresh = fetch()
+    windows = fresh
+    expiresAt = now + ttl
+    return fresh
+  }
+
+  mutating func invalidate() {
+    windows = []
+    expiresAt = 0
+  }
+}
+
 struct MenuBarItemDetector {
   /// Tolerance in points for matching a menu bar item's Y position to a screen edge.
   private static let screenEdgeTolerance: CGFloat = 2
   /// Tolerance in points for matching preferred position to detected item position.
   private static let preferredPositionTolerance: Double = 3.0
+  /// How long a `CGWindowListCopyWindowInfo` result stays valid. Long enough
+  /// that the 20-tick reposition timer reuses one snapshot for ~1-2 ticks
+  /// across all displays; short enough that stale data is corrected within
+  /// one human-perceptible frame.
+  static let cacheTTL: TimeInterval = 0.15
+
+  nonisolated(unsafe) private static var cache = WindowListCache()
+  private static let cacheLock = NSLock()
+
+  private static func cachedWindowList() -> [[String: Any]] {
+    cacheLock.lock()
+    defer { cacheLock.unlock() }
+    return cache.get(
+      now: Date().timeIntervalSinceReferenceDate,
+      ttl: cacheTTL,
+      fetch: {
+        CGWindowListCopyWindowInfo([.optionOnScreenOnly], kCGNullWindowID)
+          as? [[String: Any]] ?? []
+      })
+  }
+
+  /// Drop the cached window list so the next `detectItems` call re-queries
+  /// the WindowServer. Call on screen layout changes where a stale snapshot
+  /// would place panels using the previous configuration.
+  static func invalidateCache() {
+    cacheLock.lock()
+    cache.invalidate()
+    cacheLock.unlock()
+  }
 
   /// User-friendly aliases for Control Center item names.
   /// Maps user-facing config names to the internal plist identifier
@@ -37,21 +88,37 @@ struct MenuBarItemDetector {
 
   /// Query native menu bar items on a given screen.
   /// Returns items sorted right-to-left (index 0 = rightmost).
+  /// The underlying `CGWindowListCopyWindowInfo` result is cached briefly
+  /// (`cacheTTL`) so the per-display reposition fan-out doesn't repeatedly
+  /// query the WindowServer.
   static func detectItems(for screen: NSScreen, excludingOwner: String = "kantan")
     -> [NativeMenuBarItem]
   {
-    let windowList =
-      CGWindowListCopyWindowInfo([.optionOnScreenOnly], kCGNullWindowID) as? [[String: Any]] ?? []
-    let statusLevel = Int(CGWindowLevelForKey(.statusWindow))
-
-    // Convert NSScreen frame to CG coordinates.
     // CG origin = top-left of primary. NSScreen origin = bottom-left of primary.
     // Primary screen's frame.maxY gives the total height of the primary display
     // in the NSScreen coordinate system.
     let primaryHeight = NSScreen.screens.first?.frame.height ?? screen.frame.height
-    let cgScreenTop = primaryHeight - screen.frame.maxY
-    let cgScreenLeft = screen.frame.minX
-    let cgScreenRight = screen.frame.maxX
+    return filterMenuBarItems(
+      from: cachedWindowList(),
+      primaryHeight: primaryHeight,
+      screenFrame: screen.frame,
+      excludingOwner: excludingOwner
+    )
+  }
+
+  /// Pure filter+sort for a window list. Independently testable: given a
+  /// synthetic `CGWindowListCopyWindowInfo`-shaped array, returns the same
+  /// menu bar items `detectItems` would have produced.
+  static func filterMenuBarItems(
+    from windowList: [[String: Any]],
+    primaryHeight: CGFloat,
+    screenFrame: NSRect,
+    excludingOwner: String = "kantan"
+  ) -> [NativeMenuBarItem] {
+    let statusLevel = Int(CGWindowLevelForKey(.statusWindow))
+    let cgScreenTop = primaryHeight - screenFrame.maxY
+    let cgScreenLeft = screenFrame.minX
+    let cgScreenRight = screenFrame.maxX
 
     var items: [(cgRect: CGRect, owner: String)] = []
 

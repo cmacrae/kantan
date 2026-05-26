@@ -1035,6 +1035,10 @@ class AppDelegate: NSObject, NSApplicationDelegate {
   @objc func screenDidChange(_ notification: Notification) {
     guard let config = config, let bar = barViewModel, let theme = themeProvider else { return }
 
+    // The cached window list reflects the previous screen layout; drop it so
+    // the reposition triggered below queries the WindowServer fresh.
+    MenuBarItemDetector.invalidateCache()
+
     let targetScreens = resolveTargetScreens(config.displays)
     let diff = computeScreenDiff(
       existing: displayInstances.map { $0.screenName },
@@ -1052,7 +1056,6 @@ class AppDelegate: NSObject, NSApplicationDelegate {
       displayInstances.append(instance)
     }
 
-    repositionAllDisplays()
     updateModuleSuspension()
     restartRepositionTimer()
   }

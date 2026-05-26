@@ -496,6 +496,132 @@ final class MenuBarItemDetectorCoordinateTests: XCTestCase {
   }
 }
 
+// MARK: - WindowListCache
+
+final class WindowListCacheTests: XCTestCase {
+  private func sample(_ tag: String) -> [[String: Any]] {
+    [["tag": tag]]
+  }
+
+  func testSecondGetWithinTTLReturnsCached() {
+    var cache = WindowListCache()
+    var calls = 0
+    _ = cache.get(
+      now: 100, ttl: 0.15,
+      fetch: {
+        calls += 1
+        return self.sample("a")
+      })
+    let result = cache.get(
+      now: 100.1, ttl: 0.15,
+      fetch: {
+        calls += 1
+        return self.sample("b")
+      })
+    XCTAssertEqual(calls, 1)
+    XCTAssertEqual(result.first?["tag"] as? String, "a")
+  }
+
+  func testGetAfterTTLRefetches() {
+    var cache = WindowListCache()
+    var calls = 0
+    _ = cache.get(
+      now: 100, ttl: 0.15,
+      fetch: {
+        calls += 1
+        return self.sample("a")
+      })
+    let result = cache.get(
+      now: 100.16, ttl: 0.15,
+      fetch: {
+        calls += 1
+        return self.sample("b")
+      })
+    XCTAssertEqual(calls, 2)
+    XCTAssertEqual(result.first?["tag"] as? String, "b")
+  }
+}
+
+// MARK: - MenuBarItemDetector filterMenuBarItems
+
+final class MenuBarItemDetectorFilterTests: XCTestCase {
+  private static let statusLevel = Int(CGWindowLevelForKey(.statusWindow))
+
+  private func window(
+    owner: String, level: Int = statusLevel, x: CGFloat, y: CGFloat,
+    w: CGFloat = 30, h: CGFloat = 24
+  ) -> [String: Any] {
+    let bounds: [String: CGFloat] = ["X": x, "Y": y, "Width": w, "Height": h]
+    return [
+      kCGWindowOwnerName as String: owner,
+      kCGWindowLayer as String: level,
+      kCGWindowBounds as String: bounds as NSDictionary,
+    ]
+  }
+
+  func testSortsRightToLeftAndIndexes() {
+    let windows = [
+      window(owner: "ControlCenter", x: 1000, y: 0),
+      window(owner: "ControlCenter", x: 1100, y: 0),
+      window(owner: "ControlCenter", x: 900, y: 0),
+    ]
+    let items = MenuBarItemDetector.filterMenuBarItems(
+      from: windows, primaryHeight: 1080,
+      screenFrame: NSRect(x: 0, y: 0, width: 1920, height: 1080))
+    XCTAssertEqual(items.count, 3)
+    XCTAssertEqual(items.map { $0.cgRect.origin.x }, [1100, 1000, 900])
+    XCTAssertEqual(items.map { $0.index }, [0, 1, 2])
+  }
+
+  func testDropsNonStatusLevelWindows() {
+    let windows = [
+      window(owner: "ControlCenter", x: 1000, y: 0),
+      window(owner: "OtherApp", level: 0, x: 1100, y: 0),
+    ]
+    let items = MenuBarItemDetector.filterMenuBarItems(
+      from: windows, primaryHeight: 1080,
+      screenFrame: NSRect(x: 0, y: 0, width: 1920, height: 1080))
+    XCTAssertEqual(items.count, 1)
+    XCTAssertEqual(items.first?.owner, "ControlCenter")
+  }
+
+  func testFiltersByScreenXRange() {
+    // Two screens side-by-side: primary 0..1920, secondary 1920..3840.
+    // An item at CG X >= 1920 belongs to the secondary screen, not primary.
+    let windows = [
+      window(owner: "ControlCenter", x: 1500, y: 0),
+      window(owner: "ControlCenter", x: 2500, y: 0),
+    ]
+    let primary = MenuBarItemDetector.filterMenuBarItems(
+      from: windows, primaryHeight: 1080,
+      screenFrame: NSRect(x: 0, y: 0, width: 1920, height: 1080))
+    XCTAssertEqual(primary.count, 1)
+    XCTAssertEqual(primary.first?.cgRect.origin.x, 1500)
+
+    let secondary = MenuBarItemDetector.filterMenuBarItems(
+      from: windows, primaryHeight: 1080,
+      screenFrame: NSRect(x: 1920, y: 0, width: 1920, height: 1080))
+    XCTAssertEqual(secondary.count, 1)
+    XCTAssertEqual(secondary.first?.cgRect.origin.x, 2500)
+  }
+
+  func testSecondaryScreenAbovePrimary() {
+    // Secondary screen above primary in NSScreen coords: screen.frame.maxY > primaryHeight.
+    // CG Y of secondary's top = primaryHeight - screen.frame.maxY (negative).
+    let primaryHeight: CGFloat = 1080
+    let secondaryFrame = NSRect(x: 0, y: 1080, width: 1920, height: 1080)
+    let cgTop = primaryHeight - secondaryFrame.maxY  // -1080
+    let windows = [
+      window(owner: "ControlCenter", x: 1000, y: cgTop),
+      window(owner: "ControlCenter", x: 1100, y: 0),  // on primary
+    ]
+    let items = MenuBarItemDetector.filterMenuBarItems(
+      from: windows, primaryHeight: primaryHeight, screenFrame: secondaryFrame)
+    XCTAssertEqual(items.count, 1)
+    XCTAssertEqual(items.first?.cgRect.origin.y, cgTop)
+  }
+}
+
 // MARK: - Screen diff
 
 final class ScreenDiffTests: XCTestCase {
