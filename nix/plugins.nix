@@ -8,6 +8,14 @@
 }:
 
 let
+  builders = {
+    "Package.swift" = buildSwiftPlugin;
+    "go.mod" = buildGoPlugin;
+    "main.sh" = buildShellPlugin;
+  };
+
+  markers = builtins.attrNames builders;
+
   buildPlugin =
     {
       name,
@@ -15,15 +23,12 @@ let
     }:
     let
       dirContents = builtins.readDir (pluginsDir + "/${name}");
+      marker = pkgs.lib.findFirst (m: builtins.hasAttr m dirContents) null markers;
     in
-    if dirContents ? "Package.swift" then
-      buildSwiftPlugin { inherit name src; }
-    else if dirContents ? "go.mod" then
-      buildGoPlugin { inherit name src; }
-    else if dirContents ? "main.sh" then
-      buildShellPlugin { inherit name src; }
+    if marker == null then
+      throw "Plugin '${name}' has none of: ${pkgs.lib.concatStringsSep ", " markers}"
     else
-      throw "Plugin '${name}' has no Package.swift, go.mod, or main.sh";
+      builders.${marker} { inherit name src; };
 in
 {
   pluginPackages = discover {
