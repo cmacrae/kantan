@@ -1,9 +1,10 @@
 {
   pkgs,
+  plugin,
 }:
 
 let
-  swiftBuildPhase = bin: ''
+  swiftBuildPhase = pname: ''
     runHook preBuild
 
     export DEVELOPER_DIR=$(/usr/bin/xcode-select -p)
@@ -12,37 +13,40 @@ let
     export PATH="$DEVELOPER_DIR/Toolchains/XcodeDefault.xctoolchain/usr/bin:$DEVELOPER_DIR/usr/bin:/usr/bin:$PATH"
     export HOME="$TMPDIR"
 
-    swift build -c release --disable-sandbox --scratch-path .build --product ${bin}
+    swift build -c release --disable-sandbox --scratch-path .build --product ${pname}
 
     runHook postBuild
   '';
 
-  swiftInstallPhase = bin: ''
+  swiftInstallPhase = pname: ''
     runHook preInstall
     mkdir -p $out/bin
-    cp .build/arm64-apple-macosx/release/${bin} $out/bin/${bin}
+    cp .build/arm64-apple-macosx/release/${pname} $out/bin/${pname}
     runHook postInstall
   '';
 
   buildSwiftPackage =
-    {
+    args@{
       pname,
-      version ? "0.1.0",
       src,
       meta ? { },
+      ...
     }:
-    pkgs.stdenvNoCC.mkDerivation {
-      inherit pname version src;
-
-      buildPhase = swiftBuildPhase pname;
-      installPhase = swiftInstallPhase pname;
-      dontFixup = true;
-
-      meta = {
-        platforms = [ "aarch64-darwin" ];
+    pkgs.stdenvNoCC.mkDerivation (
+      {
+        version = "0.1.0";
+        dontFixup = true;
       }
-      // meta;
-    };
+      // builtins.removeAttrs args [ "meta" ]
+      // {
+        buildPhase = swiftBuildPhase pname;
+        installPhase = swiftInstallPhase pname;
+        meta = {
+          platforms = [ "aarch64-darwin" ];
+        }
+        // meta;
+      }
+    );
 in
 {
   inherit buildSwiftPackage;
@@ -52,34 +56,5 @@ in
       name,
       src,
     }:
-    let
-      bin = "kantan-plugin-${name}";
-      built = buildSwiftPackage {
-        pname = bin;
-        inherit src;
-      };
-    in
-    pkgs.stdenvNoCC.mkDerivation {
-      pname = bin;
-      version = "0.1.0";
-      dontUnpack = true;
-      dontFixup = true;
-      installPhase = ''
-        runHook preInstall
-
-        mkdir -p $out/bin
-        cp ${built}/bin/${bin} $out/bin/${bin}
-
-        if [ -d "${src}/examples" ]; then
-          mkdir -p $out/share/examples
-          cp ${src}/examples/* $out/share/examples/
-        fi
-
-        runHook postInstall
-      '';
-      meta = {
-        platforms = [ "aarch64-darwin" ];
-      };
-    };
-
+    buildSwiftPackage (plugin.pluginAttrs { inherit name src; });
 }

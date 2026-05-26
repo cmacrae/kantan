@@ -18,9 +18,10 @@
       system = "aarch64-darwin";
       pkgs = nixpkgs.legacyPackages.${system};
 
-      go = import ./nix/go.nix { inherit pkgs; };
-      swift = import ./nix/swift.nix { inherit pkgs; };
-      shell = import ./nix/shell.nix { inherit pkgs; };
+      plugin = import ./nix/plugin.nix { };
+      go = import ./nix/go.nix { inherit pkgs plugin; };
+      swift = import ./nix/swift.nix { inherit pkgs plugin; };
+      shell = import ./nix/shell.nix { inherit pkgs plugin; };
       docs = import ./nix/docs.nix {
         inherit pkgs;
         pluginsDir = ./packages/plugins;

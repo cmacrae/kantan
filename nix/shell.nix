@@ -1,5 +1,6 @@
 {
   pkgs,
+  plugin,
 }:
 
 {
@@ -9,29 +10,20 @@
       src,
     }:
     let
-      bin = "kantan-plugin-${name}";
+      bin = plugin.binName name;
     in
-    pkgs.stdenvNoCC.mkDerivation {
-      pname = bin;
-      version = "0.1.0";
-      inherit src;
-      dontFixup = true;
-      installPhase = ''
-        runHook preInstall
+    pkgs.stdenvNoCC.mkDerivation (
+      plugin.pluginAttrs { inherit name src; }
+      // {
+        installPhase = ''
+          runHook preInstall
 
-        mkdir -p $out/bin
-        cp main.sh $out/bin/${bin}
-        chmod +x $out/bin/${bin}
+          mkdir -p $out/bin
+          cp main.sh $out/bin/${bin}
+          chmod +x $out/bin/${bin}
 
-        if [ -d "examples" ]; then
-          mkdir -p $out/share/examples
-          cp examples/* $out/share/examples/
-        fi
-
-        runHook postInstall
-      '';
-      meta = {
-        platforms = [ "aarch64-darwin" ];
-      };
-    };
+          runHook postInstall
+        '';
+      }
+    );
 }
