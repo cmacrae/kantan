@@ -82,6 +82,10 @@ class DisplayInstance {
     [(panel: NSPanel, hostingView: NSHostingView<ModuleGroupView>, group: ModuleGroup)] = []
   var drawerClickPanels: [NSPanel] = []
   var bgColorCancellable: AnyCancellable?
+  /// View whose layer background tracks light/dark mode changes
+  /// (the tint view inside the effect view when blur is on, or the
+  /// solid background view otherwise). `nil` for native appearance mode.
+  private weak var themedBackgroundView: NSView?
   var leftDrawerOpen: Bool = false
   var rightDrawerOpen: Bool = false
   private weak var barViewModel: BarViewModel?
@@ -289,14 +293,10 @@ class DisplayInstance {
       effectView.addSubview(tintView)
 
       containerView.addSubview(effectView)
+      themedBackgroundView = tintView
 
       bgColorCancellable = theme.$isDarkMode.sink { [weak self] isDark in
-        guard let self = self,
-          let bgPanel = self.bgPanel,
-          let containerView = bgPanel.contentView,
-          let effectView = containerView.subviews.first as? NSVisualEffectView,
-          let tintView = effectView.subviews.first
-        else { return }
+        guard let self = self, let tintView = self.themedBackgroundView else { return }
         let mode = self.resolveStyleMode(isDark: isDark)
         tintView.layer?.backgroundColor =
           NSColor(hex: mode.bg ?? "000000").withAlphaComponent(tintOpacity).cgColor
@@ -320,13 +320,10 @@ class DisplayInstance {
       bgView.layer?.masksToBounds = true
       bgView.autoresizingMask = [.width, .height]
       containerView.addSubview(bgView)
+      themedBackgroundView = bgView
 
       bgColorCancellable = theme.$isDarkMode.sink { [weak self] isDark in
-        guard let self = self,
-          let bgPanel = self.bgPanel,
-          let containerView = bgPanel.contentView,
-          let bgView = containerView.subviews.first
-        else { return }
+        guard let self = self, let bgView = self.themedBackgroundView else { return }
         let mode = self.resolveStyleMode(isDark: isDark)
         bgView.layer?.backgroundColor = NSColor(hex: mode.bg ?? "000000").cgColor
       }
@@ -833,6 +830,7 @@ class DisplayInstance {
     autohideDelayTimer = nil
     bgColorCancellable?.cancel()
     bgColorCancellable = nil
+    themedBackgroundView = nil
     for panel in allPanels {
       panel.orderOut(nil)
     }
