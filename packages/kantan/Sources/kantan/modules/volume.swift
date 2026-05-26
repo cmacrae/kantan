@@ -116,15 +116,25 @@ final class VolumeConfig: ModuleConfiguration, EventDrivenModule {
 
     let selfPtr = Unmanaged.passUnretained(self).toOpaque()
 
-    AudioObjectAddPropertyListener(
+    let defaultStatus = AudioObjectAddPropertyListener(
       AudioObjectID(kAudioObjectSystemObject),
       &defaultDeviceAddr,
       audioPropertyListener,
       selfPtr
     )
+    guard defaultStatus == noErr else { return }
 
-    // Listen for volume and mute on the current default device
-    addDeviceListeners()
+    // Listen for volume and mute on the current default device.
+    // If per-device registration fails, roll the default-device listener
+    // back so we don't leak it.
+    if !addDeviceListeners() {
+      AudioObjectRemovePropertyListener(
+        AudioObjectID(kAudioObjectSystemObject),
+        &defaultDeviceAddr,
+        audioPropertyListener,
+        selfPtr
+      )
+    }
   }
 
   func stopObserving() {
@@ -148,9 +158,14 @@ final class VolumeConfig: ModuleConfiguration, EventDrivenModule {
     onChange = nil
   }
 
-  private func addDeviceListeners() {
+  /// Add volume + mute listeners to the current default device as an atomic
+  /// pair: if the mute listener fails to register, the volume listener is
+  /// rolled back so we never leak a half-registered pair. Returns true only
+  /// when both listeners are live.
+  @discardableResult
+  private func addDeviceListeners() -> Bool {
     let deviceID = Self.defaultOutputDeviceID()
-    guard deviceID != 0 else { return }
+    guard deviceID != 0 else { return false }
 
     let selfPtr = Unmanaged.passUnretained(self).toOpaque()
 
@@ -159,16 +174,25 @@ final class VolumeConfig: ModuleConfiguration, EventDrivenModule {
       mScope: kAudioDevicePropertyScopeOutput,
       mElement: kAudioObjectPropertyElementMain
     )
-    AudioObjectAddPropertyListener(deviceID, &volumeAddr, audioPropertyListener, selfPtr)
+    let volStatus = AudioObjectAddPropertyListener(
+      deviceID, &volumeAddr, audioPropertyListener, selfPtr)
+    guard volStatus == noErr else { return false }
 
     var muteAddr = AudioObjectPropertyAddress(
       mSelector: kAudioDevicePropertyMute,
       mScope: kAudioDevicePropertyScopeOutput,
       mElement: kAudioObjectPropertyElementMain
     )
-    AudioObjectAddPropertyListener(deviceID, &muteAddr, audioPropertyListener, selfPtr)
+    let muteStatus = AudioObjectAddPropertyListener(
+      deviceID, &muteAddr, audioPropertyListener, selfPtr)
+    if muteStatus != noErr {
+      AudioObjectRemovePropertyListener(
+        deviceID, &volumeAddr, audioPropertyListener, selfPtr)
+      return false
+    }
 
     listenedDeviceID = deviceID
+    return true
   }
 
   private func removeDeviceListeners() {
