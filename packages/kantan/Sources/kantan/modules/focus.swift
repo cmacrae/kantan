@@ -22,8 +22,10 @@ struct FocusConfigFactory: ModuleConfigurationFactory {
 final class FocusConfig: ModuleConfiguration, @unchecked Sendable {
   var type: String { "focus" }
 
-  /// Poll every 2s. Focus toggles are infrequent; this is the same interval
-  /// bluetooth uses, and CGWindowListCopyWindowInfo is very fast (~1ms).
+  /// Polled every 2s. macOS exposes no notification for Focus state
+  /// changes, so polling the FocusModes indicator window via
+  /// `CGWindowListCopyWindowInfo` (~1ms) is the only permission-free
+  /// option. Focus toggles are infrequent, so 2s is responsive enough.
   var redrawInterval: TimeInterval { 2.0 }
 
   nonisolated(unsafe) private var _cachedActive: Bool = false
