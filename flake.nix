@@ -88,19 +88,16 @@
           ++ allPlugins
           ++ themes;
         in
-        if allPlugins == [ ] && themes == [ ] then
-          _kantan
-        else
-          pkgs.symlinkJoin {
-            name = "kantan-${_kantan.version}";
-            paths = allPaths;
-            nativeBuildInputs = [ pkgs.makeBinaryWrapper ];
-            postBuild = ''
-              wrapProgram $out/bin/kantan \
-                --prefix PATH : $out/bin
-            '';
-            inherit (_kantan) meta;
-          };
+        pkgs.symlinkJoin {
+          name = "kantan-${_kantan.version}";
+          paths = allPaths;
+          nativeBuildInputs = [ pkgs.makeBinaryWrapper ];
+          postBuild = ''
+            wrapProgram $out/bin/kantan \
+              --prefix PATH : $out/bin
+          '';
+          inherit (_kantan) meta;
+        };
 
       kantan = (kantanWithPlugins { }) // {
         override = args: kantanWithPlugins args;
