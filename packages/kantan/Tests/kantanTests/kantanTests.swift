@@ -708,3 +708,92 @@ final class RepositionTriggerMergeTests: XCTestCase {
       "three property changes within one debounce window must produce a single layout pass")
   }
 }
+
+// MARK: - ThemeProvider.elementFgColor precedence
+
+@MainActor
+final class ThemeProviderElementFgPrecedenceTests: XCTestCase {
+  override func setUp() {
+    super.setUp()
+    // Force NSApp to exist so ThemeProvider.init can query effectiveAppearance.
+    MainActor.assumeIsolated { _ = NSApplication.shared }
+  }
+
+  private func makeConfig(
+    light: StyleModeConfig? = nil,
+    dark: StyleModeConfig? = StyleModeConfig(
+      fg: "ABCDEF", bg: "000000", text: nil, icon: nil, shape: nil),
+    theme: ThemeConfig? = nil
+  ) -> Config {
+    Config(
+      theme: theme,
+      style: StyleConfig(light: light, dark: dark),
+      height: 33, padding: 10, iconTextSpacing: 4,
+      iconFont: nil, textFont: nil, cornerRadius: 0, blur: 0,
+      gaps: .default, autohide: .default,
+      displays: .main, modules: []
+    )
+  }
+
+  private func makeVM(style: StyleConfig? = nil) -> ModuleViewModel {
+    let cfg = ModuleConfig(
+      name: "t", placement: PlacementSpec(raw: "left"), type: "captureMock",
+      style: style, config: CapturingModuleConfig())
+    return ModuleViewModel(moduleConfig: cfg)
+  }
+
+  private func assertColor(_ color: Color, equalsHex hex: String) {
+    let actual = NSColor(color).usingColorSpace(.deviceRGB)!
+    let expected = NSColor(hex: hex).usingColorSpace(.deviceRGB)!
+    XCTAssertEqual(actual.redComponent, expected.redComponent, accuracy: 0.01)
+    XCTAssertEqual(actual.greenComponent, expected.greenComponent, accuracy: 0.01)
+    XCTAssertEqual(actual.blueComponent, expected.blueComponent, accuracy: 0.01)
+  }
+
+  func testFgOverrideBypassesAllOtherSources() {
+    let theme = ThemeProvider(config: makeConfig())
+    theme.isDarkMode = true
+    let vm = makeVM(
+      style: StyleConfig(
+        light: nil,
+        dark: StyleModeConfig(
+          fg: "111111", bg: nil, text: ElementStyle(fg: "222222"), icon: nil, shape: nil)))
+    vm.fgOverride = "FF0000"
+    vm.dynamicStyle = DynamicStyleOverride(fg: "00FF00", bg: nil, iconFg: nil, textFg: "0000FF")
+    assertColor(theme.textFgColor(for: vm), equalsHex: "FF0000")
+  }
+
+  func testDynamicElementFgPrecedesDynamicGenericFg() {
+    let theme = ThemeProvider(config: makeConfig())
+    theme.isDarkMode = true
+    let vm = makeVM()
+    vm.dynamicStyle = DynamicStyleOverride(fg: "00FF00", bg: nil, iconFg: nil, textFg: "FF0000")
+    assertColor(theme.textFgColor(for: vm), equalsHex: "FF0000")
+    vm.dynamicStyle = DynamicStyleOverride(fg: "00FF00", bg: nil, iconFg: "0000FF", textFg: nil)
+    assertColor(theme.iconFgColor(for: vm), equalsHex: "0000FF")
+  }
+
+  func testModuleGenericFgPrecedesGlobalElementFg() {
+    let config = makeConfig(
+      dark: StyleModeConfig(
+        fg: "111111", bg: "000000",
+        text: ElementStyle(fg: "222222"), icon: nil, shape: nil))
+    let theme = ThemeProvider(config: config)
+    theme.isDarkMode = true
+    let vm = makeVM(
+      style: StyleConfig(
+        light: nil,
+        dark: StyleModeConfig(fg: "FF0000", bg: nil, text: nil, icon: nil, shape: nil)))
+    assertColor(theme.textFgColor(for: vm), equalsHex: "FF0000")
+  }
+
+  func testUnresolvableDynamicTemplateFallsThroughToStatic() {
+    // No theme palette set; `{theme(accent)}` cannot resolve.
+    let theme = ThemeProvider(config: makeConfig())
+    theme.isDarkMode = true
+    let vm = makeVM()
+    vm.dynamicStyle = DynamicStyleOverride(
+      fg: "{theme(accent)}", bg: nil, iconFg: nil, textFg: "{theme(missing)}")
+    assertColor(theme.textFgColor(for: vm), equalsHex: "ABCDEF")
+  }
+}

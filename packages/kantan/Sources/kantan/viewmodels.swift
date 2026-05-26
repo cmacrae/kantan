@@ -685,28 +685,35 @@ class ThemeProvider: ObservableObject {
     dynamicFg: KeyPath<DynamicStyleOverride, String?>,
     elementFg: KeyPath<StyleModeConfig, ElementStyle?>
   ) -> Color {
+    // Override is a raw hex value from a plugin; bypasses theme resolution.
     if let override = vm.fgOverride {
       return Color(nsColor: NSColor(hex: override))
     }
-    if let ds = vm.dynamicStyle {
-      if let fg = ds[keyPath: dynamicFg], !isUnresolvableTemplate(fg) {
-        return Color(nsColor: NSColor(hex: resolveColor(fg)))
-      }
-      if let fg = ds.fg, !isUnresolvableTemplate(fg) {
-        return Color(nsColor: NSColor(hex: resolveColor(fg)))
-      }
+
+    // Dynamic style values may contain `{theme(...)}` templates that can't
+    // resolve without a palette; skip those so we fall through to defaults.
+    let ds = vm.dynamicStyle
+    let dynamicCandidates: [String?] = [
+      ds?[keyPath: dynamicFg],
+      ds?.fg,
+    ]
+    if let fg = dynamicCandidates.compactMap({ $0 })
+      .first(where: { !isUnresolvableTemplate($0) })
+    {
+      return resolvedColor(fg)
     }
+
     if isNative { return Color(nsColor: .labelColor) }
+
     let moduleMode = resolveModuleStyleMode(vm.moduleConfig.style)
     let globalMode = resolveGlobalStyleMode()
-    if let fg = moduleMode?[keyPath: elementFg]?.fg {
-      return Color(nsColor: NSColor(hex: resolveColor(fg)))
-    }
-    if let fg = moduleMode?.fg { return Color(nsColor: NSColor(hex: resolveColor(fg))) }
-    if let fg = globalMode[keyPath: elementFg]?.fg {
-      return Color(nsColor: NSColor(hex: resolveColor(fg)))
-    }
-    return Color(nsColor: NSColor(hex: resolveColor(globalMode.fg ?? "FFFFFF")))
+    let staticCandidates: [String?] = [
+      moduleMode?[keyPath: elementFg]?.fg,
+      moduleMode?.fg,
+      globalMode[keyPath: elementFg]?.fg,
+      globalMode.fg,
+    ]
+    return resolvedColor(staticCandidates.compactMap({ $0 }).first ?? "FFFFFF")
   }
 
   func textFgColor(for vm: ModuleViewModel) -> Color {
