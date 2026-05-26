@@ -22,6 +22,7 @@
       go = import ./nix/go.nix { inherit pkgs plugin; };
       swift = import ./nix/swift.nix { inherit pkgs plugin; };
       shell = import ./nix/shell.nix { inherit pkgs plugin; };
+      discover = import ./nix/discover.nix { inherit (pkgs) lib; };
       docs = import ./nix/docs.nix {
         inherit pkgs;
         pluginsDir = ./packages/plugins;
@@ -31,7 +32,7 @@
       };
 
       plugins = import ./nix/plugins.nix {
-        inherit pkgs;
+        inherit pkgs discover;
         inherit (go) buildGoPlugin;
         inherit (swift) buildSwiftPlugin;
         inherit (shell) buildShellPlugin;
@@ -39,7 +40,7 @@
       };
 
       themes = import ./nix/themes.nix {
-        inherit pkgs;
+        inherit pkgs discover;
         themesDir = ./packages/themes;
       };
 

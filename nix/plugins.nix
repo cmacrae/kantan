@@ -4,6 +4,7 @@
   buildGoPlugin,
   buildShellPlugin,
   pluginsDir,
+  discover,
 }:
 
 let
@@ -23,25 +24,16 @@ let
       buildShellPlugin { inherit name src; }
     else
       throw "Plugin '${name}' has no Package.swift, go.mod, or main.sh";
-
-  pluginDirs = builtins.readDir pluginsDir;
 in
 {
-  pluginPackages = builtins.listToAttrs (
-    builtins.filter (entry: entry != null) (
-      builtins.map (
-        dirName:
-        if pluginDirs.${dirName} == "directory" then
-          {
-            name = dirName;
-            value = buildPlugin {
-              name = dirName;
-              src = pkgs.lib.cleanSource (pluginsDir + "/${dirName}");
-            };
-          }
-        else
-          null
-      ) (builtins.attrNames pluginDirs)
-    )
-  );
+  pluginPackages = discover {
+    dir = pluginsDir;
+    predicate = _: type: type == "directory";
+    build =
+      name: _:
+      buildPlugin {
+        inherit name;
+        src = pkgs.lib.cleanSource (pluginsDir + "/${name}");
+      };
+  };
 }
