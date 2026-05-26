@@ -1428,17 +1428,26 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     print("Hot-reload: config changed, rebuilding bar")
 
     teardownBar()
+    cancelFileWatchers()
 
     self.config = newConfig
     barHeight = CGFloat(newConfig.height)
     autohideConfig = newConfig.autohide
 
     buildBar(with: newConfig)
+
+    if let configPath = configFilePath {
+      startWatchingConfig(path: configPath)
+    }
+    if let dir = modulesDirPath {
+      startWatchingModulesDir(path: dir)
+    }
   }
 
-  func applicationWillTerminate(_ aNotification: Notification) {
-    configPollTimer?.invalidate()
-    configPollTimer = nil
+  /// Cancel every config/modules-dir file-system watcher. Owned by the
+  /// AppDelegate but tied to the bar lifecycle so they are re-created on
+  /// hot-reload alongside teardownBar()/buildBar().
+  private func cancelFileWatchers() {
     configFileSource?.cancel()
     configFileSource = nil
     configSymlinkDirSource?.cancel()
@@ -1446,6 +1455,12 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     modulesDirSource?.cancel()
     modulesDirSource = nil
     cancelModuleFileWatchers()
+  }
+
+  func applicationWillTerminate(_ aNotification: Notification) {
+    configPollTimer?.invalidate()
+    configPollTimer = nil
+    cancelFileWatchers()
     reloadDebounceTimer?.invalidate()
     teardownBar()
   }
