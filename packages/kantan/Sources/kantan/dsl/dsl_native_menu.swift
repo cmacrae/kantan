@@ -270,8 +270,8 @@ private func extractStyledParts(from node: ViewNode, resolver: TemplateResolver)
       return [HStackTextPart(text: resolved.glyph, isSecondary: false, isStrikethrough: false)]
     }
     return [HStackTextPart(text: templateResolved, isSecondary: false, isStrikethrough: false)]
-  case .vstack(_, _, _, let children, _),
-    .hstack(_, _, _, let children, _, _),
+  case .vstack(_, _, let children, _),
+    .hstack(_, _, let children, _, _),
     .group(let children, _):
     return children.flatMap { extractStyledParts(from: $0, resolver: resolver) }
   default:
@@ -317,7 +317,7 @@ private func addItems(
   switch node {
   // MARK: Layout nodes -- flatten children (except hstack)
 
-  case .vstack(_, _, _, let children, _),
+  case .vstack(_, _, let children, _),
     .zstack(_, let children, _),
     .scroll(_, let children, _),
     .group(let children, _),
@@ -328,7 +328,7 @@ private func addItems(
 
   // MARK: HStack -- compose into a single menu item
 
-  case .hstack(_, _, _, let children, let command, _):
+  case .hstack(_, _, let children, let command, _):
     // Check if hstack contains any interactive nodes — if so, flatten normally
     if children.contains(where: { isInteractiveNode($0) }) {
       for child in children {

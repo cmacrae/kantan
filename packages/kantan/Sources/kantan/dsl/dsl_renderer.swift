@@ -129,8 +129,8 @@ extension ViewNode {
   /// Access the `CommonNodeProperties` for any node case.
   var common: CommonNodeProperties {
     switch self {
-    case .vstack(_, _, _, _, let c),
-      .hstack(_, _, _, _, _, let c),
+    case .vstack(_, _, _, let c),
+      .hstack(_, _, _, _, let c),
       .zstack(_, _, let c),
       .scroll(_, _, let c),
       .spacer(_, let c),
@@ -195,9 +195,9 @@ struct DSLRendererView: View {
   private func nodeContent(_ node: ViewNode) -> some View {
     switch node {
     // Layout
-    case .vstack(let spacing, _, let alignment, let children, _):
+    case .vstack(let spacing, let alignment, let children, _):
       renderVStack(spacing: spacing, alignment: alignment, children: children)
-    case .hstack(let spacing, _, let alignment, let children, let command, _):
+    case .hstack(let spacing, let alignment, let children, let command, _):
       renderHStack(spacing: spacing, alignment: alignment, children: children, command: command)
     case .zstack(let alignment, let children, _):
       renderZStack(alignment: alignment, children: children)

@@ -142,7 +142,6 @@ enum ViewNode: Sendable {
 
   case vstack(
     spacing: Double?,
-    padding: Padding?,
     alignment: ViewAlignment?,
     children: [ViewNode],
     common: CommonNodeProperties
@@ -150,7 +149,6 @@ enum ViewNode: Sendable {
 
   case hstack(
     spacing: Double?,
-    padding: Padding?,
     alignment: ViewAlignment?,
     children: [ViewNode],
     command: String?,
@@ -333,7 +331,7 @@ extension ViewNode: Decodable {
     case type
 
     // Layout
-    case spacing, padding, children, alignment, axis, minLength
+    case spacing, children, alignment, axis, minLength
 
     // Content
     case content, size, weight, style, color, align, strikethrough
@@ -362,7 +360,6 @@ extension ViewNode: Decodable {
     case "vstack":
       self = .vstack(
         spacing: try container.decodeIfPresent(Double.self, forKey: .spacing),
-        padding: try container.decodeIfPresent(Padding.self, forKey: .padding),
         alignment: try container.decodeIfPresent(ViewAlignment.self, forKey: .alignment),
         children: try container.decodeIfPresent([ViewNode].self, forKey: .children) ?? [],
         common: common
@@ -371,7 +368,6 @@ extension ViewNode: Decodable {
     case "hstack":
       self = .hstack(
         spacing: try container.decodeIfPresent(Double.self, forKey: .spacing),
-        padding: try container.decodeIfPresent(Padding.self, forKey: .padding),
         alignment: try container.decodeIfPresent(ViewAlignment.self, forKey: .alignment),
         children: try container.decodeIfPresent([ViewNode].self, forKey: .children) ?? [],
         command: try container.decodeIfPresent(String.self, forKey: .command),
