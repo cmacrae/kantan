@@ -78,211 +78,6 @@ struct Settings: Decodable {
   }
 }
 
-func moduleName() -> String {
-  ProcessInfo.processInfo.environment["KANTAN_MODULE_NAME"] ?? "calendar"
-}
-
-func loadSettings() -> Settings {
-  guard let json = ProcessInfo.processInfo.environment["KANTAN_SETTINGS"],
-    let data = json.data(using: .utf8)
-  else {
-    return Settings()
-  }
-  return (try? JSONDecoder().decode(Settings.self, from: data)) ?? Settings()
-}
-
-// MARK: - Duration Parsing
-
-func parseDuration(_ string: String) -> TimeInterval? {
-  let trimmed = string.trimmingCharacters(in: .whitespaces).lowercased()
-  guard let suffix = trimmed.last, trimmed.count >= 2,
-    let value = Double(trimmed.dropLast()), value > 0
-  else { return nil }
-
-  switch suffix {
-  case "m": return value * 60
-  case "h": return value * 3600
-  case "d": return value * 86400
-  default: return nil
-  }
-}
-
-// MARK: - JSON View Tree Types
-
-indirect enum JSONValue: Encodable {
-  case string(String)
-  case int(Int)
-  case double(Double)
-  case bool(Bool)
-  case array([JSONValue])
-  case object([String: JSONValue])
-  case null
-
-  func encode(to encoder: Encoder) throws {
-    var container = encoder.singleValueContainer()
-    switch self {
-    case .string(let s): try container.encode(s)
-    case .int(let i): try container.encode(i)
-    case .double(let d): try container.encode(d)
-    case .bool(let b): try container.encode(b)
-    case .array(let a): try container.encode(a)
-    case .object(let o): try container.encode(o)
-    case .null: try container.encodeNil()
-    }
-  }
-}
-
-// MARK: - View Tree Builders
-
-func vstack(
-  spacing: Double? = nil, padding: JSONValue? = nil, frame: JSONValue? = nil,
-  children: [JSONValue]
-) -> JSONValue {
-  var obj: [String: JSONValue] = ["type": .string("vstack"), "children": .array(children)]
-  if let s = spacing { obj["spacing"] = .double(s) }
-  if let p = padding { obj["padding"] = p }
-  if let f = frame { obj["frame"] = f }
-  return .object(obj)
-}
-
-func hstack(
-  spacing: Double? = nil, padding: JSONValue? = nil, command: String? = nil,
-  children: [JSONValue]
-) -> JSONValue {
-  var obj: [String: JSONValue] = ["type": .string("hstack"), "children": .array(children)]
-  if let s = spacing { obj["spacing"] = .double(s) }
-  if let p = padding { obj["padding"] = p }
-  if let c = command { obj["command"] = .string(c) }
-  return .object(obj)
-}
-
-func text(
-  _ content: String, size: Double? = nil, weight: String? = nil, style: String? = nil,
-  color: String? = nil
-) -> JSONValue {
-  var obj: [String: JSONValue] = ["type": .string("text"), "content": .string(content)]
-  if let s = size { obj["size"] = .double(s) }
-  if let w = weight { obj["weight"] = .string(w) }
-  if let st = style { obj["style"] = .string(st) }
-  if let c = color { obj["color"] = .string(c) }
-  return .object(obj)
-}
-
-func textNode(
-  _ content: String, size: Double? = nil, weight: String? = nil, style: String? = nil,
-  color: String? = nil, strikethrough: Bool = false
-) -> JSONValue {
-  var obj: [String: JSONValue] = ["type": .string("text"), "content": .string(content)]
-  if let s = size { obj["size"] = .double(s) }
-  if let w = weight { obj["weight"] = .string(w) }
-  if let st = style { obj["style"] = .string(st) }
-  if let c = color { obj["color"] = .string(c) }
-  if strikethrough { obj["strikethrough"] = .bool(true) }
-  return .object(obj)
-}
-
-func header(_ content: String) -> JSONValue {
-  .object(["type": .string("header"), "content": .string(content)])
-}
-
-func divider() -> JSONValue {
-  .object(["type": .string("divider")])
-}
-
-func spacer() -> JSONValue {
-  .object(["type": .string("spacer")])
-}
-
-func action(label: String, icon: String? = nil, command: String? = nil) -> JSONValue {
-  var obj: [String: JSONValue] = ["type": .string("action"), "label": .string(label)]
-  if let i = icon { obj["icon"] = .string(i) }
-  if let c = command { obj["command"] = .string(c) }
-  return .object(obj)
-}
-
-func rect(
-  width: Double? = nil, height: Double? = nil, color: String? = nil,
-  cornerRadius: Double? = nil
-) -> JSONValue {
-  var obj: [String: JSONValue] = ["type": .string("rect")]
-  if let w = width { obj["width"] = .double(w) }
-  if let h = height { obj["height"] = .double(h) }
-  if let c = color { obj["color"] = .string(c) }
-  if let cr = cornerRadius { obj["cornerRadius"] = .double(cr) }
-  return .object(obj)
-}
-
-func badge(content: String, color: String? = nil, textColor: String? = nil) -> JSONValue {
-  var obj: [String: JSONValue] = ["type": .string("badge"), "content": .string(content)]
-  if let c = color { obj["color"] = .string(c) }
-  if let tc = textColor { obj["textColor"] = .string(tc) }
-  return .object(obj)
-}
-
-func foreach(items: String, child: JSONValue) -> JSONValue {
-  .object(["type": .string("foreach"), "items": .string(items), "child": child])
-}
-
-func conditional(variable: String, then thenNode: JSONValue) -> JSONValue {
-  .object(["type": .string("if"), "condition": .string(variable), "then": thenNode])
-}
-
-func group(children: [JSONValue]) -> JSONValue {
-  .object(["type": .string("group"), "children": .array(children)])
-}
-
-// MARK: - JSON Output
-
-struct PluginOutput: Encodable {
-  let value: String
-  let icon: String?
-  let hidden: Bool
-  let variables: [String: String]
-  let data: [String: [[String: String]]]
-  let view: JSONValue
-}
-
-func printJSON(_ output: PluginOutput) {
-  let encoder = JSONEncoder()
-  encoder.outputFormatting = [.sortedKeys]
-  guard let data = try? encoder.encode(output) else { return }
-  print(String(data: data, encoding: .utf8)!)
-}
-
-// MARK: - Helpers
-
-func shellQuote(_ s: String) -> String {
-  "'" + s.replacingOccurrences(of: "'", with: "'\\''") + "'"
-}
-
-// Conditional section pattern: {?var:text} (truthy) and {?!var:text} (falsy)
-private let conditionalPattern: NSRegularExpression? = try? NSRegularExpression(
-  pattern: #"\{\?(!?)(\w+):([^}]*)\}"#, options: [])
-
-func applyFormat(_ format: String, variables: [String: String]) -> String {
-  var result = format
-
-  guard let conditionalPattern = conditionalPattern else { return result }
-  let fullRange = NSRange(result.startIndex..., in: result)
-  let matches = conditionalPattern.matches(in: result, range: fullRange).reversed()
-  for match in matches {
-    let negated = Range(match.range(at: 1), in: result).map { !result[$0].isEmpty } ?? false
-    let varName = Range(match.range(at: 2), in: result).map { String(result[$0]) } ?? ""
-    let text = Range(match.range(at: 3), in: result).map { String(result[$0]) } ?? ""
-    let matchRange = Range(match.range, in: result)!
-
-    let isTruthy = !(variables[varName] ?? "").isEmpty
-    let shouldInclude = negated ? !isTruthy : isTruthy
-    result.replaceSubrange(matchRange, with: shouldInclude ? text : "")
-  }
-
-  // Process simple variable substitutions
-  for (key, value) in variables {
-    result = result.replacingOccurrences(of: "{\(key)}", with: value)
-  }
-  return result
-}
-
 // MARK: - EventKit Access
 
 func ensureAccess(store: EKEventStore) -> Bool {
@@ -423,7 +218,7 @@ func watchMode() -> Int32 {
     return 1
   }
 
-  let name = moduleName()
+  let name = moduleName(fallback: "calendar")
   let triggerCmd = "kantan trigger \(shellQuote(name)) refresh"
 
   // Watch for EKEventStore changes
@@ -470,12 +265,12 @@ func watchMode() -> Int32 {
 // MARK: - Default Mode
 
 func defaultMode() -> Int32 {
-  let settings = loadSettings()
+  let settings = loadSettings(defaults: Settings())
   let store = EKEventStore()
 
   guard ensureAccess(store: store) else {
     let output = PluginOutput(
-      value: "", icon: nil, hidden: true, variables: [:], data: [:],
+      value: "", hidden: true,
       view: vstack(children: []))
     printJSON(output)
     return 0
@@ -484,7 +279,7 @@ func defaultMode() -> Int32 {
   let calendars = filteredCalendars(store: store, settings: settings)
   guard !calendars.isEmpty else {
     let output = PluginOutput(
-      value: "No calendars", icon: nil, hidden: true, variables: [:], data: [:],
+      value: "No calendars", hidden: true,
       view: vstack(children: [text("No calendars found", style: "secondary")]))
     printJSON(output)
     return 0
@@ -647,8 +442,8 @@ func defaultMode() -> Int32 {
             vstack(
               spacing: 1,
               children: [
-                textNode("{title}", size: 13, style: "secondary", strikethrough: true),
-                textNode("{time}", size: 11, style: "secondary", strikethrough: true),
+                text("{title}", size: 13, style: "secondary", strikethrough: true),
+                text("{time}", size: 11, style: "secondary", strikethrough: true),
               ]),
             spacer(),
           ]))))

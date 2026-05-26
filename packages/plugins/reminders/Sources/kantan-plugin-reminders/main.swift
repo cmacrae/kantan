@@ -84,160 +84,11 @@ struct Settings: Decodable {
   }
 }
 
-/// Read the module name from KANTAN_MODULE_NAME env var (set by kantan).
-func moduleName() -> String {
-  ProcessInfo.processInfo.environment["KANTAN_MODULE_NAME"] ?? "reminders"
-}
-
-func loadSettings() -> Settings {
-  guard let json = ProcessInfo.processInfo.environment["KANTAN_SETTINGS"],
-    let data = json.data(using: .utf8)
-  else {
-    return Settings()
-  }
-  return (try? JSONDecoder().decode(Settings.self, from: data)) ?? Settings()
-}
-
-// MARK: - Duration Parsing
-
-/// Parses a duration string like "10m", "12h", "2d" into seconds.
-func parseDuration(_ string: String) -> TimeInterval? {
-  let trimmed = string.trimmingCharacters(in: .whitespaces).lowercased()
-  guard let suffix = trimmed.last, trimmed.count >= 2,
-    let value = Double(trimmed.dropLast()), value > 0
-  else { return nil }
-
-  switch suffix {
-  case "m": return value * 60
-  case "h": return value * 3600
-  case "d": return value * 86400
-  default: return nil
-  }
-}
-
-// MARK: - JSON View Tree Types
-
-/// A JSON value that can be any type - used to build view trees.
-indirect enum JSONValue: Encodable {
-  case string(String)
-  case int(Int)
-  case double(Double)
-  case bool(Bool)
-  case array([JSONValue])
-  case object([String: JSONValue])
-  case null
-
-  func encode(to encoder: Encoder) throws {
-    var container = encoder.singleValueContainer()
-    switch self {
-    case .string(let s): try container.encode(s)
-    case .int(let i): try container.encode(i)
-    case .double(let d): try container.encode(d)
-    case .bool(let b): try container.encode(b)
-    case .array(let a): try container.encode(a)
-    case .object(let o): try container.encode(o)
-    case .null: try container.encodeNil()
-    }
-  }
-}
-
-// MARK: - View Tree Builders
-
-func vstack(
-  spacing: Double? = nil, padding: JSONValue? = nil, frame: JSONValue? = nil,
-  children: [JSONValue]
-) -> JSONValue {
-  var obj: [String: JSONValue] = ["type": .string("vstack"), "children": .array(children)]
-  if let s = spacing { obj["spacing"] = .double(s) }
-  if let p = padding { obj["padding"] = p }
-  if let f = frame { obj["frame"] = f }
-  return .object(obj)
-}
-
-func hstack(spacing: Double? = nil, children: [JSONValue]) -> JSONValue {
-  var obj: [String: JSONValue] = ["type": .string("hstack"), "children": .array(children)]
-  if let s = spacing { obj["spacing"] = .double(s) }
-  return .object(obj)
-}
-
-func text(_ content: String, size: Double? = nil, weight: String? = nil, style: String? = nil)
-  -> JSONValue
-{
-  var obj: [String: JSONValue] = ["type": .string("text"), "content": .string(content)]
-  if let s = size { obj["size"] = .double(s) }
-  if let w = weight { obj["weight"] = .string(w) }
-  if let st = style { obj["style"] = .string(st) }
-  return .object(obj)
-}
-
-func divider() -> JSONValue {
-  .object(["type": .string("divider")])
-}
-
-func header(_ content: String) -> JSONValue {
-  .object(["type": .string("header"), "content": .string(content)])
-}
-
-func spacer() -> JSONValue {
-  .object(["type": .string("spacer")])
-}
-
-func action(label: String, icon: String? = nil, command: String? = nil) -> JSONValue {
-  var obj: [String: JSONValue] = ["type": .string("action"), "label": .string(label)]
-  if let i = icon { obj["icon"] = .string(i) }
-  if let c = command { obj["command"] = .string(c) }
-  return .object(obj)
-}
-
-func check(label: String, checked: Bool, command: String, uncheckedCommand: String? = nil)
-  -> JSONValue
-{
-  var obj: [String: JSONValue] = [
-    "type": .string("check"),
-    "label": .string(label),
-    "checked": .bool(checked),
-    "command": .string(command),
-  ]
-  if let uc = uncheckedCommand {
-    obj["uncheckedCommand"] = .string(uc)
-  }
-  return .object(obj)
-}
-
-func foreach(items: String, child: JSONValue) -> JSONValue {
-  .object(["type": .string("foreach"), "items": .string(items), "child": child])
-}
-
-// MARK: - JSON Output Types
-
-struct PluginOutput: Encodable {
-  let value: String
-  let icon: String?
-  let hidden: Bool
-  let variables: [String: String]
-  let data: [String: [[String: String]]]
-  let view: JSONValue
-}
-
 // MARK: - Helpers
 
 func truncate(_ string: String, maxChars: Int) -> String {
   guard maxChars > 0, string.count > maxChars else { return string }
   return String(string.prefix(maxChars)) + "..."
-}
-
-/// Shell-quote a string for safe embedding in a command.
-func shellQuote(_ s: String) -> String {
-  "'" + s.replacingOccurrences(of: "'", with: "'\\''") + "'"
-}
-
-/// Apply template variable substitution to a format string.
-func applyFormat(_ format: String, variables: [String: String]) -> String {
-  var result = format
-  for (key, value) in variables {
-    result = result.replacingOccurrences(of: "{\(key)}", with: value)
-  }
-  return result
 }
 
 // MARK: - EventKit Operations
@@ -429,7 +280,7 @@ func watchMode() -> Int32 {
     return 1
   }
 
-  let name = moduleName()
+  let name = moduleName(fallback: "reminders")
   let triggerCmd = "kantan trigger \(shellQuote(name)) refresh"
 
   // Watch for EKEventStore changes
@@ -479,12 +330,12 @@ func watchMode() -> Int32 {
 // MARK: - Default Mode: Fetch & Output JSON
 
 func defaultMode() -> Int32 {
-  let settings = loadSettings()
+  let settings = loadSettings(defaults: Settings())
 
   guard !settings.lists.isEmpty else {
     fputs("No lists configured in settings\n", stderr)
     let output = PluginOutput(
-      value: "", icon: nil, hidden: true, variables: [:], data: [:],
+      value: "", hidden: true,
       view: vstack(children: []))
     printJSON(output)
     return 0
@@ -493,7 +344,7 @@ func defaultMode() -> Int32 {
   let store = EKEventStore()
   guard ensureAccess(store: store) else {
     let output = PluginOutput(
-      value: "", icon: nil, hidden: true, variables: [:], data: [:],
+      value: "", hidden: true,
       view: vstack(children: []))
     printJSON(output)
     return 0
@@ -514,7 +365,7 @@ func defaultMode() -> Int32 {
 
   let maxChars = displayedListConfig?.maxChars ?? 30
   let title = displayedReminder?.title ?? ""
-  let icon = displayedListConfig?.icon
+  let iconName = displayedListConfig?.icon
   let listName = displayedReminder?.calendar.title ?? displayedListConfig?.name ?? ""
 
   // Format due date if available
@@ -530,7 +381,7 @@ func defaultMode() -> Int32 {
   // Build data collections and view tree
   let allItems = incomplete + completed
   let hasMultiple = allItems.count > 1
-  let modName = moduleName()
+  let modName = moduleName(fallback: "reminders")
 
   var dataCollections: [String: [[String: String]]] = [:]
   var viewChildren: [JSONValue] = []
@@ -638,8 +489,8 @@ func defaultMode() -> Int32 {
   ]
 
   // Add icon as a variable too
-  if let icon, !icon.isEmpty {
-    variables["list_icon"] = icon
+  if let iconName, !iconName.isEmpty {
+    variables["list_icon"] = iconName
   }
 
   // Apply format string to produce the displayed value
@@ -647,7 +498,7 @@ func defaultMode() -> Int32 {
 
   let output = PluginOutput(
     value: value,
-    icon: icon,
+    icon: iconName,
     hidden: !hasReminders,
     variables: variables,
     data: dataCollections,
@@ -656,13 +507,6 @@ func defaultMode() -> Int32 {
 
   printJSON(output)
   return 0
-}
-
-func printJSON(_ output: PluginOutput) {
-  let encoder = JSONEncoder()
-  encoder.outputFormatting = [.sortedKeys]
-  guard let data = try? encoder.encode(output) else { return }
-  print(String(data: data, encoding: .utf8)!)
 }
 
 // MARK: - Main
