@@ -1,88 +1,6 @@
 import AppKit
 import SwiftUI
 
-// MARK: - Template Resolver
-
-/// Resolves `{key}` interpolation in template strings against a variable scope stack.
-///
-/// The resolver maintains a stack of scopes for `foreach` nesting. When resolving
-/// a template, it walks the stack top-down (innermost scope first), then falls back
-/// to the top-level `variables` map.
-class TemplateResolver {
-  var variables: [String: String]
-  let data: [String: [[String: String]]]
-  private(set) var scopeStack: [[String: String]] = []
-  /// Optional fallback for resolving keys not found in variables/scopes
-  /// (e.g. `theme(name)` patterns resolved via ThemeProvider).
-  var fallbackResolver: ((String) -> String?)?
-
-  init(variables: [String: String], data: [String: [[String: String]]]) {
-    self.variables = variables
-    self.data = data
-  }
-
-  /// Push a foreach element's key-value pairs onto the scope stack.
-  func pushScope(_ element: [String: String]) {
-    scopeStack.append(element)
-  }
-
-  /// Pop the most recent foreach scope.
-  func popScope() {
-    if !scopeStack.isEmpty {
-      scopeStack.removeLast()
-    }
-  }
-
-  /// Resolve `{key}` placeholders in a template string.
-  ///
-  /// Resolution order:
-  /// 1. Innermost foreach scope (top of stack)
-  /// 2. Outer foreach scopes (walking down the stack)
-  /// 3. Top-level `variables` map
-  func resolve(_ template: String) -> String {
-    var result = template
-    // Find all {key} patterns and replace them
-    while let openRange = result.range(of: "{") {
-      guard let closeRange = result[openRange.upperBound...].range(of: "}") else {
-        break
-      }
-      let key = String(result[openRange.upperBound..<closeRange.lowerBound])
-      let replacement = lookupValue(for: key) ?? ""
-      result.replaceSubrange(openRange.lowerBound..<closeRange.upperBound, with: replacement)
-    }
-    return result
-  }
-
-  /// Resolve a template string to a boolean value.
-  ///
-  /// Returns `true` if the resolved string is "true", "1", "yes", or a non-empty
-  /// string that isn't "false", "0", or "no".
-  func resolveBool(_ template: String) -> Bool {
-    let resolved = resolve(template).lowercased().trimmingCharacters(in: .whitespaces)
-    switch resolved {
-    case "true", "1", "yes":
-      return true
-    case "false", "0", "no", "":
-      return false
-    default:
-      return !resolved.isEmpty
-    }
-  }
-
-  private func lookupValue(for key: String) -> String? {
-    // Walk scope stack top-down (innermost first)
-    for scope in scopeStack.reversed() {
-      if let value = scope[key] {
-        return value
-      }
-    }
-    // Fall back to top-level variables
-    if let value = variables[key] { return value }
-    // Fall back to external resolver (e.g. theme templates)
-    return fallbackResolver?(key)
-  }
-}
-
 // MARK: - Build Native Menu
 
 /// Convert a `ViewNode` tree into a native `NSMenu`.
@@ -279,22 +197,6 @@ private func extractStyledParts(from node: ViewNode, resolver: TemplateResolver)
   }
 }
 
-// MARK: - Condition Evaluation
-
-/// Evaluate a condition string as a variable lookup, matching the SwiftUI
-/// renderer's `evaluateCondition`. Wraps the condition in braces so it gets
-/// resolved as a variable reference, then checks for truthiness.
-private func evaluateCondition(_ condition: String, resolver: TemplateResolver) -> Bool {
-  let conditionValue = resolver.resolve("{\(condition)}")
-  // If the variable wasn't found, resolve() returns the braces stripped
-  // (empty replacement). Check for unresolved patterns.
-  if conditionValue.contains("{") && conditionValue.contains("}") {
-    return false
-  }
-  let lowered = conditionValue.lowercased()
-  return !lowered.isEmpty && lowered != "0" && lowered != "false" && lowered != "no"
-}
-
 // MARK: - Node Classification
 
 /// Returns true if the node is an interactive type that should be its own NSMenuItem.
@@ -474,7 +376,7 @@ private func addItems(
   // MARK: If
 
   case .if(let condition, let thenNode, let elseNode, _):
-    if evaluateCondition(condition, resolver: resolver) {
+    if dslEvaluateTruthy(condition, resolver: resolver) {
       addItems(from: thenNode, to: menu, resolver: resolver, textColor: textColor)
     } else if let elseNode = elseNode {
       addItems(from: elseNode, to: menu, resolver: resolver, textColor: textColor)
@@ -506,16 +408,6 @@ private func addItems(
 }
 
 // MARK: - Native Menu Custom Views
-
-/// Parse a hex color string (e.g. "#FF5733") into a SwiftUI Color.
-private func nativeMenuColorFromHex(_ hex: String) -> Color? {
-  let cleaned = hex.trimmingCharacters(in: CharacterSet.alphanumerics.inverted)
-  guard cleaned.count == 6, let rgbValue = UInt64(cleaned, radix: 16) else { return nil }
-  let r = Double((rgbValue & 0xFF0000) >> 16) / 255.0
-  let g = Double((rgbValue & 0x00FF00) >> 8) / 255.0
-  let b = Double(rgbValue & 0x0000FF) / 255.0
-  return Color(red: r, green: g, blue: b)
-}
 
 /// Header row for native NSMenu, matching the themed view's header style.
 struct NativeMenuHeaderView: View {
@@ -571,7 +463,7 @@ private struct NativeMenuRowView: View {
 
   var body: some View {
     HStack(spacing: 0) {
-      if let hex = indicatorColor, let color = nativeMenuColorFromHex(hex) {
+      if let hex = indicatorColor, let color = dslColorFromHex(hex) {
         RoundedRectangle(cornerRadius: 1.5)
           .fill(color)
           .frame(width: 3, height: 16)
@@ -599,7 +491,7 @@ private struct NativeMenuLabelView: View {
 
   var body: some View {
     HStack(spacing: 4) {
-      if let hex = indicatorColor, let color = nativeMenuColorFromHex(hex) {
+      if let hex = indicatorColor, let color = dslColorFromHex(hex) {
         RoundedRectangle(cornerRadius: 1.5)
           .fill(color)
           .frame(width: 3, height: 16)

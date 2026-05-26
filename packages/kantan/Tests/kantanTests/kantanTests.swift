@@ -1,5 +1,6 @@
 import AppKit
 import CoreGraphics
+import SwiftUI
 import XCTest
 
 @testable import kantan
@@ -131,5 +132,39 @@ final class ConfigShapeTests: XCTestCase {
       autohide: .default, displays: .main, modules: [bundledModule]
     )
     XCTAssertTrue(cfg.needsBundledIconFonts)
+  }
+}
+
+final class DSLColorFromHexTests: XCTestCase {
+  private func components(_ color: Color) -> (r: Double, g: Double, b: Double, a: Double)? {
+    guard let ns = NSColor(color).usingColorSpace(.deviceRGB) else { return nil }
+    return (
+      Double(ns.redComponent), Double(ns.greenComponent),
+      Double(ns.blueComponent), Double(ns.alphaComponent)
+    )
+  }
+
+  func testParses8CharRGBAExtractsAlpha() {
+    guard let c = dslColorFromHex("ff000080"), let comps = components(c) else {
+      return XCTFail("expected non-nil color")
+    }
+    XCTAssertEqual(comps.r, 1.0, accuracy: 0.01)
+    XCTAssertEqual(comps.g, 0.0, accuracy: 0.01)
+    XCTAssertEqual(comps.b, 0.0, accuracy: 0.01)
+    XCTAssertEqual(comps.a, 128.0 / 255.0, accuracy: 0.01)
+  }
+
+  func testRejectsNonHexString() {
+    XCTAssertNil(dslColorFromHex("not-a-color"))
+  }
+}
+
+final class TemplateResolverTests: XCTestCase {
+  func testScopeStackOverridesVariables() {
+    let r = TemplateResolver(variables: ["v": "outer"], data: [:])
+    r.pushScope(["v": "inner"])
+    XCTAssertEqual(r.resolve("{v}"), "inner")
+    r.popScope()
+    XCTAssertEqual(r.resolve("{v}"), "outer")
   }
 }

@@ -18,16 +18,6 @@ extension EnvironmentValues {
 
 // MARK: - Color Parsing
 
-/// Parse a hex color string (with or without leading #) to a SwiftUI Color.
-private func colorFromHex(_ hex: String) -> Color? {
-  let cleaned = hex.trimmingCharacters(in: CharacterSet.alphanumerics.inverted)
-  guard let rgbValue = UInt64(cleaned, radix: 16) else { return nil }
-  let r = Double((rgbValue & 0xFF0000) >> 16) / 255.0
-  let g = Double((rgbValue & 0x00FF00) >> 8) / 255.0
-  let b = Double(rgbValue & 0x0000FF) / 255.0
-  return Color(red: r, green: g, blue: b)
-}
-
 /// Resolve a color string from a node property. Supports named system colors
 /// and hex color strings.
 private func resolveColor(
@@ -50,7 +40,7 @@ private func resolveColor(
   case "black": return .black
   case "clear": return .clear
   default:
-    return colorFromHex(colorString) ?? fallback
+    return dslColorFromHex(colorString) ?? fallback
   }
 }
 
@@ -575,18 +565,9 @@ struct DSLRendererView: View {
     }
   }
 
-  private func evaluateCondition(_ condition: String) -> Bool {
-    let conditionValue = resolver.resolve("{\(condition)}")
-    if conditionValue.contains("{") && conditionValue.contains("}") {
-      return false
-    }
-    let lowered = conditionValue.lowercased()
-    return !lowered.isEmpty && lowered != "0" && lowered != "false" && lowered != "no"
-  }
-
   @ViewBuilder
   private func renderIf(condition: String, thenNode: ViewNode, elseNode: ViewNode?) -> some View {
-    if evaluateCondition(condition) {
+    if dslEvaluateTruthy(condition, resolver: resolver) {
       DSLRendererView(
         node: thenNode, resolver: resolver, isNative: isNative,
         dismissHandler: dismissHandler, depth: depth + 1)
@@ -991,12 +972,7 @@ private struct VisibilityModifier: ViewModifier {
 
   private var isVisible: Bool {
     guard let visibleKey = visible else { return true }
-    let resolved = resolver.resolve("{\(visibleKey)}")
-    if resolved.contains("{") && resolved.contains("}") {
-      return true  // Unresolved variable: default to visible
-    }
-    let lowered = resolved.lowercased()
-    return !lowered.isEmpty && lowered != "0" && lowered != "false" && lowered != "no"
+    return dslEvaluateTruthy(visibleKey, resolver: resolver)
   }
 
   func body(content: Content) -> some View {
