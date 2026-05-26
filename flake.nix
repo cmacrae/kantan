@@ -130,7 +130,6 @@
         inherit (_kantan) version;
         tarballs = release;
       };
-
     in
     {
       packages.${system} = {
@@ -155,6 +154,21 @@
       homeManagerModules.default = import ./nix/module/home-manager.nix kantan;
 
       formatter.${system} = treefmtEval.config.build.wrapper;
-      checks.${system}.formatting = treefmtEval.config.build.check self;
+      checks.${system} = import ./nix/checks {
+        inherit
+          self
+          pkgs
+          docs
+          site
+          pluginPackages
+          themePackages
+          tabler-icons
+          treefmtEval
+          _kantan
+          kantan
+          release
+          homebrew
+          ;
+      };
     };
 }
