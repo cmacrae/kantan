@@ -30,6 +30,16 @@ struct WorkspaceSegment: Sendable {
 nonisolated(unsafe) private var cachedSegments: [WorkspaceSegment] = []
 private let segmentsLock = NSLock()
 
+// Memo for `shuffledRainbow`. The output is a pure function of
+// `(colors, spaceCount)` so a successful lookup avoids re-shuffling
+// and re-cycling on every `getValue()`.
+struct RainbowKey: Hashable {
+  let colors: [String]
+  let spaceCount: Int
+}
+nonisolated(unsafe) private var rainbowCache: [RainbowKey: [String]] = [:]
+private let rainbowCacheLock = NSLock()
+
 func getWorkspaceSegments() -> [WorkspaceSegment] {
   segmentsLock.lock()
   defer { segmentsLock.unlock() }
@@ -326,7 +336,24 @@ struct WorkspaceConfig: ModuleConfiguration {
   /// has more entries than spaces, the first `spaceCount` colours of the
   /// shuffled palette are used (all unique). When cycling is needed, a
   /// greedy swap avoids adjacent repeats.
-  private static func shuffledRainbow(_ colors: [String], spaceCount: Int) -> [String] {
+  static func shuffledRainbow(_ colors: [String], spaceCount: Int) -> [String] {
+    let key = RainbowKey(colors: colors, spaceCount: spaceCount)
+    rainbowCacheLock.lock()
+    if let cached = rainbowCache[key] {
+      rainbowCacheLock.unlock()
+      return cached
+    }
+    rainbowCacheLock.unlock()
+
+    let result = computeShuffledRainbow(colors, spaceCount: spaceCount)
+
+    rainbowCacheLock.lock()
+    rainbowCache[key] = result
+    rainbowCacheLock.unlock()
+    return result
+  }
+
+  private static func computeShuffledRainbow(_ colors: [String], spaceCount: Int) -> [String] {
     guard colors.count > 1 else { return colors }
 
     // Deterministic Fisher-Yates shuffle seeded by space count.

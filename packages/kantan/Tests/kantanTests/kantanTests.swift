@@ -712,6 +712,23 @@ final class ScreenLayoutTests: XCTestCase {
   }
 }
 
+// MARK: - Workspace rainbow memoisation
+
+final class ShuffledRainbowTests: XCTestCase {
+  func testIsDeterministicForSameInputs() {
+    let a = WorkspaceConfig.shuffledRainbow(["r", "g", "b", "y"], spaceCount: 4)
+    let b = WorkspaceConfig.shuffledRainbow(["r", "g", "b", "y"], spaceCount: 4)
+    XCTAssertEqual(a, b)
+  }
+
+  func testNoAdjacentRepeatsWhenCycling() {
+    let result = WorkspaceConfig.shuffledRainbow(["r", "g", "b"], spaceCount: 10)
+    for i in 1..<result.count {
+      XCTAssertNotEqual(result[i], result[i - 1])
+    }
+  }
+}
+
 // MARK: - Watch process restart backoff
 
 final class WatchRestartDelayTests: XCTestCase {
