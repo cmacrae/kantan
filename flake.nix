@@ -103,15 +103,7 @@
           };
 
       kantan = (kantanWithPlugins { }) // {
-        override =
-          args:
-          kantanWithPlugins (
-            {
-              plugins = builtins.attrValues pluginPackages;
-              extraPlugins = [ ];
-            }
-            // args
-          );
+        override = args: kantanWithPlugins args;
         withoutPlugins = _kantan;
         withPlugins = kantanWithPlugins;
         plugins = pluginPackages;
