@@ -36,7 +36,7 @@ Supported weight names: `ultralight`, `thin`, `light`, `regular`, `medium`, `sem
 
 When no text font is specified, kantan defaults to Helvetica Neue at 13pt.
 
-When no icon font is specified, kantan uses the bundled [tabler-icons](https://tabler.io/icons) font at 15pt. Icon names like `bell` or `bell-filled` are resolved automatically from this font.
+When no icon font is specified, kantan uses the bundled [tabler-icons](https://tabler.io/icons) font at 14pt. Icon names like `bell` or `bell-filled` are resolved automatically from this font.
 
 ## Style Configuration
 

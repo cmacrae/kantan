@@ -10,7 +10,7 @@ kantan is a macOS status bar that replaces or overlays the native menu bar. It's
 
 - Declarative YAML configuration with hot-reload
 - Multi-display support with per-screen positioning
-- Built-in modules: clock, battery, wifi, bluetooth, volume, workspace switching, and more
+- Built-in modules: clock, power, wifi, bluetooth, volume, workspace switching, and more
 - Plugin system using a simple JSON protocol (any language)
 - View DSL for rich plugin interfaces (menus, toggles, sliders)
 - Menu bar masking to overlay native system items

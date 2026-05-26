@@ -98,8 +98,8 @@ The `data` object can contain multiple named arrays. Each array can hold objects
 
 The `foreach` node iterates over a data collection and renders its `child` node once for each item.
 
-**Syntax:**
-```json
+**Syntax** (pseudocode — comments are illustrative, not part of the protocol):
+```jsonc
 {
   "type": "foreach",
   "items": "collection_name",
@@ -230,8 +230,8 @@ In this example, `{name}` inside the inner `foreach` resolves to the app name (i
 
 The `if` node conditionally renders a node based on a variable value.
 
-**Syntax:**
-```json
+**Syntax** (pseudocode — comments are illustrative, not part of the protocol):
+```jsonc
 {
   "type": "if",
   "condition": "variable_name",
@@ -250,7 +250,7 @@ The `if` node conditionally renders a node based on a variable value.
 - `"true"`, `"1"`, `"yes"`, and other non-empty strings: truthy
 - `"false"`, `"0"`, `"no"`, `""`, and unresolved variables: falsy
 
-> **Note:** The `visible` property on nodes uses the same truthiness rules for resolved values, but treats unresolved variables as **visible** (truthy) by default. See [Styling — Visibility](styling.md#visibility).
+> **Note:** The `visible` property on nodes uses the same truthiness rules, including for unresolved variables: an unresolved template resolves to `""`, which is falsy, so the node is **hidden**. See [Styling — Visibility](styling.md#visibility).
 
 **Example:**
 ```json

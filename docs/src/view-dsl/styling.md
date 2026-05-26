@@ -185,7 +185,10 @@ Control whether a node is rendered. The `visible` property takes a variable name
 }
 ```
 
-The variable is resolved and evaluated as a boolean. Values `"true"`, `"1"`, `"yes"`, and other non-empty strings are truthy. Values `"false"`, `"0"`, `"no"`, and empty strings are falsy. If the variable cannot be resolved (i.e. remains an unresolved template), the node defaults to visible.
+The variable is resolved and evaluated as a boolean. Values `"true"`, `"1"`, `"yes"`, and other non-empty strings are truthy.
+Values `"false"`, `"0"`, `"no"`, and empty strings are falsy. If the variable cannot be resolved (i.e. remains an unresolved template),
+it resolves to an empty string and is therefore **falsy** — the node is hidden.
+This matches the behaviour of the [`if`](nodes.md#conditional-node-if) node so the two stay in lockstep.
 
 ## Combining Properties
 

@@ -1,0 +1,8 @@
+name: hostname
+type: text
+placement: left
+icon: device-desktop
+style:
+  fg: "{theme(subtext1)}"
+config:
+  value: "kantan"

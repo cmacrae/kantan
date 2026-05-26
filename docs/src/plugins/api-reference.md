@@ -393,6 +393,10 @@ kantan trigger mymodule set value="Hello" icon="\uf06a" fg="#ff0000" duration=5
 2. kantan invokes the module's `command` to retrieve updated output
 3. Module display refreshes with new output
 
+**Delivery semantics:** `kantan trigger` posts a distributed notification and returns immediately with no exit-code variation
+if the module name is unknown or if no kantan instance is running. Treat it as fire-and-forget — watch processes should not assume
+delivery and should not block waiting for kantan to act. See [the CLI reference](../reference/cli.md#trigger) for the full semantics.
+
 **Typical use case in watch process:**
 ```swift
 let moduleName = ProcessInfo.processInfo.environment["KANTAN_MODULE_NAME"] ?? ""
@@ -437,6 +441,10 @@ Enable watch mode by adding a `watch:` field to the module config:
 | System wake | Watch process restarted |
 | Process crash | Auto-restart with exponential backoff (1s → 16s cap, max 10 consecutive retries) |
 | Max retries reached | Watch disabled until kantan restart |
+
+**Cardinality:** kantan runs **exactly one watch process per module** for the lifetime of the kantan process,
+regardless of how many displays are configured. Module view-models are shared across all `DisplayInstance`s,
+so the watch process is shared too. Plugin authors do not need to coordinate or deduplicate work across multiple invocations of the same module.
 
 ### Watch Process Requirements
 

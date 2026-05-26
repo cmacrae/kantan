@@ -6,6 +6,33 @@ kantan targets aarch64-darwin only (Apple Silicon Macs). It can be installed via
 
 - macOS Sequoia (15.0) or later on Apple Silicon
 
+While kantan runs on Sequoia (15.0) and later a few individual features depend on behaviour introduced in macOS Tahoe (26.0):
+
+- **`focus` module** — uses the menu bar's FocusModes indicator window because Tahoe removed the `_NSDoNotDisturbEnabledNotification` distributed notifications. On Sequoia the module will not detect focus state correctly.
+- **`mask` configuration** — system-item masking works on both 15 and 26, but third-party masking is permanently impossible on 26 due to a Control Centre attribution change (FB18327911). On Sequoia, the same attribution issue exists in a different form. See [Menu Bar Masking — Limitations](../configuration/masking.md#limitations).
+
+Everything else (clock, power, wifi, bluetooth, volume, workspace switching, plugins) works identically on both releases.
+
+## First-Run Permissions
+
+kantan itself does not prompt for any TCC permissions on first launch:
+
+- **No Accessibility prompt.** kantan does not call `AXIs…` or any other Accessibility API.
+- **No Screen Recording prompt.** Menu bar item detection uses `CGWindowListCopyWindowInfo`, which returns window geometry without Screen Recording permission. (Window titles are gated, but kantan does not rely on them.)
+- **No Automation prompt.** kantan does not send AppleEvents to other applications.
+
+Bundled plugins that read OS data sources prompt the first time they run:
+
+| Plugin | Permission | Trigger |
+|--------|------------|---------|
+| `reminders` | Reminders (Full Access) | First invocation in normal or watch mode |
+| `calendar` | Calendar (Full Access) | First invocation in normal or watch mode |
+| `caffeine` | None | Uses `caffeinate(8)` only |
+| `pomodoro` | None | Pure local state |
+| `system-monitor` | None | Reads public sysctls |
+
+For EventKit plugins (`reminders`, `calendar`), macOS shows the consent dialog under the plugin's bundle identifier. If the binary changes path between invocations (e.g. running it directly vs. through the kantan wrapper), macOS may treat it as a fresh request. Approve once via the dialog or pre-grant in *System Settings → Privacy & Security*.
+
 ## Installation Methods
 
 ### Homebrew
@@ -129,7 +156,21 @@ kantan.packages.aarch64-darwin.default.override {
 
 ### Additional Package Variants
 
-- `kantan.packages.aarch64-darwin.without-plugins` — bundled fonts and themes but no plugins
-- `kantan.packages.aarch64-darwin.default.withoutPlugins` — bare binary only (no plugins, themes, or bundled fonts)
-- `kantan.packages.aarch64-darwin.default.plugins` — attribute set of individual plugin packages
-- `kantan.packages.aarch64-darwin.default.themes` — attribute set of individual theme packages
+The flake exposes one extra top-level package output for convenience, plus a small surface of passthru attributes on the default derivation:
+
+**Flake outputs (`kantan.packages.aarch64-darwin.*`)**
+
+- `default` — the wrapped binary with all bundled plugins, themes, and fonts (also exposed as `kantan`)
+- `without-plugins` — wrapped binary with bundled fonts and themes but no plugins
+
+**Passthrus on `kantan.packages.aarch64-darwin.default`**
+
+These are convenience attributes attached to the default derivation, not separate flake outputs. They are reachable as e.g. `inputs.kantan.packages.aarch64-darwin.default.withoutPlugins`:
+
+- `withoutPlugins` — the bare unwrapped binary with no plugins, themes, or bundled fonts
+- `withPlugins` — function form of `override` ({ plugins ? …, themes ? …, … } → derivation)
+- `override` — alias for `withPlugins`, mirroring nixpkgs convention
+- `plugins` — attribute set of individual plugin packages
+- `themes` — attribute set of individual theme packages
+
+The top-level outputs use kebab-case (`without-plugins`). The derivation passthrus use camelCase (`withoutPlugins`), matching the Swift-side naming. Both are plugin-less builds. The flake output keeps fonts and themes bundled. The passthru is a bare binary.

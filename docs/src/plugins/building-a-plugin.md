@@ -35,9 +35,31 @@ let data = try JSONSerialization.data(withJSONObject: output)
 print(String(data: data, encoding: .utf8)!)
 ```
 
+### Minimal Go Example
+
+```go
+package main
+
+import (
+    "encoding/json"
+    "os"
+)
+
+func main() {
+    output := map[string]interface{}{"value": "Hello from my plugin"}
+    enc := json.NewEncoder(os.Stdout)
+    _ = enc.Encode(output)
+}
+```
+
+`encoding/json`'s `Encoder.Encode` writes a trailing newline and does not require an explicit flush for a one-shot plugin.
+See [Common Pitfalls](#common-pitfalls) for watch-mode flushing rules.
+
 ### Reading Configuration
 
-Access the environment variables kantan provides:
+Access the environment variables kantan provides. Note that not every variable is set on every invocation — see
+[Step 2: Environment Variables](#step-2-environment-variables) for the matrix. `KANTAN_SETTINGS` is only present when your module
+declares `settings:`, and `KANTAN_MODULE_NAME` is only set inside watch processes; the defaults below handle both cases.
 
 ```swift
 import Foundation
@@ -64,14 +86,16 @@ print(String(data: data, encoding: .utf8)!)
 
 ## Step 2: Environment Variables
 
-kantan sets these environment variables before invoking your plugin:
+kantan sets these environment variables before invoking your plugin. Not every variable is set on every invocation. Read the *Set When* column and give each variable a default in your plugin code:
 
 | Variable | Type | Set When | Description | Example |
 |----------|------|----------|-------------|---------|
-| `KANTAN_SETTINGS` | JSON string | Normal invocation, watch, toggle | Module's `settings:` config | `{"refresh": 10, "units": "metric"}` |
+| `KANTAN_SETTINGS` | JSON string | Only when the module declares `settings:` (covers normal invocation, watch, and toggle) | Module's `settings:` config | `{"refresh": 10, "units": "metric"}` |
 | `KANTAN_APPEARANCE` | string | Normal invocation, watch, toggle | Current appearance | `"dark"` or `"light"` |
 | `KANTAN_MODULE_NAME` | string | Watch process only | Module identifier | `"my-plugin"` |
 | `KANTAN_PID` | string | Normal invocation, watch, toggle | kantan's process ID | `"12345"` |
+
+A plugin run from the shell without these env vars set should still produce reasonable output — this makes it trivial to test by hand (`./kantan-plugin-foo`). Use `?? "{}"` / `?? ""` style defaults.
 
 The `KANTAN_SETTINGS` variable contains the arbitrary JSON object you define in your module's config:
 
@@ -267,6 +291,7 @@ The watch process:
 4. **Triggers updates via IPC**: Calls `kantan trigger <module-name> refresh` when events occur
 5. **Auto-restarts on crash**: Exponential backoff (1s → 16s cap, max 10 consecutive retries)
 6. **Lifecycle integration**: Stopped on system sleep, restarted on wake
+7. **One process per module**: kantan launches exactly one watch process per module, no matter how many displays are configured. Module view-models are shared across `DisplayInstance`s, so plugin authors do not need to deduplicate work or coordinate across multiple invocations.
 
 ### Handling stdin EOF
 
@@ -472,6 +497,31 @@ See the built-in plugins for complete reference implementations:
 - **Timeout**: If execution exceeds configured `timeout`, kantan terminates the process and treats it as a non-zero exit
 
 For watch processes, crashes trigger automatic restart with exponential backoff.
+
+## Common Pitfalls
+
+### Buffered stdout in watch mode
+
+In watch mode, kantan signals updates via `kantan trigger <module> refresh`, but the plugin's own data flows through stdout. Many runtimes (Go, Python, buffered C libc, etc.) buffer stdout when it's not a terminal — that is, exactly the conditions watch mode runs under. A plugin that prints JSON without flushing will appear to hang: kantan never sees the bytes until the buffer fills or the process exits.
+
+Flush after every emitted JSON document:
+
+- **Go**: `json.NewEncoder(os.Stdout).Encode(v)` writes immediately, but if you build the payload with `fmt.Println` or `bufio.NewWriter`, call `os.Stdout.Sync()` (or `writer.Flush()`) afterwards.
+- **Python**: `print(payload, flush=True)`, or `sys.stdout.flush()` after `print(payload)`. Alternatively launch Python with `-u` for unbuffered I/O.
+- **C / C++**: `fflush(stdout)` after `printf`/`fprintf`, or `setbuf(stdout, NULL)` once at startup.
+- **Shell**: `printf` and `echo` are line-buffered when stdout is a pipe in most shells, but `awk`/`sed` may not be — pass `-W interactive` to `awk` or wrap in `stdbuf -oL` if you're piping through filters.
+- **Swift**: `print(...)` is line-buffered to a tty and fully-buffered to a pipe. Call `fflush(stdout)` (via `import Darwin`) after each emit, or write directly to `FileHandle.standardOutput`.
+
+The EOF-on-stdin convention handles shutdown. Flushing handles delivery.
+
+### Forgetting `interval: 0` with `watch:`
+
+The polling interval is ignored whenever `watch:` is configured. Set `interval: 0` anyway so the config says the module doesn't poll. A reader shouldn't have to remember that `watch:` turns polling off.
+
+### Assuming `kantan trigger` returned a result
+
+`kantan trigger` posts a distributed notification and returns immediately — see [the CLI reference](../reference/cli.md#trigger).
+It does not wait for kantan to act on the notification, and it does not report whether kantan picked it up. Watch processes should treat trigger calls as fire-and-forget.
 
 ## Performance Considerations
 

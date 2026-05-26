@@ -80,21 +80,21 @@ Modules can override the global style configuration:
 ```yaml
 style:
   light:
-    fg: "000000"
-    bg: "ffffff"
+    fg: "#000000"
+    bg: "#ffffff"
     shape: pill
     text:
-      fg: "333333"
+      fg: "#333333"
     icon:
-      fg: "0000ff"
+      fg: "#0000ff"
   dark:
-    fg: "ffffff"
-    bg: "1a1a1a"
+    fg: "#ffffff"
+    bg: "#1a1a1a"
     shape: pill
     text:
-      fg: "e0e0e0"
+      fg: "#e0e0e0"
     icon:
-      fg: "4d9fff"
+      fg: "#4d9fff"
 ```
 
 A flat style block (no `light`/`dark` nesting) is also supported and applies to both modes. This is useful with theme templates.
@@ -278,11 +278,11 @@ Command module config options:
         - "battery-3-filled"
         - "battery-4-filled"
     style:
-      charging: "00ff00"          # shorthand: string sets fg color
+      charging: "#00ff00"          # shorthand: string sets fg color
       low:
-        fg: "ff0000"
+        fg: "#ff0000"
         icon:
-          fg: "ff3333"
+          fg: "#ff3333"
 ```
 
 Power module config options:
@@ -492,8 +492,8 @@ See individual module type documentation for complete configuration options.
   style:
     light:
       icon:
-        fg: "007AFF"
+        fg: "#007AFF"
     dark:
       icon:
-        fg: "0A84FF"
+        fg: "#0A84FF"
 ```

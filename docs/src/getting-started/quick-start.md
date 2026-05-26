@@ -18,6 +18,8 @@ When you're ready to customise, proceed to the steps below.
 mkdir -p ~/.config/kantan
 ```
 
+kantan looks for `~/.config/kantan/config.yaml` (or `$XDG_CONFIG_HOME/kantan/config.yaml` if that is set) by default. You can also pass an explicit path via `kantan --config <path>`.
+
 ## Step 2: Create a Minimal Config
 
 Create `~/.config/kantan/config.yaml`:
@@ -71,7 +73,7 @@ modules:
     config:
       format: "HH:mm"
 
-  - name: battery
+  - name: power
     type: power
     placement: right
 ```
