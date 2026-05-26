@@ -414,14 +414,6 @@ func formatCountdown(from now: Date, to target: Date) -> String {
   return "\(hours)h \(minutes)m"
 }
 
-func isToday(_ date: Date) -> Bool {
-  Calendar.current.isDateInToday(date)
-}
-
-func isTomorrow(_ date: Date) -> Bool {
-  Calendar.current.isDateInTomorrow(date)
-}
-
 // MARK: - Watch Mode
 
 func watchMode() -> Int32 {
