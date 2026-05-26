@@ -11,7 +11,7 @@ let
   '';
 in
 {
-  inherit binName examplesPostInstall;
+  inherit binName;
 
   # Shared base attrs for plugin derivations across various builders.
   pluginAttrs =
