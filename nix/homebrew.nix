@@ -20,16 +20,16 @@ let
       conflictsLine = pkgs.lib.optionalString (
         conflictsWith != null
       ) "\n  conflicts_with \"${conflictsWith}\", because: \"both install a kantan binary\"";
+
+      sha256 = builtins.hashFile "sha256" "${tarball}";
     in
-    pkgs.runCommand "${pname}.rb" { } ''
-      HASH=$(sha256sum ${tarball} | cut -d' ' -f1)
-      cat > $out <<FORMULA
+    pkgs.writeText "${pname}.rb" ''
       class ${className} < Formula
         desc "${desc}"
         homepage "https://github.com/cmacrae/kantan"
         version "${version}"
         url "file://${tarball}"
-        sha256 "$HASH"
+        sha256 "${sha256}"
 
         depends_on arch: :arm64
         depends_on macos: :sequoia${conflictsLine}
@@ -46,7 +46,6 @@ let
           process_type :interactive
         end
       end
-      FORMULA
     '';
   formulae = {
     kantan = mkFormula {
