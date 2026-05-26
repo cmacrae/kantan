@@ -26,8 +26,6 @@ let
     );
 in
 {
-  inherit themeName;
-
   themePackages = discover {
     dir = themesDir;
     predicate =
