@@ -273,9 +273,17 @@ modules:
     config:
       format: "HH:mm"
 
-  - name: battery
+  - name: power
     type: power
     placement: right
+    mask:
+      name: Battery
     style:
-      fg: "{theme(green)}"
+      fg: "{theme(subtext1)}"
+    config:
+      style:
+        charging: "{theme(yellow)}"
+        low: "{theme(red)}"
+        lowPowerMode: "{theme(peach)}"
+        plugged: "{theme(green)}"
 ```
