@@ -4,6 +4,7 @@
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
     treefmt.url = "github:numtide/treefmt-nix";
+    treefmt.inputs.nixpkgs.follows = "nixpkgs";
   };
 
   outputs =
