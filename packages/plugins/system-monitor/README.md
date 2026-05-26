@@ -188,7 +188,11 @@ interaction:
     view:
       type: vstack
       spacing: 8
-      padding: [12, 16, 12, 16]
+      padding:
+        top: 12
+        leading: 16
+        bottom: 12
+        trailing: 16
       frame:
         w: 280
       children:

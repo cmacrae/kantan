@@ -129,11 +129,15 @@
           "description": "Uniform padding on all edges."
         },
         {
-          "type": "array",
-          "items": { "type": "number", "minimum": 0 },
-          "minItems": 4,
-          "maxItems": 4,
-          "description": "Per-edge padding as [top, leading, bottom, trailing]."
+          "type": "object",
+          "additionalProperties": false,
+          "description": "Per-edge padding. Missing keys default to 0. Positional arrays are not supported — use named keys to avoid CSS-axis-order confusion (CSS uses right/left; SwiftUI uses leading/trailing for RTL safety).",
+          "properties": {
+            "top": { "type": "number", "minimum": 0 },
+            "leading": { "type": "number", "minimum": 0 },
+            "bottom": { "type": "number", "minimum": 0 },
+            "trailing": { "type": "number", "minimum": 0 }
+          }
         }
       ]
     },

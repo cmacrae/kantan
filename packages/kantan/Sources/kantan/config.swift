@@ -739,13 +739,22 @@ private func yamlDouble(_ yaml: Yaml?) -> Double? {
   return nil
 }
 
-/// Parse a Padding value from Yaml (uniform number or [t, l, b, r] array).
+/// Parse a Padding value from Yaml: a uniform number, or a mapping with
+/// `{top, leading, bottom, trailing}` keys (missing keys default to 0).
+/// Positional arrays are explicitly rejected to avoid CSS-axis-order confusion.
 private func yamlPadding(_ yaml: Yaml?) -> Padding? {
   if let d = yaml?.double { return .uniform(d) }
   if let i = yaml?.int { return .uniform(Double(i)) }
-  if let arr = yaml?.array, arr.count == 4 {
-    let values = arr.map { yamlDouble($0) ?? 0.0 }
-    return .edges(top: values[0], leading: values[1], bottom: values[2], trailing: values[3])
+  if let dict = yaml?.dictionary {
+    let top = yamlDouble(dict["top"]) ?? 0
+    let leading = yamlDouble(dict["leading"]) ?? 0
+    let bottom = yamlDouble(dict["bottom"]) ?? 0
+    let trailing = yamlDouble(dict["trailing"]) ?? 0
+    return .edges(top: top, leading: leading, bottom: bottom, trailing: trailing)
+  }
+  if yaml?.array != nil {
+    print(
+      "padding: array form is not supported — use `{top, leading, bottom, trailing}` or a number")
   }
   return nil
 }

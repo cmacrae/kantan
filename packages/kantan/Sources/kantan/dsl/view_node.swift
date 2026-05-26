@@ -47,23 +47,38 @@ struct CommonNodeProperties: Sendable, Decodable {
 
 // MARK: - Padding
 
-/// Padding expressed as a uniform value or per-edge values [top, leading, bottom, trailing].
+/// Padding expressed as a uniform value or per-edge values via named keys.
+/// Per-edge form uses `{top, leading, bottom, trailing}`; missing keys default to 0.
+/// Positional arrays are rejected to avoid CSS-axis-order confusion (CSS uses
+/// `top, right, bottom, left`; SwiftUI uses leading/trailing for RTL safety).
 enum Padding: Sendable, Decodable {
   case uniform(Double)
   case edges(top: Double, leading: Double, bottom: Double, trailing: Double)
 
+  private enum EdgeKeys: String, CodingKey {
+    case top, leading, bottom, trailing
+  }
+
   init(from decoder: Decoder) throws {
-    let container = try decoder.singleValueContainer()
-    if let value = try? container.decode(Double.self) {
-      self = .uniform(value)
-    } else if let values = try? container.decode([Double].self), values.count == 4 {
-      self = .edges(
-        top: values[0], leading: values[1], bottom: values[2], trailing: values[3])
-    } else {
-      throw DecodingError.dataCorruptedError(
-        in: container,
-        debugDescription: "Padding must be a number or [top, leading, bottom, trailing]")
+    if let single = try? decoder.singleValueContainer() {
+      if let value = try? single.decode(Double.self) {
+        self = .uniform(value)
+        return
+      }
+      if (try? single.decode([Double].self)) != nil {
+        throw DecodingError.dataCorruptedError(
+          in: single,
+          debugDescription:
+            "Padding arrays are not supported. Use a number for uniform padding, "
+            + "or `{top, leading, bottom, trailing}` for per-edge padding.")
+      }
     }
+    let container = try decoder.container(keyedBy: EdgeKeys.self)
+    let top = try container.decodeIfPresent(Double.self, forKey: .top) ?? 0
+    let leading = try container.decodeIfPresent(Double.self, forKey: .leading) ?? 0
+    let bottom = try container.decodeIfPresent(Double.self, forKey: .bottom) ?? 0
+    let trailing = try container.decodeIfPresent(Double.self, forKey: .trailing) ?? 0
+    self = .edges(top: top, leading: leading, bottom: bottom, trailing: trailing)
   }
 }
 

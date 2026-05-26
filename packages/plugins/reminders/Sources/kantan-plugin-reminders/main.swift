@@ -473,7 +473,9 @@ func defaultMode() -> Int32 {
 
   let view = vstack(
     spacing: 8,
-    padding: .array([.double(12), .double(16), .double(12), .double(16)]),
+    padding: .object([
+      "top": .double(12), "leading": .double(16), "bottom": .double(12), "trailing": .double(16),
+    ]),
     frame: .object(["w": .int(280)]),
     children: viewChildren
   )

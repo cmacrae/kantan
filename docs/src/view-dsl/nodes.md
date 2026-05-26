@@ -8,8 +8,8 @@ Layout nodes arrange their children in specific patterns. All layout nodes have 
 
 | Type | Description | Properties |
 |------|-------------|------------|
-| `vstack` | Vertical stack | `spacing` (number), `padding` (number or array), `alignment` (`leading`/`center`/`trailing`, default `leading`), `children` (array) |
-| `hstack` | Horizontal stack | `spacing` (number), `padding` (number or [top, leading, bottom, trailing]), `alignment` (`top`/`center`/`bottom`, default `center`), `children` (array), `command` (string, optional; makes the row clickable) |
+| `vstack` | Vertical stack | `spacing` (number), `padding` (number or `{top, leading, bottom, trailing}` object), `alignment` (`leading`/`center`/`trailing`, default `leading`), `children` (array) |
+| `hstack` | Horizontal stack | `spacing` (number), `padding` (number or `{top, leading, bottom, trailing}` object), `alignment` (`top`/`center`/`bottom`, default `center`), `children` (array), `command` (string, optional; makes the row clickable) |
 | `zstack` | Overlay stack (children layered on top of each other) | `alignment` (`leading`/`trailing`/`center`/`top`/`bottom`/`topLeading`/`topTrailing`/`bottomLeading`/`bottomTrailing`, default `center`), `children` (array) |
 | `scroll` | Scrollable container | `axis` (`vertical`/`horizontal`, default `vertical`), `children` (array) |
 | `spacer` | Flexible spacing element | `minLength` (number, optional minimum size) |

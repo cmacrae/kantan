@@ -661,7 +661,9 @@ func main() {
 
   let view = vstack(
     spacing: 8,
-    padding: .array([.double(12), .double(16), .double(12), .double(16)]),
+    padding: .object([
+      "top": .double(12), "leading": .double(16), "bottom": .double(12), "trailing": .double(16),
+    ]),
     frame: .object(["w": .int(300)]),
     children: viewChildren
   )

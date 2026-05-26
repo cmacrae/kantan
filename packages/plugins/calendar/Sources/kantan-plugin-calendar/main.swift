@@ -436,7 +436,10 @@ func defaultMode() -> Int32 {
       then: foreach(
         items: "past_events",
         child: hstack(
-          spacing: 8, padding: .array([.double(4), .double(0), .double(4), .double(0)]),
+          spacing: 8,
+          padding: .object([
+            "top": .double(4), "leading": .double(0), "bottom": .double(4), "trailing": .double(0),
+          ]),
           children: [
             rect(width: 3, height: 24, color: "{color}", cornerRadius: 1.5),
             vstack(
@@ -456,7 +459,10 @@ func defaultMode() -> Int32 {
       foreach(
         items: "today_events",
         child: hstack(
-          spacing: 8, padding: .array([.double(4), .double(0), .double(4), .double(0)]),
+          spacing: 8,
+          padding: .object([
+            "top": .double(4), "leading": .double(0), "bottom": .double(4), "trailing": .double(0),
+          ]),
           children: [
             rect(width: 3, height: 24, color: "{color}", cornerRadius: 1.5),
             vstack(
@@ -480,7 +486,11 @@ func defaultMode() -> Int32 {
         foreach(
           items: "tomorrow_events",
           child: hstack(
-            spacing: 8, padding: .array([.double(4), .double(0), .double(4), .double(0)]),
+            spacing: 8,
+            padding: .object([
+              "top": .double(4), "leading": .double(0), "bottom": .double(4),
+              "trailing": .double(0),
+            ]),
             children: [
               rect(width: 3, height: 24, color: "{color}", cornerRadius: 1.5),
               vstack(
@@ -500,7 +510,9 @@ func defaultMode() -> Int32 {
 
   let view = vstack(
     spacing: 8,
-    padding: .array([.double(12), .double(16), .double(12), .double(16)]),
+    padding: .object([
+      "top": .double(12), "leading": .double(16), "bottom": .double(12), "trailing": .double(16),
+    ]),
     frame: .object(["w": .int(320)]),
     children: viewChildren
   )

@@ -343,6 +343,11 @@ final class ViewNodeJSONDecodingTests: XCTestCase {
     XCTAssertEqual(value, 8)
   }
 
+  func testPaddingArrayIsRejected() {
+    let json = #"{"type":"text","content":"x","padding":[1,2,3,4]}"#
+    XCTAssertThrowsError(try decode(json))
+  }
+
   func testUnknownTypeThrows() {
     XCTAssertThrowsError(try decode(#"{"type":"flibbertigibbet"}"#))
   }
@@ -370,6 +375,29 @@ final class ParseViewNodeFromYamlTests: XCTestCase {
       return XCTFail("expected vstack")
     }
     XCTAssertEqual(children.count, 2)
+  }
+
+  func testPaddingObjectFromYamlMapping() throws {
+    let y = try yaml(
+      """
+      type: vstack
+      padding:
+        top: 1
+        leading: 2
+        bottom: 3
+        trailing: 4
+      children: []
+      """)
+    guard case .vstack(_, _, _, let common) = parseViewNodeFromYaml(y) else {
+      return XCTFail("expected vstack")
+    }
+    guard case .edges(let top, let leading, let bottom, let trailing) = common.padding else {
+      return XCTFail("expected edges padding")
+    }
+    XCTAssertEqual(top, 1)
+    XCTAssertEqual(leading, 2)
+    XCTAssertEqual(bottom, 3)
+    XCTAssertEqual(trailing, 4)
   }
 
   func testCheckCoercesYamlYesToCanonicalTrue() throws {

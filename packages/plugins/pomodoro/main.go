@@ -405,7 +405,7 @@ func buildOutput(settings Settings) {
 	view := map[string]interface{}{
 		"type":     "vstack",
 		"spacing":  8,
-		"padding":  []interface{}{12, 16, 12, 16},
+		"padding":  map[string]interface{}{"top": 12, "leading": 16, "bottom": 12, "trailing": 16},
 		"frame":    map[string]interface{}{"w": 260},
 		"children": viewChildren,
 	}

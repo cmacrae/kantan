@@ -134,7 +134,7 @@ A comprehensive system monitoring popup with process list and actions.
                 "child": {
                   "type": "hstack",
                   "spacing": 8,
-                  "padding": [4, 0, 4, 0],
+                  "padding": { "top": 4, "leading": 0, "bottom": 4, "trailing": 0 },
                   "children": [
                     {
                       "type": "text",
@@ -203,7 +203,7 @@ A comprehensive system monitoring popup with process list and actions.
 - Action node with `label` and `command` for launching external apps
 - Combination of variables and data collections
 - Frame sizing with short property names (`w`, `minW`)
-- Edge-specific padding as an array `[top, leading, bottom, trailing]`
+- Edge-specific padding via a `{top, leading, bottom, trailing}` object
 - Text styles for visual hierarchy
 
 ---
@@ -283,7 +283,7 @@ A to-do list style menu with interactive checkboxes.
         "child": {
           "type": "vstack",
           "spacing": 2,
-          "padding": [6, 8, 6, 8],
+          "padding": { "top": 6, "leading": 8, "bottom": 6, "trailing": 8 },
           "children": [
             {
               "type": "check",

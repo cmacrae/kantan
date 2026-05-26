@@ -8,7 +8,7 @@ These properties can be applied to any node type:
 
 | Property | Type | Description |
 |----------|------|-------------|
-| `padding` | number or array | Uniform padding (number), or `[top, leading, bottom, trailing]` array |
+| `padding` | number or object | Uniform padding (number), or per-edge object with `top`, `leading`, `bottom`, `trailing` keys |
 | `frame` | object | Frame constraints: `w`, `h`, `minW`, `maxW`, `minH`, `maxH` |
 | `opacity` | number | Opacity from 0.0 (transparent) to 1.0 (opaque) |
 | `background` | string | Background color as hex string or named color |
@@ -62,7 +62,7 @@ See [Templates & Data](templates.md#theme-colour-templates) for details.
 
 ## Padding
 
-Padding can be specified as a single number (uniform padding) or as an array with four values `[top, leading, bottom, trailing]`:
+Padding can be specified as a single number (uniform padding) or as an object with per-edge keys `top`, `leading`, `bottom`, `trailing`. Any omitted key defaults to `0`.
 
 **Uniform padding:**
 ```json
@@ -79,14 +79,16 @@ Padding can be specified as a single number (uniform padding) or as an array wit
 ```json
 {
   "type": "vstack",
-  "padding": [8, 16, 8, 16],
+  "padding": { "top": 8, "leading": 16, "bottom": 8, "trailing": 16 },
   "children": [
     { "type": "text", "content": "Custom padding" }
   ]
 }
 ```
 
-The array format is `[top, leading, bottom, trailing]`.
+Positional arrays (e.g. `[8, 16, 8, 16]`) are not supported. kantan uses
+RTL-safe `leading`/`trailing` edges, which CSS's `top, right, bottom, left`
+order can't express. Use the named-key object form instead.
 
 ## Frame Sizing
 
