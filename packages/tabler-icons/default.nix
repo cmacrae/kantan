@@ -27,11 +27,11 @@ let
 in
 stdenvNoCC.mkDerivation rec {
   pname = "tabler-icons-font";
-  version = "3.40.0";
+  version = "3.44.0";
 
   src = fetchurl {
     url = "https://registry.npmjs.org/@tabler/icons-webfont/-/icons-webfont-${version}.tgz";
-    hash = "sha256-arQsZfDE+vsH/TPrvb+yA4CgsK8+sKDIVdssL4QBYC4=";
+    hash = "sha256-BF0YahFpEk1tBXH38s+s7YWbNqCBHobH4YHR8tT0MbI=";
   };
 
   nativeBuildInputs = [ fonttools ];
