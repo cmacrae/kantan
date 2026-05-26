@@ -58,6 +58,10 @@ interaction:
 | `interaction.click.type`    | `toggle`                          | Click toggles active state and dims the icon      |
 | `interaction.hover.content` | ---                               | Template string for tooltip (see variables above) |
 
+## Update Model
+
+State only changes when the user clicks the module. The plugin uses `interval: 0` together with `toggle:` to avoid polling. It intentionally does not implement the optional `--watch` subcommand — there is no external event source to observe, and kantan re-runs the main command after each toggle to refresh the bar.
+
 ## How It Works
 
 The plugin is a simple shell script that wraps the macOS `caffeinate` command.

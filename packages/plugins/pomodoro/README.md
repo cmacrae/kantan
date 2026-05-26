@@ -53,6 +53,10 @@ The plugin binary doubles as a CLI for controlling the timer. Each subcommand mo
 | `--skip`   | Skip to the next segment (work -> break or break -> work) |
 | `--reset`  | Reset to idle, clearing all state                    |
 
+## Polling Model
+
+The plugin is polling-based by design and intentionally does not implement the optional `--watch` subcommand. A live countdown display requires the bar value to refresh every second, which is exactly what `interval: 1` does. A watch process would have to fire `kantan trigger` once per second to drive the same display, offering no benefit over polling.
+
 ## Persistent State
 
 Timer state is stored at `$XDG_CACHE_HOME/kantan/pomodoro.json` (falls back to `~/.cache/kantan/pomodoro.json`). The state file tracks the current mode, start time, pause time, segment duration, and completed session count.

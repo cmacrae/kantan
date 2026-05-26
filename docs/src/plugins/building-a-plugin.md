@@ -238,7 +238,7 @@ interaction:
 
 ## Step 5: Watch Mode (Event-Driven Plugins)
 
-For plugins that respond to external events rather than polling on an interval, use watch mode.
+For plugins that respond to external events rather than polling on an interval, use watch mode. Watch mode is optional — plugins whose state only changes on a timer or user action can skip it entirely. Among the bundled plugins, `reminders` and `calendar` use watch mode (to react to EventKit changes); `pomodoro`, `caffeine`, and `system-monitor` are polling-only by design.
 
 ### Configuration
 

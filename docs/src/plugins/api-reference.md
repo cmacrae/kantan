@@ -393,7 +393,7 @@ eventSource.onEvent = {
 
 ## Watch Mode Protocol
 
-Watch mode enables event-driven plugins through a long-lived background process.
+Watch mode enables event-driven plugins through a long-lived background process. Implementing `--watch` is optional: plugins whose state only changes on a timer (e.g. the bundled `pomodoro` plugin) or in response to user actions (e.g. the bundled `caffeine` plugin) need not expose a `--watch` subcommand and should rely on polling or `toggle:` instead.
 
 ### Configuration
 
