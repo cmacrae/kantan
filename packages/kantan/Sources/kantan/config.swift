@@ -543,7 +543,7 @@ private func parseClickConfig(from clickYaml: [Yaml: Yaml]) -> ClickConfig {
 
 /// Parse a YAML node into a ViewNode tree.
 /// This allows users to define view trees directly in YAML config files.
-private func parseViewNodeFromYaml(_ yaml: Yaml) -> ViewNode? {
+func parseViewNodeFromYaml(_ yaml: Yaml) -> ViewNode? {
   guard let dict = yaml.dictionary else { return nil }
   guard let typeStr = dict["type"]?.string else { return nil }
 

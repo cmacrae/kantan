@@ -229,7 +229,12 @@ struct MenuBarItemDetector {
   /// CG origin = top-left of primary. NSScreen origin = bottom-left of primary.
   static func appKitRect(from cgRect: CGRect, on screen: NSScreen) -> NSRect {
     let primaryHeight = NSScreen.screens.first?.frame.height ?? screen.frame.height
-    return NSRect(
+    return appKitRect(from: cgRect, primaryHeight: primaryHeight)
+  }
+
+  /// Pure CG→AppKit conversion given an explicit primary screen height.
+  static func appKitRect(from cgRect: CGRect, primaryHeight: CGFloat) -> NSRect {
+    NSRect(
       x: cgRect.origin.x,
       y: primaryHeight - cgRect.origin.y - cgRect.height,
       width: cgRect.width,

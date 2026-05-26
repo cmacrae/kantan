@@ -28,6 +28,27 @@ private func drawerSide(for placement: String) -> String {
   placement.contains("right") ? "right" : "left"
 }
 
+// MARK: - Screen Diff
+
+/// Result of diffing a set of existing displays against a desired target set.
+/// `toAdd` preserves the order of the target list so newly added displays
+/// appear in the same order the caller resolved them.
+struct ScreenDiff: Equatable {
+  let toRemove: Set<String>
+  let toAdd: [String]
+}
+
+/// Diff a list of currently-managed display names against the desired list.
+/// Symmetric set difference; `toAdd` is filtered from `target` to preserve order.
+func computeScreenDiff(existing: [String], target: [String]) -> ScreenDiff {
+  let existingSet = Set(existing)
+  let targetSet = Set(target)
+  return ScreenDiff(
+    toRemove: existingSet.subtracting(targetSet),
+    toAdd: target.filter { !existingSet.contains($0) }
+  )
+}
+
 // MARK: - Drawer Click View
 
 /// Content view for drawer-toggle panels that cover gaps between module
@@ -1029,15 +1050,16 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     guard let config = config, let bar = barViewModel, let theme = themeProvider else { return }
 
     let targetScreens = resolveTargetScreens(config.displays)
-    let targetNames = Set(targetScreens.map { $0.localizedName })
-    let existingNames = Set(displayInstances.map { $0.screenName })
+    let diff = computeScreenDiff(
+      existing: displayInstances.map { $0.screenName },
+      target: targetScreens.map { $0.localizedName })
 
-    for instance in displayInstances where !targetNames.contains(instance.screenName) {
+    for instance in displayInstances where diff.toRemove.contains(instance.screenName) {
       instance.teardown()
     }
-    displayInstances.removeAll { !targetNames.contains($0.screenName) }
+    displayInstances.removeAll { diff.toRemove.contains($0.screenName) }
 
-    for screen in targetScreens where !existingNames.contains(screen.localizedName) {
+    for screen in targetScreens where diff.toAdd.contains(screen.localizedName) {
       let instance = DisplayInstance(
         screenName: screen.localizedName, barHeight: barHeight, config: config)
       instance.createPanels(for: screen, bar: bar, theme: theme)

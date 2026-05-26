@@ -191,3 +191,344 @@ final class CachedStatusTests: XCTestCase {
     XCTAssertEqual(group.wait(timeout: .now() + 5), .success)
   }
 }
+
+// MARK: - loadConfig() end-to-end
+
+final class LoadConfigTests: XCTestCase {
+  func testMinimalConfigReturnsNativeAppearance() throws {
+    let yaml = try Yaml.load("height: 33\npadding: 10\n")
+    let config = try XCTUnwrap(loadConfig(from: yaml))
+    XCTAssertEqual(config.height, 33)
+    XCTAssertEqual(config.padding, 10)
+    XCTAssertTrue(config.isNativeAppearance)
+    XCTAssertTrue(config.modules.isEmpty)
+  }
+
+  func testReturnsNilWhenStyleIncompleteWithoutTheme() throws {
+    let yaml = try Yaml.load(
+      """
+      height: 33
+      padding: 10
+      style:
+        light:
+          fg: "#000000"
+      """)
+    XCTAssertNil(loadConfig(from: yaml))
+  }
+
+  func testParsesTextModule() throws {
+    let yaml = try Yaml.load(
+      """
+      height: 33
+      padding: 10
+      modules:
+        - name: greeting
+          placement: left
+          type: text
+          config:
+            value: hello
+      """)
+    let config = try XCTUnwrap(loadConfig(from: yaml))
+    XCTAssertEqual(config.modules.count, 1)
+    XCTAssertEqual(config.modules.first?.name, "greeting")
+    XCTAssertEqual(config.modules.first?.type, "text")
+  }
+
+  func testSkipsModuleWithUnknownType() throws {
+    let yaml = try Yaml.load(
+      """
+      height: 33
+      padding: 10
+      modules:
+        - name: ghost
+          placement: left
+          type: nonsense
+      """)
+    let config = try XCTUnwrap(loadConfig(from: yaml))
+    XCTAssertTrue(config.modules.isEmpty)
+  }
+
+  func testBlurClampsAboveSixToSix() throws {
+    let yaml = try Yaml.load("height: 33\npadding: 10\nblur: 100\n")
+    XCTAssertEqual(loadConfig(from: yaml)?.blur, 6)
+  }
+
+  func testAutohideParsesEnabledAndDelay() throws {
+    let yaml = try Yaml.load(
+      """
+      height: 33
+      padding: 10
+      autohide:
+        enabled: false
+        delay: 0.5
+      """)
+    let config = try XCTUnwrap(loadConfig(from: yaml))
+    XCTAssertEqual(config.autohide.enabled, false)
+    XCTAssertEqual(config.autohide.delay, 0.5)
+  }
+}
+
+// MARK: - ViewNode JSON decoding (plugin protocol)
+
+final class ViewNodeJSONDecodingTests: XCTestCase {
+  private func decode(_ json: String) throws -> ViewNode {
+    try JSONDecoder().decode(ViewNode.self, from: Data(json.utf8))
+  }
+
+  func testVstackWithSpacingAndChildren() throws {
+    let json = #"{"type":"vstack","spacing":4,"children":[{"type":"text","content":"a"}]}"#
+    guard case .vstack(let spacing, _, let children, _) = try decode(json) else {
+      return XCTFail("expected vstack")
+    }
+    XCTAssertEqual(spacing, 4)
+    XCTAssertEqual(children.count, 1)
+  }
+
+  func testCheckAcceptsBoolForChecked() throws {
+    let json = #"{"type":"check","label":"Done","checked":true}"#
+    guard case .check(_, let checked, _, _, _) = try decode(json) else {
+      return XCTFail("expected check")
+    }
+    XCTAssertEqual(checked, "true")
+  }
+
+  func testForeachDecodes() throws {
+    let json = #"{"type":"foreach","items":"rows","child":{"type":"text","content":"{name}"}}"#
+    guard case .foreach(let items, _, _) = try decode(json) else {
+      return XCTFail("expected foreach")
+    }
+    XCTAssertEqual(items, "rows")
+  }
+
+  func testIfDecodesWithElse() throws {
+    let json = #"""
+      {"type":"if","condition":"on","then":{"type":"text","content":"yes"},"else":{"type":"text","content":"no"}}
+      """#
+    guard case .if(let condition, _, let elseNode, _) = try decode(json) else {
+      return XCTFail("expected if")
+    }
+    XCTAssertEqual(condition, "on")
+    XCTAssertNotNil(elseNode)
+  }
+
+  func testCommonPropertiesDecodeAlongsideNode() throws {
+    let json = #"""
+      {"type":"text","content":"x","padding":8,"opacity":0.5,"background":"#112233"}
+      """#
+    guard case .text(_, _, _, _, _, _, _, let common) = try decode(json) else {
+      return XCTFail("expected text")
+    }
+    XCTAssertEqual(common.opacity, 0.5)
+    XCTAssertEqual(common.background, "#112233")
+    guard case .uniform(let value) = common.padding else {
+      return XCTFail("expected uniform padding")
+    }
+    XCTAssertEqual(value, 8)
+  }
+
+  func testUnknownTypeThrows() {
+    XCTAssertThrowsError(try decode(#"{"type":"flibbertigibbet"}"#))
+  }
+}
+
+// MARK: - parseViewNodeFromYaml
+
+final class ParseViewNodeFromYamlTests: XCTestCase {
+  private func yaml(_ source: String) throws -> Yaml {
+    try Yaml.load(source)
+  }
+
+  func testVstackRecursesIntoChildren() throws {
+    let y = try yaml(
+      """
+      type: vstack
+      spacing: 4
+      children:
+        - type: text
+          content: a
+        - type: text
+          content: b
+      """)
+    guard case .vstack(_, _, let children, _) = parseViewNodeFromYaml(y) else {
+      return XCTFail("expected vstack")
+    }
+    XCTAssertEqual(children.count, 2)
+  }
+
+  func testForeachReturnsNilWithoutChild() throws {
+    let y = try yaml("type: foreach\nitems: rows\n")
+    XCTAssertNil(parseViewNodeFromYaml(y))
+  }
+
+  func testIfRequiresThenBranch() throws {
+    let y = try yaml("type: if\ncondition: x\n")
+    XCTAssertNil(parseViewNodeFromYaml(y))
+  }
+
+  func testUnknownTypeReturnsNil() throws {
+    let y = try yaml("type: snickerdoodle")
+    XCTAssertNil(parseViewNodeFromYaml(y))
+  }
+}
+
+// MARK: - ModuleViewModel.update() generation guard
+
+private final class CapturingModuleConfig: ModuleConfiguration, @unchecked Sendable {
+  var type: String { "captureMock" }
+  var redrawInterval: TimeInterval { noPoll }
+
+  private let lock = NSLock()
+  private var _completions: [@Sendable (String) -> Void] = []
+
+  var completionCount: Int {
+    lock.lock()
+    defer { lock.unlock() }
+    return _completions.count
+  }
+
+  func getValue(completion: @escaping @Sendable (String) -> Void) {
+    lock.lock()
+    _completions.append(completion)
+    lock.unlock()
+  }
+
+  func fire(at index: Int, with value: String) {
+    lock.lock()
+    let comp = _completions[index]
+    lock.unlock()
+    comp(value)
+  }
+}
+
+@MainActor
+final class ModuleViewModelUpdateGenerationTests: XCTestCase {
+  private func drainMainQueue() {
+    let exp = expectation(description: "drain")
+    DispatchQueue.main.async { exp.fulfill() }
+    wait(for: [exp], timeout: 1.0)
+  }
+
+  func testStaleCompletionDoesNotOverwriteFreshValue() {
+    let mock = CapturingModuleConfig()
+    let cfg = ModuleConfig(
+      name: "test", placement: PlacementSpec(raw: "left"), type: "test", config: mock)
+    let vm = ModuleViewModel(moduleConfig: cfg)
+
+    XCTAssertEqual(mock.completionCount, 1, "init should trigger one update()")
+    vm.update()
+    XCTAssertEqual(mock.completionCount, 2)
+
+    mock.fire(at: 1, with: "fresh")
+    drainMainQueue()
+    XCTAssertEqual(vm.displayValue, "fresh")
+
+    mock.fire(at: 0, with: "stale")
+    drainMainQueue()
+    XCTAssertEqual(
+      vm.displayValue, "fresh",
+      "completion captured before the latest update() must be discarded")
+  }
+
+  func testInOrderCompletionsApplySequentially() {
+    let mock = CapturingModuleConfig()
+    let cfg = ModuleConfig(
+      name: "test", placement: PlacementSpec(raw: "left"), type: "test", config: mock)
+    let vm = ModuleViewModel(moduleConfig: cfg)
+
+    mock.fire(at: 0, with: "first")
+    drainMainQueue()
+    XCTAssertEqual(vm.displayValue, "first")
+
+    vm.update()
+    mock.fire(at: 1, with: "second")
+    drainMainQueue()
+    XCTAssertEqual(vm.displayValue, "second")
+  }
+}
+
+// MARK: - Theme template resolution
+
+final class ThemeTemplateResolutionTests: XCTestCase {
+  private let palette = ThemePalette(
+    fg: "#ffffff",
+    bg: "#000000",
+    shape: "#222222",
+    colors: ["accent": "#ff8800", "muted": "#888888"]
+  )
+
+  func testResolvesNamedColor() {
+    XCTAssertEqual(resolveThemeTemplate("{theme(accent)}", palette: palette), "#ff8800")
+  }
+
+  func testReturnsOriginalForUnknownColor() {
+    let input = "{theme(missing)}"
+    XCTAssertEqual(resolveThemeTemplate(input, palette: palette), input)
+  }
+
+  func testEmbeddedTemplatesResolvedInPlace() {
+    let input = "fg={theme(fg)} bg={theme(bg)}"
+    XCTAssertEqual(
+      resolveAllThemeTemplates(input, palette: palette),
+      "fg=#ffffff bg=#000000")
+  }
+}
+
+// MARK: - MenuBarItemDetector coordinate conversion
+
+final class MenuBarItemDetectorCoordinateTests: XCTestCase {
+  func testFlipsYAroundPrimaryHeight() {
+    let cg = CGRect(x: 100, y: 0, width: 30, height: 24)
+    let ns = MenuBarItemDetector.appKitRect(from: cg, primaryHeight: 900)
+    XCTAssertEqual(ns.origin.x, 100)
+    XCTAssertEqual(ns.origin.y, 900 - 0 - 24)
+    XCTAssertEqual(ns.width, 30)
+    XCTAssertEqual(ns.height, 24)
+  }
+
+  func testCGItemOnSecondaryScreenAbovePrimary() {
+    // Secondary screen above primary → CG origin y is negative (above primary top).
+    let cg = CGRect(x: -1440, y: -900, width: 30, height: 24)
+    let ns = MenuBarItemDetector.appKitRect(from: cg, primaryHeight: 900)
+    XCTAssertEqual(ns.origin.x, -1440)
+    XCTAssertEqual(ns.origin.y, 900 - (-900) - 24)
+    XCTAssertEqual(ns.height, 24)
+  }
+}
+
+// MARK: - Screen diff
+
+final class ScreenDiffTests: XCTestCase {
+  func testMixedAddAndRemove() {
+    let diff = computeScreenDiff(existing: ["A", "B", "C"], target: ["B", "C", "D"])
+    XCTAssertEqual(diff.toAdd, ["D"])
+    XCTAssertEqual(diff.toRemove, ["A"])
+  }
+
+  func testReorderingAloneProducesNoChanges() {
+    let diff = computeScreenDiff(existing: ["A", "B", "C"], target: ["C", "B", "A"])
+    XCTAssertTrue(diff.toAdd.isEmpty)
+    XCTAssertTrue(diff.toRemove.isEmpty)
+  }
+}
+
+// MARK: - Watch process restart backoff
+
+final class WatchRestartDelayTests: XCTestCase {
+  func testDoublesEachAttempt() {
+    XCTAssertEqual(ModuleViewModel.watchRestartDelay(forAttempt: 2), 2.0)
+    XCTAssertEqual(ModuleViewModel.watchRestartDelay(forAttempt: 3), 4.0)
+    XCTAssertEqual(ModuleViewModel.watchRestartDelay(forAttempt: 4), 8.0)
+    XCTAssertEqual(ModuleViewModel.watchRestartDelay(forAttempt: 5), 16.0)
+  }
+
+  func testCapsAtSixteenSeconds() {
+    XCTAssertEqual(ModuleViewModel.watchRestartDelay(forAttempt: 6), 16.0)
+    XCTAssertEqual(ModuleViewModel.watchRestartDelay(forAttempt: 10), 16.0)
+  }
+
+  func testReturnsNilOnceMaxRestartsExceeded() {
+    XCTAssertNil(
+      ModuleViewModel.watchRestartDelay(forAttempt: ModuleViewModel.maxWatchRestarts + 1))
+    XCTAssertNil(ModuleViewModel.watchRestartDelay(forAttempt: 999))
+  }
+}

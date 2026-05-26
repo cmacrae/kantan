@@ -255,6 +255,16 @@ class ModuleViewModel: ObservableObject, Identifiable {
     }
   }
 
+  nonisolated static let maxWatchRestarts = 10
+
+  /// Backoff delay (seconds) for the Nth restart attempt (1-indexed).
+  /// Returns nil once the attempt would exceed `maxWatchRestarts`.
+  /// Doubles each attempt and caps at 16s (1 << 4).
+  nonisolated static func watchRestartDelay(forAttempt attempt: Int) -> Double? {
+    guard attempt >= 1, attempt <= maxWatchRestarts else { return nil }
+    return min(Double(1 << min(attempt - 1, 4)), 30.0)
+  }
+
   private func handleWatchTermination(exitCode: Int32) {
     watchProcess = nil
     watchStdinPipe = nil
@@ -262,15 +272,13 @@ class ModuleViewModel: ObservableObject, Identifiable {
     // Don't restart if we intentionally stopped the watch
     guard !watchStopped else { return }
 
-    // Exponential backoff
-    let maxRestarts = 10
-    guard watchRestartCount < maxRestarts else {
-      print("Watch process for '\(id)' exceeded \(maxRestarts) restarts, giving up")
+    let attempt = watchRestartCount + 1
+    guard let delay = Self.watchRestartDelay(forAttempt: attempt) else {
+      print(
+        "Watch process for '\(id)' exceeded \(Self.maxWatchRestarts) restarts, giving up")
       return
     }
-
-    watchRestartCount += 1
-    let delay = min(Double(1 << min(watchRestartCount - 1, 4)), 30.0)
+    watchRestartCount = attempt
     print("Watch process for '\(id)' exited (\(exitCode)), restarting in \(delay)s")
 
     DispatchQueue.main.asyncAfter(deadline: .now() + delay) { [weak self] in
