@@ -369,8 +369,8 @@ private func addItems(
     guard let dataArray = resolver.data[items] else { break }
     for element in dataArray {
       resolver.pushScope(element)
+      defer { resolver.popScope() }
       addItems(from: child, to: menu, resolver: resolver, textColor: textColor)
-      resolver.popScope()
     }
 
   // MARK: If
