@@ -953,24 +953,10 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     for vm in bar.allModules {
-      vm.$shouldDisplay
-        .removeDuplicates()
-        .debounce(for: .milliseconds(50), scheduler: RunLoop.main)
-        .sink { [weak self] _ in
-          self?.repositionAllDisplays()
-        }
-        .store(in: &visibilityCancellables)
-
-      vm.$displayValue
-        .removeDuplicates()
-        .debounce(for: .milliseconds(50), scheduler: RunLoop.main)
-        .sink { [weak self] _ in
-          self?.repositionAllDisplays()
-        }
-        .store(in: &visibilityCancellables)
-
-      vm.$displayIcon
-        .removeDuplicates()
+      let shouldDisplay = vm.$shouldDisplay.removeDuplicates().map { _ in () }
+      let displayValue = vm.$displayValue.removeDuplicates().map { _ in () }
+      let displayIcon = vm.$displayIcon.removeDuplicates().map { _ in () }
+      Publishers.Merge3(shouldDisplay, displayValue, displayIcon)
         .debounce(for: .milliseconds(50), scheduler: RunLoop.main)
         .sink { [weak self] _ in
           self?.repositionAllDisplays()

@@ -1,4 +1,5 @@
 import AppKit
+import Combine
 import CoreGraphics
 import SwiftUI
 import XCTest
@@ -530,5 +531,54 @@ final class WatchRestartDelayTests: XCTestCase {
     XCTAssertNil(
       ModuleViewModel.watchRestartDelay(forAttempt: ModuleViewModel.maxWatchRestarts + 1))
     XCTAssertNil(ModuleViewModel.watchRestartDelay(forAttempt: 999))
+  }
+}
+
+// MARK: - Reposition trigger debouncing
+
+@MainActor
+private final class RepositionTriggerSource: ObservableObject {
+  @Published var shouldDisplay: Bool = true
+  @Published var displayValue: String? = nil
+  @Published var displayIcon: String? = nil
+}
+
+@MainActor
+final class RepositionTriggerMergeTests: XCTestCase {
+  private func wait(milliseconds: Int) {
+    let exp = expectation(description: "wait\(milliseconds)")
+    DispatchQueue.main.asyncAfter(deadline: .now() + .milliseconds(milliseconds)) {
+      exp.fulfill()
+    }
+    wait(for: [exp], timeout: 2.0)
+  }
+
+  /// Burst changes across all three signals within one debounce window
+  /// must fan out to exactly one downstream layout trigger — not three.
+  func testMergedPublishersCoalesceBurstIntoSingleTrigger() {
+    let src = RepositionTriggerSource()
+    var triggers = 0
+    var cancellables: [AnyCancellable] = []
+
+    let shouldDisplay = src.$shouldDisplay.removeDuplicates().map { _ in () }
+    let displayValue = src.$displayValue.removeDuplicates().map { _ in () }
+    let displayIcon = src.$displayIcon.removeDuplicates().map { _ in () }
+    Publishers.Merge3(shouldDisplay, displayValue, displayIcon)
+      .debounce(for: .milliseconds(50), scheduler: RunLoop.main)
+      .sink { _ in triggers += 1 }
+      .store(in: &cancellables)
+
+    // Drain the initial values emitted on subscription.
+    wait(milliseconds: 120)
+    let baseline = triggers
+
+    src.shouldDisplay = false
+    src.displayValue = "v"
+    src.displayIcon = "i"
+
+    wait(milliseconds: 120)
+    XCTAssertEqual(
+      triggers - baseline, 1,
+      "three property changes within one debounce window must produce a single layout pass")
   }
 }
