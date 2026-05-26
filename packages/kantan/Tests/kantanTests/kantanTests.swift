@@ -690,6 +690,28 @@ final class ScreenDiffTests: XCTestCase {
   }
 }
 
+// MARK: - ScreenLayout
+
+final class ScreenLayoutTests: XCTestCase {
+  func testSecondaryScreenOffsetToRight() {
+    let frame = NSRect(x: 1920, y: 0, width: 1440, height: 900)
+    let gaps = GapsConfig(top: 0, bottom: 0, left: 0, right: 0)
+    let layout = ScreenLayout(screenFrame: frame, gaps: gaps, height: 24)
+    XCTAssertEqual(layout.screenLeft, 1920)
+    XCTAssertEqual(layout.screenRight, 3360)
+    XCTAssertEqual(layout.statusBarY, 900 - 24)
+    XCTAssertEqual(layout.barFrame, NSRect(x: 1920, y: 876, width: 1440, height: 24))
+  }
+
+  func testTopGapPushesStatusBarDown() {
+    let frame = NSRect(x: 0, y: 0, width: 1000, height: 800)
+    let gaps = GapsConfig(top: 10, bottom: 0, left: 0, right: 0)
+    let layout = ScreenLayout(screenFrame: frame, gaps: gaps, height: 30)
+    XCTAssertEqual(layout.statusBarY, 800 - 30 - 10)
+    XCTAssertEqual(layout.barFrame.origin.y, layout.statusBarY)
+  }
+}
+
 // MARK: - Watch process restart backoff
 
 final class WatchRestartDelayTests: XCTestCase {

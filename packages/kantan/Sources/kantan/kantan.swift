@@ -28,6 +28,34 @@ private func drawerSide(for placement: String) -> String {
   placement.contains("right") ? "right" : "left"
 }
 
+// MARK: - Screen Layout
+
+/// Bar geometry derived from a screen frame, gap config, and bar height.
+/// Centralises the math used when creating, repositioning, and animating
+/// panels so the same screen-frame + gap arithmetic isn't restated each
+/// time a panel needs to be placed.
+struct ScreenLayout {
+  let statusBarY: CGFloat
+  let screenLeft: CGFloat
+  let screenRight: CGFloat
+  let barFrame: NSRect
+
+  init(screenFrame: NSRect, gaps: GapsConfig, height: CGFloat) {
+    self.screenLeft = screenFrame.origin.x
+    self.screenRight = screenFrame.origin.x + screenFrame.width
+    self.statusBarY = screenFrame.origin.y + screenFrame.height - height - gaps.top
+    self.barFrame = NSRect(
+      x: screenLeft + gaps.left,
+      y: statusBarY,
+      width: screenFrame.width - gaps.left - gaps.right,
+      height: height)
+  }
+
+  init(screen: NSScreen, gaps: GapsConfig, height: CGFloat) {
+    self.init(screenFrame: screen.frame, gaps: gaps, height: height)
+  }
+}
+
 // MARK: - Screen Diff
 
 /// Result of diffing a set of existing displays against a desired target set.
@@ -153,8 +181,8 @@ class DisplayInstance {
     }
   }
 
-  private func statusBarY(for screen: NSScreen) -> CGFloat {
-    screen.frame.origin.y + screen.frame.height - barHeight - config.gaps.top
+  private func screenLayout(for screen: NSScreen) -> ScreenLayout {
+    ScreenLayout(screen: screen, gaps: config.gaps, height: barHeight)
   }
 
   private func configurePanelDefaults(_ panel: NSPanel, level: NSWindow.Level) {
@@ -191,8 +219,9 @@ class DisplayInstance {
     maskedGroups: [(placement: String, mask: MaskConfig)]
   ) -> PlacementBounds {
     let gaps = config.gaps
-    let screenLeft = screen.frame.origin.x
-    let screenRight = screen.frame.origin.x + screen.frame.width
+    let layout = screenLayout(for: screen)
+    let screenLeft = layout.screenLeft
+    let screenRight = layout.screenRight
 
     var leftX = screenLeft + gaps.left
     var rightX = screenRight - gaps.right
@@ -247,17 +276,12 @@ class DisplayInstance {
   }
 
   func createPanels(for screen: NSScreen, bar: BarViewModel, theme: ThemeProvider) {
-    let gaps = config.gaps
     let radius = config.cornerRadius
-    let statusBarY = statusBarY(for: screen)
+    let layout = screenLayout(for: screen)
+    let statusBarY = layout.statusBarY
     let statusWindowLevel = NSWindow.Level(rawValue: Int(CGWindowLevelForKey(.statusWindow)))
 
-    let bgRect = NSRect(
-      x: screen.frame.origin.x + gaps.left,
-      y: statusBarY,
-      width: screen.frame.width - gaps.left - gaps.right,
-      height: barHeight
-    )
+    let bgRect = layout.barFrame
 
     let panel = NSPanel(
       contentRect: bgRect, styleMask: [.borderless, .nonactivatingPanel], backing: .buffered,
@@ -428,16 +452,9 @@ class DisplayInstance {
     guard let screen = resolveScreen(),
       let bgPanel = bgPanel
     else { return }
-    let gaps = config.gaps
-    let statusBarY = statusBarY(for: screen)
-
-    let bgFrame = NSRect(
-      x: screen.frame.origin.x + gaps.left,
-      y: statusBarY,
-      width: screen.frame.width - gaps.left - gaps.right,
-      height: barHeight
-    )
-    bgPanel.setFrame(bgFrame, display: true)
+    let layout = screenLayout(for: screen)
+    let statusBarY = layout.statusBarY
+    bgPanel.setFrame(layout.barFrame, display: true)
 
     let nativeItems = MenuBarItemDetector.detectItems(for: screen)
 
@@ -570,7 +587,7 @@ class DisplayInstance {
     } else {
       rightDrawerOpen = open
     }
-    let statusBarY = statusBarY(for: screen)
+    let statusBarY = screenLayout(for: screen).statusBarY
 
     let nativeItems = MenuBarItemDetector.detectItems(for: screen)
     let maskedEntries = groupPanels.compactMap { entry -> (placement: String, mask: MaskConfig)? in
