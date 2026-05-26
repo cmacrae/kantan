@@ -789,12 +789,8 @@ private func parseCommonNodeProperties(from dict: [Yaml: Yaml]) -> CommonNodePro
 
 func loadConfig(from yaml: Yaml, configDir: String? = nil) -> Config? {
   // Top-level keys (flattened — no "global" wrapper)
-  guard let height = yaml["height"].int,
-    let padding = yaml["padding"].int
-  else {
-    print("Failed to load config: missing height or padding")
-    return nil
-  }
+  let height = yaml["height"].int ?? 33
+  let padding = yaml["padding"].int ?? 10
 
   // Parse theme (optional)
   var theme: ThemeConfig?

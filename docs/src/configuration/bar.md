@@ -6,8 +6,8 @@ Top-level configuration options control the status bar's appearance and behavior
 
 | Key | Type | Required | Default | Description |
 |-----|------|----------|---------|-------------|
-| `height` | integer | **yes** | — | Bar height in pixels |
-| `padding` | integer | **yes** | — | Horizontal padding in pixels |
+| `height` | integer | no | `33` | Bar height in pixels |
+| `padding` | integer | no | `10` | Horizontal padding *around each module*, in pixels. Applied as left and right insets on every module (so the visible gap between two adjacent modules is `2 × padding`) |
 | `iconTextSpacing` | integer | no | `5` | Spacing between icon and text in pixels |
 | `fonts` | object | no | — | Font configuration (see below) |
 | `style` | object | no | — | Color and shape configuration (see below) |
@@ -17,8 +17,6 @@ Top-level configuration options control the status bar's appearance and behavior
 | `autohide` | object | no | enabled, 0s delay | Auto-hide behavior (see below). **Note:** autohide is enabled by default even when this key is omitted |
 | `displays` | string/array | no | `main` | Which displays to show the bar on |
 | `theme` | string/object | no | — | Theme configuration (see below) |
-
-> **Note:** `height` and `padding` are required. If either is missing, the configuration will fail to load.
 
 ## Font Configuration
 
