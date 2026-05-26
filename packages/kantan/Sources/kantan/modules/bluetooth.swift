@@ -57,8 +57,8 @@ final class BluetoothConfig: NSObject, ModuleConfiguration, EventDrivenModule,
   nonisolated(unsafe) private var disconnectNotifications: [String: IOBluetoothUserNotification] =
     [:]
   private let _notificationsLock = NSLock()
-  nonisolated(unsafe) private var _cachedStatus: (connected: [String], total: Int)?
-  private let _statusLock = NSLock()
+  private let cache = CachedStatus<(connected: [String], total: Int)>(
+    fallback: (connected: [], total: 0))
 
   init(icon: String, disabledIcon: String) {
     self.icon = icon
@@ -196,23 +196,6 @@ final class BluetoothConfig: NSObject, ModuleConfiguration, EventDrivenModule,
     }
   }
 
-  // MARK: - Status Caching
-
-  private func getCachedStatus() -> (connected: [String], total: Int) {
-    _statusLock.lock()
-    defer { _statusLock.unlock() }
-    return _cachedStatus ?? (connected: [], total: 0)
-  }
-
-  private func refreshCache() {
-    let status = Self.readBluetoothStatus()
-    let connectedNames = status.connectedDevices.map { $0.name }
-    let total = status.isPoweredOn ? status.pairedDevices.count : -1
-    _statusLock.lock()
-    _cachedStatus = (connected: connectedNames, total: total)
-    _statusLock.unlock()
-  }
-
   // MARK: - ModuleConfiguration
 
   func getValue(completion: @escaping @Sendable (String) -> Void) {
@@ -220,9 +203,11 @@ final class BluetoothConfig: NSObject, ModuleConfiguration, EventDrivenModule,
   }
 
   func getIcon() -> String {
-    refreshCache()
-    let cached = getCachedStatus()
-    if cached.total < 0 {
+    let status = Self.readBluetoothStatus()
+    let connectedNames = status.connectedDevices.map { $0.name }
+    let total = status.isPoweredOn ? status.pairedDevices.count : -1
+    cache.set((connected: connectedNames, total: total))
+    if total < 0 {
       return disabledIcon
     }
     return icon
@@ -231,7 +216,7 @@ final class BluetoothConfig: NSObject, ModuleConfiguration, EventDrivenModule,
   /// Returns false when Bluetooth is on but no devices are connected,
   /// causing drawModule() to dim the icon (like inactive workspace indicators).
   func isActive() -> Bool {
-    let cached = getCachedStatus()
+    let cached = cache.get()
     if cached.total < 0 { return false }
     return !cached.connected.isEmpty
   }

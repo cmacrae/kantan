@@ -80,9 +80,11 @@ final class WiFiConfig: NSObject, ModuleConfiguration, EventDrivenModule, CWEven
 
   nonisolated(unsafe) private var onChange: (@Sendable () -> Void)?
   nonisolated(unsafe) private var wifiClient: CWWiFiClient?
-  nonisolated(unsafe) private var _cachedStatus: WiFiStatus?
+  private let cache = CachedStatus<WiFiStatus>(fallback: .disconnected)
+  /// Only touched inside `cache.mutate { ... }` so it shares the cache lock.
+  /// Set by `linkQualityDidChange` (RSSI delivered directly), consumed by
+  /// `refreshCache()` to skip an otherwise-redundant IOKit + CWInterface read.
   nonisolated(unsafe) private var _cacheIsFresh = false
-  private let _statusLock = NSLock()
   /// Managed exclusively on the main thread — guards against rapid-fire event bursts
   /// during network transitions where IORegistry state may not yet reflect the final state.
   nonisolated(unsafe) private var coalesceWorkItem: DispatchWorkItem?
@@ -169,21 +171,17 @@ final class WiFiConfig: NSObject, ModuleConfiguration, EventDrivenModule, CWEven
     // RSSI is delivered directly — update the cache without a full re-read.
     // This is the most frequent event; avoids ~5ms of CWInterface + IOKit calls.
     // The _cacheIsFresh flag tells getIcon() to skip refreshCache().
-    _statusLock.lock()
-    guard let cached = _cachedStatus, cached.isConnected else {
-      _statusLock.unlock()
-      return
+    let levels: (old: Int, new: Int)? = cache.mutate { current in
+      guard let cached = current, cached.isConnected else { return nil }
+      let oldRssi = cached.rssi
+      current = WiFiStatus(ssid: cached.ssid, rssi: rssi, isConnected: true)
+      _cacheIsFresh = true
+      return (signalLevel(rssi: oldRssi), signalLevel(rssi: rssi))
     }
-    let oldRssi = cached.rssi
-    _cachedStatus = WiFiStatus(ssid: cached.ssid, rssi: rssi, isConnected: true)
-    _cacheIsFresh = true
-    _statusLock.unlock()
 
     // Only trigger a UI update if the RSSI change would actually affect the
     // displayed icon. Small fluctuations within the same icon tier are silent.
-    let oldLevel = signalLevel(rssi: oldRssi)
-    let newLevel = signalLevel(rssi: rssi)
-    guard oldLevel != newLevel else { return }
+    guard let levels, levels.old != levels.new else { return }
     onChange?()
   }
 
@@ -200,30 +198,6 @@ final class WiFiConfig: NSObject, ModuleConfiguration, EventDrivenModule, CWEven
     notifyWithCoalescing()
   }
 
-  // MARK: - Status Caching
-
-  private func refreshCache() {
-    _statusLock.lock()
-    let fresh = _cacheIsFresh
-    _cacheIsFresh = false
-    _statusLock.unlock()
-
-    // Skip the full re-read if the cache was just updated by an event
-    // (e.g. linkQualityDidChange delivers RSSI directly).
-    guard !fresh else { return }
-
-    let status = Self.readWiFiStatus()
-    _statusLock.lock()
-    _cachedStatus = status
-    _statusLock.unlock()
-  }
-
-  private func getCachedStatus() -> WiFiStatus {
-    _statusLock.lock()
-    defer { _statusLock.unlock() }
-    return _cachedStatus ?? .disconnected
-  }
-
   // MARK: - ModuleConfiguration
 
   func getValue(completion: @escaping @Sendable (String) -> Void) {
@@ -231,8 +205,18 @@ final class WiFiConfig: NSObject, ModuleConfiguration, EventDrivenModule, CWEven
   }
 
   func getIcon() -> String {
-    refreshCache()
-    let status = getCachedStatus()
+    // Skip the full re-read if the cache was just updated by an event
+    // (e.g. linkQualityDidChange delivers RSSI directly).
+    let fresh: Bool = cache.mutate { _ in
+      let f = _cacheIsFresh
+      _cacheIsFresh = false
+      return f
+    }
+    if !fresh {
+      cache.set(Self.readWiFiStatus())
+    }
+
+    let status = cache.get()
     guard status.isConnected else {
       return disconnectedIcon
     }
@@ -244,7 +228,7 @@ final class WiFiConfig: NSObject, ModuleConfiguration, EventDrivenModule, CWEven
   }
 
   func getBackgroundIcon() -> String? {
-    let status = getCachedStatus()
+    let status = cache.get()
     guard status.isConnected, let maxIcon = strengthIcons.last, strengthIcons.count > 1 else {
       return nil
     }

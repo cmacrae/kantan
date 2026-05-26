@@ -168,3 +168,26 @@ final class TemplateResolverTests: XCTestCase {
     XCTAssertEqual(r.resolve("{v}"), "outer")
   }
 }
+
+final class CachedStatusTests: XCTestCase {
+  func testConcurrentSetAndGetDoesNotCrash() {
+    let cache = CachedStatus<Int>(fallback: 0)
+    let iterations = 1_000
+    let group = DispatchGroup()
+    let writers = DispatchQueue(label: "test.writers", attributes: .concurrent)
+    let readers = DispatchQueue(label: "test.readers", attributes: .concurrent)
+    for i in 0..<iterations {
+      group.enter()
+      writers.async {
+        cache.set(i)
+        group.leave()
+      }
+      group.enter()
+      readers.async {
+        _ = cache.get()
+        group.leave()
+      }
+    }
+    XCTAssertEqual(group.wait(timeout: .now() + 5), .success)
+  }
+}

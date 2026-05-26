@@ -115,8 +115,7 @@ final class PowerConfig: ModuleConfiguration, EventDrivenModule {
   nonisolated(unsafe) private var runLoopSource: CFRunLoopSource?
   nonisolated(unsafe) private var onChange: (@Sendable () -> Void)?
   nonisolated(unsafe) private var lowPowerObserver: NSObjectProtocol?
-  nonisolated(unsafe) private var _cachedStatus: BatteryStatus?
-  private let _statusLock = NSLock()
+  private let cache = CachedStatus<BatteryStatus>(fallback: .unavailable)
 
   init(
     showLevel: Bool, lowThreshold: Int,
@@ -177,25 +176,10 @@ final class PowerConfig: ModuleConfiguration, EventDrivenModule {
     onChange = nil
   }
 
-  // MARK: - Status Caching
-
-  private func refreshCache() {
-    let status = Self.readBatteryStatus()
-    _statusLock.lock()
-    _cachedStatus = status
-    _statusLock.unlock()
-  }
-
-  private func getCachedStatus() -> BatteryStatus {
-    _statusLock.lock()
-    defer { _statusLock.unlock() }
-    return _cachedStatus ?? .unavailable
-  }
-
   // MARK: - ModuleConfiguration
 
   func getValue(completion: @escaping @Sendable (String) -> Void) {
-    let status = getCachedStatus()
+    let status = cache.get()
     guard status.isAvailable else {
       completion("")
       return
@@ -204,8 +188,8 @@ final class PowerConfig: ModuleConfiguration, EventDrivenModule {
   }
 
   func getIcon() -> String {
-    refreshCache()
-    let status = getCachedStatus()
+    cache.set(Self.readBatteryStatus())
+    let status = cache.get()
     guard status.isAvailable else {
       return levelIcons.first ?? ""
     }
@@ -219,7 +203,7 @@ final class PowerConfig: ModuleConfiguration, EventDrivenModule {
   }
 
   func getDynamicStyle() -> DynamicStyleOverride? {
-    let status = getCachedStatus()
+    let status = cache.get()
     guard status.isAvailable else { return nil }
     // Priority: charging > plugged > lowPower > low
     if status.isCharging, let style = chargingStyle {
