@@ -753,8 +753,6 @@ class DisplayInstance {
     }
   }
 
-  // MARK: - Fullscreen Visibility
-
   // MARK: - Slide Animation
 
   /// All panels that should be visible (excludes drawer-content panels when their side is closed).
