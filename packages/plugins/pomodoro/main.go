@@ -253,20 +253,6 @@ func cmdReset() {
 
 // --- JSON Output ---
 
-type PluginOutput struct {
-	Value     string                 `json:"value"`
-	Icon      string                 `json:"icon,omitempty"`
-	Active    *bool                  `json:"active,omitempty"`
-	Variables map[string]string      `json:"variables"`
-	Data      map[string][][]string  `json:"data,omitempty"`
-	Style     *OutputStyle           `json:"style,omitempty"`
-	View      map[string]interface{} `json:"view"`
-}
-
-type OutputStyle struct {
-	Fg string `json:"fg,omitempty"`
-}
-
 func buildOutput(settings Settings) {
 	state := loadState()
 	maybeTransition(&state, settings)
