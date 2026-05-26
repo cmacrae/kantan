@@ -54,7 +54,9 @@ final class BluetoothConfig: NSObject, ModuleConfiguration, EventDrivenModule,
 
   nonisolated(unsafe) private var onChange: (@Sendable () -> Void)?
   nonisolated(unsafe) private var connectNotification: IOBluetoothUserNotification?
-  nonisolated(unsafe) private var disconnectNotifications: [IOBluetoothUserNotification] = []
+  nonisolated(unsafe) private var disconnectNotifications: [String: IOBluetoothUserNotification] =
+    [:]
+  private let _notificationsLock = NSLock()
   nonisolated(unsafe) private var _cachedStatus: (connected: [String], total: Int)?
   private let _statusLock = NSLock()
 
@@ -101,10 +103,7 @@ final class BluetoothConfig: NSObject, ModuleConfiguration, EventDrivenModule,
     connectNotification?.unregister()
     connectNotification = nil
 
-    for notif in disconnectNotifications {
-      notif.unregister()
-    }
-    disconnectNotifications.removeAll()
+    clearDisconnectNotifications()
 
     NotificationCenter.default.removeObserver(self)
     onChange = nil
@@ -115,13 +114,7 @@ final class BluetoothConfig: NSObject, ModuleConfiguration, EventDrivenModule,
   @objc private func deviceConnected(
     _ notification: IOBluetoothUserNotification, device: IOBluetoothDevice
   ) {
-    // Register for this device's future disconnect
-    if let notif = device.register(
-      forDisconnectNotification: self,
-      selector: #selector(deviceDisconnected(_:device:))
-    ) {
-      disconnectNotifications.append(notif)
-    }
+    ensureDisconnectRegistered(for: device)
     DispatchQueue.main.async { [weak self] in
       self?.onChange?()
     }
@@ -130,17 +123,23 @@ final class BluetoothConfig: NSObject, ModuleConfiguration, EventDrivenModule,
   @objc private func deviceDisconnected(
     _ notification: IOBluetoothUserNotification, device: IOBluetoothDevice
   ) {
+    if let address = device.addressString {
+      _notificationsLock.lock()
+      let notif = disconnectNotifications.removeValue(forKey: address)
+      _notificationsLock.unlock()
+      notif?.unregister()
+    }
     DispatchQueue.main.async { [weak self] in
       self?.onChange?()
     }
   }
 
   @objc private func powerStateChanged(_ notification: Notification) {
-    // Re-register disconnect notifications since device list may have changed
-    for notif in disconnectNotifications {
-      notif.unregister()
-    }
-    disconnectNotifications.removeAll()
+    // Reset disconnect notifications — IOKit state may have been invalidated
+    // by the power cycle. Idempotent re-registration is safe even if a
+    // connect callback races us, since ensureDisconnectRegistered dedupes
+    // by address.
+    clearDisconnectNotifications()
     registerDisconnectNotifications()
 
     DispatchQueue.main.async { [weak self] in
@@ -149,16 +148,51 @@ final class BluetoothConfig: NSObject, ModuleConfiguration, EventDrivenModule,
   }
 
   /// Register disconnect notifications on all currently paired devices.
+  /// Idempotent — safe to call repeatedly without leaking registrations.
   private func registerDisconnectNotifications() {
     guard let devices = IOBluetoothDevice.pairedDevices() else { return }
     for item in devices {
       guard let device = item as? IOBluetoothDevice else { continue }
-      if let notif = device.register(
+      ensureDisconnectRegistered(for: device)
+    }
+  }
+
+  /// Registers a disconnect notification for `device` if one is not already
+  /// tracked under its address. Uses a double-check around the IOKit call so
+  /// that a racing concurrent caller doesn't leak a stray registration: the
+  /// loser unregisters its duplicate before returning.
+  private func ensureDisconnectRegistered(for device: IOBluetoothDevice) {
+    guard let address = device.addressString else { return }
+    _notificationsLock.lock()
+    let alreadyTracked = disconnectNotifications[address] != nil
+    _notificationsLock.unlock()
+    if alreadyTracked { return }
+
+    guard
+      let notif = device.register(
         forDisconnectNotification: self,
         selector: #selector(deviceDisconnected(_:device:))
-      ) {
-        disconnectNotifications.append(notif)
-      }
+      )
+    else { return }
+
+    _notificationsLock.lock()
+    if disconnectNotifications[address] == nil {
+      disconnectNotifications[address] = notif
+      _notificationsLock.unlock()
+    } else {
+      _notificationsLock.unlock()
+      notif.unregister()
+    }
+  }
+
+  /// Unregister and drop every tracked disconnect notification.
+  private func clearDisconnectNotifications() {
+    _notificationsLock.lock()
+    let notifs = disconnectNotifications
+    disconnectNotifications.removeAll()
+    _notificationsLock.unlock()
+    for (_, notif) in notifs {
+      notif.unregister()
     }
   }
 
