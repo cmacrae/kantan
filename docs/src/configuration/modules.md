@@ -50,13 +50,16 @@ The `placement` field controls where the module appears in the bar. It is a requ
 
 ### Or-Wise Placement
 
-Placement values can use `|` for fallback behavior on non-notched displays:
+Placement values can use `|` to pair a notch-side value with a non-notch fallback:
 
 ```yaml
-placement: "notchright|right"
+placement: "notchright|right"    # right side, with notch fallback
+placement: "notchleft|left"      # left side, with notch fallback
 ```
 
-This means "use `notchright` on notched displays, fall back to `right` on non-notched displays." If a notch-only placement is used without a fallback (e.g. just `notchleft`), the module is hidden on non-notched displays.
+The notch-side value (`notchleft` / `notchright`) is used on notched displays. The non-notch value (`left` / `right`) is used on non-notched displays. Order is irrelevant — `"right|notchright"` behaves identically to `"notchright|right"`.
+
+Only notch-with-non-notch pairs are meaningful. A bare notch-only placement (e.g. `notchleft` without a fallback) hides the module on non-notched displays. Combinations like `left|right` or `notchleft|notchright` are accepted by the schema but not useful — kantan picks whichever side it finds first.
 
 ## Per-Module Fonts
 

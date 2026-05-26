@@ -263,10 +263,47 @@ The watch process:
 
 1. **Runs as a background daemon**: Started when kantan launches, stopped when kantan quits
 2. **Receives environment variables**: `KANTAN_MODULE_NAME`, `KANTAN_SETTINGS`, `KANTAN_APPEARANCE`, `KANTAN_PID`
-3. **Receives stdin pipe**: EOF signals kantan is shutting down (clean exit expected)
+3. **Receives stdin pipe**: EOF signals kantan is shutting down (clean exit expected — see [Handling stdin EOF](#handling-stdin-eof))
 4. **Triggers updates via IPC**: Calls `kantan trigger <module-name> refresh` when events occur
 5. **Auto-restarts on crash**: Exponential backoff (1s → 16s cap, max 10 consecutive retries)
 6. **Lifecycle integration**: Stopped on system sleep, restarted on wake
+
+### Handling stdin EOF
+
+A watch process must monitor stdin and exit cleanly when it closes. That is how kantan signals shutdown. A plugin that ignores it leaks watch processes when kantan crashes, restarts or is killed.
+
+**Swift:**
+
+```swift
+// Run on a background thread; availableData blocks until bytes arrive
+// or stdin reaches EOF (returns empty Data).
+DispatchQueue.global().async {
+  while true {
+    let data = FileHandle.standardInput.availableData
+    if data.isEmpty { exit(0) }
+  }
+}
+```
+
+**Go:**
+
+```go
+go func() {
+  buf := make([]byte, 1)
+  for {
+    if _, err := os.Stdin.Read(buf); err != nil {
+      os.Exit(0)
+    }
+  }
+}()
+```
+
+**Shell:**
+
+```bash
+# `read` returns non-zero on EOF; loop discards any input until then.
+(while read -r _; do :; done; kill -TERM $$) &
+```
 
 ### Watch Process Example
 

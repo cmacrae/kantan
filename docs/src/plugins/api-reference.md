@@ -285,6 +285,24 @@ When both `fg` and `icon.fg`/`text.fg` are set, the specific overrides take prec
 **Type:** `ViewNode` (View DSL tree)  
 **Description:** Rich UI definition for popups, menus, and tooltips using kantan's View DSL.
 
+**Node categories** (full reference in [View DSL nodes](../view-dsl/nodes.md)):
+
+| Category | Nodes |
+|----------|-------|
+| Layout | `vstack`, `hstack`, `zstack`, `scroll`, `group`, `spacer`, `divider` |
+| Content | `text`, `icon`, `image`, `header`, `badge` |
+| Shape | `rect`, `circle`, `capsule` |
+| Interactive | `action`, `button`, `check`, `toggle` |
+| Data | `foreach` (iterate over `data` arrays), `if` (conditional on template var) |
+| Advanced | `progress`, `gauge`, `grid` |
+
+The data nodes (`foreach`, `if`) and advanced nodes (`progress`, `gauge`, `grid`) are particularly useful for plugins:
+
+- `foreach` renders its `child` once for each item of a named array from the `data` field
+- `if` renders `then` or `else` based on a template-variable condition
+- `progress` and `gauge` visualise numeric values driven by template variables
+- `grid` lays children out in `columns` (default 2)
+
 **Example:**
 ```json
 {
