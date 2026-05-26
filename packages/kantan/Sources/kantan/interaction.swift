@@ -16,10 +16,7 @@ class LiveContentProvider: ObservableObject {
   @Published var data: [String: [[String: String]]] = [:]
   private var cancellables = Set<AnyCancellable>()
 
-  let isStatic: Bool
-
   init(viewModel: ModuleViewModel) {
-    self.isStatic = false
     self.templateVariables = viewModel.templateVariables
     self.displayValue = viewModel.displayValue
     self.displayIcon = viewModel.displayIcon
@@ -52,29 +49,6 @@ class LiveContentProvider: ObservableObject {
       .receive(on: RunLoop.main)
       .sink { [weak self] d in self?.data = d }
       .store(in: &cancellables)
-  }
-
-  /// Creates a static (non-updating) provider for backward compatibility.
-  private init(staticMarker: Bool) {
-    self.isStatic = true
-  }
-
-  static func `static`() -> LiveContentProvider {
-    LiveContentProvider(staticMarker: true)
-  }
-
-  func resolveTemplate(_ template: String) -> String {
-    var result = template
-    if let value = displayValue {
-      result = result.replacingOccurrences(of: "{value}", with: value)
-    }
-    if let icon = displayIcon {
-      result = result.replacingOccurrences(of: "{icon}", with: icon)
-    }
-    for (key, val) in templateVariables {
-      result = result.replacingOccurrences(of: "{\(key)}", with: val)
-    }
-    return result
   }
 }
 
