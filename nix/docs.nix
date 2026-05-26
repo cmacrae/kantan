@@ -35,15 +35,7 @@ let
     TMPDIR=$(mktemp -d)
     trap "rm -rf $TMPDIR" EXIT
 
-    mkdir -p "$TMPDIR/src/plugins"
-    cp -r ${docsDir}/* "$TMPDIR/"
-
-    # Collect plugin READMEs into the plugins/ section
-    ${builtins.concatStringsSep "\n" (
-      map (name: "cp ${pluginsDir}/${name}/README.md \"$TMPDIR/src/plugins/${name}.md\"") pluginNames
-    )}
-
-    # Make copied files writable (Nix store originals are read-only)
+    cp -r ${assembledSrc}/. "$TMPDIR/"
     chmod -R u+w "$TMPDIR"
 
     cd "$TMPDIR"
