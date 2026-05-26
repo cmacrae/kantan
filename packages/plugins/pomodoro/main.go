@@ -6,6 +6,7 @@ import (
 	"math"
 	"os"
 	"path/filepath"
+	"syscall"
 	"time"
 )
 
@@ -91,6 +92,32 @@ func statePath() string {
 	return filepath.Join(stateDir(), "pomodoro.json")
 }
 
+func lockPath() string {
+	return filepath.Join(stateDir(), "pomodoro.lock")
+}
+
+// acquireStateLock blocks until an exclusive advisory lock on the state file
+// is held. The returned release function unlocks and closes the descriptor.
+// Serialises load → modify → save across concurrent plugin invocations
+// (interval ticks vs. menu actions).
+func acquireStateLock() (func(), error) {
+	if err := os.MkdirAll(stateDir(), 0o755); err != nil {
+		return nil, err
+	}
+	f, err := os.OpenFile(lockPath(), os.O_CREATE|os.O_RDWR, 0o644)
+	if err != nil {
+		return nil, err
+	}
+	if err := syscall.Flock(int(f.Fd()), syscall.LOCK_EX); err != nil {
+		_ = f.Close()
+		return nil, err
+	}
+	return func() {
+		_ = syscall.Flock(int(f.Fd()), syscall.LOCK_UN)
+		_ = f.Close()
+	}, nil
+}
+
 func loadState() State {
 	data, err := os.ReadFile(statePath())
 	if err != nil {
@@ -103,14 +130,46 @@ func loadState() State {
 	return s
 }
 
+// saveState writes via a temp file in the same directory then atomically
+// renames into place, so a reader never sees a partial write.
 func saveState(s State) {
 	dir := stateDir()
-	_ = os.MkdirAll(dir, 0o755)
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		return
+	}
 	data, err := json.Marshal(s)
 	if err != nil {
 		return
 	}
-	_ = os.WriteFile(statePath(), data, 0o644)
+	tmp, err := os.CreateTemp(dir, "pomodoro.json.tmp.*")
+	if err != nil {
+		return
+	}
+	tmpPath := tmp.Name()
+	if _, err := tmp.Write(data); err != nil {
+		_ = tmp.Close()
+		_ = os.Remove(tmpPath)
+		return
+	}
+	if err := tmp.Close(); err != nil {
+		_ = os.Remove(tmpPath)
+		return
+	}
+	if err := os.Rename(tmpPath, statePath()); err != nil {
+		_ = os.Remove(tmpPath)
+	}
+}
+
+// mutateState performs an atomic load → mutate → save under an exclusive
+// advisory lock, so concurrent invocations can't lose updates.
+func mutateState(fn func(*State)) {
+	unlock, err := acquireStateLock()
+	if err == nil {
+		defer unlock()
+	}
+	s := loadState()
+	fn(&s)
+	saveState(s)
 }
 
 // Compute seconds remaining in the current segment.
@@ -197,66 +256,67 @@ func maybeTransition(s *State, settings Settings) bool {
 // --- Subcommands ---
 
 func cmdStart(settings Settings) {
-	s := loadState()
-	s.Mode = "work"
-	s.Duration = settings.WorkDuration
-	s.StartedAt = float64(time.Now().Unix())
-	s.PausedAt = 0
-	saveState(s)
-}
-
-func cmdPause() {
-	s := loadState()
-	if s.Mode == "idle" || s.PausedAt > 0 {
-		return
-	}
-	s.PausedAt = float64(time.Now().Unix())
-	saveState(s)
-}
-
-func cmdResume() {
-	s := loadState()
-	if s.PausedAt == 0 {
-		return
-	}
-	// Shift start time forward by the pause duration
-	pauseDuration := float64(time.Now().Unix()) - s.PausedAt
-	s.StartedAt += pauseDuration
-	s.PausedAt = 0
-	saveState(s)
-}
-
-func cmdSkip(settings Settings) {
-	s := loadState()
-	switch s.Mode {
-	case "work":
-		s.Sessions++
-		mode, dur := nextBreakMode(s.Sessions, settings)
-		s.Mode = mode
-		s.Duration = dur
-		s.StartedAt = float64(time.Now().Unix())
-		s.PausedAt = 0
-	case "short_break", "long_break":
+	mutateState(func(s *State) {
 		s.Mode = "work"
 		s.Duration = settings.WorkDuration
 		s.StartedAt = float64(time.Now().Unix())
 		s.PausedAt = 0
-	default:
-		return
-	}
-	saveState(s)
+	})
+}
+
+func cmdPause() {
+	mutateState(func(s *State) {
+		if s.Mode == "idle" || s.PausedAt > 0 {
+			return
+		}
+		s.PausedAt = float64(time.Now().Unix())
+	})
+}
+
+func cmdResume() {
+	mutateState(func(s *State) {
+		if s.PausedAt == 0 {
+			return
+		}
+		pauseDuration := float64(time.Now().Unix()) - s.PausedAt
+		s.StartedAt += pauseDuration
+		s.PausedAt = 0
+	})
+}
+
+func cmdSkip(settings Settings) {
+	mutateState(func(s *State) {
+		switch s.Mode {
+		case "work":
+			s.Sessions++
+			mode, dur := nextBreakMode(s.Sessions, settings)
+			s.Mode = mode
+			s.Duration = dur
+			s.StartedAt = float64(time.Now().Unix())
+			s.PausedAt = 0
+		case "short_break", "long_break":
+			s.Mode = "work"
+			s.Duration = settings.WorkDuration
+			s.StartedAt = float64(time.Now().Unix())
+			s.PausedAt = 0
+		}
+	})
 }
 
 func cmdReset() {
-	saveState(State{Mode: "idle"})
+	mutateState(func(s *State) {
+		*s = State{Mode: "idle"}
+	})
 }
 
 // --- JSON Output ---
 
 func buildOutput(settings Settings) {
-	state := loadState()
-	maybeTransition(&state, settings)
-	saveState(state)
+	var state State
+	mutateState(func(s *State) {
+		maybeTransition(s, settings)
+		state = *s
+	})
 
 	rem := remaining(state)
 	remainStr := formatDuration(rem)
