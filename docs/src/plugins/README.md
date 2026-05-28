@@ -55,6 +55,7 @@ kantan ships with these plugins:
 - **caffeine**: Prevents system sleep, toggled by a click (shell script)
 - **calendar**: Integrates with macOS Calendar, shows upcoming events with countdowns (Swift, event-driven)
 - **pomodoro**: Pomodoro timer with work/break sessions, pause/resume/skip controls (Go, polling)
+- **tailscale**: Indicates Tailscale connection state via the LocalAPI, with tailnet tooltip (Go, polling)
 
 Their sources in `packages/plugins/` are reference implementations.
 

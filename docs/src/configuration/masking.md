@@ -146,6 +146,8 @@ If Apple fixes the underlying API or if kantan moves to .app bundle distribution
     showLevel: true
 ```
 
+> With `showLevel` enabled in kantan, show the percentage on the native indicator too (Settings > Menu Bar > 'Battery Options' > 'Show Percentage'). It sets the native indicator's width and position.
+
 **Replace WiFi indicator:**
 ```yaml
 - name: wifi

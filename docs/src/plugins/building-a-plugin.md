@@ -262,7 +262,7 @@ interaction:
 
 ## Step 5: Watch Mode (Event-Driven Plugins)
 
-For plugins that respond to external events rather than polling on an interval, use watch mode. Watch mode is optional — plugins whose state only changes on a timer or user action can skip it entirely. Among the bundled plugins, `reminders` and `calendar` use watch mode (to react to EventKit changes); `pomodoro`, `caffeine`, and `system-monitor` are polling-only by design.
+For plugins that respond to external events rather than polling on an interval, use watch mode. Watch mode is optional — plugins whose state only changes on a timer or user action can skip it entirely. Among the bundled plugins, `reminders` and `calendar` use watch mode (to react to EventKit changes); `pomodoro`, `caffeine`, `system-monitor`, and `tailscale` are polling-only by design.
 
 ### Configuration
 
@@ -488,6 +488,7 @@ See the built-in plugins for complete reference implementations:
 - `packages/plugins/caffeine/` — Shell script plugin with toggle state management and `KANTAN_PID`-tied `caffeinate`
 - `packages/plugins/calendar/` — Event-driven Swift plugin with watch mode, calendar integration, and conditional visibility
 - `packages/plugins/pomodoro/` — Polling Go plugin with persistent state, timer management, and interactive actions
+- `packages/plugins/tailscale/` — Polling Go plugin that talks to a local daemon's HTTP API over a Unix socket
 
 ## Error Handling
 

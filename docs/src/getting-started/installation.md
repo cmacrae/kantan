@@ -30,6 +30,7 @@ Bundled plugins that read OS data sources prompt the first time they run:
 | `caffeine` | None | Uses `caffeinate(8)` only |
 | `pomodoro` | None | Pure local state |
 | `system-monitor` | None | Reads public sysctls |
+| `tailscale` | None | Talks to the local Tailscale LocalAPI via Unix socket or token files |
 
 For EventKit plugins (`reminders`, `calendar`), macOS shows the consent dialog under the plugin's bundle identifier. If the binary changes path between invocations (e.g. running it directly vs. through the kantan wrapper), macOS may treat it as a fresh request. Approve once via the dialog or pre-grant in *System Settings → Privacy & Security*.
 

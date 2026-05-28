@@ -616,3 +616,4 @@ See the built-in plugins for reference implementations:
 - **`packages/plugins/caffeine/`**: Shell script plugin with toggle state management and `KANTAN_PID`-tied `caffeinate`
 - **`packages/plugins/calendar/`**: Event-driven Swift plugin with watch process, calendar integration, conditional visibility
 - **`packages/plugins/pomodoro/`**: Polling-based Go plugin with persistent state, timer management, and interactive actions
+- **`packages/plugins/tailscale/`**: Polling-based Go plugin that queries the Tailscale LocalAPI over a Unix socket
