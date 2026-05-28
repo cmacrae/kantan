@@ -53,8 +53,8 @@ The `placement` field controls where the module appears in the bar. It is a requ
 Placement values can use `|` to pair a notch-side value with a non-notch fallback:
 
 ```yaml
-placement: "notchright|right"    # right side, with notch fallback
-placement: "notchleft|left"      # left side, with notch fallback
+placement: "notchright|right"    # right notch, with right side fallback
+placement: "notchleft|left"      # left notch, with left side fallback
 ```
 
 The notch-side value (`notchleft` / `notchright`) is used on notched displays. The non-notch value (`left` / `right`) is used on non-notched displays. Order is irrelevant — `"right|notchright"` behaves identically to `"notchright|right"`.
