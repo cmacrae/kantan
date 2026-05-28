@@ -25,8 +25,6 @@ struct BluetoothDeviceInfo: Sendable {
   let name: String
   let address: String
   let isConnected: Bool
-  let majorClass: UInt32
-  let minorClass: UInt32
 }
 
 struct BluetoothStatus: Sendable {
@@ -223,6 +221,16 @@ final class BluetoothConfig: NSObject, ModuleConfiguration, EventDrivenModule,
 
   // MARK: - IOBluetooth
 
+  /// Reads current Bluetooth state.
+  ///
+  /// Power state comes from `IOBluetoothHostController` (fast, accurate).
+  /// Per-device connection state comes from `system_profiler`, which queries
+  /// `bluetoothd` via XPC and matches what System Settings shows. We avoid
+  /// `IOBluetoothDevice.isConnected()` because the deprecated API returns
+  /// stale `true` values for paired-but-disconnected devices on macOS Tahoe,
+  /// leaving the bar icon stuck at full brightness when it should dim.
+  /// `system_profiler` costs ~70ms and only runs on event-driven refreshes,
+  /// not on every render, so the overhead is acceptable.
   static func readBluetoothStatus() -> BluetoothStatus {
     guard let controller = IOBluetoothHostController.default() else {
       return .unavailable
@@ -234,22 +242,71 @@ final class BluetoothConfig: NSObject, ModuleConfiguration, EventDrivenModule,
       return BluetoothStatus(isPoweredOn: false, pairedDevices: [])
     }
 
-    guard let devices = IOBluetoothDevice.pairedDevices() else {
-      return BluetoothStatus(isPoweredOn: true, pairedDevices: [])
-    }
+    return querySystemProfiler() ?? BluetoothStatus(isPoweredOn: true, pairedDevices: [])
+  }
 
-    let infos: [BluetoothDeviceInfo] = devices.compactMap { item in
-      guard let device = item as? IOBluetoothDevice else { return nil }
-      return BluetoothDeviceInfo(
-        name: device.nameOrAddress ?? "Unknown",
-        address: device.addressString ?? "",
-        isConnected: device.isConnected(),
-        majorClass: device.deviceClassMajor,
-        minorClass: device.deviceClassMinor
-      )
-    }
+  // MARK: - system_profiler
 
-    return BluetoothStatus(isPoweredOn: true, pairedDevices: infos)
+  /// Invokes `system_profiler SPBluetoothDataType -json` and returns the
+  /// parsed status, or nil if the call failed.
+  private static func querySystemProfiler() -> BluetoothStatus? {
+    let process = Process()
+    process.executableURL = URL(fileURLWithPath: "/usr/sbin/system_profiler")
+    process.arguments = ["SPBluetoothDataType", "-json"]
+    let stdoutPipe = Pipe()
+    process.standardOutput = stdoutPipe
+    process.standardError = FileHandle.nullDevice
+    do {
+      try process.run()
+    } catch {
+      return nil
+    }
+    let data = stdoutPipe.fileHandleForReading.readDataToEndOfFile()
+    process.waitUntilExit()
+    guard process.terminationStatus == 0 else { return nil }
+    return parseSPBluetoothData(data)
+  }
+
+  /// Parse the JSON output of `system_profiler SPBluetoothDataType -json`
+  /// into a `BluetoothStatus`. Returns nil only when the top-level shape is
+  /// unrecognisable — an empty `device_connected` / `device_not_connected`
+  /// is normal and yields a status with no devices.
+  static func parseSPBluetoothData(_ data: Data) -> BluetoothStatus? {
+    guard
+      let root = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+      let entries = root["SPBluetoothDataType"] as? [[String: Any]],
+      let first = entries.first
+    else { return nil }
+
+    let isPoweredOn: Bool = {
+      guard let props = first["controller_properties"] as? [String: Any],
+        let state = props["controller_state"] as? String
+      else { return true }
+      return state == "attrib_on"
+    }()
+
+    let connected = extractDevices(from: first["device_connected"], isConnected: true)
+    let notConnected = extractDevices(from: first["device_not_connected"], isConnected: false)
+
+    return BluetoothStatus(isPoweredOn: isPoweredOn, pairedDevices: connected + notConnected)
+  }
+
+  /// Each `device_connected` / `device_not_connected` entry is a single-key
+  /// dictionary `{ "<device name>": { "device_address": ..., ... } }`.
+  private static func extractDevices(from value: Any?, isConnected: Bool) -> [BluetoothDeviceInfo] {
+    guard let array = value as? [[String: Any]] else { return [] }
+    return array.flatMap { entry -> [BluetoothDeviceInfo] in
+      entry.compactMap { name, props -> BluetoothDeviceInfo? in
+        guard let props = props as? [String: Any],
+          let address = props["device_address"] as? String
+        else { return nil }
+        return BluetoothDeviceInfo(
+          name: name,
+          address: address.lowercased(),
+          isConnected: isConnected
+        )
+      }
+    }
   }
 
 }

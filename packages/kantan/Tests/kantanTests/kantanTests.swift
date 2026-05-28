@@ -888,3 +888,50 @@ final class ThemeProviderElementFgPrecedenceTests: XCTestCase {
     assertColor(theme.textFgColor(for: vm), equalsHex: "ABCDEF")
   }
 }
+
+// MARK: - BluetoothConfig.parseSPBluetoothData
+
+final class BluetoothSystemProfilerParserTests: XCTestCase {
+  private func parse(_ json: String) -> BluetoothStatus? {
+    BluetoothConfig.parseSPBluetoothData(Data(json.utf8))
+  }
+
+  func testReportsConnectedDevicesWhenPresent() throws {
+    let json = """
+      {
+        "SPBluetoothDataType": [{
+          "controller_properties": { "controller_state": "attrib_on" },
+          "device_connected": [
+            { "Magic Trackpad": { "device_address": "02:00:00:00:00:01" } }
+          ],
+          "device_not_connected": [
+            { "AirPods Pro": { "device_address": "02:00:00:00:00:02" } }
+          ]
+        }]
+      }
+      """
+    let status = try XCTUnwrap(parse(json))
+    XCTAssertTrue(status.isPoweredOn)
+    XCTAssertEqual(status.pairedDevices.count, 2)
+    XCTAssertEqual(status.connectedDevices.map(\.name), ["Magic Trackpad"])
+  }
+
+  func testReportsPoweredOffWhenControllerStateIsOff() throws {
+    let json = """
+      {
+        "SPBluetoothDataType": [{
+          "controller_properties": { "controller_state": "attrib_off" }
+        }]
+      }
+      """
+    let status = try XCTUnwrap(parse(json))
+    XCTAssertFalse(status.isPoweredOn)
+    XCTAssertTrue(status.pairedDevices.isEmpty)
+  }
+
+  func testReturnsNilForMalformedRoot() {
+    XCTAssertNil(parse("{}"))
+    XCTAssertNil(parse(#"{"SPBluetoothDataType": []}"#))
+    XCTAssertNil(parse("not json"))
+  }
+}
