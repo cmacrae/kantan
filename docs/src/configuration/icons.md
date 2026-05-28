@@ -11,7 +11,7 @@ Tabler-icons ships in two variants: **outline** and **filled**. kantan bundles b
 | *(none)* | Outline | `bell` |
 | `-filled` | Filled | `bell-filled` |
 
-The outline variant renders the icon as a stroke drawing. The filled variant renders a solid shape. Both are available for every icon in the set.
+The outline variant renders the icon as a stroke drawing. The filled variant renders a solid shape. Both are available for *most* icons in the set.
 
 ## Using Icons in Config
 
