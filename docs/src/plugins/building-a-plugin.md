@@ -463,7 +463,7 @@ For rich interactive UIs, return a `view` field with a View DSL tree:
 }
 ```
 
-This creates a vertical stack with a header and a list of items. See the [View DSL documentation](../view-dsl/README.md) for complete details on building views.
+This creates a vertical stack with a header and a list of items. See the [View DSL documentation](/docs/view-dsl) for complete details on building views.
 
 ## Testing Your Plugin
 
@@ -520,7 +520,7 @@ The polling interval is ignored whenever `watch:` is configured. Set `interval: 
 
 ### Assuming `kantan trigger` returned a result
 
-`kantan trigger` posts a distributed notification and returns immediately — see [the CLI reference](../reference/cli.md#trigger).
+`kantan trigger` posts a distributed notification and returns immediately — see [the CLI reference](/docs/reference/cli#trigger).
 It does not wait for kantan to act on the notification, and it does not report whether kantan picked it up. Watch processes should treat trigger calls as fire-and-forget.
 
 ## Performance Considerations
@@ -533,7 +533,7 @@ It does not wait for kantan to act on the notification, and it does not report w
 
 ## Next Steps
 
-- Read the [API Reference](api-reference.md) for complete protocol specification
-- Explore [View DSL](../view-dsl/README.md) for building interactive UIs
+- Read the [API Reference](/docs/plugins/api-reference) for the full protocol
+- Explore [View DSL](/docs/view-dsl) for building interactive UIs
 - Study the built-in plugins for real-world examples
 - Join the kantan community to share your plugins

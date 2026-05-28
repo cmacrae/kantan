@@ -9,7 +9,7 @@ kantan targets aarch64-darwin only (Apple Silicon Macs). It can be installed via
 While kantan runs on Sequoia (15.0) and later a few individual features depend on behaviour introduced in macOS Tahoe (26.0):
 
 - **`focus` module** — uses the menu bar's FocusModes indicator window because Tahoe removed the `_NSDoNotDisturbEnabledNotification` distributed notifications. On Sequoia the module will not detect focus state correctly.
-- **`mask` configuration** — system-item masking works on both 15 and 26, but third-party masking is permanently impossible on 26 due to a Control Centre attribution change (FB18327911). On Sequoia, the same attribution issue exists in a different form. See [Menu Bar Masking — Limitations](../configuration/masking.md#limitations).
+- **`mask` configuration** — system-item masking works on both 15 and 26, but third-party masking is permanently impossible on 26 due to a Control Centre attribution change (FB18327911). On Sequoia, the same attribution issue exists in a different form. See [Menu Bar Masking — Limitations](/docs/configuration/masking#limitations).
 
 Everything else (clock, power, wifi, bluetooth, volume, workspace switching, plugins) works identically on both releases.
 

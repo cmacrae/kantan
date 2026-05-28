@@ -18,13 +18,13 @@ Configuration changes are detected automatically and applied in real-time. Edits
 
 For complex setups, kantan supports a `modules.d/` directory structure where individual module configurations can be split into separate files. This is the recommended approach for organizing multi-module configurations.
 
-See [Modular Configuration](modules-d.md) for details.
+See [Modular Configuration](/docs/configuration/modules-d) for details.
 
 ## Configuration Sections
 
-- [Bar Settings](bar.md) - Top-level bar appearance and behavior
-- [Themes](themes.md) - Colour palettes for consistent styling
-- [Icons](icons.md) - Bundled icon font and icon resolution
-- [Modules](modules.md) - Individual status bar modules and their configuration
-- [Modular Configuration](modules-d.md) - Using modules.d/ for organized setups
-- [Menu Bar Masking](masking.md) - Positioning modules over native macOS menu bar items
+- [Bar Settings](/docs/configuration/bar) - Top-level bar appearance and behavior
+- [Themes](/docs/configuration/themes) - Colour palettes for consistent styling
+- [Icons](/docs/configuration/icons) - Bundled icon font and icon resolution
+- [Modules](/docs/configuration/modules) - Individual status bar modules and their configuration
+- [Modular Configuration](/docs/configuration/modules-d) - Using modules.d/ for organized setups
+- [Menu Bar Masking](/docs/configuration/masking) - Positioning modules over native macOS menu bar items

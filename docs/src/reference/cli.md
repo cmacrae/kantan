@@ -75,12 +75,12 @@ kantan trigger my-module set value="Hello" icon="!" duration=5
 - **SIGTERM / SIGINT** — kantan relies on AppKit's default signal handling. The `AppDelegate.applicationWillTerminate(_:)` hook fires before exit, which cancels timers and tears down panels.
 - **SIGKILL** — Watch processes are not given a chance to exit cleanly; rely on stdin EOF for graceful shutdown.
 
-**Watch process signalling:** When kantan stops a watch process (on quit, sleep, or module reload), it first closes the stdin pipe (EOF) and gives the process a moment to exit. If the process is still running, kantan sends SIGTERM via `Process.terminate()`. Watch plugins should treat stdin EOF as the canonical shutdown signal and exit promptly so SIGTERM is rarely needed. See [Plugins — Handling stdin EOF](../plugins/building-a-plugin.md#handling-stdin-eof).
+**Watch process signalling:** When kantan stops a watch process (on quit, sleep, or module reload), it first closes the stdin pipe (EOF) and gives the process a moment to exit. If the process is still running, kantan sends SIGTERM via `Process.terminate()`. Watch plugins should treat stdin EOF as the canonical shutdown signal and exit promptly so SIGTERM is rarely needed. See [Plugins — Handling stdin EOF](/docs/plugins/building-a-plugin#handling-stdin-eof).
 
 ## Environment variables passed to plugins
 
 When kantan invokes a command-module plugin (one-shot, watch, or toggle), it sets a small number of environment variables on the child process.
-These are documented in full in [the plugin API reference](../plugins/api-reference.md#environment-variables); the short version:
+These are documented in full in [the plugin API reference](/docs/plugins/api-reference#environment-variables); the short version:
 
 | Variable | Set when |
 |----------|----------|
@@ -89,5 +89,5 @@ These are documented in full in [the plugin API reference](../plugins/api-refere
 | `KANTAN_PID` | Always (kantan's PID, useful for `caffeinate -w $KANTAN_PID` style lifetime ties) |
 | `KANTAN_MODULE_NAME` | Watch processes only |
 
-The formal schema lives in [`docs/schemas/module-config.schema.json`](../reference/schemas.md).
+The formal schema lives in [`docs/schemas/module-config.schema.json`](/docs/reference/schemas).
 Plugin authors should always provide sensible defaults when a variable is absent.

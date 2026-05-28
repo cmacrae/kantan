@@ -71,7 +71,7 @@ fonts:
   icon: "system:Font Awesome 6 Free:Solid:14"
 ```
 
-The format is the same as the global `fonts` key (see [Bar Settings](bar.md)).
+The format is the same as the global `fonts` key (see [Bar Settings](/docs/configuration/bar)).
 
 ## Per-Module Style
 
@@ -207,7 +207,7 @@ Modules with masking automatically get `passthrough` click behavior unless an ex
 
 ### View DSL
 
-The `view` field uses a declarative DSL to build UI hierarchies. See the View DSL documentation for complete reference.
+The `view` field uses a declarative DSL to build UI hierarchies. See the [View DSL documentation](/docs/view-dsl) for complete reference.
 
 ## Module Configuration Examples
 

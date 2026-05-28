@@ -285,7 +285,7 @@ When both `fg` and `icon.fg`/`text.fg` are set, the specific overrides take prec
 **Type:** `ViewNode` (View DSL tree)  
 **Description:** Rich UI definition for popups, menus, and tooltips using kantan's View DSL.
 
-**Node categories** (full reference in [View DSL nodes](../view-dsl/nodes.md)):
+**Node categories** (full reference in [View DSL nodes](/docs/view-dsl/nodes)):
 
 | Category | Nodes |
 |----------|-------|
@@ -326,7 +326,7 @@ The data nodes (`foreach`, `if`) and advanced nodes (`progress`, `gauge`, `grid`
 }
 ```
 
-See the [View DSL documentation](../view-dsl/README.md) for complete specification.
+See the [View DSL documentation](/docs/view-dsl) for complete specification.
 
 ## Exit Codes
 
@@ -395,7 +395,7 @@ kantan trigger mymodule set value="Hello" icon="\uf06a" fg="#ff0000" duration=5
 
 **Delivery semantics:** `kantan trigger` posts a distributed notification and returns immediately with no exit-code variation
 if the module name is unknown or if no kantan instance is running. Treat it as fire-and-forget — watch processes should not assume
-delivery and should not block waiting for kantan to act. See [the CLI reference](../reference/cli.md#trigger) for the full semantics.
+delivery and should not block waiting for kantan to act. See [the CLI reference](/docs/reference/cli#trigger) for the full semantics.
 
 **Typical use case in watch process:**
 ```swift

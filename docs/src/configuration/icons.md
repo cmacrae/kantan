@@ -139,7 +139,7 @@ fonts:
     icon: "system:Font Awesome 6 Free:Solid:14"
 ```
 
-The `system:` prefix tells kantan to use a font installed on the system rather than a bundled font. See [Bar Settings](bar.md) for the full font descriptor format.
+The `system:` prefix tells kantan to use a font installed on the system rather than a bundled font. See [Bar Settings](/docs/configuration/bar) for the full font descriptor format.
 
 When a custom icon font is set, icon name resolution against tabler-icons is still attempted for any modules that do not override the icon font. Modules with a custom icon font receive the raw `icon` string as a literal glyph.
 

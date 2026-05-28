@@ -30,6 +30,6 @@ Hide the bar whenever the cursor reaches the top of the screen (with an optional
 
 ## Next Steps
 
-Ready to get started? Head to [Installation](getting-started/installation.md) to install kantan, then follow the [Quick Start](getting-started/quick-start.md) guide to create your first configuration.
+Ready to get started? Head to [Installation](/docs/getting-started/installation) to install kantan, then follow the [Quick Start](/docs/getting-started/quick-start) guide to create your first configuration.
 
-Want to see what's possible? Browse the [Built-in Modules](modules/README.md) and [Plugin System](plugins/README.md) documentation.
+Want to see what's possible? Browse the [Built-in Modules](/docs/modules) and [Plugin System](/docs/plugins) documentation.

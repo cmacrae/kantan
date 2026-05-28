@@ -50,10 +50,10 @@ interaction:
 
 ## Documentation Sections
 
-- **[Node Types](nodes.md)**: Complete reference of all available node types, organized by category
-- **[Styling](styling.md)**: Common styling properties available on all nodes
-- **[Templates & Data](templates.md)**: Variable substitution, data collections, and control flow
-- **[Examples](examples.md)**: Annotated real-world examples
+- **[Node Types](/docs/view-dsl/nodes)**: Complete reference of all available node types, organized by category
+- **[Styling](/docs/view-dsl/styling)**: Common styling properties available on all nodes
+- **[Templates & Data](/docs/view-dsl/templates)**: Variable substitution, data collections, and control flow
+- **[Examples](/docs/view-dsl/examples)**: Annotated real-world examples
 
 ## Basic Structure
 
@@ -84,4 +84,4 @@ Data nodes work differently: `foreach` takes `items` (collection name) and `chil
 
 ## Getting Started
 
-For a complete overview of available nodes, see [Node Types](nodes.md). For styling and layout options, see [Styling](styling.md). To learn about dynamic content and templates, see [Templates & Data](templates.md). For practical examples, see [Examples](examples.md).
+For a complete overview of available nodes, see [Node Types](/docs/view-dsl/nodes). For styling and layout options, see [Styling](/docs/view-dsl/styling). To learn about dynamic content and templates, see [Templates & Data](/docs/view-dsl/templates). For practical examples, see [Examples](/docs/view-dsl/examples).

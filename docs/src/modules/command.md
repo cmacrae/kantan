@@ -1,6 +1,6 @@
 # Command
 
-The command module executes shell commands or plugin binaries and displays their output in the status bar. It is the foundation of kantan's [plugin system](../plugins/README.md).
+The command module executes shell commands or plugin binaries and displays their output in the status bar. It is the foundation of kantan's [plugin system](/docs/plugins).
 
 ## Configuration
 
@@ -33,7 +33,7 @@ The command's stdout is used directly as the module's display text. This is the 
 
 ### JSON Mode (`output: json`)
 
-The command's stdout is parsed as JSON conforming to the [plugin output schema](../plugins/api-reference.md#output-specification). This enables dynamic icons, styling, visibility control, View DSL content, template variables, and data collections for `foreach` iteration.
+The command's stdout is parsed as JSON conforming to the [plugin output schema](/docs/plugins/api-reference#output-specification). This enables dynamic icons, styling, visibility control, View DSL content, template variables, and data collections for `foreach` iteration.
 
 ```yaml
 - name: weather
@@ -64,7 +64,7 @@ A `watch` command launches a long-lived background process for event-driven upda
     watch: kantan-plugin-reminders --watch
 ```
 
-When a watch process is configured, polling is always disabled regardless of the `interval` value. See the [Watch Mode Protocol](../plugins/api-reference.md#watch-mode-protocol) for details.
+When a watch process is configured, polling is always disabled regardless of the `interval` value. See the [Watch Mode Protocol](/docs/plugins/api-reference#watch-mode-protocol) for details.
 
 ## Toggle Command
 

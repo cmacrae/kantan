@@ -31,7 +31,7 @@ Named colors adapt to light/dark mode automatically.
 
 **Theme colours:**
 
-When a [theme](../configuration/themes.md) is active, you can reference palette colours with `{theme(name)}` syntax:
+When a [theme](/docs/configuration/themes) is active, you can reference palette colours with `{theme(name)}` syntax:
 
 ```json
 {
@@ -41,7 +41,7 @@ When a [theme](../configuration/themes.md) is active, you can reference palette 
 }
 ```
 
-See [Templates & Data](templates.md#theme-colour-templates) for details.
+See [Templates & Data](/docs/view-dsl/templates#theme-colour-templates) for details.
 
 **Example:**
 ```json
@@ -188,7 +188,7 @@ Control whether a node is rendered. The `visible` property takes a variable name
 The variable is resolved and evaluated as a boolean. Values `"true"`, `"1"`, `"yes"`, and other non-empty strings are truthy.
 Values `"false"`, `"0"`, `"no"`, and empty strings are falsy. If the variable cannot be resolved (i.e. remains an unresolved template),
 it resolves to an empty string and is therefore **falsy** — the node is hidden.
-This matches the behaviour of the [`if`](nodes.md#conditional-node-if) node so the two stay in lockstep.
+This matches the behaviour of the [`if`](/docs/view-dsl/nodes#conditional-node-if) node so the two stay in lockstep.
 
 ## Combining Properties
 

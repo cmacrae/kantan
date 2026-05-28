@@ -250,7 +250,7 @@ The `if` node conditionally renders a node based on a variable value.
 - `"true"`, `"1"`, `"yes"`, and other non-empty strings: truthy
 - `"false"`, `"0"`, `"no"`, `""`, and unresolved variables: falsy
 
-> **Note:** The `visible` property on nodes uses the same truthiness rules, including for unresolved variables: an unresolved template resolves to `""`, which is falsy, so the node is **hidden**. See [Styling — Visibility](styling.md#visibility).
+> **Note:** The `visible` property on nodes uses the same truthiness rules, including for unresolved variables: an unresolved template resolves to `""`, which is falsy, so the node is **hidden**. See [Styling — Visibility](/docs/view-dsl/styling#visibility).
 
 **Example:**
 ```json
@@ -312,7 +312,7 @@ The `if` node conditionally renders a node based on a variable value.
 
 ## Theme Colour Templates
 
-When a [theme](../configuration/themes.md) is active, colours from the theme palette can be referenced using `{theme(name)}` syntax in any colour property:
+When a [theme](/docs/configuration/themes) is active, colours from the theme palette can be referenced using `{theme(name)}` syntax in any colour property:
 
 ```json
 {

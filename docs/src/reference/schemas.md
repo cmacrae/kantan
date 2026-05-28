@@ -18,7 +18,7 @@ Key fields:
 - `style` — dynamic color overrides (fg, bg, icon, text)
 - `view` — View DSL tree for rich popup/menu/tooltip content
 
-See the [Plugin API Reference](../plugins/api-reference.md) for detailed field documentation.
+See the [Plugin API Reference](/docs/plugins/api-reference) for detailed field documentation.
 
 **Module Configuration Schema**
 
@@ -34,7 +34,7 @@ Covers:
 - Style configuration (per-appearance)
 - Placement specification (including or-wise syntax)
 
-See the [Configuration](../configuration/modules.md) section for human-readable documentation.
+See the [Configuration](/docs/configuration/modules) section for human-readable documentation.
 
 **Schema draft:**
 

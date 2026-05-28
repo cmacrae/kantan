@@ -67,14 +67,14 @@ Plugins can define rich interactive interfaces using kantan's View DSL. By retur
 - Interactive popups with buttons and status displays
 - Data-driven lists using `foreach` iteration
 
-See the [View DSL documentation](../view-dsl/README.md) for details on building interactive plugin UIs.
+See the [View DSL documentation](/docs/view-dsl) for details on building interactive plugin UIs.
 
 ## Documentation Structure
 
 This section contains detailed guides for plugin development:
 
-- **[Building a Plugin](building-a-plugin.md)**: Step-by-step tutorial for creating your first plugin, from simple shell scripts to event-driven Swift executables
-- **[API Reference](api-reference.md)**: Formal specification of the plugin protocol, including environment variables, JSON output schema, and IPC mechanisms
+- **[Building a Plugin](/docs/plugins/building-a-plugin)**: Step-by-step tutorial for creating your first plugin, from simple shell scripts to event-driven Swift executables
+- **[API Reference](/docs/plugins/api-reference)**: Formal specification of the plugin protocol, including environment variables, JSON output schema, and IPC mechanisms
 
 ## Distribution
 

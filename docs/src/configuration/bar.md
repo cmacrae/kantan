@@ -90,7 +90,7 @@ If neither `theme` nor `style` colours are set, kantan uses the native macOS app
 
 ## Theme Configuration
 
-The `theme` key loads a colour palette from a theme file. See [Themes](themes.md) for full details on theme file formats, template syntax, and creating custom themes.
+The `theme` key loads a colour palette from a theme file. See [Themes](/docs/configuration/themes) for full details on theme file formats, template syntax, and creating custom themes.
 
 **Single theme (same for both modes):**
 ```yaml
@@ -174,7 +174,7 @@ Display names must match exactly as reported by macOS. Use the system Display pr
 
 ### Per-Module Display Filtering
 
-Modules can also specify a `displays` key to restrict which displays they appear on (using the same format). See the [Modules](modules.md) documentation.
+Modules can also specify a `displays` key to restrict which displays they appear on (using the same format). See the [Modules](/docs/configuration/modules) documentation.
 
 ### Screen Change Detection
 
