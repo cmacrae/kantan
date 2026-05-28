@@ -110,7 +110,7 @@ This limitation has been documented in Apple Feedback Assistant as FB18327911.
 
 ### Future Improvements
 
-If Apple fixes the underlying API or if kantan moves to .app bundle distribution, third-party masking may become feasible. For now, only system items can be masked.
+If Apple fixes the underlying API or if kantan moves to .app bundle distribution, third-party masking may become feasible. For now, only system items can be masked. Users can hack around this limitation by placing 3rd party menubar items in their native menubar and placing a masked module over it by smartly configuring its position, but this'll only work if the 3rd party icon stays at a fixed position.
 
 ## Example Configurations
 
