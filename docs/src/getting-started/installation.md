@@ -9,7 +9,7 @@ kantan targets aarch64-darwin only (Apple Silicon Macs). It can be installed via
 While kantan runs on Sequoia (15.0) and later a few individual features depend on behaviour introduced in macOS Tahoe (26.0):
 
 - **`focus` module** — uses the menu bar's FocusModes indicator window because Tahoe removed the `_NSDoNotDisturbEnabledNotification` distributed notifications. On Sequoia the module will not detect focus state correctly.
-- **`mask` configuration** — system-item masking works on both 15 and 26, but third-party masking is permanently impossible on 26 due to a Control Centre attribution change (FB18327911). On Sequoia, the same attribution issue exists in a different form. See [Menu Bar Masking — Limitations](/docs/configuration/masking#limitations).
+- **`mask` configuration** — system-item masking works on 15, 26 and 27 (27 reads MenuBarAgent's persisted layout rather than WindowServer windows; see [Item Detection](/docs/configuration/masking#item-detection)), but third-party masking is permanently impossible on 26 due to a Control Centre attribution change (FB18327911). On Sequoia, the same attribution issue exists in a different form. See [Menu Bar Masking — Limitations](/docs/configuration/masking#limitations).
 
 Everything else (clock, power, wifi, bluetooth, volume, workspace switching, plugins) works identically on both releases.
 
@@ -18,7 +18,7 @@ Everything else (clock, power, wifi, bluetooth, volume, workspace switching, plu
 kantan itself does not prompt for any TCC permissions on first launch:
 
 - **No Accessibility prompt.** kantan does not call `AXIs…` or any other Accessibility API.
-- **No Screen Recording prompt.** Menu bar item detection uses `CGWindowListCopyWindowInfo`, which returns window geometry without Screen Recording permission. (Window titles are gated, but kantan does not rely on them.)
+- **No Screen Recording prompt.** Menu bar item detection uses `CGWindowListCopyWindowInfo`, which returns window geometry without Screen Recording permission. (Window titles are gated, but kantan does not rely on them.) On macOS 27 and later it reads MenuBarAgent's persisted item layout instead, which needs no permission either.
 - **No Automation prompt.** kantan does not send AppleEvents to other applications.
 
 Bundled plugins that read OS data sources prompt the first time they run:

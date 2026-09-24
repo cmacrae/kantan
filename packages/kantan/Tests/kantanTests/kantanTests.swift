@@ -674,6 +674,172 @@ final class MenuBarItemDetectorFilterTests: XCTestCase {
   }
 }
 
+// MARK: - PersistedMenuBarLayout
+
+final class PersistedMenuBarLayoutTests: XCTestCase {
+  /// `TrailingItemPreferredPositions` captured on macOS 27 with a 1512×982
+  /// primary display. The frames asserted below are what Accessibility
+  /// reported for the same layout.
+  private let positions: [String: Double] = [
+    "module:Clock": 0,
+    "module:BentoBox-0": 36.5,
+    "module:Battery": 62.5,
+    "module:WiFi": 88.5,
+    "module:Sound": 110.5,
+    "module:Bluetooth": 132.5,
+    "module:FocusModes": 148.5,
+    "status:com.1password.1password::bb3cc23c": 170.5,
+    "status:org.pqrs.Karabiner-Menu::Item-0": 202.5,
+    "status:com.raycast.macos::Item-0": 231.5,
+  ]
+  private let screen = NSRect(x: 0, y: 0, width: 1512, height: 982)
+
+  private func layout(
+    _ positions: [String: Double], screenFrame: NSRect? = nil,
+    present: (String) -> Bool = { _ in true }
+  ) -> [NativeMenuBarItem] {
+    PersistedMenuBarLayout.items(
+      from: positions, isPresent: present, screenFrame: screenFrame ?? screen,
+      primaryHeight: 982, menuBarHeight: 33)
+  }
+
+  private func item(_ id: String, in items: [NativeMenuBarItem]) -> NativeMenuBarItem? {
+    items.first { $0.identifier == id }
+  }
+
+  func testModuleContentMatchesMeasuredFrames() {
+    let measured: [String: (x: CGFloat, width: CGFloat)] = [
+      "Clock": (1455, 37), "BentoBox-0": (1413, 26), "Battery": (1371, 26),
+      "WiFi": (1333, 22), "Sound": (1295, 22), "Bluetooth": (1263, 16),
+      "FocusModes": (1225, 22),
+    ]
+    let items = layout(positions)
+    for (id, frame) in measured {
+      guard let found = item(id, in: items) else { return XCTFail("missing \(id)") }
+      let content = found.cgRect.insetBy(dx: PersistedMenuBarLayout.moduleSpacing / 2, dy: 0)
+      XCTAssertEqual(content.minX, frame.x, accuracy: 1, id)
+      XCTAssertEqual(content.maxX, frame.x + frame.width, accuracy: 1, id)
+    }
+  }
+
+  func testStatusItemSlotsMatchMeasuredWindows() {
+    let measured: [String: (x: CGFloat, width: CGFloat)] = [
+      "status:com.1password.1password::bb3cc23c": (1184, 34),
+      "status:org.pqrs.Karabiner-Menu::Item-0": (1155, 31),
+    ]
+    let items = layout(positions)
+    for (id, frame) in measured {
+      guard let found = item(id, in: items) else { return XCTFail("missing \(id)") }
+      XCTAssertEqual(found.cgRect.midX, frame.x + frame.width / 2, accuracy: 1, id)
+      XCTAssertEqual(found.cgRect.width, frame.width, accuracy: 2, id)
+    }
+  }
+
+  func testModuleSlotsAbutLikeWindowBackedItems() {
+    let items = layout(positions)
+    XCTAssertEqual(items.first?.cgRect.maxX, 1512 - PersistedMenuBarLayout.trailingEdgeInset)
+    for (right, left) in zip(items, items.dropFirst()) {
+      XCTAssertEqual(left.cgRect.maxX, right.cgRect.minX)
+    }
+  }
+
+  func testSortsRightToLeftAndIndexes() {
+    let items = layout(positions)
+    XCTAssertEqual(
+      Array(items.prefix(7)).map { $0.identifier },
+      ["Clock", "BentoBox-0", "Battery", "WiFi", "Sound", "Bluetooth", "FocusModes"])
+    XCTAssertEqual(items.map { $0.index }, Array(0..<positions.count))
+  }
+
+  func testAbsentItemCollapsesItsSlot() {
+    let all = layout(positions)
+    let withoutBluetooth = layout(positions) { $0 != "module:Bluetooth" }
+    XCTAssertNil(item("Bluetooth", in: withoutBluetooth))
+    XCTAssertEqual(
+      item("Sound", in: withoutBluetooth)?.cgRect, item("Sound", in: all)?.cgRect)
+    let bluetoothSlot = item("Bluetooth", in: all)!.cgRect.width
+    XCTAssertEqual(
+      item("FocusModes", in: withoutBluetooth)!.cgRect.minX,
+      item("FocusModes", in: all)!.cgRect.minX + bluetoothSlot)
+  }
+
+  func testAbsentNeighbourStillBoundsWidth() {
+    let karabiner = "status:org.pqrs.Karabiner-Menu::Item-0"
+    let items = layout(positions) { $0 != "status:com.raycast.macos::Item-0" }
+    XCTAssertEqual(item(karabiner, in: items)?.cgRect.width, 29)
+  }
+
+  func testLeftmostItemUsesDefaultWidth() {
+    let items = layout(["module:Clock": 0, "module:WiFi": 36.5])
+    XCTAssertEqual(
+      item("WiFi", in: items)?.cgRect.width,
+      PersistedMenuBarLayout.defaultContentWidth + PersistedMenuBarLayout.moduleSpacing)
+  }
+
+  func testLaysOutAgainstEachScreensRightEdgeAndTop() {
+    let secondary = NSRect(x: 1512, y: -100, width: 1920, height: 1080)
+    let items = layout(positions, screenFrame: secondary)
+    XCTAssertEqual(
+      items.first?.cgRect.maxX, secondary.maxX - PersistedMenuBarLayout.trailingEdgeInset)
+    XCTAssertEqual(items.first?.cgRect.origin.y, 982 - secondary.maxY)
+  }
+
+  func testPresenceUsesControlCentreVisibilityAndRunningApps() {
+    let defaults: [String: Any] = [
+      "NSStatusItem VisibleCC WiFi": 1,
+      "NSStatusItem VisibleCC StageManager": 0,
+      "NSStatusItem Visible NowPlaying": 0,
+    ]
+    let present = { (key: String) in
+      PersistedMenuBarLayout.isPresent(
+        key: key, controlCentreValue: { defaults[$0] },
+        runningBundleIDs: ["com.1password.1password"])
+    }
+    XCTAssertTrue(present("module:WiFi"))
+    XCTAssertTrue(present("module:Battery"))
+    XCTAssertFalse(present("module:StageManager"))
+    XCTAssertFalse(present("module:NowPlaying"))
+    XCTAssertTrue(present("status:com.1password.1password::bb3cc23c"))
+    XCTAssertFalse(present("status:org.pqrs.Karabiner-Menu::Item-0"))
+  }
+
+  func testBundleIdentifierParsing() {
+    XCTAssertEqual(
+      PersistedMenuBarLayout.bundleIdentifier(forKey: "status:org.pqrs.Karabiner-Menu::Item-0"),
+      "org.pqrs.Karabiner-Menu")
+    XCTAssertEqual(PersistedMenuBarLayout.bundleIdentifier(forKey: "status:com.foo"), "com.foo")
+    XCTAssertNil(PersistedMenuBarLayout.bundleIdentifier(forKey: "module:WiFi"))
+  }
+
+  func testResolveItemMatchesIdentifiersThroughAliases() {
+    let items = layout(positions)
+    let resolve = { MenuBarItemDetector.resolveItem(for: MaskConfig(name: $0), from: items) }
+    XCTAssertEqual(resolve("Clock")?.identifier, "Clock")
+    XCTAssertEqual(resolve("ControlCenter")?.identifier, "BentoBox-0")
+    XCTAssertEqual(resolve("Volume")?.identifier, "Sound")
+    XCTAssertEqual(resolve("Focus")?.identifier, "FocusModes")
+    XCTAssertEqual(resolve("WiFi")?.identifier, "WiFi")
+    XCTAssertNil(resolve("NowPlaying"))
+    XCTAssertEqual(
+      MenuBarItemDetector.resolveItem(for: MaskConfig(index: 1), from: items)?.identifier,
+      "BentoBox-0")
+  }
+
+  func testReadPositionsFromPlist() throws {
+    let url = FileManager.default.temporaryDirectory
+      .appendingPathComponent("kantan-menubar-\(UUID().uuidString).plist")
+    defer { try? FileManager.default.removeItem(at: url) }
+    let plist: NSDictionary = [
+      "TrailingItemPreferredPositions": ["module:Clock": 0, "module:WiFi": 88.5]
+    ]
+    XCTAssertTrue(plist.write(to: url, atomically: true))
+    XCTAssertEqual(
+      PersistedMenuBarLayout.readPositions(from: url), ["module:Clock": 0, "module:WiFi": 88.5])
+    XCTAssertEqual(
+      PersistedMenuBarLayout.readPositions(from: url.appendingPathExtension("missing")), [:])
+  }
+}
+
 // MARK: - Screen diff
 
 final class ScreenDiffTests: XCTestCase {

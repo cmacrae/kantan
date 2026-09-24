@@ -42,9 +42,27 @@ Items are indexed right-to-left (index 0 is the rightmost item):
     value: ""
 ```
 
+## Item Detection
+
+How kantan finds native menu bar items depends on the macOS release:
+
+- **macOS 15 and 26** -- Each status item is its own WindowServer window. kantan reads their geometry with `CGWindowListCopyWindowInfo`.
+- **macOS 27 and later** -- MenuBarAgent draws every status item into a single menu bar surface, so individual items no longer exist as windows. Instead, kantan reads the positions MenuBarAgent persists in `~/Library/Group Containers/com.apple.MenuBar/Library/Preferences/com.apple.MenuBar.plist` (`TrailingItemPreferredPositions`, keyed by item identifier) and lays the items out right-to-left from the screen's right edge. Items hidden in Control Centre settings, and third-party items whose app isn't running, are skipped.
+
+Neither approach requires any permissions.
+
+### macOS 27 Caveats
+
+The persisted layout records where each item sits, not whether it is currently drawn or how wide it is right now. MenuBarAgent rewrites it when items are added or rearranged, so:
+
+- Items that appear only while active (Focus, Now Playing, camera/microphone indicators) keep their slot even while they are not shown.
+- A native item that changes width without a rearrangement (e.g. toggling battery percentage) can leave masks slightly offset until MenuBarAgent next persists the layout.
+
 ## Name Resolution
 
-Name-based masking uses a multi-step resolution chain:
+On macOS 27 and later, items carry their identifier, so a mask name (after alias resolution) is matched directly against it.
+
+On earlier releases, name-based masking uses a multi-step resolution chain:
 
 1. **Preferred position match** -- The name is looked up in `com.apple.controlcenter` defaults via `NSStatusItem Preferred Position <name>`, then matched against detected menu bar items by position (tight tolerance).
 

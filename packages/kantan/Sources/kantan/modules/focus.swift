@@ -88,23 +88,27 @@ final class FocusConfig: ModuleConfiguration, @unchecked Sendable {
 
   // MARK: - Focus Indicator Detection
 
-  /// Checks whether the system FocusModes indicator window is present in
-  /// the menu bar. Uses `MenuBarItemDetector.resolveItem` (which includes
-  /// rank-based fallback for handling position shifts), then applies a
-  /// tighter position check to distinguish "Focus active but shifted"
-  /// from "Focus inactive, wrong item at that rank."
+  /// Checks whether the system FocusModes indicator is present in the menu
+  /// bar. Uses `MenuBarItemDetector.resolveItem` (which includes rank-based
+  /// fallback for handling position shifts), then applies a tighter position
+  /// check to distinguish "Focus active but shifted" from "Focus inactive,
+  /// wrong item at that rank."
+  ///
+  /// On macOS 27+ items come from MenuBarAgent's persisted layout and are
+  /// matched by identifier, so a match is the FocusModes slot itself. That
+  /// layout records the slot but not whether it is currently drawn.
   private static func isFocusIndicatorVisible() -> Bool {
-    guard let preferredPos = focusModesPreferredPosition,
-      let screen = NSScreen.main
-    else { return false }
+    guard let screen = NSScreen.main else { return false }
 
     let items = MenuBarItemDetector.detectItems(for: screen)
-    guard !items.isEmpty else { return false }
 
     // Use the shared resolver (includes rank-based fallback for shifts).
     guard let candidate = MenuBarItemDetector.resolveItem(for: focusMask, from: items) else {
       return false
     }
+    if candidate.identifier != nil { return true }
+
+    guard let preferredPos = focusModesPreferredPosition else { return false }
 
     // The resolver's rank-based fallback uses an 80px sanity check, which
     // is too loose for presence detection — when Focus is inactive the
