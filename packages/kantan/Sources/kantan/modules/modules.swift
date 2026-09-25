@@ -364,8 +364,14 @@ func runCommandSync(path: String, arguments: [String], timeout: TimeInterval? = 
 /// while it is unavailable); when it exits or can't be resolved, launching is
 /// retried with exponential backoff, and `onEvent` fires after each relaunch
 /// so consumers resynchronise with whatever changed while it was down.
+///
+/// With `accepts`, only the lines it accepts are events. With `coalescing`,
+/// events arriving within that interval of the first call `onEvent` once,
+/// at the end of it.
 final class EventStreamProcess: @unchecked Sendable {
   private let command: @Sendable () -> [String]?
+  private let coalescing: TimeInterval
+  private let accepts: (@Sendable (Data) -> Bool)?
   private let onEvent: @Sendable () -> Void
   private let lock = NSLock()
   private var process: Process?
@@ -374,6 +380,10 @@ final class EventStreamProcess: @unchecked Sendable {
   private var tether: FileHandle?
   private var stopped = true
   private var failures = 0
+  /// Output after the last complete line, while `accepts` reads lines.
+  private var partialLine = Data()
+  /// Whether an event is waiting out `coalescing`.
+  private var eventPending = false
 
   /// Runs `"$@"` in the background and kills it once stdin reaches EOF, so
   /// the command never outlives kantan however kantan exits. The shell exits
@@ -389,9 +399,14 @@ final class EventStreamProcess: @unchecked Sendable {
     """
 
   init(
-    command: @escaping @Sendable () -> [String]?, onEvent: @escaping @Sendable () -> Void
+    command: @escaping @Sendable () -> [String]?,
+    coalescing: TimeInterval = 0,
+    accepts: (@Sendable (Data) -> Bool)? = nil,
+    onEvent: @escaping @Sendable () -> Void
   ) {
     self.command = command
+    self.coalescing = coalescing
+    self.accepts = accepts
     self.onEvent = onEvent
   }
 
@@ -437,13 +452,15 @@ final class EventStreamProcess: @unchecked Sendable {
     process.standardInput = stdin
     process.standardOutput = stdout
     process.standardError = FileHandle.nullDevice
+    partialLine = Data()
 
     stdout.fileHandleForReading.readabilityHandler = { [weak self] handle in
-      guard !handle.availableData.isEmpty else {
+      let output = handle.availableData
+      guard !output.isEmpty else {
         handle.readabilityHandler = nil
         return
       }
-      self?.received()
+      self?.received(output)
     }
     process.terminationHandler = { [weak self] exited in
       self?.exited(exited)
@@ -459,12 +476,45 @@ final class EventStreamProcess: @unchecked Sendable {
     }
   }
 
-  private func received() {
+  private func received(_ output: Data) {
     lock.lock()
-    let live = !stopped
-    if live { failures = 0 }
+    guard !stopped else {
+      lock.unlock()
+      return
+    }
+    failures = 0
+    let lines = accepts == nil ? [] : completeLinesLocked(appending: output)
     lock.unlock()
-    if live { onEvent() }
+    if let accepts, !lines.contains(where: accepts) { return }
+    deliver()
+  }
+
+  /// Appends `output` to the partial line and takes the lines it completes.
+  private func completeLinesLocked(appending output: Data) -> [Data] {
+    partialLine.append(output)
+    var lines: [Data] = []
+    while let newline = partialLine.firstIndex(of: UInt8(ascii: "\n")) {
+      lines.append(partialLine[..<newline])
+      partialLine = partialLine[partialLine.index(after: newline)...]
+    }
+    return lines
+  }
+
+  private func deliver() {
+    guard coalescing > 0 else { return onEvent() }
+    lock.lock()
+    let alreadyPending = eventPending
+    eventPending = true
+    lock.unlock()
+    guard !alreadyPending else { return }
+    DispatchQueue.global().asyncAfter(deadline: .now() + coalescing) { [weak self] in
+      guard let self else { return }
+      lock.lock()
+      eventPending = false
+      let live = !stopped
+      lock.unlock()
+      if live { onEvent() }
+    }
   }
 
   private func exited(_ exited: Process) {

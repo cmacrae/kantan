@@ -1390,6 +1390,44 @@ final class EventStreamProcessTests: XCTestCase {
     stream.stop()
   }
 
+  func testAcceptsFiltersLines() {
+    let event = expectation(description: "accepted line")
+    event.assertForOverFulfill = false
+    let stream = EventStreamProcess(
+      command: { ["/bin/sh", "-c", "echo skip; printf 'ke'; sleep 0.1; echo ep; sleep 5"] },
+      accepts: { $0 == Data("keep".utf8) }
+    ) { event.fulfill() }
+    stream.start()
+    wait(for: [event], timeout: 2)
+    stream.stop()
+  }
+
+  func testRejectedLinesFireNoEvent() {
+    let event = expectation(description: "no event for rejected lines")
+    event.isInverted = true
+    let stream = EventStreamProcess(
+      command: { ["/bin/sh", "-c", "echo skip; echo skip; sleep 5"] },
+      accepts: { $0 == Data("keep".utf8) }
+    ) { event.fulfill() }
+    stream.start()
+    wait(for: [event], timeout: 1)
+    stream.stop()
+  }
+
+  func testCoalescingFiresOncePerBurst() {
+    let events = OSAllocatedUnfairLock(initialState: 0)
+    let stream = EventStreamProcess(
+      command: { ["/bin/sh", "-c", "for i in 1 2 3 4 5; do echo $i; done; sleep 5"] },
+      coalescing: 0.2
+    ) { events.withLock { $0 += 1 } }
+    stream.start()
+    let burst = expectation(description: "burst delivered")
+    DispatchQueue.global().asyncAfter(deadline: .now() + 0.8) { burst.fulfill() }
+    wait(for: [burst], timeout: 2)
+    stream.stop()
+    XCTAssertEqual(events.withLock { $0 }, 1)
+  }
+
   func testStopSilencesStream() {
     let event = expectation(description: "no event after stop")
     event.isInverted = true
