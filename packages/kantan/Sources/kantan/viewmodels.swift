@@ -8,6 +8,12 @@ import SwiftUI
 enum ModuleAnimation {
   static let duration: TimeInterval = 0.3
   static let content = Animation.timingCurve(0.4, 0, 0.2, 1, duration: duration)
+  /// Content leaving clears in the first half of a change, while content
+  /// arriving fades in from a third of the way through, so the two don't
+  /// pile up where they overlap.
+  static let exit = Animation.timingCurve(0.4, 0, 1, 1, duration: duration / 2)
+  static let entrance = Animation.timingCurve(0, 0, 0.2, 1, duration: duration * 2 / 3)
+    .delay(duration / 3)
   static var panelTiming: CAMediaTimingFunction {
     CAMediaTimingFunction(controlPoints: 0.4, 0, 0.2, 1)
   }

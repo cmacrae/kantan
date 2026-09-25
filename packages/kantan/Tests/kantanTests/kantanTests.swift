@@ -1256,6 +1256,149 @@ final class WorkspaceProviderSelectionTests: XCTestCase {
       WorkspaceConfig(yaml: try Yaml.load("type: aerospace\n")).provider is AerospaceWorkspaces)
     XCTAssertTrue(WorkspaceConfig(yaml: try Yaml.load("type: rift\n")).provider is RiftWorkspaces)
   }
+
+  func testScrollingSubscribesRiftToScrollEvents() throws {
+    let plain = try XCTUnwrap(
+      WorkspaceConfig(yaml: try Yaml.load("type: rift\n")).provider as? RiftWorkspaces)
+    XCTAssertFalse(plain.scrolling)
+    let scrolling = try XCTUnwrap(
+      WorkspaceConfig(yaml: try Yaml.load("type: rift\nscrolling:\n  enabled: true\n")).provider
+        as? RiftWorkspaces)
+    XCTAssertTrue(scrolling.scrolling)
+  }
+}
+
+// MARK: - Workspace scrolling
+
+final class WorkspaceScrollingTests: XCTestCase {
+  private let scroll = [
+    ScrollWindow(
+      id: "1-1", app: "Ghostty", bundleIdentifier: "com.mitchellh.ghostty", isSelected: false),
+    ScrollWindow(
+      id: "2-1", app: "Arc", bundleIdentifier: "company.thebrowser.Browser", isSelected: true),
+    ScrollWindow(id: "3-1", app: "Emacs", bundleIdentifier: "org.gnu.Emacs", isSelected: false),
+  ]
+
+  private func workspaces(activeScroll: [ScrollWindow]?) -> [Workspace] {
+    [
+      Workspace(index: 0, label: "1", isActive: false, hasWindows: true),
+      Workspace(index: 1, label: "2", isActive: true, hasWindows: true, scroll: activeScroll),
+      Workspace(index: 2, label: "3", isActive: false),
+      Workspace(index: 3, label: "4", isActive: false, hasWindows: true),
+    ]
+  }
+
+  private func config(_ yaml: String) throws -> WorkspaceConfig {
+    WorkspaceConfig(yaml: try Yaml.load(yaml))
+  }
+
+  func testParsesScrollingConfig() throws {
+    let scrolling = try config(
+      """
+      scrolling:
+        enabled: true
+        icon: app-window
+        workspaces: false
+        icons:
+          Ghostty: terminal-2
+      """
+    ).scrolling
+    XCTAssertTrue(scrolling.enabled)
+    XCTAssertEqual(scrolling.icon, "app-window")
+    XCTAssertFalse(scrolling.showsWorkspaces)
+    XCTAssertEqual(scrolling.icons, ["ghostty": "terminal-2"])
+  }
+
+  func testWindowIconsMatchBundleIdentifierThenNameIgnoringCase() {
+    let scrolling = ScrollingConfig(
+      enabled: true, icon: "fallback",
+      icons: ["COM.MITCHELLH.GHOSTTY": "terminal-2", "arc": "world", "Browser": "unused"],
+      showsWorkspaces: true)
+    XCTAssertEqual(scroll.map(scrolling.icon(for:)), ["terminal-2", "world", "fallback"])
+  }
+
+  func testShowsTheActiveScrollsWindows() throws {
+    let display = try config(
+      """
+      scrolling:
+        enabled: true
+        icons:
+          Ghostty: terminal-2
+      """
+    ).display(of: workspaces(activeScroll: scroll))
+    XCTAssertTrue(display.isScroll)
+    XCTAssertEqual(display.slot?.id, "workspace-1")
+    XCTAssertEqual(display.segments.map(\.id), ["window-1-1", "window-2-1", "window-3-1"])
+    XCTAssertEqual(display.segments.map(\.isActive), [false, true, false])
+    XCTAssertEqual(
+      display.segments.map(\.label),
+      ["terminal-2", ScrollingConfig.defaultIcon, ScrollingConfig.defaultIcon].map {
+        resolveIconName($0).glyph
+      })
+  }
+
+  func testPipsShowWorkspacesWithWindowsAndTheActiveOne() throws {
+    let display = try config("scrolling:\n  enabled: true\n").display(
+      of: workspaces(activeScroll: scroll))
+    XCTAssertEqual(display.pips.map(\.id), ["workspace-0", "workspace-1", "workspace-3"])
+    XCTAssertEqual(display.pips.map(\.isActive), [false, true, false])
+  }
+
+  func testWindowsTakeTheActiveWorkspacesRainbowColour() throws {
+    let display = try config(
+      """
+      scrolling:
+        enabled: true
+      rainbow:
+        enabled: true
+        random: false
+        colors: [red, green, blue]
+      """
+    ).display(of: workspaces(activeScroll: scroll))
+    XCTAssertEqual(display.segments.map(\.colorOverride), ["green", "green", "green"])
+    XCTAssertEqual(display.pips.map(\.colorOverride), ["red", "green", "red"])
+  }
+
+  func testScrollRainbowColoursWindowsByApp() throws {
+    let config = try config(
+      """
+      scrolling:
+        enabled: true
+        rainbow:
+          enabled: true
+      rainbow:
+        enabled: true
+        random: false
+        colors: [red, green, blue, cyan, magenta, yellow]
+      """)
+    let second = ScrollWindow(
+      id: "4-1", app: "Ghostty", bundleIdentifier: "com.mitchellh.ghostty", isSelected: false)
+    let colors = config.display(of: workspaces(activeScroll: scroll + [second])).segments.map {
+      $0.colorOverride
+    }
+    let palette = ["red", "green", "blue", "cyan", "magenta", "yellow"]
+    XCTAssertTrue(colors.allSatisfy { $0.map(palette.contains) == true })
+    XCTAssertEqual(colors[0], colors[3])
+    XCTAssertEqual(
+      config.scrolling.color(for: scroll[0]),
+      config.scrolling.color(
+        for: ScrollWindow(
+          id: "9-9", app: "ghostty", bundleIdentifier: "COM.MITCHELLH.GHOSTTY", isSelected: true)))
+  }
+
+  func testSummaryChangesWithWhatIsShown() throws {
+    let config = try config("scrolling:\n  enabled: true\n")
+    let workspaces = config.display(of: workspaces(activeScroll: nil))
+    let windows = config.display(of: self.workspaces(activeScroll: scroll))
+    let moved = config.display(
+      of: self.workspaces(
+        activeScroll: scroll.map {
+          ScrollWindow(
+            id: $0.id, app: $0.app, bundleIdentifier: $0.bundleIdentifier,
+            isSelected: $0.id == "1-1")
+        }))
+    XCTAssertEqual(Set([workspaces.summary, windows.summary, moved.summary]).count, 3)
+  }
 }
 
 final class RiftWorkspacesTests: XCTestCase {
@@ -1271,10 +1414,69 @@ final class RiftWorkspacesTests: XCTestCase {
     XCTAssertEqual(
       RiftWorkspaces.parse(Data(json.utf8)),
       [
-        Workspace(index: 0, label: "web", isActive: false),
+        Workspace(index: 0, label: "web", isActive: false, hasWindows: true, scroll: []),
         Workspace(index: 1, label: "code", isActive: true),
         Workspace(index: 2, label: "chat", isActive: false),
       ])
+  }
+
+  func testParsesScrollInStripOrderWithoutFloatingWindows() {
+    let json = """
+      [{"index":0,"is_active":true,"layout_mode":"scrolling","name":"1","window_count":5,
+        "windows":[
+          {"app_name":"Emacs","bundle_id":"org.gnu.Emacs","id":{"idx":4,"pid":40},
+           "is_floating":false,"is_focused":false,"layout_position":{"column":1,"row":1}},
+          {"app_name":"Ghostty","bundle_id":"com.mitchellh.ghostty","id":{"idx":1,"pid":10},
+           "is_floating":false,"is_focused":true,"layout_position":{"column":0,"row":0}},
+          {"app_name":"Finder","id":{"idx":5,"pid":50},"is_floating":true,"is_focused":false},
+          {"app_name":"Arc","id":{"idx":2,"pid":20},"is_floating":false,"is_focused":false,
+           "layout_position":{"column":1,"row":0}},
+          {"app_name":"Mail","id":{"idx":6,"pid":60},"is_floating":false,"is_focused":false}]}]
+      """
+    XCTAssertEqual(
+      RiftWorkspaces.parse(Data(json.utf8)).first?.scroll,
+      [
+        ScrollWindow(
+          id: "10-1", app: "Ghostty", bundleIdentifier: "com.mitchellh.ghostty", isSelected: true),
+        ScrollWindow(id: "20-2", app: "Arc", bundleIdentifier: nil, isSelected: false),
+        ScrollWindow(
+          id: "40-4", app: "Emacs", bundleIdentifier: "org.gnu.Emacs", isSelected: false),
+      ])
+  }
+
+  func testReadsTheLayoutsSelectedWindow() {
+    let layout = #"{"mode":"scrolling","focused_window":null,"selected_window":{"idx":2,"pid":20}}"#
+    XCTAssertEqual(RiftWorkspaces.selectedWindow(in: Data(layout.utf8)), "20-2")
+    XCTAssertNil(RiftWorkspaces.selectedWindow(in: Data(#"{"selected_window":null}"#.utf8)))
+    XCTAssertNil(RiftWorkspaces.selectedWindow(in: Data("Failed to connect".utf8)))
+  }
+
+  func testSelectingAWindowOutsideTheScrollKeepsItsSelection() {
+    let focused = ScrollWindow(id: "1-1", app: "Ghostty", bundleIdentifier: nil, isSelected: true)
+    let other = ScrollWindow(id: "2-1", app: "Arc", bundleIdentifier: nil, isSelected: false)
+    var workspace = Workspace(index: 0, label: "1", isActive: true, scroll: [focused, other])
+
+    workspace.selectWindow("9-9")
+    XCTAssertEqual(workspace.scroll?.map(\.isSelected), [true, false])
+    workspace.selectWindow("2-1")
+    XCTAssertEqual(workspace.scroll?.map(\.isSelected), [false, true])
+  }
+
+  func testScrollEventsExcludeTitlesStacksAndOtherLayouts() {
+    let events = [
+      #"{"type":"workspace_changed","space_id":1}"#: true,
+      #"{"type":"windows_changed","windows":[]}"#: true,
+      #"{"type":"focused_window_changed","window_id":{"idx":1,"pid":2}}"#: true,
+      #"{"type":"layout_changed","layout":{"mode":"scrolling"}}"#: true,
+      #"{"type":"selection_changed","layout":{"mode":"scrolling"}}"#: true,
+      #"{"type":"layout_changed","layout":{"mode":"bsp"}}"#: false,
+      #"{"type":"window_title_changed","new_title":"x"}"#: false,
+      #"{"type":"stacks_changed","stacks":[]}"#: false,
+      "not json": false,
+    ]
+    for (event, affects) in events {
+      XCTAssertEqual(RiftWorkspaces.affectsScroll(Data(event.utf8)), affects, event)
+    }
   }
 
   func testMalformedOutputYieldsNoWorkspaces() {

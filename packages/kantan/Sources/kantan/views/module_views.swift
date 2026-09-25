@@ -292,30 +292,95 @@ struct StandardModuleView: View {
 /// Supports `maxSpaces` windowing: when the user has more spaces than
 /// `maxSpaces`, only a sliding window of spaces is shown, with an
 /// overflow indicator hinting at hidden spaces.
+///
+/// On a scrolling workspace with `scrolling` enabled, the segments are the
+/// scroll's windows, led by a column of pips for the workspaces. Switching
+/// to and from a scroll moves each workspace's segment into its pip and
+/// back, while the windows slide out of the pips and fade.
 struct WorkspaceModuleView: View {
   @ObservedObject var viewModel: ModuleViewModel
   @EnvironmentObject var themeProvider: ThemeProvider
+  /// Pairs each workspace's segment with its pip.
+  @Namespace private var workspaces
+
+  private static let pipDiameter: CGFloat = 4
+  private static let pipSpacing: CGFloat = 2
+  /// Share of the bar's height the pips may fill before they shrink.
+  private static let pipColumnHeight: CGFloat = 0.6
 
   private var wsConfig: WorkspaceConfig? {
     viewModel.moduleConfig.config as? WorkspaceConfig
   }
 
   var body: some View {
-    let allSegments = getWorkspaceSegments()
     let wsConfig = self.wsConfig
-    let window = windowedSegments(allSegments, config: wsConfig)
+    let display = wsConfig?.display ?? WorkspaceDisplay()
+    let window = windowedSegments(display.segments, config: wsConfig)
+    let animates = viewModel.contentAnimation != nil
 
     HStack(spacing: 6) {
+      if !display.pips.isEmpty {
+        pipColumn(display.pips, animates: animates)
+      }
       if window.overflowBefore {
         overflowIndicatorView(icon: wsConfig?.overflow.iconLeft ?? "‹", config: wsConfig)
       }
-      ForEach(Array(window.segments.enumerated()), id: \.offset) { _, segment in
-        Text(segment.label)
-          .font(segmentFont(segment))
-          .foregroundStyle(segmentColor(segment))
+      ForEach(window.segments, id: \.id) { segment in
+        segmentLabel(segment, slot: display.slot)
+          .matchedGeometryEffect(id: segment.id, in: workspaces, properties: .position)
+          .transition(Self.transition(forScroll: display.isScroll, animates: animates))
       }
       if window.overflowAfter {
         overflowIndicatorView(icon: wsConfig?.overflow.iconRight ?? "›", config: wsConfig)
+      }
+    }
+  }
+
+  private static let workspaceTransition = staggered(
+    .scale(scale: 0.4).combined(with: .opacity))
+  private static let windowTransition = staggered(.offset(x: -8).combined(with: .opacity))
+
+  /// How segments come and go: windows slide from the pips and workspaces
+  /// scale, unless changes show at once.
+  private static func transition(forScroll isScroll: Bool, animates: Bool) -> AnyTransition {
+    guard animates else { return .identity }
+    return isScroll ? windowTransition : workspaceTransition
+  }
+
+  private static func staggered(_ transition: AnyTransition) -> AnyTransition {
+    .asymmetric(
+      insertion: transition.animation(ModuleAnimation.entrance),
+      removal: transition.animation(ModuleAnimation.exit))
+  }
+
+  /// A segment's label, centred in a slot at least as wide as `slot`.
+  private func segmentLabel(_ segment: WorkspaceSegment, slot: WorkspaceSegment?) -> some View {
+    ZStack {
+      if let slot {
+        Text(slot.label).font(segmentFont(slot)).hidden()
+      }
+      Text(segment.label)
+        .font(segmentFont(segment))
+        .foregroundStyle(segmentColor(segment))
+    }
+  }
+
+  // MARK: - Pips
+
+  /// The workspaces top to bottom, shrinking to fit the bar when there are
+  /// many.
+  private func pipColumn(_ pips: [WorkspaceSegment], animates: Bool) -> some View {
+    let count = CGFloat(pips.count)
+    let natural = count * Self.pipDiameter + (count - 1) * Self.pipSpacing
+    let available = CGFloat(themeProvider.config.height) * Self.pipColumnHeight
+    let scale = min(1, available / natural)
+    return VStack(spacing: Self.pipSpacing * scale) {
+      ForEach(pips, id: \.id) { pip in
+        Circle()
+          .fill(segmentColor(pip))
+          .frame(width: Self.pipDiameter * scale, height: Self.pipDiameter * scale)
+          .matchedGeometryEffect(id: pip.id, in: workspaces, properties: .position)
+          .transition(animates ? Self.workspaceTransition : .identity)
       }
     }
   }

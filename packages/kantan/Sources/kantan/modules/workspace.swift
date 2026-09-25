@@ -2,7 +2,9 @@ import Foundation
 
 // MARK: - Workspace Segment Data
 
-struct WorkspaceSegment: Sendable {
+struct WorkspaceSegment: Equatable, Sendable {
+  /// Identifies the workspace or window the segment shows, across updates.
+  let id: String
   let label: String
   let isActive: Bool
   /// When the label came from a named icon (e.g. "point-filled"),
@@ -14,9 +16,10 @@ struct WorkspaceSegment: Sendable {
   let colorOverride: String?
 
   init(
-    label: String, isActive: Bool, fontNameOverride: String? = nil, scaleFactor: CGFloat = 1.0,
-    colorOverride: String? = nil
+    id: String, label: String, isActive: Bool, fontNameOverride: String? = nil,
+    scaleFactor: CGFloat = 1.0, colorOverride: String? = nil
   ) {
+    self.id = id
     self.label = label
     self.isActive = isActive
     self.fontNameOverride = fontNameOverride
@@ -25,10 +28,25 @@ struct WorkspaceSegment: Sendable {
   }
 }
 
-// Module-level cache for structured workspace data.
-// The drawing pipeline reads this to render per-space indicators.
-nonisolated(unsafe) private var cachedSegments: [WorkspaceSegment] = []
-private let segmentsLock = NSLock()
+/// What the workspace module shows: a segment per workspace, or the
+/// windows of the active workspace's scroll beside pips for its workspaces.
+struct WorkspaceDisplay: Equatable, Sendable {
+  var segments: [WorkspaceSegment] = []
+  /// Whether `segments` are the windows of the active workspace's scroll.
+  var isScroll = false
+  /// The workspaces with windows, and the active one, shown beside a
+  /// scroll; empty when the active workspace is the only one.
+  var pips: [WorkspaceSegment] = []
+  /// The active workspace's segment beside a scroll, whose width sets the
+  /// narrowest a window takes, so windows are spaced like workspaces.
+  var slot: WorkspaceSegment?
+
+  /// Changes whenever the module's width might.
+  var summary: String {
+    ([slot].compactMap { $0 } + pips + segments)
+      .map { ($0.isActive ? ">" : "") + $0.label }.joined(separator: " ")
+  }
+}
 
 // Memo for `shuffledRainbow`. The output is a pure function of
 // `(colors, spaceCount)` so a successful lookup avoids re-shuffling
@@ -39,18 +57,6 @@ struct RainbowKey: Hashable {
 }
 nonisolated(unsafe) private var rainbowCache: [RainbowKey: [String]] = [:]
 private let rainbowCacheLock = NSLock()
-
-func getWorkspaceSegments() -> [WorkspaceSegment] {
-  segmentsLock.lock()
-  defer { segmentsLock.unlock() }
-  return cachedSegments
-}
-
-private func setWorkspaceSegments(_ segments: [WorkspaceSegment]) {
-  segmentsLock.lock()
-  defer { segmentsLock.unlock() }
-  cachedSegments = segments
-}
 
 // MARK: - Factory
 
@@ -92,6 +98,57 @@ struct RainbowConfig: Sendable {
   static let disabled = RainbowConfig(enabled: false, random: true, colors: [])
 }
 
+// MARK: - Scrolling Config
+
+/// Shows the windows of the active workspace's scrolling layout in place
+/// of the workspaces, for providers that report one (Rift).
+struct ScrollingConfig: Sendable {
+  let enabled: Bool
+  /// Icon for windows of apps without an entry in `icons`.
+  let icon: String
+  /// Lowercased app name or bundle identifier → icon.
+  let icons: [String: String]
+  /// Whether pips beside the scroll show the other workspaces with windows.
+  let showsWorkspaces: Bool
+  /// Palette windows take a colour from by app, or empty for them to take
+  /// their workspace's colour.
+  let rainbow: [String]
+
+  static let defaultIcon = "rectangle-vertical-filled"
+  static let disabled = ScrollingConfig(
+    enabled: false, icon: defaultIcon, icons: [:], showsWorkspaces: true)
+
+  init(
+    enabled: Bool, icon: String, icons: [String: String], showsWorkspaces: Bool,
+    rainbow: [String] = []
+  ) {
+    self.enabled = enabled
+    self.icon = icon
+    self.icons = Dictionary(icons.map { ($0.key.lowercased(), $0.value) }) { first, _ in first }
+    self.showsWorkspaces = showsWorkspaces
+    self.rainbow = rainbow
+  }
+
+  /// A window's rainbow colour, the same for every window of its app, so
+  /// it follows the window as the scroll changes.
+  func color(for window: ScrollWindow) -> String? {
+    guard !rainbow.isEmpty else { return nil }
+    let app = (window.bundleIdentifier ?? window.app).lowercased()
+    // FNV-1a, which unlike `hashValue` is the same in every run.
+    let hash = app.utf8.reduce(UInt64(14_695_981_039_346_656_037)) {
+      ($0 ^ UInt64($1)) &* 1_099_511_628_211
+    }
+    return rainbow[Int(hash % UInt64(rainbow.count))]
+  }
+
+  /// The icon for a window: its app's entry by bundle identifier, then by
+  /// name, ignoring case, then `icon`.
+  func icon(for window: ScrollWindow) -> String {
+    [window.bundleIdentifier, window.app].lazy.compactMap { $0 }
+      .compactMap { icons[$0.lowercased()] }.first ?? icon
+  }
+}
+
 // MARK: - Providers
 
 /// A workspace as reported by a provider. `index` positions it for
@@ -100,6 +157,27 @@ struct Workspace: Equatable, Sendable {
   let index: Int
   let label: String
   let isActive: Bool
+  var hasWindows = false
+  /// The windows of a scrolling layout in strip order, or nil for any
+  /// other layout.
+  var scroll: [ScrollWindow]?
+
+  /// Marks the scroll's window `id` as selected, when the scroll holds it.
+  mutating func selectWindow(_ id: String) {
+    guard let scroll, scroll.contains(where: { $0.id == id }) else { return }
+    self.scroll = scroll.map {
+      ScrollWindow(
+        id: $0.id, app: $0.app, bundleIdentifier: $0.bundleIdentifier, isSelected: $0.id == id)
+    }
+  }
+}
+
+/// A window in a scrolling layout.
+struct ScrollWindow: Equatable, Sendable {
+  let id: String
+  let app: String
+  let bundleIdentifier: String?
+  let isSelected: Bool
 }
 
 /// A source of workspaces for the workspace module, selected by `config.type`.
@@ -129,14 +207,27 @@ final class WorkspaceConfig: ModuleConfiguration, EventDrivenModule {
   let icons: [String]
   let overflow: OverflowConfig
   let rainbow: RainbowConfig
+  let scrolling: ScrollingConfig
   /// Module-level icon (from top-level `icon:` key), used as fallback
   /// when `config.icons` doesn't cover a space.
   nonisolated(unsafe) var moduleIcon: String?
 
+  private let displayLock = NSLock()
+  nonisolated(unsafe) private var currentDisplay = WorkspaceDisplay()
+
   var redrawInterval: TimeInterval { noPoll }
 
-  init(yaml: Yaml?) {
-    self.provider = Self.provider(named: yaml?["type"].string)
+  /// What the module shows, as of the last `getValue`.
+  var display: WorkspaceDisplay {
+    displayLock.withLock { currentDisplay }
+  }
+
+  /// `provider` replaces the one `type` selects.
+  init(yaml: Yaml?, provider: (any WorkspaceProvider)? = nil) {
+    self.scrolling = Self.parseScrolling(
+      yaml?["scrolling"], palette: yaml?["rainbow"]["colors"].array?.compactMap(\.string) ?? [])
+    self.provider =
+      provider ?? Self.provider(named: yaml?["type"].string, scrolling: scrolling.enabled)
     self.icons = yaml?["icons"].array?.compactMap { $0.string } ?? []
 
     if let rbYaml = yaml?["rainbow"].dictionary {
@@ -189,16 +280,37 @@ final class WorkspaceConfig: ModuleConfiguration, EventDrivenModule {
     self.icons = []
     self.overflow = .disabled
     self.rainbow = .disabled
+    self.scrolling = .disabled
   }
 
   func encode(to encoder: Encoder) throws {}
 
-  static func provider(named type: String?) -> any WorkspaceProvider {
+  static func provider(named type: String?, scrolling: Bool = false) -> any WorkspaceProvider {
     switch type {
     case "aerospace": AerospaceWorkspaces()
-    case "rift": RiftWorkspaces()
+    case "rift": RiftWorkspaces(scrolling: scrolling)
     default: NativeWorkspaces()
     }
+  }
+
+  /// `palette` is the module's rainbow colours, which a scroll's rainbow
+  /// uses unless it lists its own.
+  static func parseScrolling(_ yaml: Yaml?, palette: [String] = []) -> ScrollingConfig {
+    guard let scrolling = yaml?.dictionary else { return .disabled }
+    let rainbow = scrolling["rainbow"]?.dictionary
+    let rainbowColors = rainbow?["colors"]?.array?.compactMap(\.string) ?? palette
+    var icons: [String: String] = [:]
+    for (key, value) in scrolling["icons"]?.dictionary ?? [:] {
+      if let app = key.string, let icon = value.string {
+        icons[app] = icon
+      }
+    }
+    return ScrollingConfig(
+      enabled: scrolling["enabled"]?.bool ?? false,
+      icon: scrolling["icon"]?.string ?? ScrollingConfig.defaultIcon,
+      icons: icons,
+      showsWorkspaces: scrolling["workspaces"]?.bool ?? true,
+      rainbow: rainbow?["enabled"]?.bool == true ? rainbowColors : [])
   }
 
   // MARK: - EventDrivenModule
@@ -213,50 +325,66 @@ final class WorkspaceConfig: ModuleConfiguration, EventDrivenModule {
 
   func getValue(completion: @escaping @Sendable (String) -> Void) {
     let provider = self.provider
-    let iconList = self.icons
-    let modIcon = self.moduleIcon
-    let rb = self.rainbow
 
     DispatchQueue.global(qos: .userInitiated).async {
-      let spaces = provider.workspaces()
-
-      // Pre-compute rainbow colour assignments if enabled.
-      let rainbowColors: [String]?
-      if rb.enabled, !rb.colors.isEmpty {
-        rainbowColors =
-          rb.random
-          ? Self.shuffledRainbow(rb.colors, spaceCount: spaces.count)
-          : rb.colors
-      } else {
-        rainbowColors = nil
-      }
-
-      let segments = spaces.map { space -> WorkspaceSegment in
-        let rawIcon: String
-        if space.index < iconList.count {
-          rawIcon = iconList[space.index]
-        } else if let mi = modIcon, !mi.isEmpty {
-          rawIcon = mi
-        } else {
-          rawIcon = space.label
-        }
-        let resolved = resolveIconName(rawIcon)
-        let colorOvr = rainbowColors.map { $0[space.index % $0.count] }
-        return WorkspaceSegment(
-          label: resolved.glyph, isActive: space.isActive,
-          fontNameOverride: resolved.fontNameOverride,
-          scaleFactor: resolved.scaleFactor,
-          colorOverride: colorOvr)
-      }
-
-      setWorkspaceSegments(segments)
-
-      // Return a value string that changes when workspace state changes,
-      // so the drawing pipeline detects the update and redraws.
-      let value = segments.map { ($0.isActive ? ">" : "") + $0.label }
-        .joined(separator: " ")
-      completion(value)
+      let display = self.display(of: provider.workspaces())
+      self.displayLock.withLock { self.currentDisplay = display }
+      // A value that changes with the display, so the module redraws and
+      // its panel resizes.
+      completion(display.summary)
     }
+  }
+
+  /// What to show for `spaces`: the active workspace's scroll while it has
+  /// windows and scrolling is enabled, otherwise the workspaces.
+  func display(of spaces: [Workspace]) -> WorkspaceDisplay {
+    let rainbowColors: [String]?
+    if rainbow.enabled, !rainbow.colors.isEmpty {
+      rainbowColors =
+        rainbow.random
+        ? Self.shuffledRainbow(rainbow.colors, spaceCount: spaces.count)
+        : rainbow.colors
+    } else {
+      rainbowColors = nil
+    }
+    let color = { (space: Workspace) in rainbowColors.map { $0[space.index % $0.count] } }
+
+    let segments = spaces.map { space -> WorkspaceSegment in
+      let rawIcon: String
+      if space.index < icons.count {
+        rawIcon = icons[space.index]
+      } else if let mi = moduleIcon, !mi.isEmpty {
+        rawIcon = mi
+      } else {
+        rawIcon = space.label
+      }
+      let resolved = resolveIconName(rawIcon)
+      return WorkspaceSegment(
+        id: "workspace-\(space.index)", label: resolved.glyph, isActive: space.isActive,
+        fontNameOverride: resolved.fontNameOverride,
+        scaleFactor: resolved.scaleFactor,
+        colorOverride: color(space))
+    }
+
+    guard scrolling.enabled, let active = spaces.first(where: \.isActive),
+      let scroll = active.scroll, !scroll.isEmpty
+    else {
+      return WorkspaceDisplay(segments: segments)
+    }
+
+    let windows = scroll.map { window in
+      let resolved = resolveIconName(scrolling.icon(for: window))
+      return WorkspaceSegment(
+        id: "window-\(window.id)", label: resolved.glyph, isActive: window.isSelected,
+        fontNameOverride: resolved.fontNameOverride,
+        scaleFactor: resolved.scaleFactor,
+        colorOverride: scrolling.color(for: window) ?? color(active))
+    }
+    let pips = zip(spaces, segments).filter { $0.0.hasWindows || $0.0.isActive }.map(\.1)
+    return WorkspaceDisplay(
+      segments: windows, isScroll: true,
+      pips: scrolling.showsWorkspaces && pips.count > 1 ? pips : [],
+      slot: segments.first(where: \.isActive))
   }
 
   // MARK: - Rainbow Helpers

@@ -484,6 +484,28 @@
               "description": "Style overrides for overflow indicator segments."
             }
           }
+        },
+        "scrolling": {
+          "type": "object",
+          "description": "Rift only. While the active workspace uses Rift's scrolling layout and has windows, shows its windows in strip order instead of the workspaces, with the selected one highlighted.",
+          "properties": {
+            "enabled": { "type": "boolean", "default": false },
+            "icon": { "type": "string", "default": "rectangle-vertical-filled", "description": "Icon for each window." },
+            "icons": {
+              "type": "object",
+              "additionalProperties": { "type": "string" },
+              "description": "App name or bundle identifier to icon, matched ignoring case; the bundle identifier is tried first."
+            },
+            "workspaces": { "type": "boolean", "default": true, "description": "Show a column of pips for the workspaces with windows beside the windows." },
+            "rainbow": {
+              "type": "object",
+              "description": "Colours each app's windows from a palette.",
+              "properties": {
+                "enabled": { "type": "boolean", "default": false },
+                "colors": { "type": "array", "items": { "type": "string" }, "description": "Palette for window colours. Defaults to the module's rainbow.colors." }
+              }
+            }
+          }
         }
       }
     },
