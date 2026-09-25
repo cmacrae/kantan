@@ -220,32 +220,29 @@ func watchMode() -> Int32 {
 
   let name = moduleName(fallback: "calendar")
   let triggerCmd = "kantan trigger \(shellQuote(name)) refresh"
+  let triggerRefresh: @Sendable () -> Void = {
+    let process = Process()
+    process.executableURL = URL(fileURLWithPath: "/bin/sh")
+    process.arguments = ["-c", triggerCmd]
+    process.standardOutput = FileHandle.nullDevice
+    process.standardError = FileHandle.nullDevice
+    try? process.run()
+    process.waitUntilExit()
+  }
+
+  // kantan's first run may have timed out while the permission prompt was
+  // open, so refresh as soon as access is confirmed.
+  triggerRefresh()
 
   // Watch for EKEventStore changes
   NotificationCenter.default.addObserver(
     forName: .EKEventStoreChanged,
     object: store,
     queue: nil
-  ) { _ in
-    let process = Process()
-    process.executableURL = URL(fileURLWithPath: "/bin/sh")
-    process.arguments = ["-c", triggerCmd]
-    process.standardOutput = FileHandle.nullDevice
-    process.standardError = FileHandle.nullDevice
-    try? process.run()
-    process.waitUntilExit()
-  }
+  ) { _ in triggerRefresh() }
 
   // 60-second timer for countdown updates
-  let timer = Timer(timeInterval: 60.0, repeats: true) { _ in
-    let process = Process()
-    process.executableURL = URL(fileURLWithPath: "/bin/sh")
-    process.arguments = ["-c", triggerCmd]
-    process.standardOutput = FileHandle.nullDevice
-    process.standardError = FileHandle.nullDevice
-    try? process.run()
-    process.waitUntilExit()
-  }
+  let timer = Timer(timeInterval: 60.0, repeats: true) { _ in triggerRefresh() }
   RunLoop.main.add(timer, forMode: .common)
 
   // Run until stdin closes
