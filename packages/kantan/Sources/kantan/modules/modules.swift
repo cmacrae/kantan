@@ -48,7 +48,9 @@ protocol ModuleConfiguration: Sendable {
   func getTemplateVariables() -> [String: String]
   func isActive() -> Bool
   func shouldDisplay() -> Bool
-  func handleToggle()
+  /// Runs the module's toggle action, calling `completion` once it has
+  /// finished. Must not block the calling (main) thread.
+  func handleToggle(completion: @escaping @Sendable () -> Void)
   func getViewTree() -> ViewNode?
   func getDynamicStyle() -> DynamicStyleOverride?
   func getWatchCommand() -> String?
@@ -60,7 +62,7 @@ extension ModuleConfiguration {
   func getTemplateVariables() -> [String: String] { [:] }
   func isActive() -> Bool { true }
   func shouldDisplay() -> Bool { true }
-  func handleToggle() {}
+  func handleToggle(completion: @escaping @Sendable () -> Void) { completion() }
   func getViewTree() -> ViewNode? { nil }
   func getDynamicStyle() -> DynamicStyleOverride? { nil }
   func getWatchCommand() -> String? { nil }

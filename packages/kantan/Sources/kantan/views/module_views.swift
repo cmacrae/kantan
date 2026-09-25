@@ -140,8 +140,7 @@ struct ModuleContainerView: View {
           moduleMinX: moduleScreenMinX, liveContent: liveContent)
       }
     case "complete":
-      viewModel.moduleConfig.config?.handleToggle()
-      viewModel.update()
+      toggle()
     case "popup":
       let liveContent = LiveContentProvider(viewModel: viewModel)
       if let viewTree = click.viewTree ?? viewModel.viewTree {
@@ -152,10 +151,20 @@ struct ModuleContainerView: View {
     case "drawer":
       viewModel.toggleAction?()
     case "toggle":
-      viewModel.moduleConfig.config?.handleToggle()
-      viewModel.update()
+      toggle()
     default:
       break
+    }
+  }
+
+  /// Runs the module's toggle action, refreshing the module once it exits.
+  private func toggle() {
+    let viewModel = self.viewModel
+    guard let config = viewModel.moduleConfig.config else { return }
+    config.handleToggle {
+      DispatchQueue.main.async {
+        MainActor.assumeIsolated { viewModel.update() }
+      }
     }
   }
 

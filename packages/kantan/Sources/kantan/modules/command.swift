@@ -143,8 +143,14 @@ struct CommandConfig: ModuleConfiguration {
 
   func getWatchCommand() -> String? { watchCommand }
 
-  func handleToggle() {
-    guard let toggle = toggleCommand, !toggle.isEmpty else { return }
+  /// Launches the toggle command and returns immediately; `completion`
+  /// runs when it exits, so a slow command (e.g. one waiting on a
+  /// permission prompt) never blocks the bar.
+  func handleToggle(completion: @escaping @Sendable () -> Void) {
+    guard let toggle = toggleCommand, !toggle.isEmpty else {
+      completion()
+      return
+    }
     let process = Process()
     process.executableURL = URL(fileURLWithPath: launchPath)
     process.arguments = launchArgs + [toggle]
@@ -159,8 +165,12 @@ struct CommandConfig: ModuleConfiguration {
     process.environment = env
     process.standardOutput = FileHandle.nullDevice
     process.standardError = FileHandle.nullDevice
-    try? process.run()
-    process.waitUntilExit()
+    process.terminationHandler = { _ in completion() }
+    do {
+      try process.run()
+    } catch {
+      completion()
+    }
   }
 
   func getValue(completion: @escaping @Sendable (String) -> Void) {

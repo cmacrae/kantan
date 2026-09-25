@@ -1358,6 +1358,45 @@ final class EventStreamProcessTests: XCTestCase {
   }
 }
 
+// MARK: - Command toggle
+
+final class CommandToggleTests: XCTestCase {
+  override func setUp() {
+    super.setUp()
+    // handleToggle reads NSApp's appearance for KANTAN_APPEARANCE.
+    MainActor.assumeIsolated { _ = NSApplication.shared }
+  }
+
+  private func config(_ yaml: String) throws -> CommandConfig {
+    try CommandConfig(yaml: try Yaml.load(yaml))
+  }
+
+  func testToggleReturnsBeforeCommandExits() throws {
+    let toggle = try config("command: 'true'\ntoggle: sleep 0.5\n")
+    let exited = expectation(description: "toggle exited")
+    let started = Date()
+    toggle.handleToggle { exited.fulfill() }
+    XCTAssertLessThan(Date().timeIntervalSince(started), 0.2)
+    wait(for: [exited], timeout: 3)
+    XCTAssertGreaterThanOrEqual(Date().timeIntervalSince(started), 0.4)
+  }
+
+  func testMissingToggleCompletesImmediately() throws {
+    let toggle = try config("command: 'true'\n")
+    let done = expectation(description: "completed")
+    toggle.handleToggle { done.fulfill() }
+    wait(for: [done], timeout: 0.1)
+  }
+
+  func testUnlaunchableToggleStillCompletes() throws {
+    let toggle = try config(
+      "command: 'true'\ntoggle: x\nlauncher:\n  path: /nonexistent/sh\n")
+    let done = expectation(description: "completed")
+    toggle.handleToggle { done.fulfill() }
+    wait(for: [done], timeout: 1)
+  }
+}
+
 // MARK: - Watch process restart backoff
 
 final class WatchRestartDelayTests: XCTestCase {
