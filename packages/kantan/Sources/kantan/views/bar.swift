@@ -25,11 +25,18 @@ private struct ModuleVisibilityView: View {
 /// Each group gets its own NSPanel in the multi-panel architecture.
 struct ModuleGroupView: View {
   let modules: [ModuleViewModel]
+  let placement: String
   let popupManager: PopupManager
   @ObservedObject var themeProvider: ThemeProvider
 
   private var isMasked: Bool {
     modules.count == 1 && modules[0].moduleConfig.mask != nil
+  }
+
+  /// The edge the group grows away from, which stays put while its panel
+  /// resizes around content changing width.
+  private var anchor: Alignment {
+    placement == "right" || placement == "notchleft" ? .trailing : .leading
   }
 
   var body: some View {
@@ -45,6 +52,7 @@ struct ModuleGroupView: View {
     .frame(maxWidth: isMasked ? .infinity : nil)
     .fixedSize(horizontal: !isMasked, vertical: false)
     .frame(height: CGFloat(themeProvider.config.height))
+    .frame(maxWidth: .infinity, alignment: anchor)
     .environmentObject(themeProvider)
   }
 }

@@ -1,6 +1,18 @@
 import AppKit
 import SwiftUI
 
+// MARK: - Module Animation
+
+/// Timing shared by animated module content and the panels that resize
+/// with it, so both move together.
+enum ModuleAnimation {
+  static let duration: TimeInterval = 0.3
+  static let content = Animation.timingCurve(0.4, 0, 0.2, 1, duration: duration)
+  static var panelTiming: CAMediaTimingFunction {
+    CAMediaTimingFunction(controlPoints: 0.4, 0, 0.2, 1)
+  }
+}
+
 // MARK: - Module View Model
 
 @MainActor
@@ -32,6 +44,21 @@ class ModuleViewModel: ObservableObject, Identifiable {
   /// (e.g. notch-only placement on all non-notch screens). Separate from
   /// sleep pause — suspension only applies to placement-based hiding.
   private(set) var isSuspended: Bool = false
+
+  /// Whether the module animates changes to its content: workspace modules
+  /// do, as their segments come and go.
+  var animatesContent: Bool {
+    moduleConfig.config is WorkspaceConfig
+  }
+
+  /// The animation for a change to the module's content, or nil to show it
+  /// at once, as with Reduce Motion on.
+  var contentAnimation: Animation? {
+    guard animatesContent, !NSWorkspace.shared.accessibilityDisplayShouldReduceMotion else {
+      return nil
+    }
+    return ModuleAnimation.content
+  }
 
   private var updateGeneration: UInt64 = 0
   nonisolated(unsafe) private var timer: Timer?
@@ -109,18 +136,20 @@ class ModuleViewModel: ObservableObject, Identifiable {
         let currentIcon = config is CommandConfig ? config.getIcon() : icon
         let rawIcon = currentIcon.isEmpty ? moduleIcon : currentIcon
         let resolved = rawIcon.map { resolveIconName($0) }
-        self.displayValue = newValue
-        self.displayIcon = resolved?.glyph ?? rawIcon
-        self.iconFontNameOverride = resolved?.fontNameOverride
-        self.iconScaleFactor = resolved?.scaleFactor ?? 1.0
-        self.backgroundIcon = resolvedBgGlyph
-        self.isActive = config.isActive()
-        self.shouldDisplay = config.shouldDisplay()
-        self.templateVariables = config.getTemplateVariables()
-        self.dynamicStyle = config.getDynamicStyle()
-        self.viewTree = config.getViewTree()
-        if let cmdConfig = config as? CommandConfig {
-          self.data = cmdConfig.getData()
+        withAnimation(self.contentAnimation) {
+          self.displayValue = newValue
+          self.displayIcon = resolved?.glyph ?? rawIcon
+          self.iconFontNameOverride = resolved?.fontNameOverride
+          self.iconScaleFactor = resolved?.scaleFactor ?? 1.0
+          self.backgroundIcon = resolvedBgGlyph
+          self.isActive = config.isActive()
+          self.shouldDisplay = config.shouldDisplay()
+          self.templateVariables = config.getTemplateVariables()
+          self.dynamicStyle = config.getDynamicStyle()
+          self.viewTree = config.getViewTree()
+          if let cmdConfig = config as? CommandConfig {
+            self.data = cmdConfig.getData()
+          }
         }
       }
     }

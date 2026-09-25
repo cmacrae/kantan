@@ -377,6 +377,7 @@ class DisplayInstance {
     for group in allGroups {
       let groupView = ModuleGroupView(
         modules: group.modules,
+        placement: group.placement,
         popupManager: bar.popupManager,
         themeProvider: theme
       )
@@ -453,7 +454,9 @@ class DisplayInstance {
     return NSRect(x: panelX, y: statusBarY, width: fittingWidth, height: barHeight)
   }
 
-  func repositionPanels() {
+  /// Moves every panel into place. `animated` animates the unmasked panels
+  /// in step with module content changing size.
+  func repositionPanels(animated: Bool = false) {
     guard let screen = resolveScreen(),
       let bgPanel = bgPanel
     else { return }
@@ -488,6 +491,7 @@ class DisplayInstance {
       }
     }
 
+    var targets: [(panel: NSPanel, frame: NSRect)] = []
     for entry in groupPanels {
       if entry.group.modules.count == 1 && entry.group.modules[0].moduleConfig.mask != nil {
         continue
@@ -502,10 +506,31 @@ class DisplayInstance {
       let panelFrame = positionPanel(
         placement: entry.group.placement, fittingWidth: fittingWidth,
         statusBarY: statusBarY, bounds: &bounds)
-      entry.panel.setFrame(panelFrame, display: true)
+      targets.append((entry.panel, panelFrame))
     }
 
-    updateDrawerClickPanels()
+    guard animated, targets.contains(where: { $0.panel.frame != $0.frame }) else {
+      for target in targets {
+        target.panel.setFrame(target.frame, display: true)
+      }
+      updateDrawerClickPanels()
+      return
+    }
+    NSAnimationContext.runAnimationGroup(
+      { context in
+        context.duration = ModuleAnimation.duration
+        context.timingFunction = ModuleAnimation.panelTiming
+        for target in targets {
+          target.panel.animator().setFrame(target.frame, display: true)
+        }
+      },
+      completionHandler: { [weak self] in
+        DispatchQueue.main.async {
+          MainActor.assumeIsolated {
+            self?.updateDrawerClickPanels()
+          }
+        }
+      })
   }
 
   // MARK: - Drawer Click Panels
@@ -973,10 +998,12 @@ class AppDelegate: NSObject, NSApplicationDelegate {
       let shouldDisplay = vm.$shouldDisplay.removeDuplicates().map { _ in () }
       let displayValue = vm.$displayValue.removeDuplicates().map { _ in () }
       let displayIcon = vm.$displayIcon.removeDuplicates().map { _ in () }
+      // Animated content starts moving at once, so its panels follow
+      // straight after the update instead of after a pause.
       Publishers.Merge3(shouldDisplay, displayValue, displayIcon)
-        .debounce(for: .milliseconds(50), scheduler: RunLoop.main)
-        .sink { [weak self] _ in
-          self?.repositionAllDisplays()
+        .debounce(for: .milliseconds(vm.animatesContent ? 0 : 50), scheduler: RunLoop.main)
+        .sink { [weak self, weak vm] _ in
+          self?.repositionAllDisplays(animated: vm?.contentAnimation != nil)
         }
         .store(in: &visibilityCancellables)
     }
@@ -1100,9 +1127,9 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
   // MARK: - Repositioning
 
-  func repositionAllDisplays() {
+  func repositionAllDisplays(animated: Bool = false) {
     for instance in displayInstances {
-      instance.repositionPanels()
+      instance.repositionPanels(animated: animated)
     }
   }
 
