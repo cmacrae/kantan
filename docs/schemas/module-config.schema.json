@@ -442,18 +442,14 @@
       "properties": {
         "type": {
           "type": "string",
-          "enum": ["native", "aerospace"],
+          "enum": ["native", "aerospace", "rift"],
           "default": "native",
-          "description": "Workspace manager type. 'native' uses macOS native spaces (event-driven via NSWorkspace notifications). 'aerospace' uses the Aerospace tiling window manager (trigger-driven via CLI)."
+          "description": "Workspace manager type. 'native' uses macOS native spaces (event-driven via NSWorkspace notifications). 'aerospace' uses the Aerospace tiling window manager (trigger-driven via CLI). 'rift' uses the Rift tiling window manager (event-driven via a subscription through the rift-cli beside the running rift)."
         },
         "icons": {
           "type": "array",
           "items": { "type": "string" },
           "description": "Ordered list of icons for workspaces. Index 0 maps to space 1, etc. Workspaces beyond the array length fall back to the module-level 'icon' field."
-        },
-        "aerospacePath": {
-          "type": "string",
-          "description": "Path to the aerospace binary. Only used when type is 'aerospace'."
         },
         "rainbow": {
           "type": "object",

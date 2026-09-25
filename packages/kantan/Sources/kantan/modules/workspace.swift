@@ -92,33 +92,52 @@ struct RainbowConfig: Sendable {
   static let disabled = RainbowConfig(enabled: false, random: true, colors: [])
 }
 
+// MARK: - Providers
+
+/// A workspace as reported by a provider. `index` positions it for
+/// `config.icons` and rainbow colours.
+struct Workspace: Equatable, Sendable {
+  let index: Int
+  let label: String
+  let isActive: Bool
+}
+
+/// A source of workspaces for the workspace module, selected by `config.type`.
+protocol WorkspaceProvider: Sendable {
+  /// The current workspaces in display order. Called off the main thread.
+  func workspaces() -> [Workspace]
+  /// Begins calling `onChange` when workspaces change. Providers refreshed
+  /// through EventObserver or `kantan trigger` don't observe anything.
+  func startObserving(onChange: @escaping @Sendable () -> Void)
+  func stopObserving()
+}
+
+extension WorkspaceProvider {
+  func startObserving(onChange: @escaping @Sendable () -> Void) {}
+  func stopObserving() {}
+}
+
 // MARK: - Configuration
 
-/// Workspace module. Native macOS spaces are event-driven via
-/// NSWorkspace.activeSpaceDidChangeNotification (handled by EventObserver
-/// which calls refreshAll()). Aerospace workspaces rely on CLI triggers.
-/// Neither mode requires polling.
-struct WorkspaceConfig: ModuleConfiguration {
+/// Workspace module. No provider requires polling: native spaces refresh
+/// via EventObserver, aerospace via `kantan trigger` and Rift via its own
+/// event subscription.
+final class WorkspaceConfig: ModuleConfiguration, EventDrivenModule {
   var type: String { "workspace" }
 
-  let providerType: String  // "native" or "aerospace"
+  let provider: any WorkspaceProvider
   let icons: [String]
-  let aerospacePath: String?
   let overflow: OverflowConfig
   let rainbow: RainbowConfig
   /// Module-level icon (from top-level `icon:` key), used as fallback
   /// when `config.icons` doesn't cover a space.
-  var moduleIcon: String?
+  nonisolated(unsafe) var moduleIcon: String?
 
-  // No polling needed — native uses NSWorkspace notifications via
-  // EventObserver, aerospace uses CLI triggers. Both call refreshAll()
-  // which invokes update() on this module.
   var redrawInterval: TimeInterval { noPoll }
 
   init(yaml: Yaml?) {
-    self.providerType = yaml?["type"].string ?? "native"
+    self.provider = Self.provider(named: yaml?["type"].string)
     self.icons = yaml?["icons"].array?.compactMap { $0.string } ?? []
-    self.aerospacePath = yaml?["aerospacePath"].string
 
     if let rbYaml = yaml?["rainbow"].dictionary {
       let enabled = rbYaml["enabled"]?.bool ?? false
@@ -166,36 +185,40 @@ struct WorkspaceConfig: ModuleConfiguration {
   }
 
   init(from decoder: Decoder) throws {
-    self.providerType = "native"
+    self.provider = NativeWorkspaces()
     self.icons = []
-    self.aerospacePath = nil
     self.overflow = .disabled
     self.rainbow = .disabled
   }
 
   func encode(to encoder: Encoder) throws {}
 
+  static func provider(named type: String?) -> any WorkspaceProvider {
+    switch type {
+    case "aerospace": AerospaceWorkspaces()
+    case "rift": RiftWorkspaces()
+    default: NativeWorkspaces()
+    }
+  }
+
+  // MARK: - EventDrivenModule
+
+  func startObserving(onChange: @escaping @Sendable () -> Void) {
+    provider.startObserving(onChange: onChange)
+  }
+
+  func stopObserving() {
+    provider.stopObserving()
+  }
+
   func getValue(completion: @escaping @Sendable (String) -> Void) {
-    let provider = self.providerType
+    let provider = self.provider
     let iconList = self.icons
     let modIcon = self.moduleIcon
-    let aeroPathOverride = self.aerospacePath
     let rb = self.rainbow
 
     DispatchQueue.global(qos: .userInitiated).async {
-      let spaces: [(index: Int, label: String, isActive: Bool)]
-
-      switch provider {
-      case "aerospace":
-        let resolvedPath = aeroPathOverride ?? Self.resolveExecutable("aerospace")
-        guard let path = resolvedPath else {
-          completion("")
-          return
-        }
-        spaces = Self.fetchAerospaceSpaces(path: path)
-      default:
-        spaces = Self.fetchNativeSpaces()
-      }
+      let spaces = provider.workspaces()
 
       // Pre-compute rainbow colour assignments if enabled.
       let rainbowColors: [String]?
@@ -233,99 +256,6 @@ struct WorkspaceConfig: ModuleConfiguration {
       let value = segments.map { ($0.isActive ? ">" : "") + $0.label }
         .joined(separator: " ")
       completion(value)
-    }
-  }
-
-  // MARK: - Native macOS Spaces
-
-  private static func fetchNativeSpaces()
-    -> [(index: Int, label: String, isActive: Bool)]
-  {
-    let cid = CGSMainConnectionID()
-    let activeSpace = CGSGetActiveSpace(cid)
-
-    guard
-      let displaySpaces = CGSCopyManagedDisplaySpaces(cid)
-        as? [[String: Any]]
-    else {
-      return []
-    }
-
-    var result: [(index: Int, label: String, isActive: Bool)] = []
-    var globalIndex = 0
-
-    for display in displaySpaces {
-      guard
-        let spaces = display["Spaces"] as? [[String: Any]]
-      else {
-        continue
-      }
-
-      for space in spaces {
-        guard let spaceID = space["id64"] as? Int else {
-          continue
-        }
-
-        // Skip fullscreen/system spaces (type 4 = user space)
-        let spaceType = space["type"] as? Int ?? 0
-        if spaceType != 0 && spaceType != 4 {
-          globalIndex += 1
-          continue
-        }
-
-        let isActive = spaceID == activeSpace
-        let label = String(globalIndex + 1)
-
-        result.append(
-          (index: globalIndex, label: label, isActive: isActive))
-        globalIndex += 1
-      }
-    }
-
-    return result
-  }
-
-  // MARK: - Aerospace Spaces
-
-  private static func fetchAerospaceSpaces(path: String)
-    -> [(index: Int, label: String, isActive: Bool)]
-  {
-    guard
-      let spacesData = runCommandSync(
-        path: path, arguments: ["list-workspaces", "--all", "--json"]),
-      let focusedData = runCommandSync(
-        path: path, arguments: ["list-workspaces", "--focused", "--json"])
-    else {
-      return []
-    }
-
-    struct AeroWorkspace: Decodable {
-      let workspace: String
-    }
-
-    let decoder = JSONDecoder()
-
-    guard let allSpaces = try? decoder.decode([AeroWorkspace].self, from: spacesData),
-      let focusedSpaces = try? decoder.decode([AeroWorkspace].self, from: focusedData)
-    else {
-      return []
-    }
-
-    let focusedID = focusedSpaces.first?.workspace
-
-    let sorted = allSpaces.sorted { lhs, rhs in
-      let lhsInt = Int(lhs.workspace) ?? Int.max
-      let rhsInt = Int(rhs.workspace) ?? Int.max
-      if lhsInt != rhsInt { return lhsInt < rhsInt }
-      return lhs.workspace < rhs.workspace
-    }
-
-    return sorted.enumerated().map { (index, space) in
-      (
-        index: index,
-        label: space.workspace,
-        isActive: space.workspace == focusedID
-      )
     }
   }
 
@@ -385,21 +315,5 @@ struct WorkspaceConfig: ModuleConfiguration {
       result.append(next)
     }
     return result
-  }
-
-  // MARK: - Helpers
-
-  private static func resolveExecutable(_ name: String) -> String? {
-    guard let pathVar = ProcessInfo.processInfo.environment["PATH"] else {
-      return nil
-    }
-    let fm = FileManager.default
-    for dir in pathVar.split(separator: ":") {
-      let candidate = "\(dir)/\(name)"
-      if fm.isExecutableFile(atPath: candidate) {
-        return candidate
-      }
-    }
-    return nil
   }
 }

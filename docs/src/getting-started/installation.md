@@ -139,7 +139,7 @@ kantan has modules for both nix-darwin and home-manager. Import the one for your
 | `programs.kantan.settings` | attrset | `{}` | Configuration written as `config.yaml` |
 | `programs.kantan.themes` | attrset of attrsets | `{}` | Custom themes; each key becomes `<name>.yaml` in the themes directory |
 | `programs.kantan.extraArgs` | list of strings | `[]` | Extra CLI arguments passed to kantan |
-| `programs.kantan.extraPackages` | list of packages | `[]` | Extra packages added to kantan's PATH (e.g., `aerospace`) |
+| `programs.kantan.extraPackages` | list of packages | `[]` | Extra packages added to kantan's PATH (e.g., tools run by `command` modules) |
 | `programs.kantan.fonts` | list of packages | `[]` | Font packages to install (nix-darwin only) |
 
 Both modules create a launchd agent that starts kantan at login. The nix-darwin module passes the config via `--config` flag; the home-manager module writes it to `~/.config/kantan/config.yaml` via XDG config files.

@@ -434,9 +434,8 @@ Workspace module config options:
 
 | Key | Type | Default | Description |
 |-----|------|---------|-------------|
-| `type` | string | `"native"` | Workspace provider: `native` (macOS Spaces) or `aerospace` |
+| `type` | string | `"native"` | Workspace provider: `native` (macOS Spaces), `aerospace` or `rift` |
 | `icons` | array | `[]` | Icon names for each workspace (by index). Workspaces beyond this list use the module-level `icon` as fallback, then the workspace label (number). To use the same icon for every workspace, simply set the top level `icon` value and leave `config.icons` undefined/empty |
-| `aerospacePath` | string | — | Path to the `aerospace` binary (auto-resolved from `$PATH` if omitted) |
 | `overflow` | object | disabled | Overflow/windowed view config (see below) |
 | `rainbow` | object | disabled | Per-workspace colour assignment (see below) |
 

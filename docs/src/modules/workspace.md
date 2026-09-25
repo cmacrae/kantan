@@ -2,15 +2,14 @@
 
 Type: `workspace`
 
-Displays window manager workspace indicators. Supports native macOS spaces and the aerospace tiling window manager.
+Displays window manager workspace indicators. Supports native macOS spaces and the [aerospace](https://github.com/nikitabobko/AeroSpace) and [Rift](https://github.com/acsandmann/rift) tiling window managers.
 
 ## Configuration
 
 | Key | Type | Default | Description |
 |-----|------|---------|-------------|
-| `type` | string | `"native"` | Workspace provider: `"native"` or `"aerospace"` |
+| `type` | string | `"native"` | Workspace provider: `"native"`, `"aerospace"` or `"rift"` |
 | `icons` | array | -- | Per-workspace icon names, indexed by workspace position |
-| `aerospacePath` | string | auto-detected | Path to the `aerospace` binary (aerospace provider only) |
 | `overflow.enabled` | bool | `false` | Enable overflow mode to limit visible workspaces |
 | `overflow.max` | int | `5` | Maximum visible workspaces before overflow kicks in |
 | `overflow.icon` | bool/string/object | `true` | Overflow indicator icons (see below) |
@@ -78,8 +77,17 @@ The workspace module does not poll. Updates are driven by:
 
 - **Native**: `NSWorkspace.activeSpaceDidChangeNotification` (via EventObserver)
 - **Aerospace**: CLI triggers (`kantan trigger`)
+- **Rift**: `workspace_changed` events from a `rift-cli subscribe mach` process kantan keeps running, so Rift needs no configuration. If Rift restarts, kantan reconnects and resynchronises automatically
 
 The active workspace is highlighted; inactive workspaces are shown in a dimmed state.
+
+### Aerospace
+
+kantan runs the `aerospace` CLI that shipped with the running AeroSpace.app: the one in the `bin` directory beside the app (release archive and Nix package layouts), then Homebrew's (`/opt/homebrew/bin` or `/usr/local/bin`), falling back to `aerospace` on kantan's `PATH`. No workspaces are shown while AeroSpace isn't running.
+
+### Rift
+
+kantan shows the virtual workspaces of the active display's macOS space, in Rift's workspace order, labelled with their `workspace_names` unless `icons` or a module `icon` is set. It runs the `rift-cli` installed beside the running `rift`. Nothing needs adding to kantan's `PATH`. The CLI always matches the running Rift, including after an upgrade restarts Rift from a new location. No workspaces are shown while Rift isn't running.
 
 ## Examples
 
@@ -106,6 +114,17 @@ Aerospace workspace indicator with custom icons:
       - terminal-2
       - message
       - music
+```
+
+Rift workspace indicator:
+
+```yaml
+- name: workspaces
+  type: workspace
+  placement: left
+  icon: point-filled
+  config:
+    type: rift
 ```
 
 With overflow and rainbow:

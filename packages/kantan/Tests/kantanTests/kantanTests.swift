@@ -1164,6 +1164,115 @@ final class ShuffledRainbowTests: XCTestCase {
   }
 }
 
+// MARK: - Workspace providers
+
+/// A temporary directory holding executables at the given relative paths.
+private func makeExecutables(_ paths: [String]) throws -> URL {
+  let root = FileManager.default.temporaryDirectory
+    .appendingPathComponent("kantan-\(UUID().uuidString)")
+  for path in paths {
+    let file = root.appendingPathComponent(path)
+    try FileManager.default.createDirectory(
+      at: file.deletingLastPathComponent(), withIntermediateDirectories: true)
+    FileManager.default.createFile(
+      atPath: file.path, contents: Data(), attributes: [.posixPermissions: 0o755])
+  }
+  return root
+}
+
+final class WorkspaceProviderSelectionTests: XCTestCase {
+  func testTypeSelectsProvider() throws {
+    XCTAssertTrue(WorkspaceConfig(yaml: nil).provider is NativeWorkspaces)
+    XCTAssertTrue(
+      WorkspaceConfig(yaml: try Yaml.load("type: aerospace\n")).provider is AerospaceWorkspaces)
+    XCTAssertTrue(WorkspaceConfig(yaml: try Yaml.load("type: rift\n")).provider is RiftWorkspaces)
+  }
+}
+
+final class RiftWorkspacesTests: XCTestCase {
+  func testParsesWorkspacesInIndexOrder() {
+    let json = """
+      [{"id":"VirtualWorkspaceId(2v1)","index":1,"is_active":true,"layout_mode":"bsp",
+        "name":"code","window_count":0,"windows":[]},
+       {"id":"VirtualWorkspaceId(1v1)","index":0,"is_active":false,"layout_mode":"scrolling",
+        "name":"web","window_count":1,"windows":[{"app_name":"Arc","id":{"idx":1,"pid":2}}]},
+       {"id":"VirtualWorkspaceId(3v1)","index":2,"is_active":false,"layout_mode":"traditional",
+        "name":"chat","window_count":0,"windows":[]}]
+      """
+    XCTAssertEqual(
+      RiftWorkspaces.parse(Data(json.utf8)),
+      [
+        Workspace(index: 0, label: "web", isActive: false),
+        Workspace(index: 1, label: "code", isActive: true),
+        Workspace(index: 2, label: "chat", isActive: false),
+      ])
+  }
+
+  func testMalformedOutputYieldsNoWorkspaces() {
+    XCTAssertTrue(RiftWorkspaces.parse(Data("Failed to connect".utf8)).isEmpty)
+  }
+
+  func testFindsCLIBesideRunningRift() throws {
+    let bin = try makeExecutables(["rift"])
+    defer { try? FileManager.default.removeItem(at: bin) }
+    let running = [nil, URL(fileURLWithPath: "/usr/bin/true"), bin.appendingPathComponent("rift")]
+    XCTAssertNil(RiftWorkspaces.cli(among: running))
+
+    FileManager.default.createFile(
+      atPath: bin.appendingPathComponent("rift-cli").path, contents: Data(),
+      attributes: [.posixPermissions: 0o755])
+    XCTAssertEqual(RiftWorkspaces.cli(among: running), bin.appendingPathComponent("rift-cli").path)
+    XCTAssertNil(RiftWorkspaces.cli(among: [URL(fileURLWithPath: "/usr/bin/true")]))
+  }
+}
+
+final class AerospaceWorkspacesTests: XCTestCase {
+  func testParsesNumericWorkspacesFirstInNumericOrder() {
+    let all = #"[{"workspace":"B"},{"workspace":"10"},{"workspace":"2"},{"workspace":"A"}]"#
+    let focused = #"[{"workspace":"10"}]"#
+    XCTAssertEqual(
+      AerospaceWorkspaces.parse(all: Data(all.utf8), focused: Data(focused.utf8)),
+      [
+        Workspace(index: 0, label: "2", isActive: false),
+        Workspace(index: 1, label: "10", isActive: true),
+        Workspace(index: 2, label: "A", isActive: false),
+        Workspace(index: 3, label: "B", isActive: false),
+      ])
+  }
+
+  func testFindsCLIBesideReleaseArchiveApp() throws {
+    let root = try makeExecutables(["AeroSpace-v1/bin/aerospace"])
+    defer { try? FileManager.default.removeItem(at: root) }
+    XCTAssertEqual(
+      AerospaceWorkspaces.cli(
+        forApp: root.appendingPathComponent("AeroSpace-v1/AeroSpace.app"), fallbacks: []),
+      root.appendingPathComponent("AeroSpace-v1/bin/aerospace").path)
+  }
+
+  func testFindsCLIInNixPackageLayout() throws {
+    let root = try makeExecutables(["out/bin/aerospace"])
+    defer { try? FileManager.default.removeItem(at: root) }
+    XCTAssertEqual(
+      AerospaceWorkspaces.cli(
+        forApp: root.appendingPathComponent("out/Applications/AeroSpace.app"), fallbacks: []),
+      root.appendingPathComponent("out/bin/aerospace").path)
+  }
+
+  func testFallsBackWhenAppShipsNoCLI() throws {
+    let root = try makeExecutables(["homebrew/bin/aerospace"])
+    defer { try? FileManager.default.removeItem(at: root) }
+    let homebrew = root.appendingPathComponent("homebrew/bin/aerospace").path
+    XCTAssertEqual(
+      AerospaceWorkspaces.cli(
+        forApp: root.appendingPathComponent("Applications/AeroSpace.app"),
+        fallbacks: [root.appendingPathComponent("missing/aerospace").path, homebrew]),
+      homebrew)
+    XCTAssertNil(
+      AerospaceWorkspaces.cli(
+        forApp: root.appendingPathComponent("Applications/AeroSpace.app"), fallbacks: []))
+  }
+}
+
 // MARK: - Event stream process
 
 final class EventStreamProcessTests: XCTestCase {

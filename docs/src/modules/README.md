@@ -11,7 +11,7 @@ kantan includes a variety of built-in modules for displaying system information 
 | `volume` | System audio volume |
 | `wifi` | WiFi connection status |
 | `bluetooth` | Bluetooth status |
-| `workspace` | Window manager workspace indicator (native macOS or aerospace) |
+| `workspace` | Window manager workspace indicator (native macOS, aerospace or rift) |
 | `focus` | Focus mode indicator |
 | `text` | Static text display |
 | `icon` | Static icon display |

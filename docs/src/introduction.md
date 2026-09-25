@@ -11,7 +11,7 @@ Bars are defined in simple YAML with hot-reloading and optional modular loading 
 Run kantan on your main display, all displays, or specific displays by name.
 
 **Built-in Modules**
-Clock, power/battery, volume, WiFi, Bluetooth, Focus mode, workspace integration (native macOS and Aerospace), text, icons, command output, and drawers for organising related modules.
+Clock, power/battery, volume, WiFi, Bluetooth, Focus mode, workspace integration (native macOS, Aerospace and Rift), text, icons, command output, and drawers for organising related modules.
 
 **Plugin System**
 Extend kantan with standalone executables written in any language. Plugins communicate via a JSON API and can run as long-lived background processes via watch mode for event-driven updates.

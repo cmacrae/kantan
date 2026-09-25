@@ -38,7 +38,8 @@
     default = [ ];
     description = ''
       Extra packages to add to kantan's PATH at runtime.
-      Useful for tools that kantan modules shell out to, such as aerospace.
+      Useful for tools that kantan modules shell out to, such as the
+      commands run by `command` modules.
     '';
   };
 }
