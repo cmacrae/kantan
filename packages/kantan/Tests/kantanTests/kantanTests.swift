@@ -869,6 +869,15 @@ final class PersistedMenuBarLayoutTests: XCTestCase {
   }
 }
 
+// MARK: - Full Disk Access
+
+final class FullDiskAccessTests: XCTestCase {
+  func testProbeFileExists() {
+    // A missing probe file reads as "not granted" even with access granted.
+    XCTAssertTrue(FileManager.default.fileExists(atPath: FullDiskAccess.probePath))
+  }
+}
+
 // MARK: - Focus database
 
 final class FocusDatabaseTests: XCTestCase {

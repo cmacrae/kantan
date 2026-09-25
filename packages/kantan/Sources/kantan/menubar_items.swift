@@ -12,16 +12,16 @@ struct NativeMenuBarItem {
   var identifier: String? = nil
 }
 
-/// Whether kantan holds Full Disk Access, probed once by opening the user's
+/// Whether kantan holds Full Disk Access, probed once by opening the system
 /// TCC database. Without it that open fails silently, so protected data
 /// (other apps' containers, the Do Not Disturb database) is only read when
 /// access is certain: a denied read of another app's container raises a
 /// "would like to access data from other apps" notification instead.
 enum FullDiskAccess {
-  static let isGranted: Bool =
-    FileHandle(
-      forReadingAtPath: NSHomeDirectory() + "/Library/Application Support/com.apple.TCC/TCC.db")
-    != nil
+  /// Present on every supported release and readable only with Full Disk Access.
+  static let probePath = "/Library/Application Support/com.apple.TCC/TCC.db"
+
+  static let isGranted: Bool = FileHandle(forReadingAtPath: probePath) != nil
 }
 
 /// Menu bar item geometry derived from MenuBarAgent's persisted layout.
