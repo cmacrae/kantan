@@ -2,16 +2,14 @@ package main
 
 import (
 	"context"
-	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"io"
 	"net"
 	"net/http"
 	"os"
+	"os/exec"
 	"path/filepath"
-	"strconv"
-	"strings"
 	"time"
 )
 
@@ -63,12 +61,15 @@ type localAPIStatus struct {
 	} `json:"CurrentTailnet"`
 }
 
-// tailscaleClient talks to the Tailscale LocalAPI over either a Unix
-// domain socket (tailscaled) or localhost TCP (Tailscale.app).
+// statusSource reports the status of a Tailscale backend.
+type statusSource interface {
+	status(ctx context.Context) (*localAPIStatus, error)
+}
+
+// tailscaleClient talks to the tailscaled LocalAPI over its Unix socket.
 type tailscaleClient struct {
 	httpClient *http.Client
 	baseURL    string
-	token      string
 }
 
 func (c *tailscaleClient) status(ctx context.Context) (*localAPIStatus, error) {
@@ -77,10 +78,6 @@ func (c *tailscaleClient) status(ctx context.Context) (*localAPIStatus, error) {
 		return nil, err
 	}
 	req.Header.Set("Sec-Tailscale", "localapi")
-	if c.token != "" {
-		auth := base64.StdEncoding.EncodeToString([]byte(":" + c.token))
-		req.Header.Set("Authorization", "Basic "+auth)
-	}
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
 		return nil, err
@@ -117,86 +114,58 @@ func newUnixClient(path string) (*tailscaleClient, error) {
 	}, nil
 }
 
-// newTCPClient returns a client that speaks to the Tailscale.app LocalAPI
-// listening on localhost:port, authenticated with the given token.
-func newTCPClient(port int, token string) *tailscaleClient {
-	return &tailscaleClient{
-		httpClient: &http.Client{Timeout: 3 * time.Second},
-		baseURL:    fmt.Sprintf("http://127.0.0.1:%d", port),
-		token:      token,
-	}
+// appCLI runs the CLI bundled with Tailscale.app. The app keeps its
+// LocalAPI port and token in its own container, which macOS lets only
+// Tailscale's signed binaries read, so its CLI is the permission-free way
+// to reach the backend.
+type appCLI struct {
+	path string
 }
 
-// parseSameuserproof extracts the port and token from a sameuserproof-*
-// filename and (if necessary) the file's contents. The historical layout
-// embeds the token in the filename ("sameuserproof-PORT-TOKEN"); newer
-// macOS builds may use "sameuserproof-PORT" with the token in the file.
-func parseSameuserproof(dir, name string) (int, string, bool) {
-	if !strings.HasPrefix(name, "sameuserproof-") {
-		return 0, "", false
-	}
-	rest := strings.TrimPrefix(name, "sameuserproof-")
-	if idx := strings.Index(rest, "-"); idx > 0 {
-		if port, err := strconv.Atoi(rest[:idx]); err == nil {
-			return port, rest[idx+1:], true
-		}
-	}
-	port, err := strconv.Atoi(rest)
+func (c appCLI) status(ctx context.Context) (*localAPIStatus, error) {
+	out, err := exec.CommandContext(ctx, c.path, "status", "--json").Output()
 	if err != nil {
-		return 0, "", false
+		return nil, err
 	}
-	data, err := os.ReadFile(filepath.Join(dir, name))
-	if err != nil {
-		return 0, "", false
+	var s localAPIStatus
+	if err := json.Unmarshal(out, &s); err != nil {
+		return nil, err
 	}
-	return port, strings.TrimSpace(string(data)), true
+	return &s, nil
 }
 
-// findPortToken scans a directory for the first valid sameuserproof-*
-// file and returns the parsed port and token.
-func findPortToken(dir string) (int, string, error) {
-	entries, err := os.ReadDir(dir)
-	if err != nil {
-		return 0, "", err
+// tailscaleAppCLIPaths returns where the CLI bundled with Tailscale.app
+// (App Store or standalone build) may be installed.
+func tailscaleAppCLIPaths() []string {
+	const cli = "Tailscale.app/Contents/MacOS/Tailscale"
+	paths := []string{filepath.Join("/Applications", cli)}
+	if home, err := os.UserHomeDir(); err == nil {
+		paths = append(paths, filepath.Join(home, "Applications", cli))
 	}
-	for _, e := range entries {
-		if e.IsDir() {
-			continue
-		}
-		if port, token, ok := parseSameuserproof(dir, e.Name()); ok {
-			return port, token, nil
-		}
-	}
-	return 0, "", fmt.Errorf("no sameuserproof-* file in %s", dir)
+	return paths
 }
 
-// tailscaleAppDirs returns the candidate directories where Tailscale.app
-// writes its sameuserproof-* port/token file on macOS. The macsys build
-// stores it under a Containers path; the App Store build uses a
-// team-id-prefixed Group Container.
-func tailscaleAppDirs() []string {
-	home, err := os.UserHomeDir()
-	if err != nil {
-		return nil
-	}
-	dirs := []string{
-		filepath.Join(home, "Library/Containers/io.tailscale.ipn.macsys/Data/IPN"),
-	}
-	matches, _ := filepath.Glob(filepath.Join(home, "Library/Group Containers/*.io.tailscale.ipn.macos"))
-	dirs = append(dirs, matches...)
-	return dirs
-}
-
-// discoverClient locates a running Tailscale backend in priority order:
+// statusSources lists the installed Tailscale backends in priority order:
 // the tailscaled Unix socket (homebrew / open-source daemon), then the
-// Tailscale.app port/token files (macsys / App Store).
-func discoverClient() (*tailscaleClient, error) {
-	if c, err := newUnixClient("/var/run/tailscaled.socket"); err == nil {
-		return c, nil
+// Tailscale.app CLI.
+func statusSources(socketPath string, cliPaths []string) []statusSource {
+	var sources []statusSource
+	if c, err := newUnixClient(socketPath); err == nil {
+		sources = append(sources, c)
 	}
-	for _, dir := range tailscaleAppDirs() {
-		if port, token, err := findPortToken(dir); err == nil {
-			return newTCPClient(port, token), nil
+	for _, p := range cliPaths {
+		if _, err := os.Stat(p); err == nil {
+			sources = append(sources, appCLI{path: p})
+		}
+	}
+	return sources
+}
+
+// queryStatus returns the status from the first source that answers.
+func queryStatus(ctx context.Context, sources []statusSource) (*localAPIStatus, error) {
+	for _, source := range sources {
+		if s, err := source.status(ctx); err == nil {
+			return s, nil
 		}
 	}
 	return nil, fmt.Errorf("no running Tailscale backend found")
@@ -214,11 +183,8 @@ type state struct {
 // disconnected — the user's status bar should never crash because the
 // daemon is offline.
 func resolveState(ctx context.Context) state {
-	c, err := discoverClient()
-	if err != nil {
-		return state{}
-	}
-	s, err := c.status(ctx)
+	sources := statusSources("/var/run/tailscaled.socket", tailscaleAppCLIPaths())
+	s, err := queryStatus(ctx, sources)
 	if err != nil {
 		return state{}
 	}

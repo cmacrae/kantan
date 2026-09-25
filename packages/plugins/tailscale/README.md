@@ -11,14 +11,14 @@ This plugin is bundled with kantan and requires no separate installation. It is 
 - **Distinct connected/disconnected icons** — Configurable
 - **Optional dimming** — Render the icon in the inactive style when disconnected
 - **Tailnet tooltip** — Hover shows the active tailnet name, or `Disconnected`
-- **No CLI dependency** — Talks to Tailscale's LocalAPI directly via Unix socket or the macOS app's port/token file; the `tailscale` binary does not need to be on `PATH`
+- **No `PATH` dependency** — Talks to `tailscaled` over its Unix socket, or runs the CLI bundled inside Tailscale.app; the `tailscale` binary does not need to be on `PATH`
 
 ## How It Works
 
-The plugin queries the Tailscale [LocalAPI](https://tailscale.com/kb/1080/cli) `/localapi/v0/status` endpoint on each poll and reduces the response to a binary connected/disconnected state. The connection is opened to whichever Tailscale backend it finds first:
+The plugin reads the Tailscale [LocalAPI](https://tailscale.com/kb/1080/cli) status on each poll and reduces it to a binary connected/disconnected state, using the first installed backend that answers:
 
 1. **`tailscaled` Unix socket** at `/var/run/tailscaled.socket` — used when you run the open-source `tailscaled` daemon (e.g. installed via Homebrew).
-2. **Tailscale.app port/token files** — used by the Mac App Store and direct-download Tailscale GUI. The plugin looks for `sameuserproof-*` files under both `~/Library/Containers/io.tailscale.ipn.macsys/Data/IPN/` and `~/Library/Group Containers/*.io.tailscale.ipn.macos/`.
+2. **Tailscale.app's bundled CLI** (`Tailscale.app/Contents/MacOS/Tailscale status --json` in `/Applications` or `~/Applications`) — used for the Mac App Store and direct-download Tailscale apps. The app keeps its LocalAPI credentials in its own container, which macOS lets only Tailscale's signed binaries read. The plugin asks the app's CLI rather than reading them itself. This needs no permissions and raises no "would like to access data from other apps" prompt.
 
 If no backend is reachable, the plugin treats the machine as disconnected.
 

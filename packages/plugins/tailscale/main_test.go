@@ -3,92 +3,63 @@ package main
 import (
 	"bytes"
 	"context"
-	"encoding/base64"
 	"encoding/json"
+	"errors"
+	"fmt"
 	"io"
 	"net"
 	"net/http"
-	"net/http/httptest"
 	"os"
 	"path/filepath"
-	"strings"
 	"testing"
 )
 
-// TestParseSameuserproof_TokenInFilename covers the legacy filename
-// layout where the token is the third dash-separated field.
-func TestParseSameuserproof_TokenInFilename(t *testing.T) {
-	dir := t.TempDir()
-	port, token, ok := parseSameuserproof(dir, "sameuserproof-12345-deadbeefcafe")
-	if !ok {
-		t.Fatalf("expected to parse sameuserproof-12345-deadbeefcafe, got ok=false")
+// fakeCLI writes an executable script standing in for the Tailscale.app
+// CLI: it prints stdout and exits with code.
+func fakeCLI(t *testing.T, stdout string, code int) string {
+	t.Helper()
+	path := filepath.Join(t.TempDir(), "Tailscale")
+	script := fmt.Sprintf("#!/bin/sh\ncat <<'EOF'\n%s\nEOF\nexit %d\n", stdout, code)
+	if err := os.WriteFile(path, []byte(script), 0o755); err != nil {
+		t.Fatalf("write fake CLI: %v", err)
 	}
-	if port != 12345 {
-		t.Fatalf("expected port=12345, got %d", port)
-	}
-	if token != "deadbeefcafe" {
-		t.Fatalf("expected token=deadbeefcafe, got %q", token)
-	}
+	return path
 }
 
-// TestParseSameuserproof_TokenInFile covers the newer layout where the
-// filename is just sameuserproof-PORT and the token lives in the file
-// body. A trailing newline must be tolerated since that is how
-// Tailscale.app writes the file.
-func TestParseSameuserproof_TokenInFile(t *testing.T) {
-	dir := t.TempDir()
-	name := "sameuserproof-54321"
-	body := "abcdef0123\n"
-	if err := os.WriteFile(filepath.Join(dir, name), []byte(body), 0o600); err != nil {
-		t.Fatalf("write fixture: %v", err)
-	}
-	port, token, ok := parseSameuserproof(dir, name)
-	if !ok {
-		t.Fatalf("expected to parse %s, got ok=false", name)
-	}
-	if port != 54321 {
-		t.Fatalf("expected port=54321, got %d", port)
-	}
-	if token != "abcdef0123" {
-		t.Fatalf("expected token=abcdef0123, got %q", token)
-	}
-}
-
-// TestParseSameuserproof_Rejects ensures we don't accept arbitrary files
-// living next to the real port/token marker.
-func TestParseSameuserproof_Rejects(t *testing.T) {
-	dir := t.TempDir()
-	cases := []string{
-		"notsameuserproof",
-		"sameuserproof-",
-		"sameuserproof-notaport",
-		"sameuserproof-notaport-token",
-	}
-	for _, name := range cases {
-		if _, _, ok := parseSameuserproof(dir, name); ok {
-			t.Errorf("expected reject for %q, got ok=true", name)
-		}
-	}
-}
-
-// TestFindPortToken_PrefersFirstValid verifies that findPortToken returns
-// the first parseable sameuserproof file and skips siblings.
-func TestFindPortToken_PrefersFirstValid(t *testing.T) {
-	dir := t.TempDir()
-	for _, f := range []string{"unrelated", "sameuserproof-bogus"} {
-		if err := os.WriteFile(filepath.Join(dir, f), nil, 0o600); err != nil {
-			t.Fatalf("write fixture: %v", err)
-		}
-	}
-	if err := os.WriteFile(filepath.Join(dir, "sameuserproof-7777-tok"), nil, 0o600); err != nil {
-		t.Fatalf("write fixture: %v", err)
-	}
-	port, token, err := findPortToken(dir)
+// TestAppCLI_ParsesStatusJSON verifies the bundled CLI's `status --json`
+// output is decoded into the LocalAPI status shape.
+func TestAppCLI_ParsesStatusJSON(t *testing.T) {
+	path := fakeCLI(t, `{"BackendState":"Running","CurrentTailnet":{"Name":"example.ts.net"}}`, 0)
+	s, err := appCLI{path: path}.status(context.Background())
 	if err != nil {
-		t.Fatalf("findPortToken: %v", err)
+		t.Fatalf("status: %v", err)
 	}
-	if port != 7777 || token != "tok" {
-		t.Fatalf("got port=%d token=%q", port, token)
+	if s.BackendState != "Running" || s.CurrentTailnet == nil || s.CurrentTailnet.Name != "example.ts.net" {
+		t.Errorf("got %+v", s)
+	}
+}
+
+// stubSource is a statusSource returning a fixed result.
+type stubSource struct {
+	s   *localAPIStatus
+	err error
+}
+
+func (s stubSource) status(context.Context) (*localAPIStatus, error) { return s.s, s.err }
+
+// TestQueryStatus_FallsThroughToNextSource verifies that a source that
+// fails (e.g. a stale socket) does not hide a working one behind it.
+func TestQueryStatus_FallsThroughToNextSource(t *testing.T) {
+	want := &localAPIStatus{BackendState: "Running"}
+	got, err := queryStatus(context.Background(), []statusSource{
+		stubSource{err: errors.New("connection refused")},
+		stubSource{s: want},
+	})
+	if err != nil || got != want {
+		t.Fatalf("got %v, %v", got, err)
+	}
+	if _, err := queryStatus(context.Background(), nil); err == nil {
+		t.Error("expected error with no sources")
 	}
 }
 
@@ -173,44 +144,6 @@ func TestBuildOutput_DisconnectedDimsByDefault(t *testing.T) {
 	}
 	if vars["tailnet"] != "" {
 		t.Errorf("tailnet var: got %v", vars["tailnet"])
-	}
-}
-
-// TestClientStatus_AuthAndHeader uses an in-process HTTP server to verify
-// the LocalAPI request shape: the Sec-Tailscale header is sent, and the
-// token (when present) is encoded as HTTP Basic auth with an empty user.
-func TestClientStatus_AuthAndHeader(t *testing.T) {
-	var gotAuth, gotSec string
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		gotAuth = r.Header.Get("Authorization")
-		gotSec = r.Header.Get("Sec-Tailscale")
-		_, _ = io.WriteString(w, `{"BackendState":"Running","MagicDNSSuffix":"alpha.ts.net"}`)
-	}))
-	defer srv.Close()
-
-	c := newTCPClient(0, "secrettoken")
-	// httptest binds to a random localhost port; reuse its URL so we
-	// don't have to thread the assigned port through newTCPClient.
-	c.baseURL = srv.URL
-
-	s, err := c.status(context.Background())
-	if err != nil {
-		t.Fatalf("status: %v", err)
-	}
-	if s.BackendState != "Running" {
-		t.Errorf("BackendState: got %q", s.BackendState)
-	}
-	if gotSec != "localapi" {
-		t.Errorf("Sec-Tailscale header: got %q", gotSec)
-	}
-	if !strings.HasPrefix(gotAuth, "Basic ") {
-		t.Fatalf("Authorization header: got %q", gotAuth)
-	}
-	// The Basic auth value should be base64(":secrettoken"), i.e. an
-	// empty username with the token as the password.
-	want := "Basic " + base64.StdEncoding.EncodeToString([]byte(":secrettoken"))
-	if gotAuth != want {
-		t.Errorf("Authorization: got %q, want %q", gotAuth, want)
 	}
 }
 
