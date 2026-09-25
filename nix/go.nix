@@ -23,6 +23,12 @@
           runHook postBuild
         '';
 
+        checkPhase = ''
+          runHook preCheck
+          go test ./...
+          runHook postCheck
+        '';
+
         installPhase = ''
           runHook preInstall
           mkdir -p $out/bin
