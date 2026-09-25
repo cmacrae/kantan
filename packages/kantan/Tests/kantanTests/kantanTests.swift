@@ -838,6 +838,265 @@ final class PersistedMenuBarLayoutTests: XCTestCase {
     XCTAssertEqual(
       PersistedMenuBarLayout.readPositions(from: url.appendingPathExtension("missing")), [:])
   }
+
+  /// `com.apple.controlcenter` defaults from the machine the fixture above
+  /// was captured on, including a stale key and a hidden module.
+  private let controlCentreDefaults: [String: Any] = [
+    "NSStatusItem Preferred Position BentoBox-0": 63,
+    "NSStatusItem Preferred Position Battery": 105,
+    "NSStatusItem Preferred Position WiFi": 147,
+    "NSStatusItem Preferred Position Sound": 185,
+    "NSStatusItem Preferred Position Bluetooth": 223,
+    "NSStatusItem Preferred Position FocusModes": 255,
+    "NSStatusItem Preferred Position StageManager": 326,
+    "NSStatusItem Preferred Position BentoBox": 143,
+    "NSStatusItem Visible StageManager": 0,
+    "NSStatusItem VisibleCC Clock": 1,
+  ]
+
+  func testLegacyPositionsMatchMenuBarAgentPositions() {
+    let legacy = PersistedMenuBarLayout.legacyPositions { self.controlCentreDefaults[$0] }
+    XCTAssertEqual(legacy, positions.filter { $0.key.hasPrefix("module:") })
+  }
+
+  func testLegacyPositionsWithoutClockStartAtEdge() {
+    var defaults = controlCentreDefaults
+    defaults["NSStatusItem VisibleCC Clock"] = 0
+    let legacy = PersistedMenuBarLayout.legacyPositions { defaults[$0] }
+    XCTAssertNil(legacy["module:Clock"])
+    XCTAssertEqual(legacy["module:BentoBox-0"], 63 + 1.5 - 12)
+    XCTAssertEqual(legacy["module:Battery"], 105 + 1.5 - 12 - 16)
+  }
+}
+
+// MARK: - Focus database
+
+final class FocusDatabaseTests: XCTestCase {
+  private let calendar: Calendar = {
+    var calendar = Calendar(identifier: .gregorian)
+    calendar.timeZone = TimeZone(identifier: "Europe/London")!
+    return calendar
+  }()
+
+  /// Local time on a day in the week of Monday 2026-09-21.
+  private func at(_ day: Int, _ hour: Int, _ minute: Int = 0) -> Date {
+    calendar.date(
+      from: DateComponents(year: 2026, month: 9, day: day, hour: hour, minute: minute))!
+  }
+
+  /// Schedules mirroring a real `ModeConfigurations.json`: Mindfulness
+  /// through the day, Do Not Disturb overnight, and a disabled Work schedule.
+  private let modeConfigurations = """
+    {"data": [{"modeConfigurations": {
+      "com.apple.focus.mindfulness": {
+        "mode": {"name": "Mindfulness", "modeIdentifier": "com.apple.focus.mindfulness"},
+        "triggers": {"triggers": [
+          {"class": "DNDModeConfigurationMindfulnessTrigger", "enabledSetting": 2},
+          {"class": "DNDModeConfigurationScheduleTrigger", "enabledSetting": 2,
+           "timePeriodStartTimeHour": 7, "timePeriodStartTimeMinute": 0,
+           "timePeriodEndTimeHour": 21, "timePeriodEndTimeMinute": 30, "timePeriodWeekdays": 127}
+        ]}
+      },
+      "com.apple.donotdisturb.mode.default": {
+        "mode": {"name": "Do Not Disturb", "modeIdentifier": "com.apple.donotdisturb.mode.default"},
+        "triggers": {"triggers": [
+          {"class": "DNDModeConfigurationScheduleTrigger", "enabledSetting": 2,
+           "timePeriodStartTimeHour": 21, "timePeriodStartTimeMinute": 30,
+           "timePeriodEndTimeHour": 6, "timePeriodEndTimeMinute": 30, "timePeriodWeekdays": 127}
+        ]}
+      },
+      "com.apple.focus.work": {
+        "mode": {"name": "Work", "modeIdentifier": "com.apple.focus.work"},
+        "triggers": {"triggers": [
+          {"class": "DNDModeConfigurationScheduleTrigger", "enabledSetting": 1,
+           "timePeriodStartTimeHour": 9, "timePeriodStartTimeMinute": 0,
+           "timePeriodEndTimeHour": 17, "timePeriodEndTimeMinute": 0, "timePeriodWeekdays": 31}
+        ]}
+      },
+      "com.apple.sleep.sleep-mode": {
+        "mode": {"name": "Sleep", "modeIdentifier": "com.apple.sleep.sleep-mode"}
+      }
+    }}]}
+    """
+
+  /// `Assertions.json` with the given active assertions and invalidation
+  /// requests, shaped like the file `donotdisturbd` writes.
+  private func assertions(
+    active: [(mode: String, start: Date)] = [],
+    requests: [(predicate: String, date: Date)] = []
+  ) -> String {
+    let records = active.map {
+      """
+      {"assertionUUID": "\(UUID())",
+       "assertionSource": {"assertionClientIdentifier": "com.apple.focus.activity-manager"},
+       "assertionStartDateTimestamp": \($0.start.timeIntervalSinceReferenceDate),
+       "assertionDetails": {"assertionDetailsIdentifier": "com.apple.focus.activity-manager",
+         "assertionDetailsModeIdentifier": "\($0.mode)", "assertionDetailsReason": "user-action"}}
+      """
+    }
+    let invalidations = requests.map {
+      """
+      {"invalidationRequestPredicate": {"invalidationPredicateType": "\($0.predicate)"},
+       "invalidationRequestReason": "user-changed-state",
+       "invalidationRequestDateTimestamp": \($0.date.timeIntervalSinceReferenceDate)}
+      """
+    }
+    return """
+      {"data": [{"storeAssertionRecords": [\(records.joined(separator: ","))],
+                 "storeInvalidationRequestRecords": [\(invalidations.joined(separator: ","))],
+                 "storeInvalidationRecords": []}]}
+      """
+  }
+
+  private func database(_ assertionsJSON: String) -> FocusDatabase {
+    FocusDatabase(
+      assertionsJSON: Data(assertionsJSON.utf8),
+      modeConfigurationsJSON: Data(modeConfigurations.utf8))!
+  }
+
+  private func activeName(_ assertionsJSON: String, at date: Date) -> String? {
+    database(assertionsJSON).activeMode(at: date, calendar: calendar)?.name
+  }
+
+  func testParsesModesAndOnlyEnabledSchedules() {
+    let db = database(assertions())
+    XCTAssertEqual(db.modes["com.apple.focus.mindfulness"]?.name, "Mindfulness")
+    XCTAssertEqual(db.modes["com.apple.sleep.sleep-mode"]?.name, "Sleep")
+    XCTAssertEqual(
+      Set(db.schedules.map { $0.modeIdentifier }),
+      ["com.apple.focus.mindfulness", "com.apple.donotdisturb.mode.default"])
+  }
+
+  func testScheduledModeIsActiveWithoutAssertions() {
+    XCTAssertEqual(activeName(assertions(), at: at(24, 15, 34)), "Mindfulness")
+    XCTAssertEqual(activeName(assertions(), at: at(24, 22)), "Do Not Disturb")
+  }
+
+  func testOvernightScheduleCarriesIntoNextMorning() {
+    XCTAssertEqual(activeName(assertions(), at: at(25, 3)), "Do Not Disturb")
+    XCTAssertNil(activeName(assertions(), at: at(25, 6, 45)))
+  }
+
+  func testDisabledScheduleIsIgnored() {
+    // Work's 09:00–17:00 weekday schedule is disabled; Mindfulness covers the day.
+    XCTAssertEqual(activeName(assertions(), at: at(24, 10)), "Mindfulness")
+  }
+
+  func testAssertionNamesTheActiveMode() {
+    let json = assertions(active: [("com.apple.donotdisturb.mode.default", at(24, 15, 34))])
+    XCTAssertEqual(activeName(json, at: at(24, 15, 35)), "Do Not Disturb")
+  }
+
+  func testLaterScheduleWindowOverridesEarlierAssertion() {
+    let json = assertions(active: [("com.apple.focus.mindfulness", at(24, 15, 34))])
+    XCTAssertEqual(activeName(json, at: at(24, 22)), "Do Not Disturb")
+  }
+
+  func testStateChangeEndsScheduleUntilNextWindow() {
+    let json = assertions(requests: [("any", at(24, 15, 34))])
+    XCTAssertNil(activeName(json, at: at(24, 15, 35)))
+    XCTAssertEqual(activeName(json, at: at(24, 21, 31)), "Do Not Disturb")
+  }
+
+  func testTargetedInvalidationDoesNotEndSchedule() {
+    let json = assertions(requests: [("uuid", at(24, 15, 34))])
+    XCTAssertEqual(activeName(json, at: at(24, 15, 35)), "Mindfulness")
+  }
+
+  func testWeekdayBitsStartOnMonday() {
+    // 31 = Monday–Friday, 96 = Saturday–Sunday.
+    let weekdays = FocusSchedule(
+      modeIdentifier: "m", startMinute: 6 * 60 + 30, endMinute: 9 * 60, weekdays: 31)
+    let weekend = FocusSchedule(
+      modeIdentifier: "m", startMinute: 6 * 60 + 30, endMinute: 21 * 60 + 30, weekdays: 96)
+    XCTAssertNotNil(weekdays.activeWindowStart(at: at(21, 8), calendar: calendar))  // Monday
+    XCTAssertNotNil(weekdays.activeWindowStart(at: at(25, 8), calendar: calendar))  // Friday
+    XCTAssertNil(weekdays.activeWindowStart(at: at(26, 8), calendar: calendar))  // Saturday
+    XCTAssertNotNil(weekend.activeWindowStart(at: at(27, 12), calendar: calendar))  // Sunday
+    XCTAssertNil(weekend.activeWindowStart(at: at(25, 12), calendar: calendar))  // Friday
+  }
+
+  func testOvernightWindowBelongsToItsStartDay() {
+    // Friday only (bit 4), 21:30–06:30.
+    let friday = FocusSchedule(
+      modeIdentifier: "m", startMinute: 21 * 60 + 30, endMinute: 6 * 60 + 30, weekdays: 1 << 4)
+    XCTAssertEqual(
+      friday.activeWindowStart(at: at(26, 3), calendar: calendar), at(25, 21, 30))
+    XCTAssertNil(friday.activeWindowStart(at: at(25, 3), calendar: calendar))
+  }
+
+  func testUnreadableDatabaseIsNil() {
+    XCTAssertNil(
+      FocusDatabase(assertionsJSON: Data("{}".utf8), modeConfigurationsJSON: Data()))
+    XCTAssertNil(
+      FocusDatabase.load(from: URL(fileURLWithPath: "/nonexistent-\(UUID().uuidString)")))
+  }
+
+  func testEntryMatchesModeNameThenIdentifier() {
+    let mindfulness = FocusMode(identifier: "com.apple.focus.mindfulness", name: "Mindfulness")
+    let dnd = FocusMode(identifier: "com.apple.donotdisturb.mode.default", name: "Do Not Disturb")
+    let icons = ["Mindfulness": "brain", "com.apple.donotdisturb.mode.default": "moon-filled"]
+    XCTAssertEqual(FocusConfig.entry(for: mindfulness, in: icons), "brain")
+    XCTAssertEqual(FocusConfig.entry(for: dnd, in: icons), "moon-filled")
+    XCTAssertNil(FocusConfig.entry(for: FocusMode(identifier: "x", name: "Work"), in: icons))
+    XCTAssertNil(FocusConfig.entry(for: nil, in: icons))
+  }
+
+  func testFactoryParsesIconAndStyleMaps() throws {
+    let yaml = try Yaml.load(
+      """
+      icons:
+        Mindfulness: brain
+        Do Not Disturb: moon-filled
+      style:
+        Mindfulness: '{theme(teal)}'
+        com.apple.focus.work:
+          icon:
+            fg: '{theme(peach)}'
+          bg: '#313244'
+        Sleep: {}
+      """)
+    let config = try FocusConfigFactory().configuration(from: yaml, configDir: nil, theme: nil)
+    let focus = try XCTUnwrap(config as? FocusConfig)
+    XCTAssertEqual(focus.icons, ["Mindfulness": "brain", "Do Not Disturb": "moon-filled"])
+    XCTAssertEqual(
+      focus.styles,
+      [
+        "Mindfulness": StateStyle(fg: "{theme(teal)}", bg: nil, iconFg: nil, textFg: nil),
+        "com.apple.focus.work": StateStyle(
+          fg: nil, bg: "#313244", iconFg: "{theme(peach)}", textFg: nil),
+      ])
+    let defaults = try XCTUnwrap(FocusConfigFactory().defaultConfiguration() as? FocusConfig)
+    XCTAssertEqual(defaults.icons, [:])
+    XCTAssertEqual(defaults.styles, [:])
+  }
+}
+
+// MARK: - State style
+
+final class StateStyleTests: XCTestCase {
+  func testStringShorthandSetsForeground() throws {
+    XCTAssertEqual(
+      StateStyle.parse(from: try Yaml.load("'{theme(red)}'")),
+      StateStyle(fg: "{theme(red)}", bg: nil, iconFg: nil, textFg: nil))
+  }
+
+  func testExpandedFormReadsEachElement() throws {
+    let yaml = try Yaml.load(
+      """
+      fg: '#ffffff'
+      bg: '#000000'
+      icon:
+        fg: '{theme(peach)}'
+      text:
+        fg: '{theme(text)}'
+      """)
+    let style = try XCTUnwrap(StateStyle.parse(from: yaml))
+    XCTAssertEqual(
+      style,
+      StateStyle(fg: "#ffffff", bg: "#000000", iconFg: "{theme(peach)}", textFg: "{theme(text)}"))
+    XCTAssertEqual(style.toDynamicStyle().iconFg, "{theme(peach)}")
+  }
 }
 
 // MARK: - Screen diff

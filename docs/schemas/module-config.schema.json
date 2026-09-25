@@ -209,8 +209,8 @@
       "description": "Specify either 'index' or 'name', not both."
     },
 
-    "PowerStateStyle": {
-      "description": "Power state style override. Accepts a hex color string shorthand (applied as fg) or an object with fg/bg/icon.fg/text.fg.",
+    "StateStyle": {
+      "description": "Per-state style override (power states, Focus modes). Accepts a hex color string shorthand (applied as fg) or an object with fg/bg/icon.fg/text.fg.",
       "oneOf": [
         {
           "type": "string",
@@ -358,10 +358,10 @@
           "type": "object",
           "description": "Per-state style overrides. Each can be a hex color string (applied as fg) or an object with fg/bg/icon.fg/text.fg.",
           "properties": {
-            "charging": { "$ref": "#/$defs/PowerStateStyle", "description": "Style when charging." },
-            "plugged": { "$ref": "#/$defs/PowerStateStyle", "description": "Style when plugged in and fully charged." },
-            "lowPowerMode": { "$ref": "#/$defs/PowerStateStyle", "description": "Style when Low Power Mode is active." },
-            "low": { "$ref": "#/$defs/PowerStateStyle", "description": "Style when battery is below lowThreshold." }
+            "charging": { "$ref": "#/$defs/StateStyle", "description": "Style when charging." },
+            "plugged": { "$ref": "#/$defs/StateStyle", "description": "Style when plugged in and fully charged." },
+            "lowPowerMode": { "$ref": "#/$defs/StateStyle", "description": "Style when Low Power Mode is active." },
+            "low": { "$ref": "#/$defs/StateStyle", "description": "Style when battery is below lowThreshold." }
           }
         }
       }
@@ -526,8 +526,19 @@
     "FocusConfig": {
       "type": "object",
       "title": "Focus Module Config",
-      "description": "Configuration for the Focus mode indicator module. Detects whether a Focus mode is active by checking for the system FocusModes indicator in the menu bar. The module is hidden when no Focus mode is active and shown with a default 'brain' icon when active. Polls every 2 seconds. This config block is typically empty or omitted.",
-      "properties": {}
+      "description": "Configuration for the Focus mode indicator module. With Full Disk Access, reads the active Focus mode from the Do Not Disturb database; otherwise falls back to the system FocusModes menu bar indicator, which reports presence only. The module is hidden when no Focus mode is active and otherwise shows the module icon (default 'brain') unless overridden per mode. Exposes the {mode} template variable. Polls every 2 seconds.",
+      "properties": {
+        "icons": {
+          "type": "object",
+          "additionalProperties": { "type": "string" },
+          "description": "Focus mode → icon overrides. Keys match a mode's name (e.g. 'Do Not Disturb') or identifier (e.g. 'com.apple.donotdisturb.mode.default'). Unmatched modes use the module icon."
+        },
+        "style": {
+          "type": "object",
+          "additionalProperties": { "$ref": "#/$defs/StateStyle" },
+          "description": "Focus mode → style overrides, keyed like 'icons'. Each can be a colour string (applied as fg) or an object with fg/bg/icon.fg/text.fg. Unmatched modes use the module style."
+        }
+      }
     }
   }
 }

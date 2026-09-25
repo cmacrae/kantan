@@ -1,35 +1,6 @@
 import Foundation
 import IOKit.ps
 
-/// Style override for a specific power state (charging, plugged, low).
-/// Parsed from `config.style.<state>` — supports string shorthand (→ fg)
-/// or expanded dict with fg/bg/icon.fg/text.fg.
-struct PowerStateStyle: Sendable {
-  let fg: String?
-  let bg: String?
-  let iconFg: String?
-  let textFg: String?
-
-  func toDynamicStyle() -> DynamicStyleOverride {
-    DynamicStyleOverride(fg: fg, bg: bg, iconFg: iconFg, textFg: textFg)
-  }
-
-  static func parse(from yaml: Yaml) -> PowerStateStyle? {
-    // Shorthand: string → fg
-    if let str = yaml.string {
-      return PowerStateStyle(fg: str, bg: nil, iconFg: nil, textFg: nil)
-    }
-    // Expanded: dict with fg/bg/icon.fg/text.fg
-    guard yaml.dictionary != nil else { return nil }
-    let fg = yaml["fg"].string
-    let bg = yaml["bg"].string
-    let iconFg = yaml["icon"]["fg"].string
-    let textFg = yaml["text"]["fg"].string
-    guard fg != nil || bg != nil || iconFg != nil || textFg != nil else { return nil }
-    return PowerStateStyle(fg: fg, bg: bg, iconFg: iconFg, textFg: textFg)
-  }
-}
-
 struct PowerConfigFactory: ModuleConfigurationFactory {
   /// Default tabler-icons for power/battery states.
   static let defaultChargingIcon = "bolt-filled"
@@ -61,10 +32,10 @@ struct PowerConfigFactory: ModuleConfigurationFactory {
     }
 
     let styleYaml = yaml["style"]
-    let chargingStyle = PowerStateStyle.parse(from: styleYaml["charging"])
-    let pluggedStyle = PowerStateStyle.parse(from: styleYaml["plugged"])
-    let lowPowerModeStyle = PowerStateStyle.parse(from: styleYaml["lowPowerMode"])
-    let lowStyle = PowerStateStyle.parse(from: styleYaml["low"])
+    let chargingStyle = StateStyle.parse(from: styleYaml["charging"])
+    let pluggedStyle = StateStyle.parse(from: styleYaml["plugged"])
+    let lowPowerModeStyle = StateStyle.parse(from: styleYaml["lowPowerMode"])
+    let lowStyle = StateStyle.parse(from: styleYaml["low"])
 
     return PowerConfig(
       showLevel: showLevel, lowThreshold: lowThreshold,
@@ -105,10 +76,10 @@ final class PowerConfig: ModuleConfiguration, EventDrivenModule {
   let levelIcons: [String]
   let chargingIcon: String
   let pluggedIcon: String
-  let chargingStyle: PowerStateStyle?
-  let pluggedStyle: PowerStateStyle?
-  let lowPowerModeStyle: PowerStateStyle?
-  let lowStyle: PowerStateStyle?
+  let chargingStyle: StateStyle?
+  let pluggedStyle: StateStyle?
+  let lowPowerModeStyle: StateStyle?
+  let lowStyle: StateStyle?
 
   var redrawInterval: TimeInterval { noPoll }
 
@@ -120,8 +91,8 @@ final class PowerConfig: ModuleConfiguration, EventDrivenModule {
   init(
     showLevel: Bool, lowThreshold: Int,
     levelIcons: [String], chargingIcon: String, pluggedIcon: String,
-    chargingStyle: PowerStateStyle?, pluggedStyle: PowerStateStyle?,
-    lowPowerModeStyle: PowerStateStyle?, lowStyle: PowerStateStyle?
+    chargingStyle: StateStyle?, pluggedStyle: StateStyle?,
+    lowPowerModeStyle: StateStyle?, lowStyle: StateStyle?
   ) {
     self.showLevel = showLevel
     self.lowThreshold = lowThreshold

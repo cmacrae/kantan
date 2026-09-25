@@ -6,30 +6,53 @@ struct FocusConfigFactory: ModuleConfigurationFactory {
   func configuration(from yaml: Yaml, configDir: String?, theme: ThemeConfig?) throws
     -> ModuleConfiguration
   {
-    FocusConfig()
+    var icons: [String: String] = [:]
+    for (key, value) in yaml["icons"].dictionary ?? [:] {
+      if let mode = key.string, let icon = value.string {
+        icons[mode] = icon
+      }
+    }
+    var styles: [String: StateStyle] = [:]
+    for (key, value) in yaml["style"].dictionary ?? [:] {
+      if let mode = key.string, let style = StateStyle.parse(from: value) {
+        styles[mode] = style
+      }
+    }
+    return FocusConfig(icons: icons, styles: styles)
+  }
+
+  func defaultConfiguration() -> ModuleConfiguration? {
+    FocusConfig(icons: [:], styles: [:])
   }
 }
 
-/// Focus module using menu bar indicator detection.
+/// Focus state as last observed: whether Focus is on and, when known, which mode.
+struct FocusStatus: Equatable, Sendable {
+  let isActive: Bool
+  let mode: FocusMode?
+
+  static let inactive = FocusStatus(isActive: false, mode: nil)
+}
+
+/// Focus module showing whether a Focus mode is active, and which one.
 ///
-/// macOS Tahoe removed the `_NSDoNotDisturbEnabledNotification` /
-/// `_NSDoNotDisturbDisabledNotification` distributed notifications, so
-/// event-driven detection is not possible. Instead, this module detects
-/// focus state by checking whether the system FocusModes indicator window
-/// exists in the menu bar via `MenuBarItemDetector`. This is the same
-/// mechanism kantan uses for menu bar masking — fast (~1ms) and requires
-/// no permissions.
+/// With Full Disk Access, state comes from the Do Not Disturb database
+/// (`FocusDatabase`), which names the active mode. Otherwise the module
+/// falls back to detecting the system FocusModes menu bar indicator via
+/// `MenuBarItemDetector`, which reports presence only.
 final class FocusConfig: ModuleConfiguration, @unchecked Sendable {
   var type: String { "focus" }
 
-  /// Polled every 2s. macOS exposes no notification for Focus state
-  /// changes, so polling the FocusModes indicator window via
-  /// `CGWindowListCopyWindowInfo` (~1ms) is the only permission-free
-  /// option. Focus toggles are infrequent, so 2s is responsive enough.
+  /// Polled every 2s. Scheduled Focus starts and ends without any file or
+  /// notification event, and both sources are cheap to read.
   var redrawInterval: TimeInterval { 2.0 }
 
-  nonisolated(unsafe) private var _cachedActive: Bool = false
-  private let _lock = NSLock()
+  /// Mode name or identifier → icon. Unmatched modes use the module icon.
+  let icons: [String: String]
+  /// Mode name or identifier → style. Unmatched modes use the module style.
+  let styles: [String: StateStyle]
+
+  private let cache = CachedStatus<FocusStatus>(fallback: .inactive)
 
   /// Cached preferred position for the FocusModes indicator, read once
   /// from `com.apple.controlcenter` defaults.
@@ -48,42 +71,49 @@ final class FocusConfig: ModuleConfiguration, @unchecked Sendable {
 
   private static let focusMask = MaskConfig(name: "Focus")
 
-  init() {}
-
-  required init(from decoder: Decoder) throws {}
-
-  func encode(to encoder: Encoder) throws {}
-
-  // MARK: - Status Caching
-
-  private func refreshCache() {
-    let active = Self.isFocusIndicatorVisible()
-    _lock.lock()
-    _cachedActive = active
-    _lock.unlock()
+  init(icons: [String: String], styles: [String: StateStyle]) {
+    self.icons = icons
+    self.styles = styles
   }
 
-  private func getCachedActive() -> Bool {
-    _lock.lock()
-    defer { _lock.unlock() }
-    return _cachedActive
+  /// Entry configured for a mode, matched by name then identifier.
+  static func entry<Value>(for mode: FocusMode?, in map: [String: Value]) -> Value? {
+    guard let mode else { return nil }
+    return map[mode.name] ?? map[mode.identifier]
+  }
+
+  private func refreshCache() {
+    if FullDiskAccess.isGranted, let database = FocusDatabase.load() {
+      let mode = database.activeMode(at: Date())
+      cache.set(FocusStatus(isActive: mode != nil, mode: mode))
+    } else {
+      cache.set(FocusStatus(isActive: Self.isFocusIndicatorVisible(), mode: nil))
+    }
   }
 
   // MARK: - ModuleConfiguration
 
   func shouldDisplay() -> Bool {
-    getCachedActive()
+    cache.get().isActive
   }
 
   func getValue(completion: @escaping @Sendable (String) -> Void) {
     completion("")
   }
 
+  /// Refreshes the cached status (called before the other accessors on each
+  /// update). An empty result falls back to the module-level `icon`.
   func getIcon() -> String {
     refreshCache()
-    // Return empty string — the module-level `icon` from config is used
-    // as the display icon by ModuleViewModel's standard fallback path.
-    return ""
+    return Self.entry(for: cache.get().mode, in: icons) ?? ""
+  }
+
+  func getDynamicStyle() -> DynamicStyleOverride? {
+    Self.entry(for: cache.get().mode, in: styles)?.toDynamicStyle()
+  }
+
+  func getTemplateVariables() -> [String: String] {
+    ["mode": cache.get().mode?.name ?? ""]
   }
 
   // MARK: - Focus Indicator Detection

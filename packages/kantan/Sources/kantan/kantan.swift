@@ -213,6 +213,17 @@ class DisplayInstance {
     var notchRightBound: CGFloat
   }
 
+  /// Masked groups that occupy their native item's slot. A hidden masked
+  /// module (e.g. focus while no Focus mode is on) releases its slot.
+  private func occupiedMasks(in groups: [ModuleGroup]) -> [(placement: String, mask: MaskConfig)] {
+    groups.compactMap { group in
+      guard group.modules.count == 1, group.modules[0].shouldDisplay,
+        let mask = group.modules[0].moduleConfig.mask
+      else { return nil }
+      return (group.placement, mask)
+    }
+  }
+
   private func computePlacementBounds(
     screen: NSScreen,
     nativeItems: [NativeMenuBarItem],
@@ -360,14 +371,8 @@ class DisplayInstance {
 
     let nativeItems = MenuBarItemDetector.detectItems(for: screen)
 
-    let maskedGroups = allGroups.compactMap { group -> (placement: String, mask: MaskConfig)? in
-      guard group.modules.count == 1, let mask = group.modules[0].moduleConfig.mask else {
-        return nil
-      }
-      return (group.placement, mask)
-    }
     var bounds = computePlacementBounds(
-      screen: screen, nativeItems: nativeItems, maskedGroups: maskedGroups)
+      screen: screen, nativeItems: nativeItems, maskedGroups: occupiedMasks(in: allGroups))
 
     for group in allGroups {
       let groupView = ModuleGroupView(
@@ -458,20 +463,18 @@ class DisplayInstance {
 
     let nativeItems = MenuBarItemDetector.detectItems(for: screen)
 
-    let maskedEntries = groupPanels.compactMap { entry -> (placement: String, mask: MaskConfig)? in
-      guard entry.group.modules.count == 1, let mask = entry.group.modules[0].moduleConfig.mask
-      else { return nil }
-      return (entry.group.placement, mask)
-    }
     var bounds = computePlacementBounds(
-      screen: screen, nativeItems: nativeItems, maskedGroups: maskedEntries)
+      screen: screen, nativeItems: nativeItems,
+      maskedGroups: occupiedMasks(in: groupPanels.map { $0.group }))
 
     for entry in groupPanels {
       guard entry.group.modules.count == 1,
         let mask = entry.group.modules[0].moduleConfig.mask
       else { continue }
 
-      guard let nativeItem = MenuBarItemDetector.resolveItem(for: mask, from: nativeItems) else {
+      guard entry.group.modules[0].shouldDisplay,
+        let nativeItem = MenuBarItemDetector.resolveItem(for: mask, from: nativeItems)
+      else {
         entry.panel.orderOut(nil)
         continue
       }
@@ -590,13 +593,9 @@ class DisplayInstance {
     let statusBarY = screenLayout(for: screen).statusBarY
 
     let nativeItems = MenuBarItemDetector.detectItems(for: screen)
-    let maskedEntries = groupPanels.compactMap { entry -> (placement: String, mask: MaskConfig)? in
-      guard entry.group.modules.count == 1, let mask = entry.group.modules[0].moduleConfig.mask
-      else { return nil }
-      return (entry.group.placement, mask)
-    }
     var bounds = computePlacementBounds(
-      screen: screen, nativeItems: nativeItems, maskedGroups: maskedEntries)
+      screen: screen, nativeItems: nativeItems,
+      maskedGroups: occupiedMasks(in: groupPanels.map { $0.group }))
 
     // Helper: is this group's drawer content for the toggled side?
     let isToggledDrawerContent = { (group: ModuleGroup) -> Bool in

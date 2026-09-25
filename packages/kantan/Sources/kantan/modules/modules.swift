@@ -10,6 +10,36 @@ struct DynamicStyleOverride: Sendable {
   let textFg: String?
 }
 
+/// Style override for a module state (e.g. a power state or Focus mode).
+/// Parsed from `config.style.<state>` — supports string shorthand (→ fg)
+/// or expanded dict with fg/bg/icon.fg/text.fg. Colours may be
+/// `{theme(name)}` templates, resolved at render time.
+struct StateStyle: Equatable, Sendable {
+  let fg: String?
+  let bg: String?
+  let iconFg: String?
+  let textFg: String?
+
+  func toDynamicStyle() -> DynamicStyleOverride {
+    DynamicStyleOverride(fg: fg, bg: bg, iconFg: iconFg, textFg: textFg)
+  }
+
+  static func parse(from yaml: Yaml) -> StateStyle? {
+    // Shorthand: string → fg
+    if let str = yaml.string {
+      return StateStyle(fg: str, bg: nil, iconFg: nil, textFg: nil)
+    }
+    // Expanded: dict with fg/bg/icon.fg/text.fg
+    guard yaml.dictionary != nil else { return nil }
+    let fg = yaml["fg"].string
+    let bg = yaml["bg"].string
+    let iconFg = yaml["icon"]["fg"].string
+    let textFg = yaml["text"]["fg"].string
+    guard fg != nil || bg != nil || iconFg != nil || textFg != nil else { return nil }
+    return StateStyle(fg: fg, bg: bg, iconFg: iconFg, textFg: textFg)
+  }
+}
+
 protocol ModuleConfiguration: Sendable {
   var type: String { get }
   var redrawInterval: TimeInterval { get }
