@@ -97,8 +97,7 @@ class ModuleViewModel: ObservableObject, Identifiable {
     let gen = updateGeneration
 
     let icon = config.getIcon()
-    let rawIcon = icon.isEmpty ? moduleConfig.icon : icon
-    let resolved = rawIcon.map { resolveIconName($0) }
+    let moduleIcon = moduleConfig.icon
     let bgIcon = config.getBackgroundIcon()
     let resolvedBgGlyph = bgIcon.map { resolveIconName($0).glyph }
 
@@ -106,6 +105,10 @@ class ModuleViewModel: ObservableObject, Identifiable {
       DispatchQueue.main.async {
         guard let self else { return }
         guard self.updateGeneration == gen else { return }
+        // A command's icon comes from the output getValue just produced.
+        let currentIcon = config is CommandConfig ? config.getIcon() : icon
+        let rawIcon = currentIcon.isEmpty ? moduleIcon : currentIcon
+        let resolved = rawIcon.map { resolveIconName($0) }
         self.displayValue = newValue
         self.displayIcon = resolved?.glyph ?? rawIcon
         self.iconFontNameOverride = resolved?.fontNameOverride

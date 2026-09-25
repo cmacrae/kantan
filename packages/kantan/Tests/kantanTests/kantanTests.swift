@@ -1397,6 +1397,57 @@ final class CommandToggleTests: XCTestCase {
   }
 }
 
+// MARK: - Command module icons
+
+@MainActor
+final class CommandIconTests: XCTestCase {
+  override func setUp() {
+    super.setUp()
+    // getValue reads NSApp's appearance for KANTAN_APPEARANCE.
+    _ = NSApplication.shared
+  }
+
+  private func waitUntil(_ condition: () -> Bool, timeout: TimeInterval = 5) {
+    let deadline = Date().addingTimeInterval(timeout)
+    while !condition() && Date() < deadline {
+      RunLoop.main.run(until: Date().addingTimeInterval(0.01))
+    }
+    XCTAssertTrue(condition())
+  }
+
+  func testIconComesFromTheRunThatProducedTheValue() throws {
+    let dir = FileManager.default.temporaryDirectory
+      .appendingPathComponent(UUID().uuidString)
+    try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+    defer { try? FileManager.default.removeItem(at: dir) }
+    let iconFile = dir.appendingPathComponent("icon")
+    let script = dir.appendingPathComponent("emit")
+    try """
+    #!/bin/sh
+    icon=$(cat "\(iconFile.path)")
+    printf '{"value":"%s","icon":"%s"}' "$icon" "$icon"
+    """.write(to: script, atomically: true, encoding: .utf8)
+    try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: script.path)
+
+    let command = try CommandConfig(
+      yaml: try Yaml.load("command: \(script.path)\noutput: json\ninterval: 0\n"))
+    let vm = ModuleViewModel(
+      moduleConfig: ModuleConfig(
+        name: "icon-test", placement: PlacementSpec(raw: "right"), type: "command",
+        config: command))
+
+    try "arrow-up".write(to: iconFile, atomically: true, encoding: .utf8)
+    vm.update()
+    waitUntil { vm.displayValue == "arrow-up" }
+    XCTAssertEqual(vm.displayIcon, resolveIconName("arrow-up").glyph)
+
+    try "arrow-down".write(to: iconFile, atomically: true, encoding: .utf8)
+    vm.update()
+    waitUntil { vm.displayValue == "arrow-down" }
+    XCTAssertEqual(vm.displayIcon, resolveIconName("arrow-down").glyph)
+  }
+}
+
 // MARK: - Watch process restart backoff
 
 final class WatchRestartDelayTests: XCTestCase {
