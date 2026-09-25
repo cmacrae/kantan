@@ -47,13 +47,17 @@ Items are indexed right-to-left (index 0 is the rightmost item):
 How kantan finds native menu bar items depends on the macOS release:
 
 - **macOS 15 and 26** -- Each status item is its own WindowServer window. kantan reads their geometry with `CGWindowListCopyWindowInfo`.
-- **macOS 27 and later** -- MenuBarAgent draws every status item into a single menu bar surface, so individual items no longer exist as windows. Instead, kantan reads the positions MenuBarAgent persists in `~/Library/Group Containers/com.apple.MenuBar/Library/Preferences/com.apple.MenuBar.plist` (`TrailingItemPreferredPositions`, keyed by item identifier) and lays the items out right-to-left from the screen's right edge. Items hidden in Control Centre settings, and third-party items whose app isn't running, are skipped.
+- **macOS 27 and later** -- MenuBarAgent draws every status item into a single menu bar surface, so individual items no longer exist as windows. Instead, kantan lays the items out right-to-left from the screen's right edge using their saved positions, skipping items hidden in Control Centre settings and third-party items whose app isn't running. The positions come from one of two places:
+  - **Without extra permissions (default)** -- the `NSStatusItem Preferred Position` values in `com.apple.controlcenter` defaults, which MenuBarAgent migrated its layout from. They match the layout carried over from macOS 26, but macOS 27 no longer updates them, so masks don't follow items you rearrange on macOS 27.
+  - **With Full Disk Access** -- MenuBarAgent's own `TrailingItemPreferredPositions` in `~/Library/Group Containers/com.apple.MenuBar/Library/Preferences/com.apple.MenuBar.plist`, which tracks rearrangements. macOS only lets other processes read it with Full Disk Access.
 
-Neither approach requires any permissions.
+### Granting Full Disk Access
+
+In *System Settings → Privacy & Security → Full Disk Access*, click **+**, press ⌘⇧G and enter the path of the running kantan binary (`ps -o comm= -p "$(pgrep -x kantan)"` prints it), then restart kantan. macOS ties the grant to that path, so with Nix it has to be repeated after each rebuild that changes the store path. kantan checks for access once at launch and never touches the protected file without it, so no "would like to access data from other apps" notification appears either way.
 
 ### macOS 27 Caveats
 
-The persisted layout records where each item sits, not whether it is currently drawn or how wide it is right now. MenuBarAgent rewrites it when items are added or rearranged, so:
+The saved layout records where each item sits, not whether it is currently drawn or how wide it is right now. MenuBarAgent rewrites its own copy when items are added or rearranged, so:
 
 - Items that appear only while active (Focus, Now Playing, camera/microphone indicators) keep their slot even while they are not shown.
 - A native item that changes width without a rearrangement (e.g. toggling battery percentage) can leave masks slightly offset until MenuBarAgent next persists the layout.

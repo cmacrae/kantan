@@ -12,13 +12,27 @@ struct NativeMenuBarItem {
   var identifier: String? = nil
 }
 
+/// Whether kantan holds Full Disk Access, probed once by opening the user's
+/// TCC database. Without it that open fails silently, so protected data
+/// (other apps' containers, the Do Not Disturb database) is only read when
+/// access is certain: a denied read of another app's container raises a
+/// "would like to access data from other apps" notification instead.
+enum FullDiskAccess {
+  static let isGranted: Bool =
+    FileHandle(
+      forReadingAtPath: NSHomeDirectory() + "/Library/Application Support/com.apple.TCC/TCC.db")
+    != nil
+}
+
 /// Menu bar item geometry derived from MenuBarAgent's persisted layout.
 ///
 /// From macOS 27, MenuBarAgent draws every status item into a single menu bar
 /// surface, so individual items are no longer WindowServer windows. It
 /// persists each trailing item's position in `TrailingItemPreferredPositions`
 /// (group container `com.apple.MenuBar`), keyed `module:<Control Centre id>`
-/// or `status:<bundle id>::<autosave name>`.
+/// or `status:<bundle id>::<autosave name>`. That container is only readable
+/// with Full Disk Access; otherwise positions are reconstructed from the
+/// `com.apple.controlcenter` defaults MenuBarAgent migrated them from.
 ///
 /// A position is the running total of the widths of the items to its right:
 /// Control Centre modules contribute their content width, status items their
@@ -34,6 +48,9 @@ struct PersistedMenuBarLayout {
   /// Content width assumed for the leftmost item, whose width no persisted
   /// position bounds. Matches a standard symbol-sized menu bar item.
   static let defaultContentWidth: CGFloat = 22
+  /// Distance from the screen's right edge to the point Control Centre's
+  /// `NSStatusItem Preferred Position` defaults are measured from.
+  static let legacyAnchorInset: Double = 1.5
 
   static let modulePrefix = "module:"
   static let statusPrefix = "status:"
@@ -51,6 +68,47 @@ struct PersistedMenuBarLayout {
       let positions = plist["TrailingItemPreferredPositions"] as? [String: Any]
     else { return [:] }
     return positions.compactMapValues { ($0 as? NSNumber)?.doubleValue }
+  }
+
+  /// Positions in effect: MenuBarAgent's own when readable, else those
+  /// reconstructed from Control Centre's defaults.
+  static func currentPositions(controlCentreValue: (String) -> Any?) -> [String: Double] {
+    if FullDiskAccess.isGranted {
+      let persisted = readPositions()
+      if !persisted.isEmpty { return persisted }
+    }
+    return legacyPositions(controlCentreValue: controlCentreValue)
+  }
+
+  /// Positions reconstructed from Control Centre's
+  /// `NSStatusItem Preferred Position <id>` defaults, which MenuBarAgent
+  /// migrates from and which need no permission to read. Each measures from
+  /// `legacyAnchorInset` inside the screen edge to the right edge of an
+  /// item's slot, i.e. it also counts the edge inset and the padding of the
+  /// modules to its right. macOS 27 no longer updates them, so they go stale
+  /// once items are rearranged there.
+  static func legacyPositions(controlCentreValue value: (String) -> Any?) -> [String: Double] {
+    func isHidden(_ id: String) -> Bool {
+      MenuBarItemDetector.isHiddenInControlCentre(id, value: value)
+    }
+    let modules = MenuBarItemDetector.knownCCIdentifiers
+      .filter { !isHidden($0) }
+      .compactMap { id in
+        (value("NSStatusItem Preferred Position \(id)") as? NSNumber)
+          .map { (id: id, position: $0.doubleValue) }
+      }
+      .sorted { $0.position < $1.position }
+
+    var positions: [String: Double] = [:]
+    let hasClock = !isHidden("Clock")
+    if hasClock { positions[modulePrefix + "Clock"] = 0 }
+    for (rank, module) in modules.enumerated() {
+      let modulesToRight = Double(rank + (hasClock ? 1 : 0))
+      positions[modulePrefix + module.id] =
+        module.position + legacyAnchorInset - Double(trailingEdgeInset)
+        - Double(moduleSpacing) * modulesToRight
+    }
+    return positions
   }
 
   /// The bundle identifier owning a `status:` key, or `nil` for other keys.
@@ -184,7 +242,7 @@ struct MenuBarItemDetector {
   /// Known Control Centre module identifiers that occupy individual menu bar slots.
   /// Used for rank-based fallback matching when absolute position matching fails.
   /// Order doesn't matter — they're sorted by preferred position at runtime.
-  private static let knownCCIdentifiers: [String] = [
+  static let knownCCIdentifiers: [String] = [
     "BentoBox-0", "Battery", "WiFi", "Bluetooth", "Sound",
     "FocusModes", "NowPlaying", "AudioVideoModule", "Display",
     "ScreenMirroring", "UserSwitcher", "AccessibilityShortcuts",
@@ -210,7 +268,8 @@ struct MenuBarItemDetector {
       let runningBundleIDs = Set(
         NSWorkspace.shared.runningApplications.compactMap { $0.bundleIdentifier })
       return PersistedMenuBarLayout.items(
-        from: PersistedMenuBarLayout.readPositions(),
+        from: PersistedMenuBarLayout.currentPositions(
+          controlCentreValue: { controlCentre?.object(forKey: $0) }),
         isPresent: {
           PersistedMenuBarLayout.isPresent(
             key: $0, controlCentreValue: { controlCentre?.object(forKey: $0) },
