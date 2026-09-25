@@ -357,3 +357,142 @@ func runCommandSync(path: String, arguments: [String], timeout: TimeInterval? = 
   guard process.terminationStatus == 0 else { return nil }
   return data
 }
+
+/// Runs a long-lived command that writes a line per event, calling `onEvent`
+/// whenever output arrives. The command is resolved at each launch (`nil`
+/// while it is unavailable); when it exits or can't be resolved, launching is
+/// retried with exponential backoff, and `onEvent` fires after each relaunch
+/// so consumers resynchronise with whatever changed while it was down.
+final class EventStreamProcess: @unchecked Sendable {
+  private let command: @Sendable () -> [String]?
+  private let onEvent: @Sendable () -> Void
+  private let lock = NSLock()
+  private var process: Process?
+  /// Write end of the command's stdin; closing it (explicitly or by kantan
+  /// exiting) makes `tetherScript` kill the command.
+  private var tether: FileHandle?
+  private var stopped = true
+  private var failures = 0
+
+  /// Runs `"$@"` in the background and kills it once stdin reaches EOF, so
+  /// the command never outlives kantan however kantan exits. The shell exits
+  /// when the command does, taking the stdin watcher with it.
+  static let tetherScript = """
+    exec 3<&0
+    "$@" </dev/null 3<&- &
+    command=$!
+    { read -r _ <&3; kill "$command" 2>/dev/null; } &
+    watcher=$!
+    trap 'kill "$watcher" 2>/dev/null' EXIT
+    wait "$command"
+    """
+
+  init(
+    command: @escaping @Sendable () -> [String]?, onEvent: @escaping @Sendable () -> Void
+  ) {
+    self.command = command
+    self.onEvent = onEvent
+  }
+
+  deinit {
+    stop()
+  }
+
+  /// Delay before the relaunch following `failures` consecutive exits
+  /// without output: 1s doubling to a 16s cap.
+  static func restartDelay(afterFailures failures: Int) -> TimeInterval {
+    TimeInterval(1 << min(max(failures - 1, 0), 4))
+  }
+
+  func start() {
+    lock.lock()
+    defer { lock.unlock() }
+    guard stopped else { return }
+    stopped = false
+    failures = 0
+    launchLocked()
+  }
+
+  func stop() {
+    lock.lock()
+    stopped = true
+    process = nil
+    let tether = self.tether
+    self.tether = nil
+    lock.unlock()
+    try? tether?.close()
+  }
+
+  private func launchLocked() {
+    guard let command = command(), !command.isEmpty else {
+      scheduleRelaunchLocked()
+      return
+    }
+    let process = Process()
+    process.executableURL = URL(fileURLWithPath: "/bin/sh")
+    process.arguments = ["-c", Self.tetherScript, "sh"] + command
+    let stdin = Pipe()
+    let stdout = Pipe()
+    process.standardInput = stdin
+    process.standardOutput = stdout
+    process.standardError = FileHandle.nullDevice
+
+    stdout.fileHandleForReading.readabilityHandler = { [weak self] handle in
+      guard !handle.availableData.isEmpty else {
+        handle.readabilityHandler = nil
+        return
+      }
+      self?.received()
+    }
+    process.terminationHandler = { [weak self] exited in
+      self?.exited(exited)
+    }
+
+    do {
+      try process.run()
+      self.process = process
+      self.tether = stdin.fileHandleForWriting
+    } catch {
+      stdout.fileHandleForReading.readabilityHandler = nil
+      scheduleRelaunchLocked()
+    }
+  }
+
+  private func received() {
+    lock.lock()
+    let live = !stopped
+    if live { failures = 0 }
+    lock.unlock()
+    if live { onEvent() }
+  }
+
+  private func exited(_ exited: Process) {
+    lock.lock()
+    defer { lock.unlock() }
+    guard !stopped, process === exited else { return }
+    process = nil
+    try? tether?.close()
+    tether = nil
+    scheduleRelaunchLocked()
+  }
+
+  private func scheduleRelaunchLocked() {
+    failures += 1
+    let delay = Self.restartDelay(afterFailures: failures)
+    DispatchQueue.global().asyncAfter(deadline: .now() + delay) { [weak self] in
+      self?.relaunch()
+    }
+  }
+
+  private func relaunch() {
+    lock.lock()
+    guard !stopped, process == nil else {
+      lock.unlock()
+      return
+    }
+    launchLocked()
+    let launched = process != nil
+    lock.unlock()
+    if launched { onEvent() }
+  }
+}

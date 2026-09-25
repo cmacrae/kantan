@@ -3,6 +3,7 @@ import Combine
 import CoreGraphics
 import SwiftUI
 import XCTest
+import os
 
 @testable import kantan
 
@@ -1160,6 +1161,91 @@ final class ShuffledRainbowTests: XCTestCase {
     for i in 1..<result.count {
       XCTAssertNotEqual(result[i], result[i - 1])
     }
+  }
+}
+
+// MARK: - Event stream process
+
+final class EventStreamProcessTests: XCTestCase {
+  func testRestartDelayDoublesToCap() {
+    XCTAssertEqual(
+      (1...7).map { EventStreamProcess.restartDelay(afterFailures: $0) },
+      [1, 2, 4, 8, 16, 16, 16])
+  }
+
+  func testOutputFiresEvent() {
+    let event = expectation(description: "event")
+    event.assertForOverFulfill = false
+    let stream = EventStreamProcess(
+      command: { ["/bin/sh", "-c", "echo changed; sleep 5"] }
+    ) { event.fulfill() }
+    stream.start()
+    wait(for: [event], timeout: 2)
+    stream.stop()
+  }
+
+  func testRelaunchAfterExitFiresEvent() {
+    let event = expectation(description: "resync after relaunch")
+    event.assertForOverFulfill = false
+    let stream = EventStreamProcess(
+      command: { ["/bin/sh", "-c", "exit 1"] }
+    ) { event.fulfill() }
+    stream.start()
+    wait(for: [event], timeout: 3)
+    stream.stop()
+  }
+
+  func testLaunchesOnceCommandBecomesAvailable() {
+    let event = expectation(description: "event once available")
+    event.assertForOverFulfill = false
+    let available = OSAllocatedUnfairLock(initialState: false)
+    let stream = EventStreamProcess(
+      command: {
+        available.withLock { isAvailable in
+          defer { isAvailable = true }
+          return isAvailable ? ["/bin/sh", "-c", "sleep 5"] : nil
+        }
+      }
+    ) { event.fulfill() }
+    stream.start()
+    wait(for: [event], timeout: 3)
+    stream.stop()
+  }
+
+  func testStopSilencesStream() {
+    let event = expectation(description: "no event after stop")
+    event.isInverted = true
+    let stream = EventStreamProcess(
+      command: { ["/bin/sh", "-c", "sleep 0.3; echo late"] }
+    ) { event.fulfill() }
+    stream.start()
+    stream.stop()
+    wait(for: [event], timeout: 1.5)
+  }
+
+  func testStopKillsCommand() throws {
+    let pidFile = FileManager.default.temporaryDirectory
+      .appendingPathComponent("kantan-stream-\(UUID().uuidString)")
+    defer { try? FileManager.default.removeItem(at: pidFile) }
+    let stream = EventStreamProcess(
+      command: { ["/bin/sh", "-c", "echo $$ > \"$0\"; exec sleep 30", pidFile.path] }
+    ) {}
+    stream.start()
+
+    var pid: pid_t?
+    let started = Date()
+    while pid == nil, Date().timeIntervalSince(started) < 2 {
+      pid = (try? String(contentsOf: pidFile, encoding: .utf8))
+        .flatMap { pid_t($0.trimmingCharacters(in: .whitespacesAndNewlines)) }
+      usleep(20_000)
+    }
+    let command = try XCTUnwrap(pid)
+    XCTAssertEqual(kill(command, 0), 0)
+
+    stream.stop()
+    let stopped = Date()
+    while kill(command, 0) == 0, Date().timeIntervalSince(stopped) < 2 { usleep(20_000) }
+    XCTAssertNotEqual(kill(command, 0), 0)
   }
 }
 
