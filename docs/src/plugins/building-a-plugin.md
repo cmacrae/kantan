@@ -489,6 +489,7 @@ See the built-in plugins for complete reference implementations:
 - `packages/plugins/calendar/` — Event-driven Swift plugin with watch mode, calendar integration, and conditional visibility
 - `packages/plugins/pomodoro/` — Polling Go plugin with persistent state, timer management, and interactive actions
 - `packages/plugins/tailscale/` — Polling Go plugin that talks to a local daemon's HTTP API over a Unix socket
+- `packages/plugins/rift-indicator/` — Event-driven Go plugin whose watch process relays a long-lived CLI subscription as refreshes
 
 ## Error Handling
 

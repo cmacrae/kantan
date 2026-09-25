@@ -1,0 +1,29 @@
+name: rift-indicator
+type: command
+placement: right
+config:
+  command: kantan-plugin-rift-indicator
+  output: json
+  interval: 0
+  watch: kantan-plugin-rift-indicator --watch
+  settings:
+    icons:
+      traditional: layout-columns
+      bsp: layout-board-split
+      floating: picture-in-picture
+      stack: stack-2
+      master_stack: layout-sidebar-right
+      scrolling: carousel-horizontal
+    style:
+      bsp: "{theme(blue)}"
+      floating: "{theme(peach)}"
+      master_stack:
+        icon:
+          fg: "{theme(mauve)}"
+      scrolling: "{theme(teal)}"
+interaction:
+  hover:
+    type: tooltip
+    content: "{workspace} · {layout}"
+  click:
+    type: passthrough

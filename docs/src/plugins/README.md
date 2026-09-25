@@ -56,6 +56,7 @@ kantan ships with these plugins:
 - **calendar**: Integrates with macOS Calendar, shows upcoming events with countdowns (Swift, event-driven)
 - **pomodoro**: Pomodoro timer with work/break sessions, pause/resume/skip controls (Go, polling)
 - **tailscale**: Indicates Tailscale connection state via the LocalAPI, with tailnet tooltip (Go, polling)
+- **rift-indicator**: Shows the Rift window manager's active layout mode, with an icon and colour per layout (Go, event-driven)
 
 Their sources in `packages/plugins/` are reference implementations.
 

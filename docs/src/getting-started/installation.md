@@ -32,6 +32,7 @@ Bundled plugins that read OS data sources prompt the first time they run:
 | `pomodoro` | None | Pure local state |
 | `system-monitor` | None | Reads public sysctls |
 | `tailscale` | None | Talks to `tailscaled` over its Unix socket or runs Tailscale.app's bundled CLI |
+| `rift-indicator` | None | Runs the `rift-cli` installed beside the running Rift |
 
 For EventKit plugins (`reminders`, `calendar`), macOS shows the consent dialog under the plugin's bundle identifier. If the binary changes path between invocations (e.g. running it directly vs. through the kantan wrapper), macOS may treat it as a fresh request. Approve once via the dialog or pre-grant in *System Settings → Privacy & Security*.
 
