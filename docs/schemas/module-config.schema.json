@@ -202,8 +202,8 @@
         },
         "name": {
           "type": "string",
-          "description": "Name of the native menu bar item to mask. Resolved via system plist lookup or alias. Known values: Clock, Battery, WiFi, Bluetooth, Volume, Focus, ControlCenter, UserSwitcher, NowPlaying, Display, ScreenMirroring, Camera, Microphone. Aliases: Volume→Sound, Focus→FocusModes, ControlCenter→BentoBox-0, Camera/Microphone→AudioVideoModule. Raw plist identifiers (e.g. 'Sound', 'FocusModes') also work directly.",
-          "examples": ["Clock", "Battery", "WiFi", "Bluetooth", "Volume", "Focus", "FocusModes", "ControlCenter", "UserSwitcher", "NowPlaying", "Display", "ScreenMirroring", "Camera", "Microphone"]
+          "description": "Name of the native menu bar item to mask: a system item's Control Centre identifier or alias, or, with Accessibility permission, a third-party app's bundle identifier, name or executable name (e.g. 'rift', 'com.1password.1password'). Known system values: Clock, Battery, WiFi, Bluetooth, Volume, Focus, ControlCenter, UserSwitcher, NowPlaying, Display, ScreenMirroring, Camera, Microphone. Aliases: Volume→Sound, Focus→FocusModes, ControlCenter→BentoBox-0, Camera/Microphone→AudioVideoModule. Raw plist identifiers (e.g. 'Sound', 'FocusModes') also work directly. Named items are matched ignoring case.",
+          "examples": ["Clock", "Battery", "WiFi", "Bluetooth", "Volume", "Focus", "FocusModes", "ControlCenter", "UserSwitcher", "NowPlaying", "Display", "ScreenMirroring", "Camera", "Microphone", "rift", "com.1password.1password"]
         }
       },
       "description": "Specify either 'index' or 'name', not both."
@@ -522,7 +522,7 @@
     "FocusConfig": {
       "type": "object",
       "title": "Focus Module Config",
-      "description": "Configuration for the Focus mode indicator module. With Full Disk Access, reads the active Focus mode from the Do Not Disturb database; otherwise falls back to the system FocusModes menu bar indicator, which reports presence only. The module is hidden when no Focus mode is active and otherwise shows the module icon (default 'brain') unless overridden per mode. Exposes the {mode} template variable. Polls every 2 seconds.",
+      "description": "Configuration for the Focus mode indicator module. With Full Disk Access, reads the active Focus mode from the Do Not Disturb database; otherwise detects the system Focus menu bar indicator (live with Accessibility permission), which reports presence only. The module is hidden when no Focus mode is active and otherwise shows the module icon (default 'brain') unless overridden per mode. Exposes the {mode} template variable. Polls every 2 seconds.",
       "properties": {
         "icons": {
           "type": "object",

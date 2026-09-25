@@ -39,7 +39,8 @@ struct FocusStatus: Equatable, Sendable {
 /// With Full Disk Access, state comes from the Do Not Disturb database
 /// (`FocusDatabase`), which names the active mode. Otherwise the module
 /// falls back to detecting the system FocusModes menu bar indicator via
-/// `MenuBarItemDetector`, which reports presence only.
+/// `MenuBarItemDetector`, which reports presence only: live with
+/// Accessibility permission, which kantan requests for this case.
 final class FocusConfig: ModuleConfiguration, @unchecked Sendable {
   var type: String { "focus" }
 
@@ -124,9 +125,10 @@ final class FocusConfig: ModuleConfiguration, @unchecked Sendable {
   /// check to distinguish "Focus active but shifted" from "Focus inactive,
   /// wrong item at that rank."
   ///
-  /// On macOS 27+ items come from MenuBarAgent's persisted layout and are
-  /// matched by identifier, so a match is the FocusModes slot itself. That
-  /// layout records the slot but not whether it is currently drawn.
+  /// Named items are matched by identifier, so a match is the FocusModes
+  /// item itself. Items read through Accessibility are live, so a match means
+  /// Focus is on. Items reconstructed from Control Centre's defaults (macOS
+  /// 27+ without Accessibility) record the slot, not whether it is drawn.
   private static func isFocusIndicatorVisible() -> Bool {
     guard let screen = NSScreen.main else { return false }
 

@@ -44,6 +44,17 @@ struct FocusSchedule: Equatable, Sendable {
   }
 }
 
+/// Whether kantan holds Full Disk Access, which the Do Not Disturb database
+/// needs, probed once by opening the system TCC database. Without access
+/// that open fails silently and raises no prompt, so the database is only
+/// read when access is certain.
+enum FullDiskAccess {
+  /// Present on every supported release and readable only with Full Disk Access.
+  static let probePath = "/Library/Application Support/com.apple.TCC/TCC.db"
+
+  static let isGranted: Bool = FileHandle(forReadingAtPath: probePath) != nil
+}
+
 /// A Focus activation persisted in `Assertions.json`.
 struct FocusAssertion: Equatable, Sendable {
   let modeIdentifier: String

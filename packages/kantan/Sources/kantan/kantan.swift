@@ -869,6 +869,9 @@ class AppDelegate: NSObject, NSApplicationDelegate {
   nonisolated(unsafe) var menuBarMonitor: Any?
   nonisolated(unsafe) var repositionTimer: Timer?
   var visibilityCancellables: [AnyCancellable] = []
+  /// Whether this launch has asked for Accessibility permission, so config
+  /// reloads don't ask again.
+  var requestedAccessibility = false
   var configFilePath: String?
   var modulesDirPath: String?
   nonisolated(unsafe) var configFileSource: DispatchSourceFileSystemObject?
@@ -1003,6 +1006,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
     updateModuleSuspension()
     restartRepositionTimer()
+    startMenuBarAccessibility(for: config)
 
     if autohideConfig.enabled {
       startMenuBarMonitoring()
@@ -1012,7 +1016,27 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
   }
 
+  /// Reads menu bar items through Accessibility when the config uses them,
+  /// asking for permission if kantan lacks it, and repositions masked
+  /// modules whenever the items move.
+  private func startMenuBarAccessibility(for config: Config) {
+    guard
+      MenuBarAccessibility.isNeeded(
+        by: config.modules, fullDiskAccess: FullDiskAccess.isGranted)
+    else { return }
+    if !requestedAccessibility {
+      requestedAccessibility = true
+      MenuBarAccessibility.requestAccess()
+    }
+    MenuBarAccessibility.shared.start { [weak self] in
+      DispatchQueue.main.async {
+        MainActor.assumeIsolated { self?.repositionAllDisplays() }
+      }
+    }
+  }
+
   private func teardownBar() {
+    MenuBarAccessibility.shared.stop()
     stopMenuBarMonitoring()
     repositionTimer?.invalidate()
     repositionTimer = nil

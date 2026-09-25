@@ -1,6 +1,8 @@
 name: rift-indicator
 type: command
 placement: right
+mask:
+  name: rift
 config:
   command: kantan-plugin-rift-indicator
   output: json

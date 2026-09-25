@@ -47,14 +47,34 @@ style:
 
 ## Behavior
 
-With [Full Disk Access](/docs/configuration/masking#granting-full-disk-access), the focus module reads the Do Not Disturb database in `~/Library/DoNotDisturb/DB`:
+The module polls every 2 seconds and hides itself when no Focus mode is active. A hidden module that masks the system Focus indicator releases its menu bar slot. How it knows which mode is active depends on what kantan may read.
+
+### With Full Disk Access
+
+Full Disk Access is optional, and only needed for `icons`, `style` and `{mode}`: it lets the module read the Do Not Disturb database in `~/Library/DoNotDisturb/DB`, which names the active mode.
 
 - **Manually or automatically activated Focus** (Control Centre, Shortcuts, Sleep, Driving, smart activation) is recorded by macOS with the mode it activated. The active mode is known exactly.
 - **Scheduled Focus** isn't recorded by macOS. kantan evaluates each mode's enabled schedules instead. Turning Focus off or switching modes ends a scheduled Focus until its next scheduled start, as macOS does.
 
-When both apply, the most recently started one wins. The module polls every 2 seconds and hides itself when no Focus mode is active; when masking the system Focus indicator, a hidden module releases its menu bar slot.
+When both apply, the most recently started one wins.
 
-Without Full Disk Access, the module falls back to detecting the system FocusModes menu bar indicator. That fallback reports whether Focus is on but not which mode, so `icons`, `style` and `{mode}` have no effect. On macOS 27 and later the indicator's presence can't be observed either, so the fallback shows the module whenever the Focus indicator has a slot in the menu bar layout.
+#### Granting Full Disk Access
+
+In *System Settings → Privacy & Security → Full Disk Access*, click **+**, press ⌘⇧G and enter the path of kantan's binary, then restart kantan. This opens the pane and shows the running binary in Finder, ready to drag into the list:
+
+```sh
+open "x-apple.systempreferences:com.apple.settings.PrivacySecurity.extension?Privacy_AllFiles"
+open -R "$(ps -o comm= -p "$(pgrep -x kantan)")"
+```
+
+macOS ties the grant to that path. A Nix rebuild that changes the store path needs it repeated. kantan checks for access once at launch and never touches the database without it. No prompt or "would like to access data from other apps" notification appears either way.
+
+### Without Full Disk Access
+
+The module detects the system Focus indicator in the menu bar instead. The indicator shows whether Focus is on but not which mode. `icons`, `style` and `{mode}` have no effect. kantan asks for [Accessibility permission](/docs/configuration/masking#granting-accessibility) in this case. With it, the indicator is detected live. Without it:
+
+- **macOS 15 and 26** detect the indicator's window, which isn't reliable on macOS 15.
+- **macOS 27 and later** can only see the indicator's slot in the saved menu bar layout, not whether it's shown. The module shows whenever that slot exists.
 
 ## Examples
 

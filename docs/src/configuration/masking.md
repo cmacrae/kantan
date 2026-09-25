@@ -28,6 +28,19 @@ Add a `mask:` section to any module to enable masking:
     format: "HH:mm"
 ```
 
+Third-party items are named by their app (see [Third-Party Items](#third-party-items)):
+
+```yaml
+- name: rift-indicator
+  type: command
+  placement: right
+  mask:
+    name: rift
+  config:
+    command: kantan-plugin-rift-indicator
+    output: json
+```
+
 ### By Index
 
 Items are indexed right-to-left (index 0 is the rightmost item):
@@ -44,29 +57,27 @@ Items are indexed right-to-left (index 0 is the rightmost item):
 
 ## Item Detection
 
-How kantan finds native menu bar items depends on the macOS release:
+How kantan finds native menu bar items depends on whether it has Accessibility permission:
 
-- **macOS 15 and 26** -- Each status item is its own WindowServer window. kantan reads their geometry with `CGWindowListCopyWindowInfo`.
-- **macOS 27 and later** -- MenuBarAgent draws every status item into a single menu bar surface, so individual items no longer exist as windows. Instead, kantan lays the items out right-to-left from the screen's right edge using their saved positions, skipping items hidden in Control Centre settings and third-party items whose app isn't running. The positions come from one of two places:
-  - **Without extra permissions (default)** -- the `NSStatusItem Preferred Position` values in `com.apple.controlcenter` defaults, which MenuBarAgent migrated its layout from. They match the layout carried over from macOS 26, but macOS 27 no longer updates them, so masks don't follow items you rearrange on macOS 27.
-  - **With Full Disk Access** -- MenuBarAgent's own `TrailingItemPreferredPositions` in `~/Library/Group Containers/com.apple.MenuBar/Library/Preferences/com.apple.MenuBar.plist`, which tracks rearrangements. macOS only lets other processes read it with Full Disk Access.
+- **With Accessibility** (any macOS release) -- kantan reads every status item, system and third-party, through the Accessibility API: its live position and width, and the item's name or owning app. Masks follow items as they appear, disappear, move or change width, within about a second.
+- **Without Accessibility** -- only system items can be located:
+  - **macOS 15 and 26** -- Each status item is its own WindowServer window. kantan reads their geometry with `CGWindowListCopyWindowInfo`.
+  - **macOS 27 and later** -- MenuBarAgent draws every status item into a single menu bar surface. Individual items aren't windows. kantan reads the `NSStatusItem Preferred Position` values in `com.apple.controlcenter` defaults and lays Control Centre's items out right-to-left from the screen's right edge. They hold the layout carried over from macOS 26. macOS 27 doesn't update them. Masks don't follow items you rearrange there. Items that appear only while active (Focus, Now Playing, camera/microphone indicators) keep their slot even while they are not shown.
 
-### Granting Full Disk Access
+### Granting Accessibility
 
-In *System Settings → Privacy & Security → Full Disk Access*, click **+**, press ⌘⇧G and enter the path of the running kantan binary (`ps -o comm= -p "$(pgrep -x kantan)"` prints it), then restart kantan. macOS ties the grant to that path, so with Nix it has to be repeated after each rebuild that changes the store path. kantan checks for access once at launch and never touches the protected file without it, so no "would like to access data from other apps" notification appears either way.
+kantan asks for Accessibility permission when it starts, if any module has a `mask` (or a [focus module](/docs/modules/focus#behavior) can't read the Focus database). macOS then lists kantan in *System Settings → Privacy & Security → Accessibility*; switch it on and masks switch to live positions within a second, without restarting kantan. kantan uses the permission only to read menu bar items.
 
-### macOS 27 Caveats
-
-The saved layout records where each item sits, not whether it is currently drawn or how wide it is right now. MenuBarAgent rewrites its own copy when items are added or rearranged, so:
-
-- Items that appear only while active (Focus, Now Playing, camera/microphone indicators) keep their slot even while they are not shown.
-- A native item that changes width without a rearrangement (e.g. toggling battery percentage) can leave masks slightly offset until MenuBarAgent next persists the layout.
+macOS ties the permission to the binary it was granted to. A Nix rebuild that changes kantan's store path needs it granted again. kantan asks again on its next launch.
 
 ## Name Resolution
 
-On macOS 27 and later, items carry their identifier, so a mask name (after alias resolution) is matched directly against it.
+With Accessibility, or on macOS 27 and later, items carry names. `mask.name` (after alias resolution) is matched against them directly, ignoring case:
 
-On earlier releases, name-based masking uses a multi-step resolution chain:
+- **System items** match their Control Centre identifier (`WiFi`, `FocusModes`), their Accessibility identifier (`com.apple.menuextra.wifi`) or its last part (`wifi`), and the aliases below.
+- **Third-party items** match their app's bundle identifier, name or executable name.
+
+On macOS 15 and 26 without Accessibility, name-based masking uses a multi-step resolution chain:
 
 1. **Preferred position match** -- The name is looked up in `com.apple.controlcenter` defaults via `NSStatusItem Preferred Position <name>`, then matched against detected menu bar items by position (tight tolerance).
 
@@ -76,7 +87,7 @@ On earlier releases, name-based masking uses a multi-step resolution chain:
 
 ## Maskable System Items
 
-Only **system menu bar items** (Control Centre items) can be reliably masked. The following friendly names are supported via built-in aliases that map to the internal plist identifiers used in `NSStatusItem Preferred Position <identifier>`:
+System items are named by their Control Centre identifier, the one used in `NSStatusItem Preferred Position <identifier>`. The following friendly names are supported via built-in aliases:
 
 | Friendly Name | Plist Identifier | System Item |
 |---------------|------------------|-------------|
@@ -91,9 +102,20 @@ A name missing from the alias table is passed through as a plist identifier, whi
 
 Additional known identifiers: `NowPlaying`, `Display`, `ScreenMirroring`, `UserSwitcher`, `AccessibilityShortcuts`, `Hearing`, `KeyboardBrightness`, `AirDrop`, `StageManager`.
 
+## Third-Party Items
+
+With Accessibility, any app's menu bar item can be masked by naming the app, by its bundle identifier, its name or its executable name:
+
+```yaml
+mask:
+  name: com.1password.1password   # or: 1Password
+```
+
+Apps without a bundle identifier, such as [Rift](https://github.com/acsandmann/rift), are named by executable (`rift`). When an app has several items, the rightmost is masked; use `index` for another.
+
 ### Clock Special Case
 
-The `Clock` item has no preferred position in the plist. When the menu bar clock is enabled, it occupies the rightmost position (index 0 in the right-to-left sorted item list). kantan detects this by checking the `NSStatusItem VisibleCC Clock` defaults key.
+Without Accessibility on macOS 15 and 26, the `Clock` item has no preferred position in the plist. When the menu bar clock is enabled, it occupies the rightmost position (index 0 in the right-to-left sorted item list). kantan detects this by checking the `NSStatusItem VisibleCC Clock` defaults key.
 
 ## Default Click Behavior
 
@@ -116,23 +138,13 @@ interaction:
 
 ## Multi-Display Support
 
-Masking works per-screen in multi-display setups. Each display's menu bar is analyzed independently, and modules are positioned according to the item locations on that specific display.
+Masking works per-screen in multi-display setups. Each display's menu bar shows the same items at the same distance from its right edge. Masked modules sit over them on every display the module appears on.
 
 ## Limitations
 
 ### Third-Party Menu Bar Items
 
-Third-party menu bar items **cannot** currently be masked due to macOS system limitations.
-
-**Technical background:** On macOS 26 (Tahoe) and later, all status bar items (including third-party apps) are reported by the system as owned by Control Centre. Window titles are nil, and per-process queries return the same full list for every application. This makes it impossible to distinguish third-party items from system items programmatically.
-
-The only workaround would be the Accessibility API (`AXExtrasMenuBar`), which requires Accessibility permission. However, kantan is distributed as a bare Nix binary (not an .app bundle), so it cannot request or receive this permission through System Settings.
-
-This limitation has been documented in Apple Feedback Assistant as FB18327911.
-
-### Future Improvements
-
-If Apple fixes the underlying API or if kantan moves to .app bundle distribution, third-party masking may become feasible. For now, only system items can be masked. Users can hack around this limitation by placing 3rd party menubar items in their native menubar and placing a masked module over it by smartly configuring its position, but this'll only work if the 3rd party icon stays at a fixed position.
+Third-party items can only be masked with Accessibility permission. Without it, kantan can't tell them apart. On macOS 26 all status item windows are reported as owned by Control Centre, with no titles (FB18327911). On macOS 27 they aren't windows at all.
 
 ## Example Configurations
 
@@ -196,4 +208,4 @@ If Apple fixes the underlying API or if kantan moves to .app bundle distribution
 
 3. **Test on multiple displays** -- With several displays, check masking on each one.
 
-4. **Consider fallback behavior** -- If the system item is not present (e.g., user disabled it), the module will still appear at its placement position without masking.
+4. **Consider fallback behavior** -- A masked module is hidden while its item can't be found: when the item isn't shown (e.g. Focus is off), or for a third-party item while kantan lacks Accessibility permission.

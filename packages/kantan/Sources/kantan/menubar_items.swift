@@ -3,43 +3,33 @@ import CoreGraphics
 import Foundation
 
 struct NativeMenuBarItem {
-  let index: Int
+  var index: Int
   let cgRect: CGRect
   let owner: String
-  /// Control Centre identifier (e.g. `WiFi`, `Clock`) or raw status item key.
-  /// Set for items derived from `PersistedMenuBarLayout`; `nil` for items
-  /// read from WindowServer windows.
+  /// Control Centre identifier (e.g. `WiFi`, `Clock`) of a system item. Set
+  /// for items read through Accessibility or reconstructed from Control
+  /// Centre's defaults; `nil` for items read from WindowServer windows.
   var identifier: String? = nil
+  /// Further names `mask.name` matches, ignoring case: a system item's
+  /// Accessibility identifier and name, or the owning app's bundle
+  /// identifier, name and executable name.
+  var matchNames: [String] = []
 }
 
-/// Whether kantan holds Full Disk Access, probed once by opening the system
-/// TCC database. Without it that open fails silently, so protected data
-/// (other apps' containers, the Do Not Disturb database) is only read when
-/// access is certain: a denied read of another app's container raises a
-/// "would like to access data from other apps" notification instead.
-enum FullDiskAccess {
-  /// Present on every supported release and readable only with Full Disk Access.
-  static let probePath = "/Library/Application Support/com.apple.TCC/TCC.db"
-
-  static let isGranted: Bool = FileHandle(forReadingAtPath: probePath) != nil
-}
-
-/// Menu bar item geometry derived from MenuBarAgent's persisted layout.
+/// Menu bar item geometry reconstructed from Control Centre's defaults, for
+/// macOS 27 and later when kantan lacks Accessibility permission.
 ///
 /// From macOS 27, MenuBarAgent draws every status item into a single menu bar
-/// surface, so individual items are no longer WindowServer windows. It
-/// persists each trailing item's position in `TrailingItemPreferredPositions`
-/// (group container `com.apple.MenuBar`), keyed `module:<Control Centre id>`
-/// or `status:<bundle id>::<autosave name>`. That container is only readable
-/// with Full Disk Access; otherwise positions are reconstructed from the
-/// `com.apple.controlcenter` defaults MenuBarAgent migrated them from.
+/// surface, so individual items are no longer WindowServer windows. Control
+/// Centre's `NSStatusItem Preferred Position <id>` defaults, which
+/// MenuBarAgent migrated its layout from, still place its modules; they
+/// record no third-party items.
 ///
-/// A position is the running total of the widths of the items to its right:
-/// Control Centre modules contribute their content width, status items their
-/// full width including padding. On screen, modules are padded by half of
-/// `moduleSpacing` on each side and all items abut, starting
-/// `trailingEdgeInset` from the screen's right edge. Each resulting slot
-/// matches the per-item window earlier releases exposed (content + padding).
+/// A position is the running total of the content widths of the modules to
+/// its right. On screen, modules are padded by half of `moduleSpacing` on
+/// each side and abut, starting `trailingEdgeInset` from the screen's right
+/// edge. Each resulting slot matches the per-item window earlier releases
+/// exposed (content + padding).
 struct PersistedMenuBarLayout {
   /// Distance from the screen's right edge to the rightmost item's slot.
   static let trailingEdgeInset: CGFloat = 12
@@ -53,32 +43,9 @@ struct PersistedMenuBarLayout {
   static let legacyAnchorInset: Double = 1.5
 
   static let modulePrefix = "module:"
-  static let statusPrefix = "status:"
-
-  static let plistURL = URL(fileURLWithPath: NSHomeDirectory())
-    .appendingPathComponent(
-      "Library/Group Containers/com.apple.MenuBar/Library/Preferences/com.apple.MenuBar.plist")
 
   /// Whether this macOS release lays out status items inside MenuBarAgent.
   static let isActive = ProcessInfo.processInfo.operatingSystemVersion.majorVersion >= 27
-
-  /// Read the persisted positions, keyed by raw item key.
-  static func readPositions(from url: URL = plistURL) -> [String: Double] {
-    guard let plist = NSDictionary(contentsOf: url),
-      let positions = plist["TrailingItemPreferredPositions"] as? [String: Any]
-    else { return [:] }
-    return positions.compactMapValues { ($0 as? NSNumber)?.doubleValue }
-  }
-
-  /// Positions in effect: MenuBarAgent's own when readable, else those
-  /// reconstructed from Control Centre's defaults.
-  static func currentPositions(controlCentreValue: (String) -> Any?) -> [String: Double] {
-    if FullDiskAccess.isGranted {
-      let persisted = readPositions()
-      if !persisted.isEmpty { return persisted }
-    }
-    return legacyPositions(controlCentreValue: controlCentreValue)
-  }
 
   /// Positions reconstructed from Control Centre's
   /// `NSStatusItem Preferred Position <id>` defaults, which MenuBarAgent
@@ -111,39 +78,10 @@ struct PersistedMenuBarLayout {
     return positions
   }
 
-  /// The bundle identifier owning a `status:` key, or `nil` for other keys.
-  static func bundleIdentifier(forKey key: String) -> String? {
-    guard key.hasPrefix(statusPrefix) else { return nil }
-    let rest = key.dropFirst(statusPrefix.count)
-    guard let separator = rest.range(of: "::") else { return String(rest) }
-    return String(rest[..<separator.lowerBound])
-  }
-
-  /// Whether a persisted item is currently shown. Control Centre modules are
-  /// hidden when their visibility default is 0; status items are present
-  /// while their owning application runs.
-  static func isPresent(
-    key: String, controlCentreValue: (String) -> Any?, runningBundleIDs: Set<String>
-  ) -> Bool {
-    if key.hasPrefix(modulePrefix) {
-      let id = String(key.dropFirst(modulePrefix.count))
-      return !MenuBarItemDetector.isHiddenInControlCentre(id, value: controlCentreValue)
-    }
-    if let bundleID = bundleIdentifier(forKey: key) {
-      return runningBundleIDs.contains(bundleID)
-    }
-    return true
-  }
-
-  /// Lay out present items right-to-left on a screen. Returns items sorted
+  /// Lay out items right-to-left on a screen. Returns items sorted
   /// right-to-left (index 0 = rightmost), each spanning its full slot.
-  ///
-  /// An item's width is the gap to the next persisted position, whether or
-  /// not that neighbour is currently present; only present items occupy
-  /// space on screen.
   static func items(
     from positions: [String: Double],
-    isPresent: (String) -> Bool,
     screenFrame: NSRect,
     primaryHeight: CGFloat,
     menuBarHeight: CGFloat
@@ -153,18 +91,17 @@ struct PersistedMenuBarLayout {
     var slotRight = screenFrame.maxX - trailingEdgeInset
     var items: [NativeMenuBarItem] = []
 
-    for (i, entry) in entries.enumerated() where isPresent(entry.key) {
-      let isModule = entry.key.hasPrefix(modulePrefix)
+    for (i, entry) in entries.enumerated() {
       let nextPosition = entries[(i + 1)...].first { $0.value > entry.value }?.value
       let width = nextPosition.map { CGFloat($0 - entry.value) } ?? defaultContentWidth
-      let slotWidth = width + (isModule ? moduleSpacing : 0)
+      let slotWidth = width + moduleSpacing
       slotRight -= slotWidth
       items.append(
         NativeMenuBarItem(
           index: items.count,
           cgRect: CGRect(x: slotRight, y: cgScreenTop, width: slotWidth, height: menuBarHeight),
           owner: "MenuBarAgent",
-          identifier: isModule ? String(entry.key.dropFirst(modulePrefix.count)) : entry.key
+          identifier: String(entry.key.dropFirst(modulePrefix.count))
         ))
     }
     return items
@@ -251,7 +188,9 @@ struct MenuBarItemDetector {
 
   /// Query native menu bar items on a given screen.
   /// Returns items sorted right-to-left (index 0 = rightmost).
-  /// On macOS 27+ items come from MenuBarAgent's persisted layout; earlier
+  /// With Accessibility permission, items are the live ones
+  /// `MenuBarAccessibility` reads, system and third-party. Otherwise macOS 27+
+  /// reconstructs Control Centre's items from its defaults, and earlier
   /// releases read status-level WindowServer windows. The underlying
   /// `CGWindowListCopyWindowInfo` result is cached briefly (`cacheTTL`) so the
   /// per-display reposition fan-out doesn't repeatedly query the WindowServer.
@@ -262,22 +201,27 @@ struct MenuBarItemDetector {
     // Primary screen's frame.maxY gives the total height of the primary display
     // in the NSScreen coordinate system.
     let primaryHeight = NSScreen.screens.first?.frame.height ?? screen.frame.height
+    let menuBarHeight = max(screen.frame.maxY - screen.visibleFrame.maxY, 0)
+
+    let accessible = MenuBarAccessibility.shared.snapshot
+    if !accessible.isEmpty {
+      return MenuBarAccessibility.items(
+        from: accessible,
+        screenFrame: screen.frame,
+        screenFrames: NSScreen.screens.map(\.frame),
+        primaryHeight: primaryHeight,
+        menuBarHeight: menuBarHeight
+      )
+    }
 
     if PersistedMenuBarLayout.isActive {
       let controlCentre = UserDefaults(suiteName: "com.apple.controlcenter")
-      let runningBundleIDs = Set(
-        NSWorkspace.shared.runningApplications.compactMap { $0.bundleIdentifier })
       return PersistedMenuBarLayout.items(
-        from: PersistedMenuBarLayout.currentPositions(
+        from: PersistedMenuBarLayout.legacyPositions(
           controlCentreValue: { controlCentre?.object(forKey: $0) }),
-        isPresent: {
-          PersistedMenuBarLayout.isPresent(
-            key: $0, controlCentreValue: { controlCentre?.object(forKey: $0) },
-            runningBundleIDs: runningBundleIDs)
-        },
         screenFrame: screen.frame,
         primaryHeight: primaryHeight,
-        menuBarHeight: max(screen.frame.maxY - screen.visibleFrame.maxY, 0)
+        menuBarHeight: menuBarHeight
       )
     }
 
@@ -352,12 +296,16 @@ struct MenuBarItemDetector {
   ///
   /// Resolution chain (highest to lowest priority):
   /// 1. `mask.index` — direct index lookup
-  /// 2. `mask.name` — identifier match, for items that carry one (macOS 27+)
+  /// 2. `mask.name` — name match, for items that carry names (read through
+  ///    Accessibility, or reconstructed on macOS 27+). Compared ignoring case
+  ///    against the Control Centre identifier and `matchNames`, so a
+  ///    third-party item matches its app's bundle identifier, name or
+  ///    executable name. The rightmost match wins.
   /// 3. `mask.name` — preferred position match (tight tolerance)
   /// 4. `mask.name` — rank-based fallback (immune to position shifts)
   /// 5. `mask.name` — owner name fallback
   ///
-  /// Name-based lookup reads `NSStatusItem Preferred Position <Name>` from the
+  /// For WindowServer windows, name-based lookup reads `NSStatusItem Preferred Position <Name>` from the
   /// `com.apple.controlcenter` defaults. If that fails, falls back to rank-based
   /// matching: when menu bar items shift uniformly (e.g. battery percentage
   /// toggle), absolute positions change but relative order is preserved.
@@ -384,9 +332,14 @@ struct MenuBarItemDetector {
     // Resolve aliases to plist identifiers
     let plistName = nameAliases[name] ?? name
 
-    // Items from MenuBarAgent's persisted layout are named directly.
-    if items.contains(where: { $0.identifier != nil }) {
-      return items.first { $0.identifier == plistName }
+    // Named items are matched directly.
+    if items.contains(where: { $0.identifier != nil || !$0.matchNames.isEmpty }) {
+      let wanted = Set([name, plistName].map { $0.lowercased() })
+      return items.first { item in
+        ([item.identifier].compactMap { $0 } + item.matchNames).contains {
+          wanted.contains($0.lowercased())
+        }
+      }
     }
 
     let controlCenterDefaults = UserDefaults(suiteName: "com.apple.controlcenter")

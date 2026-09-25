@@ -48,6 +48,8 @@ Copy the example config into your kantan `modules.d/` directory:
 name: rift-indicator
 type: command
 placement: right
+mask:
+  name: rift
 config:
   command: kantan-plugin-rift-indicator
   output: json
@@ -93,10 +95,11 @@ Like the [focus module's mode styles](/docs/modules/focus#mode-styles), each `st
 |---------------------|-----------------------------------------|------------------------------------------------------|
 | `config.interval`   | `0`                                     | No polling; the watch process drives every refresh   |
 | `config.watch`      | `kantan-plugin-rift-indicator --watch`  | Keeps the Rift subscription open                     |
+| `mask.name`         | `rift`                                  | Covers Rift's own menu bar icon                      |
 | `interaction.click` | `passthrough`                           | Opens Rift's own menu when the module sits over it   |
 
 ## Covering Rift's Menu Bar Icon
 
-Place the module over Rift's menu bar icon with a [`mask`](/docs/configuration/masking), keeping `click: passthrough` so clicks open Rift's menu. Rift's icon is a third-party status item, which kantan can't find by name; see [Third-Party Menu Bar Items](/docs/configuration/masking#third-party-menu-bar-items) for the limitations and the position-based workaround.
+The example config masks Rift's own menu bar icon with `mask: {name: rift}`, and `click: passthrough` opens Rift's menu. Masking a third-party item needs [Accessibility permission](/docs/configuration/masking#granting-accessibility), which kantan asks for when it starts; until it's granted, a masked module stays hidden. Without a mask, the module is placed like any other right-hand module.
 
-By default Rift's icon draws one cell for each workspace with windows plus the active one, so it widens when you switch to an empty workspace. Setting `mode = "active"` under `[settings.ui.menu_bar]` in Rift's config draws only the active workspace, which keeps the icon in one place.
+By default Rift's icon draws one cell for each workspace with windows plus the active one. It widens when you switch to an empty workspace. The mask moves with it. Setting `mode = "active"` under `[settings.ui.menu_bar]` in Rift's config draws only the active workspace, which keeps the icon, and the module over it, in one place.
