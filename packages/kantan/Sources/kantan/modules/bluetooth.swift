@@ -41,6 +41,10 @@ struct BluetoothStatus: Sendable {
 
 /// Event-driven Bluetooth module using IOBluetooth notifications.
 /// Registers for device connect/disconnect events and power state changes.
+///
+/// Bluetooth state is read on a background queue: IOBluetooth's first call
+/// blocks until kantan's Bluetooth permission prompt is answered, and
+/// `system_profiler` takes ~70ms. The icon renders from the last read.
 final class BluetoothConfig: NSObject, ModuleConfiguration, EventDrivenModule,
   @unchecked Sendable
 {
@@ -54,13 +58,24 @@ final class BluetoothConfig: NSObject, ModuleConfiguration, EventDrivenModule,
   nonisolated(unsafe) private var connectNotification: IOBluetoothUserNotification?
   nonisolated(unsafe) private var disconnectNotifications: [String: IOBluetoothUserNotification] =
     [:]
+  /// Bumped on each start/stop (main thread) so a read finishing after
+  /// `stopObserving` doesn't register notifications.
+  nonisolated(unsafe) private var observation = 0
   private let _notificationsLock = NSLock()
+  private let readStatus: @Sendable () -> BluetoothStatus
+  private let readQueue = DispatchQueue(label: "kantan.bluetooth.status")
   private let cache = CachedStatus<(connected: [String], total: Int)>(
     fallback: (connected: [], total: 0))
 
-  init(icon: String, disabledIcon: String) {
+  init(
+    icon: String, disabledIcon: String,
+    readStatus: @escaping @Sendable () -> BluetoothStatus = {
+      BluetoothConfig.readBluetoothStatus()
+    }
+  ) {
     self.icon = icon
     self.disabledIcon = disabledIcon
+    self.readStatus = readStatus
     super.init()
   }
 
@@ -72,7 +87,19 @@ final class BluetoothConfig: NSObject, ModuleConfiguration, EventDrivenModule,
 
   func startObserving(onChange: @escaping @Sendable () -> Void) {
     self.onChange = onChange
+    observation += 1
+    let current = observation
 
+    // The first read initialises IOBluetooth, so registering afterwards
+    // can't block the main thread on the permission prompt.
+    refresh { [weak self] in
+      guard let self, self.observation == current else { return }
+      self.registerNotifications()
+      self.onChange?()
+    }
+  }
+
+  private func registerNotifications() {
     // Listen for any Bluetooth device connecting
     connectNotification = IOBluetoothDevice.register(
       forConnectNotifications: self,
@@ -98,6 +125,7 @@ final class BluetoothConfig: NSObject, ModuleConfiguration, EventDrivenModule,
   }
 
   func stopObserving() {
+    observation += 1
     connectNotification?.unregister()
     connectNotification = nil
 
@@ -113,9 +141,7 @@ final class BluetoothConfig: NSObject, ModuleConfiguration, EventDrivenModule,
     _ notification: IOBluetoothUserNotification, device: IOBluetoothDevice
   ) {
     ensureDisconnectRegistered(for: device)
-    DispatchQueue.main.async { [weak self] in
-      self?.onChange?()
-    }
+    refresh { [weak self] in self?.onChange?() }
   }
 
   @objc private func deviceDisconnected(
@@ -127,9 +153,7 @@ final class BluetoothConfig: NSObject, ModuleConfiguration, EventDrivenModule,
       _notificationsLock.unlock()
       notif?.unregister()
     }
-    DispatchQueue.main.async { [weak self] in
-      self?.onChange?()
-    }
+    refresh { [weak self] in self?.onChange?() }
   }
 
   @objc private func powerStateChanged(_ notification: Notification) {
@@ -140,8 +164,21 @@ final class BluetoothConfig: NSObject, ModuleConfiguration, EventDrivenModule,
     clearDisconnectNotifications()
     registerDisconnectNotifications()
 
-    DispatchQueue.main.async { [weak self] in
-      self?.onChange?()
+    refresh { [weak self] in self?.onChange?() }
+  }
+
+  /// Reads Bluetooth state on `readQueue` into the cache, then runs `then`
+  /// on the main thread.
+  func refresh(then: @escaping @Sendable () -> Void) {
+    readQueue.async { [weak self] in
+      guard let self else { return }
+      let status = self.readStatus()
+      self.cache.set(
+        (
+          connected: status.connectedDevices.map { $0.name },
+          total: status.isPoweredOn ? status.pairedDevices.count : -1
+        ))
+      DispatchQueue.main.async(execute: then)
     }
   }
 
@@ -201,14 +238,7 @@ final class BluetoothConfig: NSObject, ModuleConfiguration, EventDrivenModule,
   }
 
   func getIcon() -> String {
-    let status = Self.readBluetoothStatus()
-    let connectedNames = status.connectedDevices.map { $0.name }
-    let total = status.isPoweredOn ? status.pairedDevices.count : -1
-    cache.set((connected: connectedNames, total: total))
-    if total < 0 {
-      return disabledIcon
-    }
-    return icon
+    cache.get().total < 0 ? disabledIcon : icon
   }
 
   /// Returns false when Bluetooth is on but no devices are connected,
@@ -230,7 +260,7 @@ final class BluetoothConfig: NSObject, ModuleConfiguration, EventDrivenModule,
   /// stale `true` values for paired-but-disconnected devices on macOS Tahoe,
   /// leaving the bar icon stuck at full brightness when it should dim.
   /// `system_profiler` costs ~70ms and only runs on event-driven refreshes,
-  /// not on every render, so the overhead is acceptable.
+  /// off the main thread, so the overhead is acceptable.
   static func readBluetoothStatus() -> BluetoothStatus {
     guard let controller = IOBluetoothHostController.default() else {
       return .unavailable

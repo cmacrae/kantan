@@ -1518,6 +1518,57 @@ final class ThemeProviderElementFgPrecedenceTests: XCTestCase {
   }
 }
 
+// MARK: - BluetoothConfig status reads
+
+final class BluetoothStatusReadTests: XCTestCase {
+  func testIconRendersWithoutReadingStatus() {
+    let reads = OSAllocatedUnfairLock(initialState: 0)
+    let config = BluetoothConfig(icon: "bluetooth", disabledIcon: "bluetooth-off") {
+      reads.withLock { $0 += 1 }
+      return .unavailable
+    }
+    XCTAssertEqual(config.getIcon(), "bluetooth")
+    XCTAssertFalse(config.isActive())
+    XCTAssertEqual(reads.withLock { $0 }, 0)
+  }
+
+  func testRefreshReadsOffMainThreadThenRendersResult() {
+    let readOnMain = OSAllocatedUnfairLock<Bool?>(initialState: nil)
+    let config = BluetoothConfig(icon: "bluetooth", disabledIcon: "bluetooth-off") {
+      readOnMain.withLock { $0 = Thread.isMainThread }
+      return BluetoothStatus(
+        isPoweredOn: true,
+        pairedDevices: [BluetoothDeviceInfo(name: "Buds", address: "aa", isConnected: true)])
+    }
+    let done = expectation(description: "refreshed")
+    config.refresh {
+      XCTAssertTrue(Thread.isMainThread)
+      done.fulfill()
+    }
+    wait(for: [done], timeout: 2)
+    XCTAssertEqual(readOnMain.withLock { $0 }, false)
+    XCTAssertEqual(config.getIcon(), "bluetooth")
+    XCTAssertTrue(config.isActive())
+  }
+
+  func testBlockedReadDoesNotBlockCaller() {
+    let prompt = DispatchSemaphore(value: 0)
+    let config = BluetoothConfig(icon: "bluetooth", disabledIcon: "bluetooth-off") {
+      prompt.wait()
+      return BluetoothStatus(isPoweredOn: false, pairedDevices: [])
+    }
+    let done = expectation(description: "refreshed after prompt")
+    let started = Date()
+    config.refresh { done.fulfill() }
+    XCTAssertEqual(config.getIcon(), "bluetooth")
+    XCTAssertLessThan(Date().timeIntervalSince(started), 0.5)
+
+    prompt.signal()
+    wait(for: [done], timeout: 2)
+    XCTAssertEqual(config.getIcon(), "bluetooth-off")
+  }
+}
+
 // MARK: - BluetoothConfig.parseSPBluetoothData
 
 final class BluetoothSystemProfilerParserTests: XCTestCase {
