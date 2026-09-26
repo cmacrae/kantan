@@ -1825,6 +1825,35 @@ final class CommandToggleTests: XCTestCase {
     wait(for: [done], timeout: 0.1)
   }
 
+  func testCommandsAndTogglesAreGivenTheirModuleName() throws {
+    let file = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+    defer { try? FileManager.default.removeItem(at: file) }
+    let module = try XCTUnwrap(
+      parseModuleConfig(
+        from: try Yaml.load(
+          """
+          name: todo
+          type: command
+          placement: right
+          config:
+            command: 'printf %s "$KANTAN_MODULE_NAME"'
+            toggle: 'printf %s "$KANTAN_MODULE_NAME" > \(file.path)'
+          """)))
+    let command = try XCTUnwrap(module.config as? CommandConfig)
+
+    let ran = expectation(description: "command ran")
+    let value = OSAllocatedUnfairLock<String?>(initialState: nil)
+    command.getValue { output in
+      value.withLock { $0 = output }
+      ran.fulfill()
+    }
+    let toggled = expectation(description: "toggle ran")
+    command.handleToggle { toggled.fulfill() }
+    wait(for: [ran, toggled], timeout: 5)
+    XCTAssertEqual(value.withLock { $0 }, "todo")
+    XCTAssertEqual(try String(contentsOf: file, encoding: .utf8), "todo")
+  }
+
   func testUnlaunchableToggleStillCompletes() throws {
     let toggle = try config(
       "command: 'true'\ntoggle: x\nlauncher:\n  path: /nonexistent/sh\n")

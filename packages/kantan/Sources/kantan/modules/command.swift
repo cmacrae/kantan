@@ -86,6 +86,8 @@ struct CommandConfig: ModuleConfiguration {
   let watchCommand: String?  // Long-lived watcher process command
   let toggleCommand: String?  // Command to run on toggle interaction
   let theme: ThemeConfig?  // For resolving {theme(...)} templates in settings
+  /// The module's name, given to the commands it runs as KANTAN_MODULE_NAME.
+  var moduleName: String?
 
   init(yaml: Yaml, configDir: String? = nil, theme: ThemeConfig? = nil) throws {
     guard let rawCommand = yaml["command"].string else {
@@ -161,6 +163,7 @@ struct CommandConfig: ModuleConfiguration {
       env["KANTAN_SETTINGS"] = settings
     }
     env["KANTAN_APPEARANCE"] = isDark ? "dark" : "light"
+    env["KANTAN_MODULE_NAME"] = moduleName
     env["KANTAN_PID"] = "\(ProcessInfo.processInfo.processIdentifier)"
     process.environment = env
     process.standardOutput = FileHandle.nullDevice
@@ -179,6 +182,7 @@ struct CommandConfig: ModuleConfiguration {
     let args = self.launchArgs
     let timeoutInterval = self.timeout
     let mode = self.outputMode
+    let moduleName = self.moduleName
 
     // Capture appearance on main thread before dispatching to background.
     let names: [NSAppearance.Name] = [.darkAqua, .aqua]
@@ -193,7 +197,8 @@ struct CommandConfig: ModuleConfiguration {
         launchArgs: args,
         timeout: timeoutInterval,
         settingsJSON: settings,
-        appearance: appearance
+        appearance: appearance,
+        moduleName: moduleName
       )
 
       if mode == "json" {

@@ -57,16 +57,15 @@ See [Common Pitfalls](#common-pitfalls) for watch-mode flushing rules.
 
 ### Reading Configuration
 
-Access the environment variables kantan provides. Note that not every variable is set on every invocation — see
-[Step 2: Environment Variables](#step-2-environment-variables) for the matrix. `KANTAN_SETTINGS` is only present when your module
-declares `settings:`, and `KANTAN_MODULE_NAME` is only set inside watch processes; the defaults below handle both cases.
+Read the environment variables kantan sets. Not every variable is set on every invocation: see
+[Step 2: Environment Variables](#step-2-environment-variables) for when each one is. `KANTAN_SETTINGS` is only present when your module
+declares `settings:`. The defaults below handle its absence.
 
 ```swift
 import Foundation
 
 let settings = ProcessInfo.processInfo.environment["KANTAN_SETTINGS"] ?? "{}"
 let appearance = ProcessInfo.processInfo.environment["KANTAN_APPEARANCE"] ?? "light"
-// KANTAN_MODULE_NAME is only set in watch mode
 let moduleName = ProcessInfo.processInfo.environment["KANTAN_MODULE_NAME"] ?? ""
 
 // Parse settings JSON
@@ -92,7 +91,7 @@ kantan sets these environment variables before invoking your plugin. Not every v
 |----------|------|----------|-------------|---------|
 | `KANTAN_SETTINGS` | JSON string | Only when the module declares `settings:` (covers normal invocation, watch, and toggle) | Module's `settings:` config | `{"refresh": 10, "units": "metric"}` |
 | `KANTAN_APPEARANCE` | string | Normal invocation, watch, toggle | Current appearance | `"dark"` or `"light"` |
-| `KANTAN_MODULE_NAME` | string | Watch process only | Module identifier | `"my-plugin"` |
+| `KANTAN_MODULE_NAME` | string | Normal invocation, watch, toggle | Module identifier | `"my-plugin"` |
 | `KANTAN_PID` | string | Normal invocation, watch, toggle | kantan's process ID | `"12345"` |
 
 A plugin run from the shell without these env vars set should still produce reasonable output — this makes it trivial to test by hand (`./kantan-plugin-foo`). Use `?? "{}"` / `?? ""` style defaults.

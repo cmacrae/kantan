@@ -231,6 +231,11 @@ struct ModuleConfigBuilder {
     if let ws = self.config as? WorkspaceConfig {
       ws.moduleIcon = self.icon
     }
+    // Commands give the plugins they run their module's name.
+    if var command = self.config as? CommandConfig {
+      command.moduleName = name
+      self.config = command
+    }
   }
 
   func build() throws -> ModuleConfig {

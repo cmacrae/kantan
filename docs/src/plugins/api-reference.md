@@ -21,7 +21,7 @@ kantan sets these environment variables before invoking the plugin:
 |----------|------|----------|-------------|
 | `KANTAN_SETTINGS` | JSON string | Normal invocation, watch, toggle | Module's `settings:` configuration from config file |
 | `KANTAN_APPEARANCE` | enum string | Normal invocation, watch, toggle | Current system appearance: `"dark"` or `"light"` |
-| `KANTAN_MODULE_NAME` | string | Watch process only | Module's `name:` field from config |
+| `KANTAN_MODULE_NAME` | string | Normal invocation, watch, toggle | Module's `name:` field from config |
 | `KANTAN_PID` | string | Normal invocation, watch, toggle | kantan's process ID (useful for tying child processes to kantan's lifetime) |
 
 #### KANTAN_SETTINGS
@@ -64,11 +64,9 @@ Use this to adapt plugin behavior or output styling to the current appearance.
 
 #### KANTAN_MODULE_NAME
 
-The module's `name:` identifier from the config file. **Only set for watch processes**, not during normal command invocation or toggle execution. Useful for:
-- IPC triggers (`kantan trigger <module-name> refresh`)
+The module's `name:` identifier from the config file. Set during normal invocation, watch process launch, and toggle execution. Useful for:
+- IPC triggers (`kantan trigger <module-name> refresh`), including commands the plugin puts in its view for kantan to run later
 - Shared state storage (if plugin maintains state)
-
-Since this variable is only available in watch mode, plugins that need the module name during normal invocation should accept it as a setting or hard-code a default.
 
 #### KANTAN_PID
 
@@ -594,8 +592,6 @@ The plugin protocol is versioned through the kantan release version.
 ```bash
 export KANTAN_SETTINGS='{"key": "value"}'
 export KANTAN_APPEARANCE="dark"
-# KANTAN_MODULE_NAME is only set for watch processes in production,
-# but setting it here is useful for testing trigger commands
 export KANTAN_MODULE_NAME="test"
 
 ./kantan-plugin-name

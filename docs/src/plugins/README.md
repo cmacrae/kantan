@@ -25,7 +25,7 @@ Plugin → JSON lines on stdout, or `kantan trigger <name> refresh` IPC → kant
 kantan invokes the plugin as a subprocess, passing configuration through environment variables:
 - `KANTAN_SETTINGS`: Module's `settings:` configuration as JSON
 - `KANTAN_APPEARANCE`: Current system appearance (`"dark"` or `"light"`)
-- `KANTAN_MODULE_NAME`: Module identifier from config (watch process only)
+- `KANTAN_MODULE_NAME`: Module identifier from config
 - `KANTAN_PID`: kantan's process ID
 
 The plugin processes these inputs and outputs a JSON object describing what to display:

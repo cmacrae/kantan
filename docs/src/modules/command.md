@@ -101,7 +101,7 @@ All commands receive these environment variables:
 | `KANTAN_SETTINGS` | JSON-serialized `settings` object (if configured) |
 | `KANTAN_APPEARANCE` | Current system appearance: `"dark"` or `"light"` |
 | `KANTAN_PID` | kantan's process ID |
-| `KANTAN_MODULE_NAME` | Module name (watch processes only) |
+| `KANTAN_MODULE_NAME` | Module name |
 
 ## Custom Launcher
 

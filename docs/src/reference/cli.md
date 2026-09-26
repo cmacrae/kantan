@@ -87,7 +87,7 @@ These are documented in full in [the plugin API reference](/docs/plugins/api-ref
 | `KANTAN_SETTINGS` | The module declares a `settings:` block; absent otherwise |
 | `KANTAN_APPEARANCE` | Always (`"dark"` or `"light"`) |
 | `KANTAN_PID` | Always (kantan's PID, useful for `caffeinate -w $KANTAN_PID` style lifetime ties) |
-| `KANTAN_MODULE_NAME` | Watch processes only |
+| `KANTAN_MODULE_NAME` | Always (the module's `name:`) |
 
 The formal schema lives in [`docs/schemas/module-config.schema.json`](/docs/reference/schemas).
 Plugin authors should always provide sensible defaults when a variable is absent.
