@@ -280,6 +280,26 @@ struct CommandConfig: ModuleConfiguration {
       return
     }
 
+    let (data, value) = parseOutput(json, raw: raw)
+    setCommandData(data, for: cacheKey)
+    completion(value)
+  }
+
+  /// Caches a line a watch process printed as the command's output, when
+  /// the module reads JSON and the line is a JSON object, returning the
+  /// value to show; nil for any other line.
+  func cacheWatchOutput(_ line: Data) -> String? {
+    guard outputMode == "json",
+      let json = try? JSONSerialization.jsonObject(with: line) as? [String: Any]
+    else { return nil }
+    let (data, value) = Self.parseOutput(json, raw: String(decoding: line, as: UTF8.self))
+    setCommandData(data, for: command)
+    return value
+  }
+
+  /// The data and value a JSON output object carries, the value falling
+  /// back to the `raw` output.
+  static func parseOutput(_ json: [String: Any], raw: String) -> (CommandOutputData, String) {
     var data = CommandOutputData()
 
     // Extract icon override
@@ -336,11 +356,7 @@ struct CommandConfig: ModuleConfiguration {
       }
     }
 
-    setCommandData(data, for: cacheKey)
-
-    // Extract display value
-    let value = json["value"] as? String ?? raw
-    completion(value)
+    return (data, json["value"] as? String ?? raw)
   }
 
   // MARK: - Command Execution

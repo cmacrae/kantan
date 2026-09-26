@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"encoding/json"
 	"os"
 	"os/exec"
@@ -157,6 +158,26 @@ func TestRender_HiddenWithoutRift(t *testing.T) {
 	encoded, _ := json.Marshal(render(nil, Settings{}))
 	if string(encoded) != `{"value":"","hidden":true}` {
 		t.Errorf("got %s", encoded)
+	}
+}
+
+// TestShow_WritesTheActiveWorkspaceAsOneLine writes the output for the
+// workspace Rift reports as active, as one line kantan reads.
+func TestShow_WritesTheActiveWorkspaceAsOneLine(t *testing.T) {
+	cli := writeScript(t, t.TempDir(), "rift-cli",
+		`[ "$*" = "query workspaces" ] && printf '[{"name":"1","is_active":false,"layout_mode":"scrolling"},{"name":"2","is_active":true,"layout_mode":"bsp"}]'`)
+	var out bytes.Buffer
+	show(&out, cli, Settings{Icons: map[string]string{"bsp": "grid-dots"}})
+	line, rest, _ := strings.Cut(out.String(), "\n")
+	if rest != "" {
+		t.Fatalf("want one line, got %q", out.String())
+	}
+	var got output
+	if err := json.Unmarshal([]byte(line), &got); err != nil {
+		t.Fatalf("decode %q: %v", line, err)
+	}
+	if got.Icon != "grid-dots" || got.Variables["workspace"] != "2" || got.Hidden {
+		t.Errorf("got %+v", got)
 	}
 }
 

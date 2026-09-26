@@ -50,7 +50,7 @@ The command's stdout is parsed as JSON conforming to the [plugin output schema](
 
 ## Watch Mode
 
-A `watch` command launches a long-lived background process for event-driven updates. The watch process triggers refreshes via `kantan trigger <module-name> refresh` instead of polling.
+A `watch` command launches a long-lived background process for event-driven updates. Instead of polling, the watch process prints the module's new output to stdout, a line of JSON at a time, or triggers refreshes via `kantan trigger <module-name> refresh`.
 
 ```yaml
 - name: reminders

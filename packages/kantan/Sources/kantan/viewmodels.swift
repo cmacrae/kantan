@@ -73,6 +73,14 @@ class ModuleViewModel: ObservableObject, Identifiable {
   nonisolated(unsafe) private var watchStdinPipe: Pipe?
   nonisolated(unsafe) private var watchRestartCount: Int = 0
   nonisolated(unsafe) private var watchStopped: Bool = false
+  /// Counts watch process launches, so events from a replaced process are
+  /// ignored.
+  private var watchLaunch: UInt64 = 0
+  /// The running watch process's stdout, split into lines.
+  private var watchOutput = LineBuffer()
+  /// The appearance the running watch process was given.
+  private var watchAppearance: String?
+  private var appearanceObservation: NSKeyValueObservation?
 
   /// Sets the display icon, resolving named icons (e.g. "bell") to glyphs.
   func setIcon(_ raw: String?) {
@@ -107,6 +115,15 @@ class ModuleViewModel: ObservableObject, Identifiable {
     }
 
     startWatchIfConfigured()
+    if moduleConfig.config?.getWatchCommand()?.isEmpty == false {
+      appearanceObservation = NSApp.observe(\.effectiveAppearance) { [weak self] _, _ in
+        DispatchQueue.main.async {
+          MainActor.assumeIsolated {
+            self?.relaunchWatchIfAppearanceChanged()
+          }
+        }
+      }
+    }
   }
 
   deinit {
@@ -130,7 +147,6 @@ class ModuleViewModel: ObservableObject, Identifiable {
     let gen = updateGeneration
 
     let icon = config.getIcon()
-    let moduleIcon = moduleConfig.icon
     let bgIcon = config.getBackgroundIcon()
     let resolvedBgGlyph = bgIcon.map { resolveIconName($0).glyph }
 
@@ -140,23 +156,31 @@ class ModuleViewModel: ObservableObject, Identifiable {
         guard self.updateGeneration == gen else { return }
         // A command's icon comes from the output getValue just produced.
         let currentIcon = config is CommandConfig ? config.getIcon() : icon
-        let rawIcon = currentIcon.isEmpty ? moduleIcon : currentIcon
-        let resolved = rawIcon.map { resolveIconName($0) }
-        withAnimation(self.contentAnimation) {
-          self.displayValue = newValue
-          self.displayIcon = resolved?.glyph ?? rawIcon
-          self.iconFontNameOverride = resolved?.fontNameOverride
-          self.iconScaleFactor = resolved?.scaleFactor ?? 1.0
-          self.backgroundIcon = resolvedBgGlyph
-          self.isActive = config.isActive()
-          self.shouldDisplay = config.shouldDisplay()
-          self.templateVariables = config.getTemplateVariables()
-          self.dynamicStyle = config.getDynamicStyle()
-          self.viewTree = config.getViewTree()
-          if let cmdConfig = config as? CommandConfig {
-            self.data = cmdConfig.getData()
-          }
-        }
+        self.show(newValue, icon: currentIcon, backgroundIcon: resolvedBgGlyph, of: config)
+      }
+    }
+  }
+
+  /// Publishes `value`, `icon` (or the module's own when empty) and the rest
+  /// of `config`'s current state.
+  private func show(
+    _ value: String, icon: String, backgroundIcon: String?, of config: ModuleConfiguration
+  ) {
+    let rawIcon = icon.isEmpty ? moduleConfig.icon : icon
+    let resolved = rawIcon.map { resolveIconName($0) }
+    withAnimation(contentAnimation) {
+      displayValue = value
+      displayIcon = resolved?.glyph ?? rawIcon
+      iconFontNameOverride = resolved?.fontNameOverride
+      iconScaleFactor = resolved?.scaleFactor ?? 1.0
+      self.backgroundIcon = backgroundIcon
+      isActive = config.isActive()
+      shouldDisplay = config.shouldDisplay()
+      templateVariables = config.getTemplateVariables()
+      dynamicStyle = config.getDynamicStyle()
+      viewTree = config.getViewTree()
+      if let cmdConfig = config as? CommandConfig {
+        data = cmdConfig.getData()
       }
     }
   }
@@ -223,10 +247,10 @@ class ModuleViewModel: ObservableObject, Identifiable {
 
   private func startPolling() {
     update()
-    // When a watch process is configured, it is responsible for triggering
-    // all subsequent refreshes (via `kantan trigger`). Running a polling
-    // timer alongside it causes redundant command invocations and potential
-    // cache races on the shared CommandOutputData.
+    // When a watch process is configured, it is responsible for all
+    // subsequent refreshes, printing output or running `kantan trigger`.
+    // Running a polling timer alongside it causes redundant command
+    // invocations and potential cache races on the shared CommandOutputData.
     if let watchCmd = moduleConfig.config?.getWatchCommand(), !watchCmd.isEmpty {
       return
     }
@@ -257,28 +281,43 @@ class ModuleViewModel: ObservableObject, Identifiable {
 
     var env = ProcessInfo.processInfo.environment
     env["KANTAN_MODULE_NAME"] = self.id
-    let names: [NSAppearance.Name] = [.darkAqua, .aqua]
-    let isDark = NSApp.effectiveAppearance.bestMatch(from: names) == .darkAqua
+    let appearance = Self.appearance
     if let cmdConfig = moduleConfig.config as? CommandConfig {
-      if let settings = cmdConfig.resolvedSettings(isDark: isDark) {
+      if let settings = cmdConfig.resolvedSettings(isDark: appearance == "dark") {
         env["KANTAN_SETTINGS"] = settings
       }
     }
-    env["KANTAN_APPEARANCE"] = isDark ? "dark" : "light"
+    env["KANTAN_APPEARANCE"] = appearance
     env["KANTAN_PID"] = "\(ProcessInfo.processInfo.processIdentifier)"
     process.environment = env
 
     // Provide a stdin pipe so the watch process can detect kantan exit
     // (reads on stdin return EOF when kantan terminates).
     let stdinPipe = Pipe()
+    let stdoutPipe = Pipe()
     process.standardInput = stdinPipe
-    process.standardOutput = FileHandle.nullDevice
+    process.standardOutput = stdoutPipe
     process.standardError = FileHandle.nullDevice
 
+    watchLaunch &+= 1
+    let launch = watchLaunch
+    watchOutput = LineBuffer()
+    stdoutPipe.fileHandleForReading.readabilityHandler = { [weak self] handle in
+      let output = handle.availableData
+      guard !output.isEmpty else {
+        handle.readabilityHandler = nil
+        return
+      }
+      DispatchQueue.main.async {
+        MainActor.assumeIsolated {
+          self?.receiveWatchOutput(output, from: launch)
+        }
+      }
+    }
     process.terminationHandler = { [weak self] proc in
       DispatchQueue.main.async {
         MainActor.assumeIsolated {
-          self?.handleWatchTermination(exitCode: proc.terminationStatus)
+          self?.handleWatchTermination(exitCode: proc.terminationStatus, from: launch)
         }
       }
     }
@@ -287,8 +326,10 @@ class ModuleViewModel: ObservableObject, Identifiable {
       try process.run()
       watchProcess = process
       watchStdinPipe = stdinPipe
+      watchAppearance = appearance
       watchRestartCount = 0
     } catch {
+      stdoutPipe.fileHandleForReading.readabilityHandler = nil
       print("Failed to launch watch process: \(error)")
     }
   }
@@ -303,7 +344,39 @@ class ModuleViewModel: ObservableObject, Identifiable {
     return min(Double(1 << min(attempt - 1, 4)), 30.0)
   }
 
-  private func handleWatchTermination(exitCode: Int32) {
+  /// The appearance plugins are given, as `KANTAN_APPEARANCE`.
+  private static var appearance: String {
+    NSApp.effectiveAppearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua ? "dark" : "light"
+  }
+
+  /// Shows each JSON object line the watch process prints as the command's
+  /// output, as though the command had printed it.
+  private func receiveWatchOutput(_ output: Data, from launch: UInt64) {
+    guard launch == watchLaunch else { return }
+    for line in watchOutput.append(output) {
+      guard durationTimer == nil, let config = moduleConfig.config as? CommandConfig,
+        let value = config.cacheWatchOutput(line)
+      else { continue }
+      // Supersedes any command run still in flight.
+      updateGeneration &+= 1
+      show(
+        value, icon: config.getIcon(),
+        backgroundIcon: config.getBackgroundIcon().map { resolveIconName($0).glyph }, of: config)
+    }
+  }
+
+  /// Relaunches the watch process once the appearance differs from the one
+  /// it was given, so it has settings resolved for the new appearance.
+  private func relaunchWatchIfAppearanceChanged() {
+    guard watchProcess != nil, Self.appearance != watchAppearance,
+      let watchCmd = moduleConfig.config?.getWatchCommand(), !watchCmd.isEmpty
+    else { return }
+    terminateWatch()
+    launchWatch(command: watchCmd)
+  }
+
+  private func handleWatchTermination(exitCode: Int32, from launch: UInt64) {
+    guard launch == watchLaunch else { return }
     watchProcess = nil
     watchStdinPipe = nil
 

@@ -19,7 +19,7 @@ Plugins are executable programs that integrate with kantan modules through the `
 ```
 kantan → Environment Variables → Plugin
 Plugin → JSON stdout → kantan
-Plugin → `kantan trigger <name> refresh` IPC → kantan (watch mode)
+Plugin → JSON lines on stdout, or `kantan trigger <name> refresh` IPC → kantan (watch mode)
 ```
 
 kantan invokes the plugin as a subprocess, passing configuration through environment variables:
@@ -44,7 +44,7 @@ The plugin processes these inputs and outputs a JSON object describing what to d
 kantan invokes the plugin at regular intervals based on the configured `interval` (in seconds). Suitable for monitoring resources that don't provide event notifications.
 
 ### Event-Driven Mode (Watch)
-For plugins that need to respond to external events, the watch mode enables a long-lived background process that triggers updates when events occur. The watch process signals kantan via `kantan trigger`, which then invokes the main command to retrieve updated output.
+A plugin that responds to external events can run a long-lived watch process that sends updates when events occur. The watch process prints the module's new output to stdout, one line of JSON at a time. Or it runs `kantan trigger` to have kantan run the main command again.
 
 ## Built-in Plugins
 

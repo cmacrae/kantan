@@ -9,7 +9,7 @@ kantan plugins communicate through a subprocess-based protocol:
 1. **Input**: kantan sets environment variables and invokes the plugin executable
 2. **Processing**: Plugin reads environment, performs work, constructs output
 3. **Output**: Plugin prints JSON to stdout and exits with code 0
-4. **IPC**: Watch processes trigger updates via `kantan trigger` command
+4. **Updates**: Watch processes print new output to stdout as it changes, or ask kantan to run the command again with `kantan trigger`
 
 ## Input Specification
 
@@ -439,6 +439,7 @@ Enable watch mode by adding a `watch:` field to the module config:
 | kantan quit | stdin pipe closed (EOF), process should exit gracefully |
 | System sleep | Watch process terminated |
 | System wake | Watch process restarted |
+| Appearance change | Watch process restarted, with the new `KANTAN_APPEARANCE` and settings resolved for it |
 | Process crash | Auto-restart with exponential backoff (1s → 16s cap, max 10 consecutive retries) |
 | Max retries reached | Watch disabled until kantan restart |
 
@@ -453,40 +454,46 @@ The watch process must:
 1. **Check for watch invocation**: Distinguish between normal and watch invocation (e.g., via CLI flag)
 2. **Read environment variables**: Access `KANTAN_MODULE_NAME`, `KANTAN_SETTINGS`, `KANTAN_APPEARANCE`, `KANTAN_PID`
 3. **Monitor stdin**: Watch for EOF on stdin as shutdown signal
-4. **Trigger updates via IPC**: Call `kantan trigger <module-name> refresh` when events occur
+4. **Send updates when events occur**: Print the module's new output as a line of JSON (see [Printing Output](#printing-output)), or call `kantan trigger <module-name> refresh` to have kantan run the command again
 5. **Exit cleanly on stdin EOF**: Perform cleanup and exit with code 0
+
+### Printing Output
+
+A watch process can send the module's output itself. Each line it prints to stdout that is a JSON object is shown as though the command had printed it, in the [output format](#output-specification): its value, icon, variables, style, view and data replace the module's. This saves kantan launching the command for each update, and lets the watch process send state it already holds.
+
+- Print each output as one line, and flush stdout after it.
+- Lines that aren't JSON objects are ignored, so stray logging does no harm, though stderr is the place for it.
+- Only modules with `output: json` read a watch process's output.
+- kantan still runs the command when the module starts, on wake and on `kantan trigger <name> refresh`, so the command and the watch process should report the same state.
+- While a `kantan trigger <name> set … duration=N` override shows, printed output is ignored; kantan runs the command when the override ends.
+
+A watch process that prints nothing, and calls `kantan trigger` instead, works as before.
 
 ### Watch Process Example
 
 ```swift
 import Foundation
 
-// Distinguish between normal and watch invocation
-guard CommandLine.arguments.contains("--watch") else {
-    // Normal invocation: output current state
+func printState() {
     let output: [String: Any] = ["value": getCurrentState()]
-    let data = try JSONSerialization.data(withJSONObject: output)
+    let data = try! JSONSerialization.data(withJSONObject: output)
     print(String(data: data, encoding: .utf8)!)
+    fflush(stdout)
+}
+
+// Normal invocation: output the current state and exit
+guard CommandLine.arguments.contains("--watch") else {
+    printState()
     exit(0)
 }
 
-// Watch mode: set up event monitoring
-let moduleName = ProcessInfo.processInfo.environment["KANTAN_MODULE_NAME"] ?? ""
-let triggerCmd = "kantan trigger '\(moduleName)' refresh"
-
-// Monitor events (notifications, timers, etc.)
+// Watch mode: print the state whenever an event changes it
 NotificationCenter.default.addObserver(
     forName: .someEventNotification,
     object: nil,
     queue: nil
 ) { _ in
-    let task = Process()
-    task.executableURL = URL(fileURLWithPath: "/bin/sh")
-    task.arguments = ["-c", triggerCmd]
-    task.standardOutput = FileHandle.nullDevice
-    task.standardError = FileHandle.nullDevice
-    try? task.run()
-    task.waitUntilExit()
+    printState()
 }
 
 // Monitor stdin on a background thread — EOF means kantan exited
@@ -541,7 +548,7 @@ The `command` module type supports plugins through these config fields:
 | `watch: ...` + `interval: N` | Run watch process only, no polling (interval is ignored when watch is configured) |
 | `watch: ...` + `interval: 0` | Run watch process only, no polling |
 
-**Note:** When a watch process is configured, polling is always disabled regardless of the `interval` value. The watch process is responsible for triggering all updates via `kantan trigger`.
+When a watch process is configured, polling is disabled whatever the `interval` value. The watch process makes every update, by printing output or running `kantan trigger`.
 
 ## JSON Schemas
 
@@ -617,4 +624,4 @@ See the built-in plugins for reference implementations:
 - **`packages/plugins/calendar/`**: Event-driven Swift plugin with watch process, calendar integration, conditional visibility
 - **`packages/plugins/pomodoro/`**: Polling-based Go plugin with persistent state, timer management, and interactive actions
 - **`packages/plugins/tailscale/`**: Polling-based Go plugin that queries the Tailscale LocalAPI over a Unix socket
-- **`packages/plugins/rift-indicator/`**: Event-driven Go plugin whose watch process relays a long-lived CLI subscription as refreshes
+- **`packages/plugins/rift-indicator/`**: Event-driven Go plugin whose watch process prints fresh output for each event of a long-lived CLI subscription

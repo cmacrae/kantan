@@ -1836,20 +1836,25 @@ final class CommandToggleTests: XCTestCase {
 
 // MARK: - Command module icons
 
+/// Runs the main run loop until `condition` holds or `timeout` passes.
+@MainActor
+func waitUntil(
+  _ condition: () -> Bool, timeout: TimeInterval = 5, file: StaticString = #filePath,
+  line: UInt = #line
+) {
+  let deadline = Date().addingTimeInterval(timeout)
+  while !condition() && Date() < deadline {
+    RunLoop.main.run(until: Date().addingTimeInterval(0.01))
+  }
+  XCTAssertTrue(condition(), file: file, line: line)
+}
+
 @MainActor
 final class CommandIconTests: XCTestCase {
   override func setUp() {
     super.setUp()
     // getValue reads NSApp's appearance for KANTAN_APPEARANCE.
     _ = NSApplication.shared
-  }
-
-  private func waitUntil(_ condition: () -> Bool, timeout: TimeInterval = 5) {
-    let deadline = Date().addingTimeInterval(timeout)
-    while !condition() && Date() < deadline {
-      RunLoop.main.run(until: Date().addingTimeInterval(0.01))
-    }
-    XCTAssertTrue(condition())
   }
 
   func testIconComesFromTheRunThatProducedTheValue() throws {
@@ -1904,6 +1909,106 @@ final class WatchRestartDelayTests: XCTestCase {
     XCTAssertNil(
       ModuleViewModel.watchRestartDelay(forAttempt: ModuleViewModel.maxWatchRestarts + 1))
     XCTAssertNil(ModuleViewModel.watchRestartDelay(forAttempt: 999))
+  }
+}
+
+// MARK: - Watch process output
+
+final class LineBufferTests: XCTestCase {
+  func testTakesCompleteLinesAndHoldsBackTheRest() {
+    var buffer = LineBuffer()
+    XCTAssertEqual(buffer.append(Data("one\ntw".utf8)), [Data("one".utf8)])
+    XCTAssertEqual(buffer.append(Data("o\n\nthree".utf8)), [Data("two".utf8), Data()])
+    XCTAssertEqual(buffer.append(Data("\n".utf8)), [Data("three".utf8)])
+    XCTAssertEqual(buffer.append(Data()), [])
+  }
+}
+
+final class CommandWatchOutputTests: XCTestCase {
+  private func config(_ yaml: String) throws -> CommandConfig {
+    try CommandConfig(yaml: try Yaml.load(yaml))
+  }
+
+  func testJSONObjectLinesBecomeTheCommandsOutput() throws {
+    let command = try config("command: watch-output-object\noutput: json\n")
+    let line = #"{"value":"3","icon":"bell","variables":{"count":"3"}}"#
+    XCTAssertEqual(command.cacheWatchOutput(Data(line.utf8)), "3")
+    XCTAssertEqual(command.getIcon(), "bell")
+    XCTAssertEqual(command.getTemplateVariables(), ["count": "3"])
+  }
+
+  func testOtherLinesAreIgnored() throws {
+    let command = try config("command: watch-output-other\noutput: json\n")
+    for line in ["starting up", "[1, 2]", "", #"{"value":"#] {
+      XCTAssertNil(command.cacheWatchOutput(Data(line.utf8)), line)
+    }
+    let text = try config("command: watch-output-text\n")
+    XCTAssertNil(text.cacheWatchOutput(Data(#"{"value":"x"}"#.utf8)))
+  }
+}
+
+@MainActor
+final class WatchOutputTests: XCTestCase {
+  override func setUp() {
+    super.setUp()
+    // Watch processes are given NSApp's appearance.
+    _ = NSApplication.shared
+  }
+
+  /// A module running `command` with a watch process running `watch`.
+  private func module(_ name: String, command: String = "true", watch: String) throws
+    -> ModuleViewModel
+  {
+    let dir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+    try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+    addTeardownBlock { try? FileManager.default.removeItem(at: dir) }
+    let script = dir.appendingPathComponent("watch")
+    try "#!/bin/sh\n\(watch)\n".write(to: script, atomically: true, encoding: .utf8)
+    try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: script.path)
+    let config = try CommandConfig(
+      yaml: try Yaml.load(
+        "command: '\(command.replacingOccurrences(of: "'", with: "''")) # \(name)'\n"
+          + "output: json\ninterval: 0\nwatch: \(script.path)\n"))
+    let vm = ModuleViewModel(
+      moduleConfig: ModuleConfig(
+        name: name, placement: PlacementSpec(raw: "right"), type: "command", config: config))
+    addTeardownBlock { @MainActor in vm.pause() }
+    return vm
+  }
+
+  func testEachLineTheWatchPrintsUpdatesTheModule() throws {
+    let vm = try module(
+      "watch-lines",
+      watch: """
+        echo starting
+        echo '{"value":"first","icon":"bell"}'
+        sleep 0.3
+        echo 'not json'
+        echo '{"value":"second"}'
+        cat
+        """)
+    waitUntil { vm.displayValue == "first" }
+    XCTAssertEqual(vm.displayIcon, resolveIconName("bell").glyph)
+    waitUntil { vm.displayValue == "second" }
+  }
+
+  func testWatchOutputOutlivesACommandRunStillInFlight() throws {
+    let vm = try module(
+      "watch-in-flight", command: #"sleep 0.5; echo '{"value":"command"}'"#,
+      watch: #"echo '{"value":"watch"}'; cat"#)
+    waitUntil { vm.displayValue == "watch" }
+    RunLoop.main.run(until: Date().addingTimeInterval(1))
+    XCTAssertEqual(vm.displayValue, "watch")
+  }
+
+  func testTheWatchRelaunchesWithTheNewAppearance() throws {
+    NSApp.appearance = NSAppearance(named: .aqua)
+    addTeardownBlock { @MainActor in NSApp.appearance = nil }
+    let vm = try module(
+      "watch-appearance", watch: #"echo "{\"value\":\"$KANTAN_APPEARANCE\"}"; cat"#)
+    waitUntil { vm.displayValue == "light" }
+    NSApp.appearance = NSAppearance(named: .darkAqua)
+    waitUntil { vm.displayValue == "dark" }
   }
 }
 

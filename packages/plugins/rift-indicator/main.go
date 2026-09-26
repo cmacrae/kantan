@@ -145,7 +145,12 @@ func cliAmong(executables []string) string {
 // queryActiveWorkspace asks the running Rift for the active workspace on
 // the active display. Returns nil when Rift isn't running or doesn't answer.
 func queryActiveWorkspace(ctx context.Context) *workspace {
-	cli := riftCLI(ctx)
+	return activeWorkspaceVia(ctx, riftCLI(ctx))
+}
+
+// activeWorkspaceVia asks Rift through cli for the active workspace on the
+// active display. Returns nil when cli is "" or Rift doesn't answer.
+func activeWorkspaceVia(ctx context.Context, cli string) *workspace {
 	if cli == "" {
 		return nil
 	}
@@ -245,20 +250,27 @@ func restartDelay(failures int) time.Duration {
 	return time.Second << min(max(failures-1, 0), 4)
 }
 
-// watch refreshes the module for each workspace change Rift reports, which
-// includes layout mode changes, and whenever Rift starts or quits. It exits
-// when stdin closes, as kantan does when it stops the watch process.
-func watch(module string) {
+// show writes the output for the active workspace, asking Rift through
+// cli, as one line.
+func show(out io.Writer, cli string, settings Settings) {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	_ = json.NewEncoder(out).Encode(render(activeWorkspaceVia(ctx, cli), settings))
+}
+
+// watch prints the module's output for each workspace change Rift reports,
+// which includes layout mode changes, and whenever Rift starts or quits;
+// kantan shows each line as it arrives. It exits when stdin closes, as
+// kantan does when it stops the watch process.
+func watch(settings Settings) {
 	go func() {
 		_, _ = io.Copy(io.Discard, os.Stdin)
 		os.Exit(0)
 	}()
-	refresh := func() {
-		_ = exec.Command("kantan", "trigger", module, "refresh").Run()
-	}
 	failures := 0
 	for {
 		if cli := riftCLI(context.Background()); cli != "" {
+			refresh := func() { show(os.Stdout, cli, settings) }
 			_ = subscribe(
 				[]string{cli, "subscribe", "mach", "workspace_changed"},
 				refresh,
@@ -272,11 +284,7 @@ func watch(module string) {
 
 func main() {
 	if len(os.Args) > 1 && os.Args[1] == "--watch" {
-		module := os.Getenv("KANTAN_MODULE_NAME")
-		if module == "" {
-			module = "rift-indicator"
-		}
-		watch(module)
+		watch(loadSettings())
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()

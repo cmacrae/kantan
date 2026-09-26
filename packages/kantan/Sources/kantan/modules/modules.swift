@@ -359,6 +359,23 @@ func runCommandSync(path: String, arguments: [String], timeout: TimeInterval? = 
   return data
 }
 
+/// Splits output arriving in chunks into lines, holding back what follows
+/// the last newline until the rest of its line arrives.
+struct LineBuffer {
+  private var partial = Data()
+
+  /// Appends `output` and takes the lines it completes, without newlines.
+  mutating func append(_ output: Data) -> [Data] {
+    partial.append(output)
+    var lines: [Data] = []
+    while let newline = partial.firstIndex(of: UInt8(ascii: "\n")) {
+      lines.append(partial[..<newline])
+      partial = partial[partial.index(after: newline)...]
+    }
+    return lines
+  }
+}
+
 /// Runs a long-lived command that writes a line per event, calling `onEvent`
 /// whenever output arrives. The command is resolved at each launch (`nil`
 /// while it is unavailable); when it exits or can't be resolved, launching is
@@ -380,8 +397,8 @@ final class EventStreamProcess: @unchecked Sendable {
   private var tether: FileHandle?
   private var stopped = true
   private var failures = 0
-  /// Output after the last complete line, while `accepts` reads lines.
-  private var partialLine = Data()
+  /// The command's output, split into lines while `accepts` reads them.
+  private var lines = LineBuffer()
   /// Whether an event is waiting out `coalescing`.
   private var eventPending = false
 
@@ -452,7 +469,7 @@ final class EventStreamProcess: @unchecked Sendable {
     process.standardInput = stdin
     process.standardOutput = stdout
     process.standardError = FileHandle.nullDevice
-    partialLine = Data()
+    lines = LineBuffer()
 
     stdout.fileHandleForReading.readabilityHandler = { [weak self] handle in
       let output = handle.availableData
@@ -483,21 +500,10 @@ final class EventStreamProcess: @unchecked Sendable {
       return
     }
     failures = 0
-    let lines = accepts == nil ? [] : completeLinesLocked(appending: output)
+    let complete = accepts == nil ? [] : lines.append(output)
     lock.unlock()
-    if let accepts, !lines.contains(where: accepts) { return }
+    if let accepts, !complete.contains(where: accepts) { return }
     deliver()
-  }
-
-  /// Appends `output` to the partial line and takes the lines it completes.
-  private func completeLinesLocked(appending output: Data) -> [Data] {
-    partialLine.append(output)
-    var lines: [Data] = []
-    while let newline = partialLine.firstIndex(of: UInt8(ascii: "\n")) {
-      lines.append(partialLine[..<newline])
-      partialLine = partialLine[partialLine.index(after: newline)...]
-    }
-    return lines
   }
 
   private func deliver() {

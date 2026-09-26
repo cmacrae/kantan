@@ -17,7 +17,7 @@ This plugin is bundled with kantan and requires no separate installation. It is 
 
 The plugin asks the running Rift for the active display's workspaces with `rift-cli query workspaces` and shows the layout mode of the active one.
 
-In watch mode it keeps a `rift-cli subscribe mach workspace_changed` subscription open. Rift reports both workspace switches and layout mode changes as `workspace_changed`, and the plugin runs `kantan trigger <name> refresh` for each event. When Rift quits, the plugin refreshes (hiding the module) and resubscribes once Rift is running again, retrying after 1, 2, 4, 8 and then every 16 seconds.
+In watch mode it keeps a `rift-cli subscribe mach workspace_changed` subscription open. Rift reports both workspace switches and layout mode changes as `workspace_changed`, and for each event the plugin queries the active workspace and prints the module's output for kantan to show. When Rift quits, the plugin prints output hiding the module, and resubscribes once Rift is running again, retrying after 1, 2, 4, 8 and then every 16 seconds.
 
 ### Layouts
 
@@ -94,7 +94,7 @@ Like the [focus module's mode styles](/docs/modules/focus#mode-styles), each `st
 | Field               | Value                                   | Description                                          |
 |---------------------|-----------------------------------------|------------------------------------------------------|
 | `config.interval`   | `0`                                     | No polling; the watch process drives every refresh   |
-| `config.watch`      | `kantan-plugin-rift-indicator --watch`  | Keeps the Rift subscription open                     |
+| `config.watch`      | `kantan-plugin-rift-indicator --watch`  | Keeps the Rift subscription open and prints updates  |
 | `mask.name`         | `rift`                                  | Covers Rift's own menu bar icon                      |
 | `interaction.click` | `passthrough`                           | Opens Rift's own menu when the module sits over it   |
 

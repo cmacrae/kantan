@@ -262,7 +262,7 @@ interaction:
 
 ## Step 5: Watch Mode (Event-Driven Plugins)
 
-For plugins that respond to external events rather than polling on an interval, use watch mode. Watch mode is optional — plugins whose state only changes on a timer or user action can skip it entirely. Among the bundled plugins, `reminders` and `calendar` use watch mode (to react to EventKit changes); `pomodoro`, `caffeine`, `system-monitor`, and `tailscale` are polling-only by design.
+For plugins that respond to external events rather than polling on an interval, use watch mode. Watch mode is optional. Plugins whose state only changes on a timer or user action can skip it. Among the bundled plugins, `reminders`, `calendar` and `rift-indicator` use watch mode to react to EventKit changes and Rift's events. `pomodoro`, `caffeine`, `system-monitor` and `tailscale` only poll.
 
 ### Configuration
 
@@ -279,7 +279,7 @@ For plugins that respond to external events rather than polling on an interval, 
 Key points:
 - `watch:` specifies the long-lived background process
 - When `watch` is configured, polling is always disabled regardless of `interval` (setting `interval: 0` is conventional but not strictly required)
-- The main `command` is still invoked when updates are triggered
+- The main `command` still runs when the module starts, on wake, and when a refresh is triggered
 
 ### Watch Process Requirements
 
@@ -288,9 +288,9 @@ The watch process:
 1. **Runs as a background daemon**: Started when kantan launches, stopped when kantan quits
 2. **Receives environment variables**: `KANTAN_MODULE_NAME`, `KANTAN_SETTINGS`, `KANTAN_APPEARANCE`, `KANTAN_PID`
 3. **Receives stdin pipe**: EOF signals kantan is shutting down (clean exit expected — see [Handling stdin EOF](#handling-stdin-eof))
-4. **Triggers updates via IPC**: Calls `kantan trigger <module-name> refresh` when events occur
+4. **Sends updates**: Prints the module's new output as a line of JSON when events occur, or calls `kantan trigger <module-name> refresh` for kantan to run the command again (see [Printing Output](/docs/plugins/api-reference#printing-output))
 5. **Auto-restarts on crash**: Exponential backoff (1s → 16s cap, max 10 consecutive retries)
-6. **Lifecycle integration**: Stopped on system sleep, restarted on wake
+6. **Lifecycle integration**: Stopped on system sleep, restarted on wake, and restarted with the new appearance when it changes
 7. **One process per module**: kantan launches exactly one watch process per module, no matter how many displays are configured. Module view-models are shared across `DisplayInstance`s, so plugin authors do not need to deduplicate work or coordinate across multiple invocations.
 
 ### Handling stdin EOF
@@ -335,32 +335,27 @@ go func() {
 ```swift
 import Foundation
 
-// Check for --watch flag
-guard CommandLine.arguments.contains("--watch") else {
-    // Normal invocation: output current state
+func printState() {
     let output: [String: Any] = ["value": "..."]
-    let data = try JSONSerialization.data(withJSONObject: output)
+    let data = try! JSONSerialization.data(withJSONObject: output)
     print(String(data: data, encoding: .utf8)!)
+    fflush(stdout)
+}
+
+// Normal invocation: output the current state and exit
+guard CommandLine.arguments.contains("--watch") else {
+    printState()
     exit(0)
 }
 
-// Watch mode: monitor events and trigger updates
-let moduleName = ProcessInfo.processInfo.environment["KANTAN_MODULE_NAME"] ?? ""
-let triggerCmd = "kantan trigger '\(moduleName)' refresh"
-
-// Set up event monitoring (example: notification observer)
+// Watch mode: print the state whenever an event changes it
+// (example: notification observer)
 NotificationCenter.default.addObserver(
     forName: .someEventNotification,
     object: nil,
     queue: nil
 ) { _ in
-    let task = Process()
-    task.executableURL = URL(fileURLWithPath: "/bin/sh")
-    task.arguments = ["-c", triggerCmd]
-    task.standardOutput = FileHandle.nullDevice
-    task.standardError = FileHandle.nullDevice
-    try? task.run()
-    task.waitUntilExit()
+    printState()
 }
 
 // Monitor stdin on a background thread — EOF means kantan exited
@@ -489,7 +484,7 @@ See the built-in plugins for complete reference implementations:
 - `packages/plugins/calendar/` — Event-driven Swift plugin with watch mode, calendar integration, and conditional visibility
 - `packages/plugins/pomodoro/` — Polling Go plugin with persistent state, timer management, and interactive actions
 - `packages/plugins/tailscale/` — Polling Go plugin that talks to a local daemon's HTTP API over a Unix socket
-- `packages/plugins/rift-indicator/` — Event-driven Go plugin whose watch process relays a long-lived CLI subscription as refreshes
+- `packages/plugins/rift-indicator/` — Event-driven Go plugin whose watch process prints fresh output for each event of a long-lived CLI subscription
 
 ## Error Handling
 
@@ -504,7 +499,7 @@ For watch processes, crashes trigger automatic restart with exponential backoff.
 
 ### Buffered stdout in watch mode
 
-In watch mode, kantan signals updates via `kantan trigger <module> refresh`, but the plugin's own data flows through stdout. Many runtimes (Go, Python, buffered C libc, etc.) buffer stdout when it's not a terminal — that is, exactly the conditions watch mode runs under. A plugin that prints JSON without flushing will appear to hang: kantan never sees the bytes until the buffer fills or the process exits.
+A watch process that prints its output sends it through stdout, as a one-shot plugin does. Many runtimes (Go, Python, buffered C libc, etc.) buffer stdout when it's not a terminal — that is, exactly the conditions watch mode runs under. A plugin that prints JSON without flushing will appear to hang: kantan never sees the bytes until the buffer fills or the process exits.
 
 Flush after every emitted JSON document:
 
