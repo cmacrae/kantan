@@ -1544,6 +1544,134 @@ final class AerospaceWorkspacesTests: XCTestCase {
   }
 }
 
+// MARK: - Workspace activation
+
+final class WorkspaceActivationTests: XCTestCase {
+  private let scroll = [
+    ScrollWindow(id: "10-1", app: "Ghostty", bundleIdentifier: nil, isSelected: false),
+    ScrollWindow(id: "20-2", app: "Arc", bundleIdentifier: nil, isSelected: true),
+    ScrollWindow(id: "30-3", app: "Emacs", bundleIdentifier: nil, isSelected: false),
+  ]
+
+  private let spaces = [
+    Workspace(index: 0, label: "web", isActive: false, hasWindows: true),
+    Workspace(index: 1, label: "code", isActive: true),
+    Workspace(index: 2, label: "chat", isActive: false),
+  ]
+
+  func testWorkspaceSegmentsTargetTheirWorkspaceExceptTheActiveOne() {
+    XCTAssertEqual(
+      WorkspaceConfig(yaml: nil).display(of: spaces).segments.map(\.target),
+      [.workspace(index: 0, label: "web"), nil, .workspace(index: 2, label: "chat")])
+  }
+
+  func testScrollSegmentsTargetTheirWindowsAndPipsTheirWorkspaces() throws {
+    var spaces = self.spaces
+    spaces[1].scroll = scroll
+    let display = WorkspaceConfig(yaml: try Yaml.load("scrolling:\n  enabled: true\n"))
+      .display(of: spaces)
+    XCTAssertEqual(
+      display.segments.map(\.target),
+      [.window(id: "10-1"), .window(id: "20-2"), .window(id: "30-3")])
+    XCTAssertEqual(display.pips.map(\.target), [.workspace(index: 0, label: "web"), nil])
+  }
+
+  func testSteppingMovesFromTheActiveSegmentAndStopsAtTheEnds() {
+    let display = WorkspaceConfig(yaml: nil).display(of: spaces)
+    XCTAssertEqual(display.target(steppingBy: 1), .workspace(index: 2, label: "chat"))
+    XCTAssertEqual(display.target(steppingBy: -1), .workspace(index: 0, label: "web"))
+    XCTAssertEqual(display.target(steppingBy: 5), .workspace(index: 2, label: "chat"))
+    XCTAssertEqual(display.target(steppingBy: -5), .workspace(index: 0, label: "web"))
+    XCTAssertNil(display.target(steppingBy: 0))
+  }
+
+  func testSteppingPastTheLastSegmentOrWithoutAnActiveOneDoesNothing() {
+    let display = WorkspaceConfig(yaml: nil).display(
+      of: [
+        Workspace(index: 0, label: "1", isActive: false),
+        Workspace(index: 1, label: "2", isActive: true),
+      ])
+    XCTAssertNil(display.target(steppingBy: 1))
+    XCTAssertNil(WorkspaceDisplay().target(steppingBy: 1))
+  }
+
+  func testRiftSwitchesWorkspacesByIndexAndFocusesWindowsByID() {
+    XCTAssertEqual(
+      RiftWorkspaces.arguments(for: .workspace(index: 3, label: "chat")),
+      ["execute", "workspace", "switch", "3"])
+    XCTAssertEqual(
+      RiftWorkspaces.arguments(for: .window(id: "96136-21335")),
+      ["execute", "window", "focus", "--window-id", #"{"pid":96136,"idx":21335}"#])
+    XCTAssertNil(RiftWorkspaces.arguments(for: .window(id: "not-a-window")))
+  }
+
+  func testAerospaceSwitchesWorkspacesByName() {
+    XCTAssertEqual(
+      AerospaceWorkspaces.arguments(for: .workspace(index: 0, label: "web")),
+      ["workspace", "web"])
+    XCTAssertNil(AerospaceWorkspaces.arguments(for: .window(id: "1-1")))
+  }
+
+  func testSegmentsSwitchWithProvidersThatCanUnlessTheModuleHasAClick() throws {
+    func module(_ type: String, click: String? = nil) throws -> ModuleConfig {
+      ModuleConfig(
+        name: "spaces", placement: PlacementSpec(raw: "left"), type: "workspace",
+        config: WorkspaceConfig(yaml: try Yaml.load("type: \(type)\n")),
+        interaction: click.map { InteractionConfig(hover: nil, click: ClickConfig(type: $0)) })
+    }
+    XCTAssertTrue(WorkspaceModuleView.activates(try module("rift")))
+    XCTAssertTrue(WorkspaceModuleView.activates(try module("aerospace")))
+    XCTAssertFalse(WorkspaceModuleView.activates(try module("native")))
+    XCTAssertFalse(WorkspaceModuleView.activates(try module("rift", click: "menu")))
+  }
+}
+
+// MARK: - Scroll stepping
+
+final class ScrollStepperTests: XCTestCase {
+  private func scroll(
+    _ delta: CGFloat, precise: Bool = true, begins: Bool = false, momentum: Bool = false
+  ) -> ScrollWheelDelta {
+    ScrollWheelDelta(delta: delta, isPrecise: precise, begins: begins, isMomentum: momentum)
+  }
+
+  func testEachWheelNotchStepsOnce() {
+    var stepper = ScrollStepper()
+    XCTAssertEqual(stepper.steps(for: scroll(-3, precise: false)), 1)
+    XCTAssertEqual(stepper.steps(for: scroll(1, precise: false)), -1)
+    XCTAssertEqual(stepper.steps(for: scroll(0, precise: false)), 0)
+  }
+
+  func testTrackpadStepsOncePerDistanceScrolled() {
+    var stepper = ScrollStepper()
+    let half = ScrollStepper.distance / 2
+    XCTAssertEqual(stepper.steps(for: scroll(-half, begins: true)), 0)
+    XCTAssertEqual(stepper.steps(for: scroll(-half)), 1)
+    XCTAssertEqual(stepper.steps(for: scroll(-ScrollStepper.distance * 2)), 2)
+    XCTAssertEqual(stepper.steps(for: scroll(ScrollStepper.distance)), -1)
+  }
+
+  func testANewGestureStartsAfresh() {
+    var stepper = ScrollStepper()
+    let most = ScrollStepper.distance * 0.75
+    XCTAssertEqual(stepper.steps(for: scroll(-most, begins: true)), 0)
+    XCTAssertEqual(stepper.steps(for: scroll(-most, begins: true)), 0)
+  }
+
+  func testReversingDirectionStartsAfresh() {
+    var stepper = ScrollStepper()
+    let most = ScrollStepper.distance * 0.75
+    XCTAssertEqual(stepper.steps(for: scroll(-most)), 0)
+    XCTAssertEqual(stepper.steps(for: scroll(most)), 0)
+    XCTAssertEqual(stepper.steps(for: scroll(most)), -1)
+  }
+
+  func testMomentumDoesNotStep() {
+    var stepper = ScrollStepper()
+    XCTAssertEqual(stepper.steps(for: scroll(-ScrollStepper.distance * 3, momentum: true)), 0)
+  }
+}
+
 // MARK: - Event stream process
 
 final class EventStreamProcessTests: XCTestCase {

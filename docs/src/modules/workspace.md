@@ -103,6 +103,16 @@ A column of pips to the left of the windows stands for the workspaces: those wit
 
 Switching between workspaces and a scroll is animated. Each workspace's segment moves into its pip and back. The other workspaces fade. The windows slide out from the pips. Windows opening, closing, moving and being selected animate too.
 
+### Switching
+
+With Rift or AeroSpace, clicking a workspace switches to it. In a scroll, clicking a window focuses it. Clicking a pip switches to its workspace. A click between two segments goes to the nearer one.
+
+Scrolling over the module steps to the next or previous segment, stopping at either end: a workspace, or a window in a scroll. Scrolling the way that would move down a page or right along a row steps forward. The direction follows the *Natural scrolling* setting. Each notch of a mouse wheel steps once. A trackpad steps once for every short distance scrolled, starting afresh with each swipe. Momentum after a swipe doesn't step.
+
+kantan switches through the provider's CLI (`rift-cli execute workspace switch` and `rift-cli execute window focus`, or `aerospace workspace`). The module updates when the provider reports the change, the same as for a switch made any other way.
+
+Native macOS spaces can't be switched from the bar, as macOS has no public interface for it. A module with its own `interaction.click` keeps that click, and its segments don't switch.
+
 ## Behavior
 
 The workspace module does not poll. Updates are driven by:

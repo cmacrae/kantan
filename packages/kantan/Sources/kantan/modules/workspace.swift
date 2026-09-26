@@ -14,10 +14,12 @@ struct WorkspaceSegment: Equatable, Sendable {
   let scaleFactor: CGFloat
   /// Per-segment colour override from rainbow config (raw theme/hex string).
   let colorOverride: String?
+  /// What clicking the segment switches to, or nil for the active workspace.
+  let target: WorkspaceTarget?
 
   init(
     id: String, label: String, isActive: Bool, fontNameOverride: String? = nil,
-    scaleFactor: CGFloat = 1.0, colorOverride: String? = nil
+    scaleFactor: CGFloat = 1.0, colorOverride: String? = nil, target: WorkspaceTarget? = nil
   ) {
     self.id = id
     self.label = label
@@ -25,7 +27,17 @@ struct WorkspaceSegment: Equatable, Sendable {
     self.fontNameOverride = fontNameOverride
     self.scaleFactor = scaleFactor
     self.colorOverride = colorOverride
+    self.target = target
   }
+}
+
+/// A workspace to switch to or a window to focus, by a segment's click or
+/// a scroll over the module.
+enum WorkspaceTarget: Equatable, Sendable {
+  /// A workspace, by the index and label its provider reported.
+  case workspace(index: Int, label: String)
+  /// A window of the active workspace's scroll.
+  case window(id: String)
 }
 
 /// What the workspace module shows: a segment per workspace, or the
@@ -45,6 +57,14 @@ struct WorkspaceDisplay: Equatable, Sendable {
   var summary: String {
     ([slot].compactMap { $0 } + pips + segments)
       .map { ($0.isActive ? ">" : "") + $0.label }.joined(separator: " ")
+  }
+
+  /// The target of the segment `steps` along from the active one, stopping
+  /// at either end; nil when that is the active segment or none is active.
+  func target(steppingBy steps: Int) -> WorkspaceTarget? {
+    guard let active = segments.firstIndex(where: \.isActive) else { return nil }
+    let index = min(max(active + steps, 0), segments.count - 1)
+    return index == active ? nil : segments[index].target
   }
 }
 
@@ -184,6 +204,12 @@ struct ScrollWindow: Equatable, Sendable {
 protocol WorkspaceProvider: Sendable {
   /// The current workspaces in display order. Called off the main thread.
   func workspaces() -> [Workspace]
+  /// Whether `activate` can switch workspaces and focus windows.
+  var canActivate: Bool { get }
+  /// Switches to the workspace or focuses the window `target` names. The
+  /// change reaches the module the way the provider's other changes do.
+  /// Called off the main thread.
+  func activate(_ target: WorkspaceTarget)
   /// Begins calling `onChange` when workspaces change. Providers refreshed
   /// through EventObserver or `kantan trigger` don't observe anything.
   func startObserving(onChange: @escaping @Sendable () -> Void)
@@ -191,6 +217,8 @@ protocol WorkspaceProvider: Sendable {
 }
 
 extension WorkspaceProvider {
+  var canActivate: Bool { false }
+  func activate(_ target: WorkspaceTarget) {}
   func startObserving(onChange: @escaping @Sendable () -> Void) {}
   func stopObserving() {}
 }
@@ -323,6 +351,14 @@ final class WorkspaceConfig: ModuleConfiguration, EventDrivenModule {
     provider.stopObserving()
   }
 
+  /// Switches to or focuses `target` off the main thread.
+  func activate(_ target: WorkspaceTarget) {
+    let provider = self.provider
+    DispatchQueue.global(qos: .userInitiated).async {
+      provider.activate(target)
+    }
+  }
+
   func getValue(completion: @escaping @Sendable (String) -> Void) {
     let provider = self.provider
 
@@ -363,7 +399,8 @@ final class WorkspaceConfig: ModuleConfiguration, EventDrivenModule {
         id: "workspace-\(space.index)", label: resolved.glyph, isActive: space.isActive,
         fontNameOverride: resolved.fontNameOverride,
         scaleFactor: resolved.scaleFactor,
-        colorOverride: color(space))
+        colorOverride: color(space),
+        target: space.isActive ? nil : .workspace(index: space.index, label: space.label))
     }
 
     guard scrolling.enabled, let active = spaces.first(where: \.isActive),
@@ -378,7 +415,8 @@ final class WorkspaceConfig: ModuleConfiguration, EventDrivenModule {
         id: "window-\(window.id)", label: resolved.glyph, isActive: window.isSelected,
         fontNameOverride: resolved.fontNameOverride,
         scaleFactor: resolved.scaleFactor,
-        colorOverride: scrolling.color(for: window) ?? color(active))
+        colorOverride: scrolling.color(for: window) ?? color(active),
+        target: .window(id: window.id))
     }
     let pips = zip(spaces, segments).filter { $0.0.hasWindows || $0.0.isActive }.map(\.1)
     return WorkspaceDisplay(

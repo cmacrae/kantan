@@ -32,6 +32,103 @@ class WindowReaderView: NSView {
   }
 }
 
+// MARK: - Scroll Wheel Reader
+
+/// A scroll wheel or trackpad scroll, reduced to what decides its steps.
+struct ScrollWheelDelta: Sendable {
+  /// Distance along the axis scrolled furthest; negative scrolls content
+  /// up or left.
+  let delta: CGFloat
+  /// Whether the delta is in points (trackpad) rather than lines (wheel).
+  let isPrecise: Bool
+  /// Whether this is the first event of a trackpad gesture.
+  let begins: Bool
+  /// Whether this is momentum after the fingers lifted.
+  let isMomentum: Bool
+}
+
+/// Turns scrolling into steps: one per wheel notch, or one per `distance`
+/// points of trackpad scrolling, counted afresh with each gesture and
+/// change of direction. Scrolling content up or left steps forward.
+/// Momentum after a swipe doesn't step.
+struct ScrollStepper {
+  static let distance: CGFloat = 24
+  private var accumulated: CGFloat = 0
+
+  mutating func steps(for scroll: ScrollWheelDelta) -> Int {
+    if scroll.begins { accumulated = 0 }
+    guard !scroll.isMomentum else { return 0 }
+    guard scroll.isPrecise else { return scroll.delta < 0 ? 1 : scroll.delta > 0 ? -1 : 0 }
+    if accumulated * scroll.delta > 0 { accumulated = 0 }
+    accumulated -= scroll.delta
+    let steps = Int(accumulated / Self.distance)
+    accumulated -= CGFloat(steps) * Self.distance
+    return steps
+  }
+}
+
+/// Calls `onStep` with the steps of each scroll over the view it backs,
+/// without taking its clicks.
+struct ScrollWheelReader: NSViewRepresentable {
+  let onStep: (Int) -> Void
+
+  func makeNSView(context: Context) -> ScrollWheelReaderView {
+    let view = ScrollWheelReaderView()
+    view.onStep = onStep
+    return view
+  }
+
+  func updateNSView(_ nsView: ScrollWheelReaderView, context: Context) {
+    nsView.onStep = onStep
+  }
+}
+
+class ScrollWheelReaderView: NSView {
+  var onStep: ((Int) -> Void)?
+  private var stepper = ScrollStepper()
+  nonisolated(unsafe) private var monitor: Any?
+
+  deinit {
+    if let monitor { NSEvent.removeMonitor(monitor) }
+  }
+
+  override func hitTest(_ point: NSPoint) -> NSView? { nil }
+
+  /// Watches scrolls while in a window. The view takes no events itself,
+  /// so clicks reach the views in front of it, and sees scrolls through a
+  /// monitor instead.
+  override func viewDidMoveToWindow() {
+    super.viewDidMoveToWindow()
+    if let monitor {
+      NSEvent.removeMonitor(monitor)
+      self.monitor = nil
+    }
+    guard window != nil else { return }
+    monitor = NSEvent.addLocalMonitorForEvents(matching: .scrollWheel) { [weak self] event in
+      let horizontal = abs(event.scrollingDeltaX) > abs(event.scrollingDeltaY)
+      let scroll = ScrollWheelDelta(
+        delta: horizontal ? event.scrollingDeltaX : event.scrollingDeltaY,
+        isPrecise: event.hasPreciseScrollingDeltas, begins: event.phase == .began,
+        isMomentum: !event.momentumPhase.isEmpty)
+      let windowNumber = event.windowNumber
+      let location = event.locationInWindow
+      let handled = MainActor.assumeIsolated {
+        self?.scroll(scroll, windowNumber: windowNumber, at: location) ?? false
+      }
+      return handled ? nil : event
+    }
+  }
+
+  /// Steps for a scroll over the view, reporting whether it was.
+  private func scroll(_ scroll: ScrollWheelDelta, windowNumber: Int, at location: NSPoint) -> Bool {
+    guard windowNumber == window?.windowNumber, bounds.contains(convert(location, from: nil))
+    else { return false }
+    let steps = stepper.steps(for: scroll)
+    if steps != 0 { onStep?(steps) }
+    return true
+  }
+}
+
 // MARK: - Module Container View
 
 /// Wraps each module's visual content with interaction handling
@@ -45,6 +142,7 @@ struct ModuleContainerView: View {
 
   var hasInteraction: Bool {
     viewModel.moduleConfig.interaction != nil
+      || WorkspaceModuleView.activates(viewModel.moduleConfig)
   }
 
   var body: some View {
@@ -297,12 +395,17 @@ struct StandardModuleView: View {
 /// scroll's windows, led by a column of pips for the workspaces. Switching
 /// to and from a scroll moves each workspace's segment into its pip and
 /// back, while the windows slide out of the pips and fade.
+///
+/// When the provider can switch workspaces, clicking a segment or pip
+/// switches to its workspace or focuses its window, and scrolling over the
+/// module steps along the segments.
 struct WorkspaceModuleView: View {
   @ObservedObject var viewModel: ModuleViewModel
   @EnvironmentObject var themeProvider: ThemeProvider
   /// Pairs each workspace's segment with its pip.
   @Namespace private var workspaces
 
+  private static let spacing: CGFloat = 6
   private static let pipDiameter: CGFloat = 4
   private static let pipSpacing: CGFloat = 2
   /// Share of the bar's height the pips may fill before they shrink.
@@ -312,15 +415,23 @@ struct WorkspaceModuleView: View {
     viewModel.moduleConfig.config as? WorkspaceConfig
   }
 
+  /// Whether the module's segments switch workspaces: its provider can,
+  /// and the module has no click interaction of its own.
+  static func activates(_ module: ModuleConfig) -> Bool {
+    guard let config = module.config as? WorkspaceConfig else { return false }
+    return config.provider.canActivate && module.interaction?.click == nil
+  }
+
   var body: some View {
     let wsConfig = self.wsConfig
     let display = wsConfig?.display ?? WorkspaceDisplay()
     let window = windowedSegments(display.segments, config: wsConfig)
     let animates = viewModel.contentAnimation != nil
+    let activate = self.activate
 
-    HStack(spacing: 6) {
+    HStack(spacing: Self.spacing) {
       if !display.pips.isEmpty {
-        pipColumn(display.pips, animates: animates)
+        pipColumn(display.pips, animates: animates, activate: activate)
       }
       if window.overflowBefore {
         overflowIndicatorView(icon: wsConfig?.overflow.iconLeft ?? "‹", config: wsConfig)
@@ -328,13 +439,36 @@ struct WorkspaceModuleView: View {
       ForEach(window.segments, id: \.id) { segment in
         segmentLabel(segment, slot: display.slot)
           .matchedGeometryEffect(id: segment.id, in: workspaces, properties: .position)
+          .modifier(
+            ActivateOnClick(target: segment.target, reach: Self.segmentReach, activate: activate)
+          )
           .transition(Self.transition(forScroll: display.isScroll, animates: animates))
       }
       if window.overflowAfter {
         overflowIndicatorView(icon: wsConfig?.overflow.iconRight ?? "›", config: wsConfig)
       }
     }
+    .background {
+      if activate != nil {
+        ScrollWheelReader(onStep: step)
+      }
+    }
   }
+
+  /// Switches to or focuses a target, or nil while segments don't switch.
+  private var activate: ((WorkspaceTarget) -> Void)? {
+    guard Self.activates(viewModel.moduleConfig), let wsConfig else { return nil }
+    return { wsConfig.activate($0) }
+  }
+
+  private func step(_ steps: Int) {
+    guard let wsConfig, let target = wsConfig.display.target(steppingBy: steps) else { return }
+    wsConfig.activate(target)
+  }
+
+  /// How far past a segment a click reaches: halfway to its neighbours.
+  private static let segmentReach = EdgeInsets(
+    top: 0, leading: spacing / 2, bottom: 0, trailing: spacing / 2)
 
   private static let workspaceTransition = staggered(
     .scale(scale: 0.4).combined(with: .opacity))
@@ -368,18 +502,31 @@ struct WorkspaceModuleView: View {
   // MARK: - Pips
 
   /// The workspaces top to bottom, shrinking to fit the bar when there are
-  /// many.
-  private func pipColumn(_ pips: [WorkspaceSegment], animates: Bool) -> some View {
+  /// many. A click on a pip reaches halfway to the pips beside it, and
+  /// past the first and last to the module's edges, where the module's
+  /// own hit area stops it.
+  private func pipColumn(
+    _ pips: [WorkspaceSegment], animates: Bool, activate: ((WorkspaceTarget) -> Void)?
+  ) -> some View {
     let count = CGFloat(pips.count)
     let natural = count * Self.pipDiameter + (count - 1) * Self.pipSpacing
-    let available = CGFloat(themeProvider.config.height) * Self.pipColumnHeight
-    let scale = min(1, available / natural)
+    let height = CGFloat(themeProvider.config.height)
+    let scale = min(1, height * Self.pipColumnHeight / natural)
+    let between = Self.pipSpacing * scale / 2
     return VStack(spacing: Self.pipSpacing * scale) {
       ForEach(pips, id: \.id) { pip in
         Circle()
           .fill(segmentColor(pip))
           .frame(width: Self.pipDiameter * scale, height: Self.pipDiameter * scale)
           .matchedGeometryEffect(id: pip.id, in: workspaces, properties: .position)
+          .modifier(
+            ActivateOnClick(
+              target: pip.target,
+              reach: EdgeInsets(
+                top: pip.id == pips.first?.id ? height : between, leading: Self.spacing / 2,
+                bottom: pip.id == pips.last?.id ? height : between, trailing: Self.spacing / 2),
+              activate: activate)
+          )
           .transition(animates ? Self.workspaceTransition : .identity)
       }
     }
@@ -477,5 +624,32 @@ struct WorkspaceModuleView: View {
 
   private var inactiveColor: Color {
     themeProvider.textFgColor(for: viewModel).opacity(0.4)
+  }
+}
+
+/// Activates `target` on a click within `reach` of the view, without
+/// changing its layout. Takes no clicks while `activate` is nil.
+private struct ActivateOnClick: ViewModifier {
+  let target: WorkspaceTarget?
+  let reach: EdgeInsets
+  let activate: ((WorkspaceTarget) -> Void)?
+
+  @ViewBuilder
+  func body(content: Content) -> some View {
+    if let activate {
+      content
+        .padding(reach)
+        .contentShape(Rectangle())
+        .padding(
+          EdgeInsets(
+            top: -reach.top, leading: -reach.leading, bottom: -reach.bottom,
+            trailing: -reach.trailing)
+        )
+        .onTapGesture {
+          if let target { activate(target) }
+        }
+    } else {
+      content
+    }
   }
 }

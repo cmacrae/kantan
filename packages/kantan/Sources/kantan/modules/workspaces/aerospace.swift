@@ -17,6 +17,20 @@ struct AerospaceWorkspaces: WorkspaceProvider {
     return Self.parse(all: all, focused: focused)
   }
 
+  var canActivate: Bool { true }
+
+  func activate(_ target: WorkspaceTarget) {
+    guard let cli = Self.runningCLI(), let arguments = Self.arguments(for: target) else { return }
+    _ = runCommandSync(path: cli, arguments: arguments)
+  }
+
+  /// The `aerospace` arguments that switch to `target`, by workspace name.
+  /// AeroSpace reports no scroll, so never a window.
+  static func arguments(for target: WorkspaceTarget) -> [String]? {
+    guard case .workspace(_, let label) = target else { return nil }
+    return ["workspace", label]
+  }
+
   /// The `aerospace` CLI that shipped with the running AeroSpace.app, so
   /// kantan speaks the running server's protocol. Homebrew keeps the CLI
   /// apart from the app, so its prefixes are checked next, then PATH.

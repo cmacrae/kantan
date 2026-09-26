@@ -38,6 +38,26 @@ final class RiftWorkspaces: WorkspaceProvider {
     return workspaces
   }
 
+  var canActivate: Bool { true }
+
+  func activate(_ target: WorkspaceTarget) {
+    guard let cli = Self.runningCLI(), let arguments = Self.arguments(for: target) else { return }
+    _ = runCommandSync(path: cli, arguments: arguments)
+  }
+
+  /// The `rift-cli` arguments that switch to or focus `target`. Rift
+  /// switches workspaces by index, and names windows as `{"pid":…,"idx":…}`.
+  static func arguments(for target: WorkspaceTarget) -> [String]? {
+    switch target {
+    case .workspace(let index, _):
+      return ["execute", "workspace", "switch", String(index)]
+    case .window(let id):
+      let parts = id.split(separator: "-")
+      guard parts.count == 2, let pid = Int(parts[0]), let idx = Int(parts[1]) else { return nil }
+      return ["execute", "window", "focus", "--window-id", #"{"pid":\#(pid),"idx":\#(idx)}"#]
+    }
+  }
+
   func startObserving(onChange: @escaping @Sendable () -> Void) {
     guard eventStream == nil else { return }
     let event = scrolling ? "*" : "workspace_changed"
@@ -73,6 +93,7 @@ final class RiftWorkspaces: WorkspaceProvider {
     let idx: Int
     let pid: Int
 
+    /// The window's `ScrollWindow` id.
     var key: String { "\(pid)-\(idx)" }
   }
 
