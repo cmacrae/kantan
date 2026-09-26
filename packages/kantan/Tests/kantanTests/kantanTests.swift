@@ -1939,6 +1939,14 @@ final class WatchRestartDelayTests: XCTestCase {
       ModuleViewModel.watchRestartDelay(forAttempt: ModuleViewModel.maxWatchRestarts + 1))
     XCTAssertNil(ModuleViewModel.watchRestartDelay(forAttempt: 999))
   }
+
+  func testAStableRunStartsTheCountAfresh() {
+    XCTAssertEqual(
+      ModuleViewModel.watchRestartAttempt(after: 9, ranFor: ModuleViewModel.stableWatchRun), 1)
+    XCTAssertEqual(
+      ModuleViewModel.watchRestartAttempt(after: 9, ranFor: ModuleViewModel.stableWatchRun - 1),
+      10)
+  }
 }
 
 // MARK: - Watch process output

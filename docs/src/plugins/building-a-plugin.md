@@ -288,7 +288,7 @@ The watch process:
 2. **Receives environment variables**: `KANTAN_MODULE_NAME`, `KANTAN_SETTINGS`, `KANTAN_APPEARANCE`, `KANTAN_PID`
 3. **Receives stdin pipe**: EOF signals kantan is shutting down (clean exit expected — see [Handling stdin EOF](#handling-stdin-eof))
 4. **Sends updates**: Prints the module's new output as a line of JSON when events occur, or calls `kantan trigger <module-name> refresh` for kantan to run the command again (see [Printing Output](/docs/plugins/api-reference#printing-output))
-5. **Auto-restarts on crash**: Exponential backoff (1s → 16s cap, max 10 consecutive retries)
+5. **Auto-restarts on exit**: Exponential backoff (1s → 16s cap), giving up after 10 restarts of a process that keeps exiting within 30 seconds of launch. A watch process with nothing to watch should wait for stdin to close rather than exit
 6. **Lifecycle integration**: Stopped on system sleep, restarted on wake, and restarted with the new appearance when it changes
 7. **One process per module**: kantan launches exactly one watch process per module, no matter how many displays are configured. Module view-models are shared across `DisplayInstance`s, so plugin authors do not need to deduplicate work or coordinate across multiple invocations.
 

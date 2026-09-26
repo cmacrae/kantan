@@ -438,8 +438,8 @@ Enable watch mode by adding a `watch:` field to the module config:
 | System sleep | Watch process terminated |
 | System wake | Watch process restarted |
 | Appearance change | Watch process restarted, with the new `KANTAN_APPEARANCE` and settings resolved for it |
-| Process crash | Auto-restart with exponential backoff (1s → 16s cap, max 10 consecutive retries) |
-| Max retries reached | Watch disabled until kantan restart |
+| Process exit | Auto-restart with exponential backoff (1s → 16s cap, max 10 consecutive restarts) |
+| Max restarts reached | Watch disabled until kantan restarts or the system wakes |
 
 **Cardinality:** kantan runs **exactly one watch process per module** for the lifetime of the kantan process,
 regardless of how many displays are configured. Module view-models are shared across all `DisplayInstance`s,
@@ -510,7 +510,7 @@ RunLoop.main.run()
 
 ### Auto-Restart Behavior
 
-When a watch process exits unexpectedly (any exit code, including 0):
+When a watch process exits without kantan stopping it (any exit code, including 0):
 
 1. kantan logs the failure
 2. Waits according to exponential backoff schedule:
@@ -520,7 +520,9 @@ When a watch process exits unexpectedly (any exit code, including 0):
    - Attempt 4: 8 seconds
    - Attempt 5+: 16 seconds (capped)
 3. Restarts the watch process
-4. After 10 consecutive failures, gives up until kantan is restarted
+4. After 10 consecutive restarts, gives up until kantan restarts or the system wakes
+
+A watch process that ran for 30 seconds or more before exiting starts the count afresh at attempt 1. Only a process that keeps exiting soon after launch is given up on. A watch process with nothing to watch, such as one without the access it needs, should wait for stdin to close. kantan restarts it each time it exits.
 
 ## Command Module Configuration
 

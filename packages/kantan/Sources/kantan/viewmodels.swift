@@ -71,7 +71,10 @@ class ModuleViewModel: ObservableObject, Identifiable {
   nonisolated(unsafe) private var durationTimer: Timer?
   nonisolated(unsafe) private var watchProcess: Process?
   nonisolated(unsafe) private var watchStdinPipe: Pipe?
+  /// Consecutive exits of the watch process that restarts have followed.
   nonisolated(unsafe) private var watchRestartCount: Int = 0
+  /// When the running watch process was launched.
+  private var watchLaunchDate = Date()
   nonisolated(unsafe) private var watchStopped: Bool = false
   /// Counts watch process launches, so events from a replaced process are
   /// ignored.
@@ -271,6 +274,7 @@ class ModuleViewModel: ObservableObject, Identifiable {
     guard let watchCmd = moduleConfig.config?.getWatchCommand(), !watchCmd.isEmpty else { return }
     guard watchProcess == nil || watchProcess?.isRunning != true else { return }
     watchStopped = false
+    watchRestartCount = 0
     launchWatch(command: watchCmd)
   }
 
@@ -327,7 +331,7 @@ class ModuleViewModel: ObservableObject, Identifiable {
       watchProcess = process
       watchStdinPipe = stdinPipe
       watchAppearance = appearance
-      watchRestartCount = 0
+      watchLaunchDate = Date()
     } catch {
       stdoutPipe.fileHandleForReading.readabilityHandler = nil
       print("Failed to launch watch process: \(error)")
@@ -335,6 +339,16 @@ class ModuleViewModel: ObservableObject, Identifiable {
   }
 
   nonisolated static let maxWatchRestarts = 10
+  /// How long a watch process runs before exiting for its exit to start
+  /// the restart count afresh.
+  nonisolated static let stableWatchRun: TimeInterval = 30
+
+  /// The restart attempt following an exit after `ranFor` seconds, when
+  /// `count` consecutive restarts came before: the next one, or the first
+  /// once the watch ran for `stableWatchRun`.
+  nonisolated static func watchRestartAttempt(after count: Int, ranFor: TimeInterval) -> Int {
+    ranFor >= stableWatchRun ? 1 : count + 1
+  }
 
   /// Backoff delay (seconds) for the Nth restart attempt (1-indexed).
   /// Returns nil once the attempt would exceed `maxWatchRestarts`.
@@ -383,7 +397,8 @@ class ModuleViewModel: ObservableObject, Identifiable {
     // Don't restart if we intentionally stopped the watch
     guard !watchStopped else { return }
 
-    let attempt = watchRestartCount + 1
+    let attempt = Self.watchRestartAttempt(
+      after: watchRestartCount, ranFor: Date().timeIntervalSince(watchLaunchDate))
     guard let delay = Self.watchRestartDelay(forAttempt: attempt) else {
       print(
         "Watch process for '\(id)' exceeded \(Self.maxWatchRestarts) restarts, giving up")
