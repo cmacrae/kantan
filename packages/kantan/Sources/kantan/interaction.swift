@@ -102,6 +102,7 @@ class PopupManager {
   private var tooltipLabel: NSTextField?
   private var tooltipRefreshTimer: Timer?
   private var tooltipRefreshProvider: (() -> String)?
+  private var tooltipClickMonitor: Any?
   weak var themeProvider: ThemeProvider?
   var isNativeAppearance: Bool = false
 
@@ -215,6 +216,7 @@ class PopupManager {
     panel.orderFrontRegardless()
     tooltipPanel = panel
     tooltipLabel = label
+    hideTooltipOnClickElsewhere()
     tooltipRefreshProvider = refreshProvider
 
     if refreshProvider != nil {
@@ -279,6 +281,7 @@ class PopupManager {
     panel.contentView = container
     panel.orderFrontRegardless()
     tooltipPanel = panel
+    hideTooltipOnClickElsewhere()
   }
 
   private func refreshTooltipContent() {
@@ -303,7 +306,31 @@ class PopupManager {
     }
   }
 
+  /// Hides the tooltip on the next click that goes to another app. A click
+  /// on a masked module is one: it passes through to the menu bar item
+  /// underneath and opens that item's menu.
+  func hideTooltipOnClickElsewhere() {
+    guard tooltipClickMonitor == nil else { return }
+    tooltipClickMonitor = NSEvent.addGlobalMonitorForEvents(
+      matching: [.leftMouseDown, .rightMouseDown, .otherMouseDown]
+    ) { [weak self] _ in
+      DispatchQueue.main.async {
+        MainActor.assumeIsolated {
+          self?.hideTooltip()
+        }
+      }
+    }
+  }
+
+  var isWatchingClicksForTooltip: Bool {
+    tooltipClickMonitor != nil
+  }
+
   func hideTooltip() {
+    if let monitor = tooltipClickMonitor {
+      NSEvent.removeMonitor(monitor)
+      tooltipClickMonitor = nil
+    }
     tooltipRefreshTimer?.invalidate()
     tooltipRefreshTimer = nil
     tooltipRefreshProvider = nil

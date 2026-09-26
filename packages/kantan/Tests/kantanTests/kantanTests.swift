@@ -2014,3 +2014,17 @@ final class BluetoothSystemProfilerParserTests: XCTestCase {
     XCTAssertNil(parse("not json"))
   }
 }
+
+// MARK: - Tooltip dismissal
+
+@MainActor
+final class TooltipClickTests: XCTestCase {
+  func testHidingTheTooltipStopsWatchingClicks() {
+    _ = NSApplication.shared
+    let manager = PopupManager()
+    manager.hideTooltipOnClickElsewhere()
+    XCTAssertTrue(manager.isWatchingClicksForTooltip)
+    manager.hideTooltip()
+    XCTAssertFalse(manager.isWatchingClicksForTooltip)
+  }
+}
