@@ -211,85 +211,46 @@ func formatCountdown(from now: Date, to target: Date) -> String {
 
 // MARK: - Watch Mode
 
-func watchMode() -> Int32 {
+/// Prints the module's output whenever it may have changed: once a burst of
+/// calendar changes settles, and at the start of every minute, as
+/// countdowns count down. One event store serves every update.
+@MainActor
+func watchMode() -> Never {
+  let settings = loadSettings(defaults: Settings())
   let store = EKEventStore()
   guard ensureAccess(store: store) else {
     fputs("No access to calendar events\n", stderr)
-    return 1
+    idleWatch(showing: noAccessOutput)
   }
-
-  let name = moduleName(fallback: "calendar")
-  let triggerCmd = "kantan trigger \(shellQuote(name)) refresh"
-  let triggerRefresh: @Sendable () -> Void = {
-    let process = Process()
-    process.executableURL = URL(fileURLWithPath: "/bin/sh")
-    process.arguments = ["-c", triggerCmd]
-    process.standardOutput = FileHandle.nullDevice
-    process.standardError = FileHandle.nullDevice
-    try? process.run()
-    process.waitUntilExit()
-  }
-
-  // kantan's first run may have timed out while the permission prompt was
-  // open, so refresh as soon as access is confirmed.
-  triggerRefresh()
-
-  // Watch for EKEventStore changes
-  NotificationCenter.default.addObserver(
-    forName: .EKEventStoreChanged,
-    object: store,
-    queue: nil
-  ) { _ in triggerRefresh() }
-
-  // 60-second timer for countdown updates
-  let timer = Timer(timeInterval: 60.0, repeats: true) { _ in triggerRefresh() }
-  RunLoop.main.add(timer, forMode: .common)
-
-  // Run until stdin closes
-  DispatchQueue.global().async {
-    while true {
-      let data = FileHandle.standardInput.availableData
-      if data.isEmpty {
-        exit(0)
-      }
-    }
-  }
-
-  RunLoop.main.run()
-  return 0
+  Watch { currentOutput(store: store, settings: settings) }
+    .run(on: .EKEventStoreChanged, from: store)
 }
 
-// MARK: - Default Mode
+// MARK: - Output
 
-func defaultMode() -> Int32 {
-  let settings = loadSettings(defaults: Settings())
-  let store = EKEventStore()
+/// The output while kantan has no access to calendars.
+let noAccessOutput = PluginOutput(value: "", hidden: true, view: vstack(children: []))
 
-  guard ensureAccess(store: store) else {
-    let output = PluginOutput(
-      value: "", hidden: true,
-      view: vstack(children: []))
-    printJSON(output)
-    return 0
-  }
-
+/// The module's output for the events in `store` at `now`.
+func currentOutput(store: EKEventStore, settings: Settings, now: Date = Date()) -> PluginOutput {
   let calendars = filteredCalendars(store: store, settings: settings)
   guard !calendars.isEmpty else {
-    let output = PluginOutput(
+    return PluginOutput(
       value: "No calendars", hidden: true,
       view: vstack(children: [text("No calendars found", style: "secondary")]))
-    printJSON(output)
-    return 0
   }
+  let todayStart = Calendar.current.startOfDay(for: now)
+  let tomorrowEnd = Calendar.current.date(byAdding: .day, value: 2, to: todayStart)!
+  return render(
+    events: fetchEvents(store: store, calendars: calendars, from: todayStart, to: tomorrowEnd),
+    settings: settings, now: now)
+}
 
-  let now = Date()
+/// The module's output for `events`, today's and tomorrow's in the order
+/// `fetchEvents` returns them, at `now`.
+func render(events allEvents: [CalendarEvent], settings: Settings, now: Date) -> PluginOutput {
   let todayStart = Calendar.current.startOfDay(for: now)
   let tomorrowStart = Calendar.current.date(byAdding: .day, value: 1, to: todayStart)!
-  let tomorrowEnd = Calendar.current.date(byAdding: .day, value: 2, to: todayStart)!
-
-  // Fetch today's and tomorrow's events
-  let allEvents = fetchEvents(
-    store: store, calendars: calendars, from: todayStart, to: tomorrowEnd)
 
   // Partition into today/tomorrow, all-day/timed
   var todayAllDay: [CalendarEvent] = []
@@ -517,7 +478,7 @@ func defaultMode() -> Int32 {
   // Format display value
   let value = applyFormat(settings.format, variables: variables)
 
-  let output = PluginOutput(
+  return PluginOutput(
     value: value,
     icon: settings.icons.icon,
     hidden: !hasEvents,
@@ -525,21 +486,20 @@ func defaultMode() -> Int32 {
     data: dataCollections,
     view: view
   )
-
-  printJSON(output)
-  return 0
 }
 
 // MARK: - Main
 
+@MainActor
 func main() -> Int32 {
-  let args = CommandLine.arguments
-
-  if args.count >= 2, args[1] == "--watch" {
-    return watchMode()
+  if CommandLine.arguments.dropFirst().first == "--watch" {
+    watchMode()
   }
-
-  return defaultMode()
+  let settings = loadSettings(defaults: Settings())
+  let store = EKEventStore()
+  printJSON(
+    ensureAccess(store: store) ? currentOutput(store: store, settings: settings) : noAccessOutput)
+  return 0
 }
 
 exit(main())

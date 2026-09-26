@@ -194,6 +194,107 @@ func printJSON(_ output: PluginOutput, pretty: Bool = false) {
   print(String(data: data, encoding: .utf8)!)
 }
 
+// MARK: - Watch Mode
+
+/// Writes plugin output as a watch process does: a line per output, written
+/// at once rather than buffered, skipping output identical to the last line.
+@MainActor
+final class WatchOutput {
+  private let encoder: JSONEncoder = {
+    let encoder = JSONEncoder()
+    encoder.outputFormatting = [.sortedKeys]
+    return encoder
+  }()
+  private var last: Data?
+  private let write: (Data) -> Void
+
+  init(write: @escaping (Data) -> Void = { FileHandle.standardOutput.write($0) }) {
+    self.write = write
+  }
+
+  func show(_ output: PluginOutput) {
+    guard let line = try? encoder.encode(output), line != last else { return }
+    last = line
+    write(line + Data("\n".utf8))
+  }
+}
+
+/// Exits once stdin closes, as kantan closes it to stop a watch process.
+func exitWhenStdinCloses() {
+  DispatchQueue.global().async {
+    while !FileHandle.standardInput.availableData.isEmpty {}
+    exit(0)
+  }
+}
+
+/// Writes `output` and waits for kantan to stop the watch process, for a
+/// watch process that has nothing to watch; exiting instead would have
+/// kantan restart it.
+@MainActor
+func idleWatch(showing output: PluginOutput) -> Never {
+  WatchOutput().show(output)
+  while !FileHandle.standardInput.availableData.isEmpty {}
+  exit(0)
+}
+
+/// The start of the minute after `date`.
+func startOfMinute(after date: Date) -> Date {
+  let minutes = (date.timeIntervalSinceReferenceDate / 60).rounded(.down)
+  return Date(timeIntervalSinceReferenceDate: (minutes + 1) * 60)
+}
+
+/// Shows a watch process's output when it may have changed: at the start
+/// of every minute, and once a burst of changes has settled.
+@MainActor
+final class Watch {
+  /// How long after a change more changes are awaited before showing the
+  /// output, so a burst, such as a sync, shows it once.
+  static let settling: TimeInterval = 0.5
+
+  private let render: () -> PluginOutput
+  private let output: WatchOutput
+  private var changePending = false
+
+  init(output: WatchOutput = WatchOutput(), render: @escaping () -> PluginOutput) {
+    self.output = output
+    self.render = render
+  }
+
+  func show() {
+    output.show(render())
+  }
+
+  /// Shows the output once `settling` has passed since the first change
+  /// not yet shown.
+  func changed() {
+    guard !changePending else { return }
+    changePending = true
+    DispatchQueue.main.asyncAfter(deadline: .now() + Self.settling) {
+      MainActor.assumeIsolated {
+        self.changePending = false
+        self.show()
+      }
+    }
+  }
+
+  /// Shows the output now, at the start of every minute and after each
+  /// `notification` from `object`, until kantan closes stdin.
+  func run(on notification: Notification.Name, from object: AnyObject) -> Never {
+    show()
+    NotificationCenter.default.addObserver(forName: notification, object: object, queue: .main) {
+      _ in
+      MainActor.assumeIsolated { self.changed() }
+    }
+    let minutes = Timer(fire: startOfMinute(after: Date()), interval: 60, repeats: true) { _ in
+      MainActor.assumeIsolated { self.show() }
+    }
+    RunLoop.main.add(minutes, forMode: .common)
+    exitWhenStdinCloses()
+    RunLoop.main.run()
+    exit(0)
+  }
+}
+
 // MARK: - Settings Loading
 
 /// Returns the module name from KANTAN_MODULE_NAME, falling back to `fallback`.

@@ -118,107 +118,89 @@ func ensureAccess(store: EKEventStore) -> Bool {
   }
 }
 
-/// Fetch incomplete reminders matching the configured lists.
-func fetchIncomplete(
-  store: EKEventStore, listConfigs: [ListConfig]
-) -> [EKReminder] {
-  let allCalendars = store.calendars(for: .reminder)
-  let listNames = Set(listConfigs.map { $0.name })
-  let calendars = allCalendars.filter { listNames.contains($0.title) }
-  guard !calendars.isEmpty else { return [] }
-
-  var configByName: [String: ListConfig] = [:]
-  for lc in listConfigs {
-    configByName[lc.name] = lc
-  }
-
-  let now = Date()
-  let predicate = store.predicateForIncompleteReminders(
-    withDueDateStarting: nil, ending: nil, calendars: calendars)
-
-  let semaphore = DispatchSemaphore(value: 0)
-  var result: [EKReminder] = []
-
-  store.fetchReminders(matching: predicate) { reminders in
-    let filtered = (reminders ?? []).filter { reminder in
-      guard let lc = configByName[reminder.calendar.title] else { return false }
-      guard let dueDate = reminder.dueDateComponents?.date else {
-        return lc.undated
-      }
-      if dueDate < now {
-        return lc.overdue
-      }
-      let endDate = now.addingTimeInterval(lc.lookaheadInterval)
-      return dueDate <= endDate
-    }
-
-    result = filtered.sorted { a, b in
-      switch (a.dueDateComponents?.date, b.dueDateComponents?.date) {
-      case let (da?, db?): return da < db
-      case (_?, nil): return true
-      case (nil, _?): return false
-      case (nil, nil): return false
-      }
-    }
-    semaphore.signal()
-  }
-
-  semaphore.wait()
-  return result
+/// A reminder, as the module shows it.
+struct Reminder {
+  let id: String
+  let title: String
+  /// The name of the list it's in.
+  let list: String
+  let dueDate: Date?
+  let completionDate: Date?
 }
 
-/// Fetch recently completed reminders within the retention window.
-func fetchCompleted(
-  store: EKEventStore, listConfigs: [ListConfig]
-) -> [EKReminder] {
-  let maxRetention = listConfigs.map { $0.retentionInterval }.max() ?? 0
-  guard maxRetention > 0 else { return [] }
-
-  let allCalendars = store.calendars(for: .reminder)
-  let listNames = Set(listConfigs.map { $0.name })
-  let calendars = allCalendars.filter { listNames.contains($0.title) }
-  guard !calendars.isEmpty else { return [] }
-
-  var configByName: [String: ListConfig] = [:]
-  for lc in listConfigs {
-    configByName[lc.name] = lc
+extension Reminder {
+  init(_ reminder: EKReminder) {
+    self.init(
+      id: reminder.calendarItemIdentifier, title: reminder.title ?? "Untitled",
+      list: reminder.calendar.title, dueDate: reminder.dueDateComponents?.date,
+      completionDate: reminder.completionDate)
   }
-
-  let now = Date()
-  let retentionStart = now.addingTimeInterval(-maxRetention)
-  let predicate = store.predicateForCompletedReminders(
-    withCompletionDateStarting: retentionStart, ending: now, calendars: calendars)
-
-  let semaphore = DispatchSemaphore(value: 0)
-  var result: [EKReminder] = []
-
-  store.fetchReminders(matching: predicate) { reminders in
-    let filtered = (reminders ?? []).filter { reminder in
-      guard let lc = configByName[reminder.calendar.title] else { return false }
-      guard lc.retentionInterval > 0 else { return false }
-      guard let completionDate = reminder.completionDate else { return false }
-      let listRetentionStart = now.addingTimeInterval(-lc.retentionInterval)
-      return completionDate >= listRetentionStart
-    }
-
-    result = filtered.sorted { a, b in
-      switch (a.completionDate, b.completionDate) {
-      case let (da?, db?): return da > db
-      case (_?, nil): return true
-      case (nil, _?): return false
-      case (nil, nil): return false
-      }
-    }
-    semaphore.signal()
-  }
-
-  semaphore.wait()
-  return result
 }
 
-/// Find the list config for a reminder by its calendar title.
-func listConfig(for reminder: EKReminder, configs: [ListConfig]) -> ListConfig? {
-  configs.first { $0.name == reminder.calendar.title }
+/// Whether an incomplete reminder due at `dueDate` shows from `list` at
+/// `now`: overdue and undated ones as the list says, the rest once they
+/// fall within its lookahead.
+func isShown(dueDate: Date?, from list: ListConfig, now: Date) -> Bool {
+  guard let dueDate else { return list.undated }
+  if dueDate < now { return list.overdue }
+  return dueDate <= now.addingTimeInterval(list.lookaheadInterval)
+}
+
+/// Whether a reminder completed at `completionDate` still shows from `list`
+/// at `now`, within the list's retention.
+func isRetained(completionDate: Date?, from list: ListConfig, now: Date) -> Bool {
+  guard list.retentionInterval > 0, let completionDate else { return false }
+  return completionDate >= now.addingTimeInterval(-list.retentionInterval)
+}
+
+/// The shown incomplete reminders of `lists`, soonest due first with
+/// undated ones last, and their retained completed ones, latest first.
+func fetchReminders(store: EKEventStore, lists: [ListConfig], now: Date)
+  -> (incomplete: [Reminder], completed: [Reminder])
+{
+  let configs = Dictionary(lists.map { ($0.name, $0) }) { first, _ in first }
+  let calendars = store.calendars(for: .reminder).filter { configs[$0.title] != nil }
+  guard !calendars.isEmpty else { return ([], []) }
+
+  let incomplete = fetch(
+    store,
+    store.predicateForIncompleteReminders(
+      withDueDateStarting: nil, ending: nil, calendars: calendars)
+  ).filter { reminder in
+    configs[reminder.list].map { isShown(dueDate: reminder.dueDate, from: $0, now: now) } ?? false
+  }.sorted { a, b in
+    switch (a.dueDate, b.dueDate) {
+    case let (da?, db?): return da < db
+    case (_?, nil): return true
+    default: return false
+    }
+  }
+
+  let retention = lists.map(\.retentionInterval).max() ?? 0
+  guard retention > 0 else { return (incomplete, []) }
+  let completed = fetch(
+    store,
+    store.predicateForCompletedReminders(
+      withCompletionDateStarting: now.addingTimeInterval(-retention), ending: now,
+      calendars: calendars)
+  ).filter { reminder in
+    configs[reminder.list].map {
+      isRetained(completionDate: reminder.completionDate, from: $0, now: now)
+    } ?? false
+  }.sorted { ($0.completionDate ?? .distantPast) > ($1.completionDate ?? .distantPast) }
+  return (incomplete, completed)
+}
+
+/// The reminders `predicate` matches, waiting for EventKit to fetch them.
+func fetch(_ store: EKEventStore, _ predicate: NSPredicate) -> [Reminder] {
+  let semaphore = DispatchSemaphore(value: 0)
+  nonisolated(unsafe) var result: [Reminder] = []
+  store.fetchReminders(matching: predicate) { reminders in
+    result = (reminders ?? []).map(Reminder.init)
+    semaphore.signal()
+  }
+  semaphore.wait()
+  return result
 }
 
 // MARK: - Subcommands
@@ -271,128 +253,82 @@ func uncompleteReminder(id: String) -> Int32 {
   }
 }
 
-/// Watch for EventKit changes and trigger kantan module refreshes.
-/// Runs until stdin closes (kantan process exits) or the process is terminated.
-func watchMode() -> Int32 {
+// MARK: - Watch Mode
+
+/// Prints the module's output whenever it may have changed: once a burst of
+/// reminder changes settles, and at the start of every minute, as
+/// reminders come due. One event store serves every update.
+@MainActor
+func watchMode() -> Never {
+  let settings = loadSettings(defaults: Settings())
+  guard !settings.lists.isEmpty else {
+    fputs("No lists configured in settings\n", stderr)
+    idleWatch(showing: hiddenOutput)
+  }
   let store = EKEventStore()
   guard ensureAccess(store: store) else {
     fputs("No access to reminders\n", stderr)
-    return 1
+    idleWatch(showing: hiddenOutput)
   }
-
-  let name = moduleName(fallback: "reminders")
-  let triggerCmd = "kantan trigger \(shellQuote(name)) refresh"
-  let triggerRefresh: @Sendable () -> Void = {
-    let process = Process()
-    process.executableURL = URL(fileURLWithPath: "/bin/sh")
-    process.arguments = ["-c", triggerCmd]
-    process.standardOutput = FileHandle.nullDevice
-    process.standardError = FileHandle.nullDevice
-    try? process.run()
-    process.waitUntilExit()
-  }
-
-  // kantan's first run may have timed out while the permission prompt was
-  // open, so refresh as soon as access is confirmed.
-  triggerRefresh()
-
-  // Watch for EKEventStore changes
-  NotificationCenter.default.addObserver(
-    forName: .EKEventStoreChanged,
-    object: store,
-    queue: nil
-  ) { _ in triggerRefresh() }
-
-  // 60-second backup timer for approaching due dates
-  // (entering the lookahead window doesn't trigger EKEventStoreChanged)
-  let timer = Timer(timeInterval: 60.0, repeats: true) { _ in triggerRefresh() }
-  RunLoop.main.add(timer, forMode: .common)
-
-  // Run until stdin closes or process is killed.
-  // When kantan exits, stdin (the pipe) closes and we exit cleanly.
-  DispatchQueue.global().async {
-    while true {
-      let data = FileHandle.standardInput.availableData
-      if data.isEmpty {
-        // stdin closed — parent process exited
-        exit(0)
-      }
-    }
-  }
-
-  RunLoop.main.run()
-  return 0
+  let module = moduleName(fallback: "reminders")
+  Watch { currentOutput(store: store, settings: settings, module: module) }
+    .run(on: .EKEventStoreChanged, from: store)
 }
 
-// MARK: - Default Mode: Fetch & Output JSON
+// MARK: - Output
 
-func defaultMode() -> Int32 {
-  let settings = loadSettings(defaults: Settings())
+/// The output while there are no lists to show or no access to them.
+let hiddenOutput = PluginOutput(value: "", hidden: true, view: vstack(children: []))
 
-  guard !settings.lists.isEmpty else {
-    fputs("No lists configured in settings\n", stderr)
-    let output = PluginOutput(
-      value: "", hidden: true,
-      view: vstack(children: []))
-    printJSON(output)
-    return 0
-  }
+/// The module's output for the reminders in `store` at `now`, for the
+/// module named `module`.
+func currentOutput(store: EKEventStore, settings: Settings, module: String, now: Date = Date())
+  -> PluginOutput
+{
+  let reminders = fetchReminders(store: store, lists: settings.lists, now: now)
+  return render(
+    incomplete: reminders.incomplete, completed: reminders.completed, settings: settings,
+    module: module, now: now)
+}
 
-  let store = EKEventStore()
-  guard ensureAccess(store: store) else {
-    let output = PluginOutput(
-      value: "", hidden: true,
-      view: vstack(children: []))
-    printJSON(output)
-    return 0
-  }
-
-  let incomplete = fetchIncomplete(store: store, listConfigs: settings.lists)
-  let completed = fetchCompleted(store: store, listConfigs: settings.lists)
+/// The module's output for its shown `incomplete` and `completed`
+/// reminders at `now`, whose menu refreshes the module named `module`.
+func render(
+  incomplete: [Reminder], completed: [Reminder], settings: Settings, module modName: String,
+  now: Date
+) -> PluginOutput {
   let hasReminders = !incomplete.isEmpty
 
   // Determine displayed reminder (first incomplete)
   let displayedReminder = incomplete.first
-  let displayedListConfig: ListConfig? =
-    if let r = displayedReminder {
-      listConfig(for: r, configs: settings.lists)
-    } else {
-      settings.lists.first
-    }
+  let displayedListConfig =
+    displayedReminder.flatMap { r in settings.lists.first { $0.name == r.list } }
+    ?? settings.lists.first
 
   let maxChars = displayedListConfig?.maxChars ?? 30
   let title = displayedReminder?.title ?? ""
   let iconName = displayedListConfig?.icon
-  let listName = displayedReminder?.calendar.title ?? displayedListConfig?.name ?? ""
+  let listName = displayedReminder?.list ?? displayedListConfig?.name ?? ""
 
   // Format due date if available
   let due: String = {
-    guard let comps = displayedReminder?.dueDateComponents, let date = comps.date else {
-      return ""
-    }
+    guard let date = displayedReminder?.dueDate else { return "" }
     let formatter = RelativeDateTimeFormatter()
     formatter.unitsStyle = .abbreviated
-    return formatter.localizedString(for: date, relativeTo: Date())
+    return formatter.localizedString(for: date, relativeTo: now)
   }()
 
   // Build data collections and view tree
   let allItems = incomplete + completed
   let hasMultiple = allItems.count > 1
-  let modName = moduleName(fallback: "reminders")
 
   var dataCollections: [String: [[String: String]]] = [:]
   var viewChildren: [JSONValue] = []
 
   if hasMultiple {
     // Group reminders by list name
-    var incompleteByList: [String: [EKReminder]] = [:]
-    for reminder in incomplete {
-      incompleteByList[reminder.calendar.title, default: []].append(reminder)
-    }
-    var completedByList: [String: [EKReminder]] = [:]
-    for reminder in completed {
-      completedByList[reminder.calendar.title, default: []].append(reminder)
-    }
+    let incompleteByList = Dictionary(grouping: incomplete, by: \.list)
+    let completedByList = Dictionary(grouping: completed, by: \.list)
 
     // Determine which lists have items, preserving config order
     let listsWithItems = settings.lists.filter { lc in
@@ -413,27 +349,15 @@ func defaultMode() -> Int32 {
       let incKey = "incomplete_\(safeKey)"
       let compKey = "completed_\(safeKey)"
 
-      dataCollections[incKey] = listIncomplete.map { reminder in
-        let chars = lc.maxChars
-        let label = truncate(reminder.title ?? "Untitled", maxChars: chars)
-        let id = reminder.calendarItemIdentifier
-        let completeCmd =
-          "kantan-plugin-reminders --complete \(shellQuote(id)) && kantan trigger \(shellQuote(modName)) refresh"
-        let uncompleteCmd =
-          "kantan-plugin-reminders --uncomplete \(shellQuote(id)) && kantan trigger \(shellQuote(modName)) refresh"
-        return ["title": label, "complete_cmd": completeCmd, "uncomplete_cmd": uncompleteCmd]
+      let item = { (reminder: Reminder) in
+        [
+          "title": truncate(reminder.title, maxChars: lc.maxChars),
+          "complete_cmd": completionCommand("--complete", reminder, module: modName),
+          "uncomplete_cmd": completionCommand("--uncomplete", reminder, module: modName),
+        ]
       }
-
-      dataCollections[compKey] = listCompleted.map { reminder in
-        let chars = lc.maxChars
-        let label = truncate(reminder.title ?? "Untitled", maxChars: chars)
-        let id = reminder.calendarItemIdentifier
-        let completeCmd =
-          "kantan-plugin-reminders --complete \(shellQuote(id)) && kantan trigger \(shellQuote(modName)) refresh"
-        let uncompleteCmd =
-          "kantan-plugin-reminders --uncomplete \(shellQuote(id)) && kantan trigger \(shellQuote(modName)) refresh"
-        return ["title": label, "complete_cmd": completeCmd, "uncomplete_cmd": uncompleteCmd]
-      }
+      dataCollections[incKey] = listIncomplete.map(item)
+      dataCollections[compKey] = listCompleted.map(item)
 
       if !listIncomplete.isEmpty {
         viewChildren.append(
@@ -454,10 +378,10 @@ func defaultMode() -> Int32 {
     }
   } else if hasReminders {
     // Single incomplete reminder — show a "Complete" action
-    if let id = displayedReminder?.calendarItemIdentifier {
-      let cmd =
-        "kantan-plugin-reminders --complete \(shellQuote(id)) && kantan trigger \(shellQuote(modName)) refresh"
-      viewChildren.append(action(label: "Complete", command: cmd))
+    if let reminder = displayedReminder {
+      viewChildren.append(
+        action(
+          label: "Complete", command: completionCommand("--complete", reminder, module: modName)))
     }
   } else {
     // No reminders at all
@@ -495,7 +419,7 @@ func defaultMode() -> Int32 {
   // Apply format string to produce the displayed value
   let value = applyFormat(settings.format, variables: variables)
 
-  let output = PluginOutput(
+  return PluginOutput(
     value: value,
     icon: iconName,
     hidden: !hasReminders,
@@ -503,13 +427,18 @@ func defaultMode() -> Int32 {
     data: dataCollections,
     view: view
   )
+}
 
-  printJSON(output)
-  return 0
+/// The command that runs `subcommand` (`--complete` or `--uncomplete`) on
+/// `reminder`, then refreshes the module named `module`.
+func completionCommand(_ subcommand: String, _ reminder: Reminder, module: String) -> String {
+  "kantan-plugin-reminders \(subcommand) \(shellQuote(reminder.id))"
+    + " && kantan trigger \(shellQuote(module)) refresh"
 }
 
 // MARK: - Main
 
+@MainActor
 func main() -> Int32 {
   let args = CommandLine.arguments
 
@@ -522,10 +451,21 @@ func main() -> Int32 {
   }
 
   if args.count >= 2, args[1] == "--watch" {
-    return watchMode()
+    watchMode()
   }
 
-  return defaultMode()
+  let settings = loadSettings(defaults: Settings())
+  guard !settings.lists.isEmpty else {
+    fputs("No lists configured in settings\n", stderr)
+    printJSON(hiddenOutput)
+    return 0
+  }
+  let store = EKEventStore()
+  let module = moduleName(fallback: "reminders")
+  printJSON(
+    ensureAccess(store: store)
+      ? currentOutput(store: store, settings: settings, module: module) : hiddenOutput)
+  return 0
 }
 
 exit(main())

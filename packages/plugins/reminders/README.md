@@ -148,8 +148,8 @@ format: "{count} in {list}"
 The plugin operates in three modes:
 
 - **Default mode** — Fetches reminders from EventKit and outputs JSON with the current state. Called by kantan on each refresh cycle.
-- **Watch mode** (`--watch`) — Long-lived background process that monitors `EKEventStoreChanged` notifications and a 60-second backup timer, triggering `kantan trigger <module> refresh` when changes occur. Managed by kantan's watch process lifecycle.
-- **Complete/Uncomplete** (`--complete <id>` / `--uncomplete <id>`) — Toggles a reminder's completion state by its identifier. Used by menu check-items to provide inline complete/uncomplete actions.
+- **Watch mode** (`--watch`) — Long-lived background process that keeps one EventKit store open and prints the module's output for kantan to show: once a burst of `EKEventStoreChanged` notifications settles, and at the start of every minute as reminders come due. It prints only when the output changes. Without lists or reminders access it prints hidden output and waits. Managed by kantan's watch process lifecycle.
+- **Complete/Uncomplete** (`--complete <id>` / `--uncomplete <id>`) — Toggles a reminder's completion state by its identifier. Used by menu check-items to provide inline complete/uncomplete actions, which then refresh the module by its name.
 
 ### Permissions
 

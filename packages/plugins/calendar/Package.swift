@@ -13,6 +13,10 @@ let package = Package(
       linkerSettings: [
         .linkedFramework("EventKit")
       ]
-    )
+    ),
+    .testTarget(
+      name: "kantan-plugin-calendarTests",
+      dependencies: ["kantan-plugin-calendar"]
+    ),
   ]
 )

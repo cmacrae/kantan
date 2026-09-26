@@ -9,7 +9,7 @@ This plugin is bundled with kantan and requires no separate installation. It is 
 
 ## Features
 
-- **Event-driven updates** — Responds instantly to EventKit changes via a background watcher process, with a 60-second backup timer for countdown accuracy
+- **Event-driven updates** — Responds to EventKit changes via a background watcher process, and updates at the start of every minute so countdowns stay exact
 - **Calendar filtering** — Include or exclude specific calendars by name
 - **Upcoming window** — Only show the bar module when an event is ongoing or starts within a configurable time window
 - **Countdown display** — Shows time remaining until the next event (e.g. `42m`, `1h 15m`, `now`)
@@ -168,7 +168,7 @@ format: "{?is_active:Now:}{?is_upcoming:Next:} {next_title}"
 The plugin operates in two modes:
 
 - **Default mode** — Fetches events from EventKit for today and tomorrow, partitions them into all-day, past, active/upcoming, and tomorrow categories, then outputs JSON with the bar value, template variables, data collections, and a rich view tree for the popup menu.
-- **Watch mode** (`--watch`) — Long-lived background process that monitors `EKEventStoreChanged` notifications and runs a 60-second backup timer for countdown accuracy, triggering `kantan trigger <module> refresh` when changes occur. Managed by kantan's watch process lifecycle.
+- **Watch mode** (`--watch`) — Long-lived background process that keeps one EventKit store open and prints the module's output for kantan to show: once a burst of `EKEventStoreChanged` notifications settles, and at the start of every minute for the countdowns. It prints only when the output changes. Without calendar access it prints hidden output and waits. Managed by kantan's watch process lifecycle.
 
 ### Popup View
 
