@@ -18,6 +18,15 @@ let
     runHook postBuild
   '';
 
+  # Runs the package's tests, when it has any.
+  swiftCheckPhase = ''
+    runHook preCheck
+    if [ -d Tests ]; then
+      swift test --disable-sandbox --scratch-path .build
+    fi
+    runHook postCheck
+  '';
+
   swiftInstallPhase = pname: ''
     runHook preInstall
     mkdir -p $out/bin
@@ -56,5 +65,11 @@ in
       name,
       src,
     }:
-    buildSwiftPackage (plugin.pluginAttrs { inherit name src; });
+    buildSwiftPackage (
+      plugin.pluginAttrs { inherit name src; }
+      // {
+        doCheck = true;
+        checkPhase = swiftCheckPhase;
+      }
+    );
 }
