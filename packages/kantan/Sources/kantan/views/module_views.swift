@@ -596,8 +596,8 @@ struct WorkspaceModuleView: View {
   private func overflowColor(config: WorkspaceConfig?) -> Color {
     if let style = config?.overflow.style {
       let mode = themeProvider.isDarkMode ? style.dark : style.light
-      if let fg = mode?.fg {
-        return Color(nsColor: NSColor(hex: fg))
+      if let fg = mode?.fg, let colour = themeProvider.color(fg) {
+        return colour
       }
     }
     return inactiveColor

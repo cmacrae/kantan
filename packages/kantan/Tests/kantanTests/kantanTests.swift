@@ -2439,6 +2439,16 @@ final class ThemeProviderElementFgPrecedenceTests: XCTestCase {
     XCTAssertEqual(actual.blueComponent, expected.blueComponent, accuracy: 0.01)
   }
 
+  func testColorResolvesHexAndThemeTemplatesButNotUnknownOnes() throws {
+    let palette = ThemePalette(fg: "FFFFFF", bg: "000000", shape: nil, colors: ["red": "F38BA8"])
+    let theme = ThemeProvider(
+      config: makeConfig(theme: ThemeConfig(lightPalette: palette, darkPalette: palette)))
+    assertColor(try XCTUnwrap(theme.color("{theme(red)}")), equalsHex: "F38BA8")
+    assertColor(try XCTUnwrap(theme.color("#89B4FA")), equalsHex: "89B4FA")
+    XCTAssertNil(theme.color("{theme(absent)}"))
+    XCTAssertNil(ThemeProvider(config: makeConfig()).color("{theme(red)}"))
+  }
+
   func testFgOverrideBypassesAllOtherSources() {
     let theme = ThemeProvider(config: makeConfig())
     theme.isDarkMode = true

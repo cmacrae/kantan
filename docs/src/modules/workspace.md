@@ -13,7 +13,7 @@ Displays window manager workspace indicators. Supports native macOS spaces and t
 | `overflow.enabled` | bool | `false` | Enable overflow mode to limit visible workspaces |
 | `overflow.max` | int | `5` | Maximum visible workspaces before overflow kicks in |
 | `overflow.icon` | bool/string/object | `true` | Overflow indicator icons (see below) |
-| `overflow.style` | object | -- | Style for overflow indicators; only `fg` (a hex colour) is used |
+| `overflow.style` | object | -- | Style for overflow indicators. Only `fg` (a hex colour or `{theme(name)}` template) is used |
 | `rainbow.enabled` | bool | `false` | Enable rainbow colouring for workspace indicators |
 | `rainbow.random` | bool | `true` | Randomise colour order (deterministic, no adjacent repeats) |
 | `rainbow.colors` | array | -- | Colour palette for rainbow mode (hex or `{theme(name)}`) |

@@ -491,7 +491,7 @@
             },
             "style": {
               "$ref": "#/$defs/StyleConfig",
-              "description": "Style for overflow indicators. Only 'fg' is used, as a hex colour; without it indicators take the inactive colour."
+              "description": "Style for overflow indicators. Only 'fg' is used, a hex colour or {theme(name)} template; without it, or with a template the palette can't resolve, indicators take the inactive colour."
             }
           }
         },
