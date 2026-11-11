@@ -4,34 +4,41 @@ All nodes in the View DSL support common styling properties that control their a
 
 ## Common Properties
 
-These properties can be applied to any node type:
+These properties can be applied to any node type. They apply in tooltips and popups; [native menus](/docs/view-dsl/nodes#native-menu-rendering) ignore them, including `visible`.
 
 | Property | Type | Description |
 |----------|------|-------------|
 | `padding` | number or object | Uniform padding (number), or per-edge object with `top`, `leading`, `bottom`, `trailing` keys |
 | `frame` | object | Frame constraints: `w`, `h`, `minW`, `maxW`, `minH`, `maxH` |
 | `opacity` | number | Opacity from 0.0 (transparent) to 1.0 (opaque) |
-| `background` | string | Background color as hex string or named color |
-| `cornerRadius` | number | Corner rounding in points |
-| `visible` | string | Visibility controlled by a variable name (e.g., `"show_details"`) |
+| `background` | string | Background colour (hex, named, or template) drawn behind the node, including its padding |
+| `cornerRadius` | number | Corner rounding of the `background`, in points |
+| `visible` | string | Visibility controlled by a bare variable name (e.g., `"show_details"`) |
+
+They are applied in this order: `visible`, `padding`, `frame`, `background`, `opacity`. `background` covers the padding and frame. `opacity` fades the background too.
 
 ## Colours
 
 Colours can be specified as hex strings or as named system colours.
 
-**Hex format:**
+**Hex format** (the `#` is optional):
 
 - **RGB**: `"#RRGGBB"` (e.g., `"#FF0000"` for red)
+- **RGBA**: `"#RRGGBBAA"` (e.g., `"#FF000080"` for half-transparent red)
+
+Other lengths, such as `#RGB`, are not recognised.
 
 **Named colours:**
 
 `primary`, `secondary`, `accent`, `red`, `orange`, `yellow`, `green`, `blue`, `purple`, `pink`, `gray` (or `grey`), `white`, `black`, `clear`
 
-Named colors adapt to light/dark mode automatically.
+Names are case-insensitive. These are system colours. All except `white`, `black`, and `clear` adapt to light/dark mode automatically. `accent` is the system accent colour.
+
+Colour properties can contain templates (e.g. `"{status_color}"`). A value that resolves to an unrecognised colour falls back to the property's default: the default text colour for `text` and `icon`, the accent colour for `progress`, `gauge`, and `badge` backgrounds, and no colour for shapes and `background`.
 
 **Theme colours:**
 
-When a [theme](/docs/configuration/themes) is active, you can reference palette colours with `{theme(name)}` syntax:
+When a [theme](/docs/configuration/themes) is configured, you can reference palette colours with `{theme(name)}` syntax:
 
 ```json
 {
@@ -149,7 +156,7 @@ Apply a background colour to any node:
 
 ## Corner Radius
 
-Round the corners of nodes with backgrounds or shapes:
+`cornerRadius` rounds the node's `background`. On `rect` and `image` nodes, the same property also rounds the shape or image itself:
 
 ```json
 {
@@ -173,6 +180,8 @@ Control transparency of nodes:
 }
 ```
 
+On `text`, `style: secondary` is applied as an extra 50% opacity. It combines with `opacity`.
+
 ## Visibility
 
 Control whether a node is rendered. The `visible` property takes a variable name (without braces) that is looked up and evaluated as a boolean:
@@ -185,10 +194,11 @@ Control whether a node is rendered. The `visible` property takes a variable name
 }
 ```
 
-The variable is resolved and evaluated as a boolean. Values `"true"`, `"1"`, `"yes"`, and other non-empty strings are truthy.
-Values `"false"`, `"0"`, `"no"`, and empty strings are falsy. If the variable cannot be resolved (i.e. remains an unresolved template),
-it resolves to an empty string and is therefore **falsy** — the node is hidden.
-This matches the behaviour of the [`if`](/docs/view-dsl/nodes#conditional-node-if) node so the two stay in lockstep.
+The variable is looked up as if written `{show_details}` and evaluated as a boolean. Values `"true"`, `"1"`, `"yes"`, and other non-empty strings are truthy (case-insensitive).
+Values `"false"`, `"0"`, `"no"`, and empty strings are falsy. A variable that doesn't exist resolves to an empty string and is therefore **falsy** — the node is hidden.
+This matches the behaviour of the [`if`](/docs/view-dsl/nodes#data-nodes) node.
+
+Don't wrap the name in braces: `"visible": "{show_details}"` is always truthy. `visible` has no effect in native menus; use an `if` node there.
 
 ## Combining Properties
 
@@ -223,11 +233,11 @@ Text nodes have additional styling properties:
 
 | Property | Values | Description |
 |----------|--------|-------------|
-| `size` | number | Font size in points (default: 13) |
+| `size` | number | Font size in points (default: 13; the system font is used) |
 | `weight` | `ultraLight`, `thin`, `light`, `regular`, `medium`, `semibold`, `bold`, `heavy`, `black` | Font weight |
 | `style` | `normal`, `secondary`, `italic`, `monospaced` | Text style (`secondary` reduces opacity to 50%; `italic` and `monospaced` are accepted but do not currently have a visual effect) |
-| `color` | hex string or named color | Text color |
-| `align` | `leading`, `center`, `trailing` | Text alignment |
+| `color` | hex string or named colour | Text colour (default: the theme's foreground) |
+| `align` | `leading`, `center`, `trailing` | Alignment of the lines within multi-line text (default: `leading`) |
 | `strikethrough` | boolean | Draw a line through the text |
 
 **Example:**
@@ -259,4 +269,4 @@ Text nodes have additional styling properties:
 - Prefer `padding` and `spacing` for layout over fixed `frame` sizes
 - Use `minW`/`maxW` instead of fixed `w` for responsive layouts
 - Apply `background` and `cornerRadius` together for card-like elements
-- Use `opacity` sparingly for subtle visual effects, not for hiding elements (use `visible` instead)
+- Use `opacity` sparingly for subtle visual effects, not for hiding elements (use `visible` or `if` instead)

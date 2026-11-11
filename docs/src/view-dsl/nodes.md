@@ -1,19 +1,27 @@
 # Node Types
 
-This page documents all available node types in the View DSL, organized by category.
+This page documents all available node types in the View DSL, organized by category. Every node also accepts the [common styling properties](/docs/view-dsl/styling) (`padding`, `frame`, `opacity`, `background`, `cornerRadius`, `visible`).
+
+Properties marked **required** must be present in plugin JSON, or the whole view is discarded (see [Validation](/docs/view-dsl#validation)). Any string property can contain [templates](/docs/view-dsl/templates) such as `{name}`, except the enumerated ones (`weight`, `style`, `alignment`, `axis`, `align`). Number and boolean properties take literal values. Only `progress`/`gauge` `value`, `check` `checked`, and `toggle` `on` also accept a template string.
 
 ## Layout Nodes
 
-Layout nodes arrange their children in specific patterns. All layout nodes have a `children` property containing an array of child nodes.
+Layout nodes arrange their children in specific patterns. All layout nodes except `spacer` have a `children` property containing an array of child nodes (default empty).
 
 | Type | Description | Properties |
 |------|-------------|------------|
-| `vstack` | Vertical stack | `spacing` (number), `padding` (number or `{top, leading, bottom, trailing}` object), `alignment` (`leading`/`center`/`trailing`, default `leading`), `children` (array) |
-| `hstack` | Horizontal stack | `spacing` (number), `padding` (number or `{top, leading, bottom, trailing}` object), `alignment` (`top`/`center`/`bottom`, default `center`), `children` (array), `command` (string, optional; makes the row clickable) |
+| `vstack` | Vertical stack | `spacing` (number, default system spacing), `alignment` (`leading`/`center`/`trailing`, default `leading`), `children` (array) |
+| `hstack` | Horizontal stack | `spacing` (number, default system spacing), `alignment` (`top`/`center`/`bottom`, default `center`), `children` (array), `command` (string, optional; makes the row clickable) |
 | `zstack` | Overlay stack (children layered on top of each other) | `alignment` (`leading`/`trailing`/`center`/`top`/`bottom`/`topLeading`/`topTrailing`/`bottomLeading`/`bottomTrailing`, default `center`), `children` (array) |
-| `scroll` | Scrollable container | `axis` (`vertical`/`horizontal`, default `vertical`), `children` (array) |
+| `scroll` | Scrollable container; children are stacked with no spacing along the axis | `axis` (`vertical`/`horizontal`, default `vertical`), `children` (array) |
 | `spacer` | Flexible spacing element | `minLength` (number, optional minimum size) |
 | `group` | Logical grouping without visual impact | `children` (array) |
+
+`vstack` and `hstack` also accept any of the nine `zstack` alignments, using the part that applies to their axis (e.g. `topLeading` aligns a `vstack` to `leading` and an `hstack` to `top`).
+
+A popup or tooltip sizes itself to fit its content. A `scroll` scrolls only when `frame` gives it a height (e.g. `"frame": { "maxH": 300 }`).
+
+An `hstack` with a `command` highlights on hover; clicking it closes the popup and runs the command.
 
 **Example:**
 ```json
@@ -46,11 +54,11 @@ Content nodes render specific types of content.
 
 | Type | Description | Properties |
 |------|-------------|------------|
-| `text` | Text display | `content` (string), `size` (number), `weight` (`ultraLight`/`thin`/`light`/`regular`/`medium`/`semibold`/`bold`/`heavy`/`black`), `style` (`normal`/`secondary`/`italic`/`monospaced`), `color` (hex or named color), `align` (`leading`/`center`/`trailing`), `strikethrough` (boolean) |
-| `icon` | Icon from bundled icon fonts or SF Symbols | `name` (string, icon name or glyph), `size` (number, default 13), `color` (hex or named color), `style` (`regular`/`filled`) |
-| `image` | Image display | `url` (string, image URL), `width` (number), `height` (number), `cornerRadius` (number) |
-| `divider` | Visual separator line | No specific properties |
-| `header` | Section header text | `content` (string) |
+| `text` | Text display | `content` (string, **required**), `size` (number, default 13), `weight` (`ultraLight`/`thin`/`light`/`regular`/`medium`/`semibold`/`bold`/`heavy`/`black`), `style` (`normal`/`secondary`/`italic`/`monospaced`), `color` (hex or named colour, default the theme's foreground, or the system label colour in native appearance), `align` (`leading`/`center`/`trailing`; aligns the lines of multi-line text), `strikethrough` (boolean) |
+| `icon` | Icon from bundled icon fonts or SF Symbols | `name` (string, **required**; icon name or glyph), `size` (number, default 13), `color` (hex or named colour), `style` (`regular`/`filled`) |
+| `image` | Image loaded from a URL | `url` (string, **required**), `width` (number), `height` (number), `cornerRadius` (number) |
+| `divider` | Horizontal separator line, inset 8pt horizontally and 4pt vertically | No specific properties |
+| `header` | Section header text (12pt bold, 22pt tall) | `content` (string, **required**) |
 
 **Text Example:**
 ```json
@@ -75,7 +83,9 @@ The `style` property affects rendering: `secondary` reduces opacity to 50%. The 
 }
 ```
 
-Icons are resolved by name from bundled icon fonts (tabler-icons). Use the `-filled` suffix convention (e.g., `"bell-filled"`) for filled variants. ASCII-only names are also looked up as SF Symbols. The `style` property (`regular`/`filled`) is accepted but does not currently have a visual effect; use the `-filled` name suffix instead.
+Icons are resolved by name from bundled icon fonts (tabler-icons). Use the `-filled` suffix convention (e.g., `"bell-filled"`) for filled variants. An ASCII name that isn't a tabler icon is shown as the SF Symbol of that name (e.g., `"gear"`). Any other name is drawn as literal text. A glyph character can be used directly. The `style` property (`regular`/`filled`) is accepted but does not currently have a visual effect; use the `-filled` name suffix instead.
+
+A spinner shows while an image loads. An image that fails to load shows a placeholder `photo` symbol. The image fills its `width`×`height`, cropping to keep its aspect ratio. `cornerRadius` here also rounds the node's `background`.
 
 **Image Example:**
 ```json
@@ -94,9 +104,11 @@ Shape nodes render geometric shapes.
 
 | Type | Description | Properties |
 |------|-------------|------------|
-| `rect` | Rectangle | `width` (number), `height` (number), `color` (hex or named color), `cornerRadius` (number), `strokeColor` (hex or named color), `strokeWidth` (number, default 1.0) |
-| `circle` | Circle | `size` (number, diameter), `color` (hex or named color), `strokeColor` (hex or named color), `strokeWidth` (number, default 1.0) |
-| `capsule` | Capsule shape (rounded ends) | `width` (number), `height` (number), `color` (hex or named color) |
+| `rect` | Rectangle | `width` (number), `height` (number), `color` (hex or named colour, fill), `cornerRadius` (number), `strokeColor` (hex or named colour), `strokeWidth` (number, default 1.0) |
+| `circle` | Circle | `size` (number, diameter), `color` (hex or named colour, fill), `strokeColor` (hex or named colour), `strokeWidth` (number, default 1.0) |
+| `capsule` | Capsule shape (rounded ends) | `width` (number), `height` (number), `color` (hex or named colour, fill) |
+
+Shapes have no fill unless `color` is set. The stroke is drawn inside the shape's edge, and only when `strokeColor` is set. A shape with no size expands to fill the space it is given. On `rect`, `cornerRadius` also rounds the node's `background`.
 
 **Example:**
 ```json
@@ -125,21 +137,25 @@ Shape nodes render geometric shapes.
 
 ## Interactive Nodes
 
-Interactive nodes respond to user input and can trigger commands.
+Interactive nodes respond to user input and can trigger commands. A command is run with `/bin/sh -c` (its output is discarded), unless it is a URL with a letters-only scheme and no spaces (such as `https://...` or `raycast://...`), which is opened. Templates in commands are resolved first, so `"my-plugin --complete {id}"` works; resolved values are inserted as-is, not shell-quoted.
 
 | Type | Description | Properties |
 |------|-------------|------------|
-| `action` | Clickable menu-style row with icon and label | `label` (string, optional), `icon` (string, optional icon name), `command` (string, optional shell command to execute), `iconFont` (string, optional; accepted but not currently used in rendering) |
-| `check` | Checkbox item | `label` (string, optional), `checked` (boolean, number, or template string; optional), `command` (string, optional command when checking), `uncheckedCommand` (string, optional command when unchecking) |
-| `toggle` | Toggle switch | `label` (string, optional), `on` (boolean, number, or template string; optional), `command` (string, optional) |
+| `action` | Clickable menu-style row with icon and label | `label` (string, optional), `icon` (string, optional icon name), `command` (string, optional), `iconFont` (string, optional; accepted but not currently used in rendering) |
+| `check` | Checkbox item | `label` (string, optional), `checked` (boolean, number, or template string; default false), `command` (string, optional; run when checking), `uncheckedCommand` (string, optional; run when unchecking, falling back to `command`) |
+| `toggle` | Toggle switch | `label` (string, optional), `on` (boolean, number, or template string; default false), `command` (string, optional; run whenever it is switched, either way) |
 | `button` | Button | `label` (string, optional), `icon` (string, optional icon name), `command` (string, optional), `style` (`default`/`bordered`/`borderless`/`plain`; accepted but currently renders as `borderless`) |
+
+`checked` and `on` are evaluated as booleans: `true`, `1`, `yes`, and any other non-empty value are on; `false`, `0`, `no`, and empty are off.
+
+Clicking an `action`, `button`, or `toggle` closes the popup. Clicking a `check` flips its checkmark (the label is struck through while checked) and keeps the popup or menu open, so several items can be checked in turn. In a menu, an `action` without a `command` is shown disabled.
 
 **Action Example:**
 ```json
 {
   "type": "action",
   "label": "Open Settings",
-  "icon": "gear",
+  "icon": "settings",
   "command": "open -a 'System Settings'"
 }
 ```
@@ -170,7 +186,7 @@ Interactive nodes respond to user input and can trigger commands.
 {
   "type": "button",
   "label": "Refresh",
-  "icon": "arrow-clockwise",
+  "icon": "refresh",
   "command": "my-plugin --refresh"
 }
 ```
@@ -181,10 +197,12 @@ Data nodes control rendering based on data and conditions.
 
 | Type | Description | Properties |
 |------|-------------|------------|
-| `foreach` | Iterate over a data collection | `items` (string, name of data array), `child` (object, single node template rendered for each item) |
-| `if` | Conditional rendering | `condition` (string, variable name), `then` (object, single node rendered if true), `else` (object, optional single node rendered if false) |
+| `foreach` | Iterate over a data collection | `items` (string, **required**; name of a collection in `data`), `child` (object, **required**; single node template rendered for each item) |
+| `if` | Conditional rendering | `condition` (string, **required**; bare variable name, without braces), `then` (object, **required**; single node rendered if truthy), `else` (object, optional single node rendered if falsy) |
 
 > **Note:** Unlike layout nodes, `foreach` uses `items` (not `collection`) and `child` (a single node, not an array). Similarly, `if` uses `then` and `else` as single nodes, not arrays. Wrap multiple children in a `vstack` or `group` if needed.
+
+A `foreach` whose collection doesn't exist renders nothing. See [Templates & Data](/docs/view-dsl/templates) for scoping and truthiness rules.
 
 **foreach Example:**
 ```json
@@ -214,7 +232,7 @@ Data nodes control rendering based on data and conditions.
   },
   "else": {
     "type": "icon",
-    "name": "battery-half",
+    "name": "battery-2",
     "color": "#888888"
   }
 }
@@ -226,10 +244,12 @@ Advanced nodes provide specialized UI components.
 
 | Type | Description | Properties |
 |------|-------------|------------|
-| `progress` | Progress bar | `value` (string, template or number, 0.0 to 1.0), `color` (hex or named color), `trackColor` (hex or named color), `style` (`bar`/`ring`, default `bar`) |
-| `gauge` | Gauge indicator | `value` (string, template or number), `min` (number, default 0.0), `max` (number, default 1.0), `label` (string), `color` (hex or named color) |
-| `badge` | Badge label | `content` (string), `color` (hex or named color, background), `textColor` (hex or named color, foreground) |
-| `grid` | Grid layout | `columns` (number, default 2), `spacing` (number, default 8), `children` (array) |
+| `progress` | Progress bar or ring | `value` (number or template, **required**; 0.0 to 1.0, clamped), `color` (hex or named colour, default accent), `trackColor` (hex or named colour), `style` (`bar`/`ring`, default `bar`) |
+| `gauge` | Gauge indicator | `value` (number or template, **required**), `min` (number, default 0.0), `max` (number, default 1.0), `label` (string), `color` (hex or named colour, default accent) |
+| `badge` | Capsule-shaped label (11pt medium) | `content` (string, **required**), `color` (hex or named colour, background, default accent), `textColor` (hex or named colour, foreground, default white) |
+| `grid` | Grid of equal-width columns, filled row by row | `columns` (integer, default 2), `spacing` (number, default 8; between rows and columns), `children` (array) |
+
+A `progress` or `gauge` value that isn't a number is treated as 0. The `bar` style is 6pt tall and fills the available width; the `ring` style has a 4pt stroke and fills the space it is given, so give it a size with `frame`. `gauge` uses the system gauge, with `label` shown in 11pt text; `min` must be less than or equal to `max`.
 
 **Progress Example:**
 ```json
@@ -253,9 +273,10 @@ Advanced nodes provide specialized UI components.
 ```json
 {
   "type": "progress",
-  "value": "{cpu_usage}",
+  "value": "{cpu_fraction}",
   "color": "#FF3B30",
-  "style": "ring"
+  "style": "ring",
+  "frame": { "w": 24, "h": 24 }
 }
 ```
 
@@ -278,13 +299,26 @@ Advanced nodes provide specialized UI components.
 
 ## Native Menu Rendering
 
-When a view is rendered as a native `NSMenu` (via `click.type: menu` in native appearance mode), some node types are **not supported** and are silently skipped:
+A view opened by `click.type: menu` is always rendered as a native `NSMenu`, in both native and themed appearance. In themed appearance, menu text uses the theme's foreground colour. An `NSMenu` is a flat list of items. The tree is converted as follows:
 
-`spacer`, `icon` (standalone), `image`, `rect`, `circle`, `capsule`, `button`, `progress`, `gauge`, `badge`
+| Node | In a native menu |
+|------|------------------|
+| `vstack`, `zstack`, `scroll`, `group`, `grid` | Flattened: each child becomes its own item(s), in order |
+| `hstack` | Composed into one item (see below); clickable when it has a `command` |
+| `text` | A read-only item. `style: secondary` and `strikethrough` apply; `weight` of `semibold`, `bold`, `heavy` or `black` is shown bold; `size` and `color` are ignored |
+| `header` | A bold section header |
+| `divider` | A menu separator |
+| `action` | A menu item with its icon and label; disabled when it has no `command` |
+| `check` | A check item; clicking it doesn't close the menu |
+| `toggle` | A switch |
+| `foreach`, `if` | Expanded in place |
+| `spacer`, `icon`, `image`, `rect`, `circle`, `capsule`, `button`, `progress`, `gauge`, `badge` | Skipped (except inside an `hstack`, below) |
 
-In native menus, `hstack` children are composed into a single menu item: text before a spacer becomes the label, text after becomes right-aligned detail text. Shape nodes like `rect` within an `hstack` are not rendered but their `color` is extracted as an indicator colour (rendered as a small coloured bar on the left of the menu item). However, if an `hstack` contains interactive children (`action`, `check`, `toggle`, or `button`), it is flattened into individual menu items rather than composed.
+Native menus ignore the common styling properties (`padding`, `frame`, `opacity`, `background`, `cornerRadius`) and `visible`. Use an `if` node to hide items in a menu.
 
-For maximum compatibility across native and themed rendering, stick to `vstack`, `hstack`, `zstack`, `scroll`, `text`, `action`, `check`, `toggle`, `divider`, `header`, `foreach`, `if`, `grid`, and `group` nodes. Layout containers (`vstack`, `zstack`, `scroll`, `group`, `grid`) are flattened in native menus, with their children rendered as sequential menu items.
+An `hstack` is composed into a single menu item from its `text` and `icon` children, including those inside nested `vstack`, `hstack`, and `group` nodes. Content before the first `spacer` becomes the label; content after it becomes right-aligned, secondary detail text. The `color` of the first `rect` child is shown as a small coloured bar on the left of the item (hex or `{theme(name)}` colours only, not named colours). Other children, including `foreach` and `if`, are not rendered inside a composed `hstack`. If an `hstack` contains an interactive child (`action`, `check`, `toggle`, or `button`), it is flattened into individual menu items instead.
+
+For views that work both as menus and popups, stick to `vstack`, `hstack`, `text`, `header`, `divider`, `action`, `check`, `toggle`, `foreach`, `if`, and `group`.
 
 ## Node Composition
 

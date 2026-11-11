@@ -9,8 +9,12 @@ A basic tooltip showing upcoming calendar event details.
 **YAML Configuration:**
 ```yaml
 modules:
-  - type: command
-    command: next-event-plugin
+  - name: next-event
+    type: command
+    placement: right
+    config:
+      command: next-event-plugin
+      output: json
     interaction:
       hover:
         type: tooltip
@@ -34,6 +38,7 @@ modules:
 - Template variable substitution for dynamic content
 - Text styling with weight and semantic styles
 - Tooltip interaction type in YAML config
+- `output: json`, which a command module needs for plugin variables to reach the view
 
 **Expected output:**
 ```
@@ -45,13 +50,13 @@ in 15 minutes
 
 ## Example 2: System Monitor Popup
 
-A comprehensive system monitoring popup with process list and actions.
+A system monitoring popup with a process list and actions, shown with `interaction.click.type: popup`.
 
 **Plugin JSON Output:**
 ```json
 {
   "value": "CPU 23%",
-  "icon": "\udb81\udf5b",
+  "icon": "cpu",
   "variables": {
     "cpu": "23%",
     "mem": "67%",
@@ -123,6 +128,7 @@ A comprehensive system monitoring popup with process list and actions.
       {
         "type": "scroll",
         "axis": "vertical",
+        "frame": { "maxH": 200 },
         "children": [
           {
             "type": "vstack",
@@ -199,7 +205,7 @@ A comprehensive system monitoring popup with process list and actions.
 - Complex multi-section layout with headers and dividers
 - Grid-like layout using hstack with aligned columns
 - `foreach` iteration over process data with `items` and `child`
-- Scrollable content area for variable-length lists
+- Scrollable content area for variable-length lists, capped with `frame.maxH`
 - Action node with `label` and `command` for launching external apps
 - Combination of variables and data collections
 - Frame sizing with short property names (`w`, `minW`)
@@ -210,13 +216,13 @@ A comprehensive system monitoring popup with process list and actions.
 
 ## Example 3: Reminders Checklist Menu
 
-A to-do list style menu with interactive checkboxes.
+A to-do list style menu with interactive checkboxes, shown with `interaction.click.type: menu`.
 
 **Plugin JSON Output:**
 ```json
 {
   "value": "3",
-  "icon": "\udb81\udd32",
+  "icon": "checklist",
   "data": {
     "items": [
       {
@@ -317,20 +323,20 @@ A to-do list style menu with interactive checkboxes.
 
 **What this demonstrates:**
 - Menu-style interface with interactive checkboxes
-- Header with badge showing count
+- Header row composed from `text` + `spacer` + `badge`; as a native menu the row shows "Reminders" and the `badge` is skipped, as are `padding` and `frame`
 - `check` nodes with separate `command` and `uncheckedCommand` for toggle
 - Template variables in command strings (`{id}`)
-- Boolean template variables (`{done}`)
+- Boolean data fields (`{done}`): JSON `true`/`false` in `data` arrive as `"1"`/`"0"`, which `checked` evaluates as on/off
 - `foreach` with `items` and `child` (singular node)
 - `action` node with `label`, `icon`, and `command` properties
 - Zero spacing for compact menu appearance
-- Badge component for notifications
+- Badge component for counts (shown in popups)
 
 ---
 
 ## Example 4: Conditional Weather Display
 
-A weather module that changes appearance based on conditions.
+A weather popup that changes appearance based on conditions.
 
 **Plugin JSON Output:**
 ```json
@@ -431,7 +437,7 @@ A weather module that changes appearance based on conditions.
           "type": "vstack",
           "spacing": 4,
           "padding": 8,
-          "background": "#FF3B30",
+          "background": "#FF3B3033",
           "cornerRadius": 6,
           "children": [
             {
@@ -458,7 +464,7 @@ A weather module that changes appearance based on conditions.
 - Nested `if` nodes for multi-way conditional rendering with `then`/`else` single nodes
 - Dynamic icon selection using icon names (not emoji)
 - Conditional sections (weather alert only shown when active)
-- Styled alert box with background color and corner radius
+- Styled alert box with a translucent `#RRGGBBAA` background and corner radius
 - Combination of large display text and detail metrics
 - Semantic colour usage for alerts
 
@@ -472,7 +478,7 @@ These examples demonstrate several best practices:
 2. **Consistent spacing**: Apply spacing at the container level for uniform layouts
 3. **Frame sizing**: Use `frame.w` for column-based layouts
 4. **Template clarity**: Use descriptive variable names like `{next_title}` rather than `{t}`
-5. **Scrollable content**: Wrap variable-length lists in `scroll` nodes
+5. **Scrollable content**: Wrap variable-length lists in `scroll` nodes with a `frame.maxH`
 6. **Action nodes**: Use `action` with `label`, `icon`, and `command` for clickable rows
 7. **Dividers for sections**: Use `divider` nodes to visually separate content areas
 8. **Conditional rendering**: Use `if` nodes with `then`/`else` to handle optional content

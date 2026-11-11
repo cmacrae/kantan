@@ -11,13 +11,23 @@ The View DSL is a tree-structured format where each node represents a UI compone
 - **Unified Interface Definition**: Use the same node types and patterns for tooltips, popups, and menus
 - **Template Variables**: Substitute dynamic values using `{variable_name}` syntax
 - **Data-Driven Rendering**: Iterate over collections with `foreach` and conditionally render with `if` nodes
-- **Native SwiftUI Rendering**: All views are rendered as native SwiftUI components
-- **Native Menu Rendering**: Views can also be rendered as native NSMenu items for a system-native look
+- **Native SwiftUI Rendering**: Tooltips and popups are rendered as native SwiftUI components
+- **Native Menu Rendering**: Menus are rendered as native NSMenu items for a system-native look
 - **Theme Integration**: Reference theme palette colours with `{theme(name)}` templates
-- **URL Scheme Commands**: Interactive nodes accept shell commands or URL schemes (e.g., `https://...`)
+- **Commands**: Interactive nodes run a shell command, or open a URL (e.g., `https://...`)
 - **Declarative Layout**: Describe what the UI should look like, not how to build it
 
 ## Usage Contexts
+
+A view is shown in one of three places, chosen by the module's `interaction` config:
+
+| Context | Config | Rendering |
+|---------|--------|-----------|
+| Tooltip | `interaction.hover.type: tooltip` with `hover.view` | SwiftUI panel; it doesn't take clicks, so interactive nodes can't be used |
+| Popup | `interaction.click.type: popup` | SwiftUI panel; closes when it loses focus |
+| Menu | `interaction.click.type: menu` | Native `NSMenu`; see [Native Menu Rendering](/docs/view-dsl/nodes#native-menu-rendering) for what it supports |
+
+For `popup` and `menu`, a `click.view` in YAML takes priority over a `view` from plugin output. A tooltip only shows `hover.view`. Views are rendered with the values the module has when they open.
 
 **In Plugin Output:**
 ```json
@@ -35,7 +45,7 @@ The View DSL is a tree-structured format where each node represents a UI compone
 }
 ```
 
-**In YAML Configuration:**
+**In YAML Configuration** (under a module):
 ```yaml
 interaction:
   hover:
@@ -78,9 +88,17 @@ Every view definition is a tree of nodes. Each node has a `type` field that dete
 }
 ```
 
-Layout nodes like `vstack`, `hstack`, and `scroll` contain `children` arrays. Content nodes like `text`, `icon`, and `image` render specific content. Interactive nodes like `action`, `check`, `toggle`, and `button` respond to user input.
+Layout nodes like `vstack`, `hstack`, and `scroll` contain `children` arrays. Node and property names are case-sensitive. Content nodes like `text`, `icon`, and `image` render specific content. Interactive nodes like `action`, `check`, `toggle`, and `button` respond to user input.
 
 Data nodes work differently: `foreach` takes `items` (collection name) and `child` (a single template node). `if` takes `condition`, `then` (a single node), and optionally `else` (a single node).
+
+## Validation
+
+Plugin JSON is decoded strictly. If any node in the tree has an unknown `type`, is missing a required property, or has a value of the wrong type or outside its allowed set (e.g. `"weight": "extrabold"`), the whole `view` is discarded and the module shows no view.
+
+YAML views are parsed leniently: a node with an unknown `type` is dropped, an invalid enumerated value is ignored (the default applies), and a missing required string becomes empty. A `foreach` without `child` or an `if` without `then` is dropped.
+
+In tooltips and popups, nodes nested deeper than 32 levels are not rendered.
 
 ## Getting Started
 

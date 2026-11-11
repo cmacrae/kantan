@@ -6,9 +6,13 @@ The View DSL supports dynamic content through template variable substitution and
 
 Any string value in a view node can contain placeholders in the form `{variable_name}`. These placeholders are resolved from (in priority order, highest first):
 
-1. **Scoped variables**: Variables from the current `foreach` iteration (innermost scope takes priority; see [Variable Scoping](#variable-scoping) below)
-2. **Top-level variables**: The `variables` object in plugin JSON output, merged with built-in module variables (`{value}`, `{icon}`)
-3. **Theme templates**: `{theme(name)}` patterns resolved via the active theme palette
+1. **Scoped variables**: Fields of the current `foreach` item (innermost scope takes priority; see [Variable Scoping](#variable-scoping) below)
+2. **Top-level variables**: The module's template variables (for command modules, the `variables` object in plugin JSON output) plus the built-in `{value}` and `{icon}`, which replace any variables of the same name
+3. **Theme templates**: `{theme(name)}` patterns resolved via the theme palette (see [Theme Colour Templates](#theme-colour-templates))
+
+A placeholder that matches none of these is replaced with an empty string. There is no escape for literal braces: any `{` followed later by `}` is treated as a placeholder. Placeholders within a substituted value are resolved too, up to 8 levels deep. A variable can hold a `{theme(name)}` template.
+
+The only template syntax is `{name}` and `{theme(name)}`. Conditionals like `{?name:...}` in plugin `format` settings are expanded by the plugin before output, not by the View DSL.
 
 ### Basic Usage
 
@@ -45,7 +49,9 @@ Swap: 1.1 GB
 **Module config:**
 ```yaml
 modules:
-  - type: clock
+  - name: clock
+    type: clock
+    placement: right
     interaction:
       hover:
         type: tooltip
@@ -69,7 +75,7 @@ Templates can be used in any string property, including styling properties:
 }
 ```
 
-Note that the `visible` property takes a bare variable name (without braces), while other string properties use the `{variable}` brace syntax.
+The `visible` property and the `if` node's `condition` take a bare variable name (without braces). Other string properties use the `{variable}` brace syntax.
 
 ## Data Collections
 
@@ -92,7 +98,9 @@ Plugins can output structured data collections in the `data` field. These collec
 }
 ```
 
-The `data` object can contain multiple named arrays. Each array can hold objects with arbitrary fields.
+The `data` object can contain multiple named arrays. Each array holds flat objects with arbitrary fields. Field values that aren't strings are converted to text: numbers keep their value (`3` becomes `"3"`), and booleans become `"1"` and `"0"`, which still evaluate as true and false.
+
+Every value in `variables` must be a string. Every entry in `data` must be an array of objects. Otherwise that whole field is ignored.
 
 ## foreach Node
 
@@ -145,7 +153,7 @@ The `foreach` node iterates over a data collection and renders its `child` node 
 
 ### Variable Scoping
 
-Inside a `foreach` block, template variables refer to fields from the current item. Variables from parent scopes remain accessible:
+Inside a `foreach` block, template variables refer to fields from the current item, which shadow top-level variables of the same name. Variables from parent scopes remain accessible:
 
 ```json
 {
@@ -222,7 +230,7 @@ Inside a `foreach` block, template variables refer to fields from the current it
 }
 ```
 
-In this example, `{name}` inside the inner `foreach` resolves to the app name (inner scope), shadowing the category name from the outer scope. If the inner item lacks a field, the resolver falls back to the outer scope.
+In this example, `{name}` inside the inner `foreach` resolves to the app name (inner scope), shadowing the category name from the outer scope. If the inner item lacks a field, the resolver falls back to the outer scope. The inner `foreach` renders the whole `apps` collection under every category: collections can't be filtered by the outer item. Emit one collection per group (e.g. `apps_development`, `apps_browsers`) when you need grouping.
 
 > **Note:** Since nested arrays within data items are not supported, each collection must be a top-level key in the `data` object. Flatten your data structure accordingly.
 
@@ -246,11 +254,15 @@ The `if` node conditionally renders a node based on a variable value.
 
 > **Note:** `if` uses `then` and `else` as single node objects, not arrays. Wrap multiple children in a `vstack` or `group` if needed.
 
+The `condition` is a bare variable name, looked up as if written `{variable_name}`. Don't wrap it in braces: `"condition": "{is_charging}"` is always truthy.
+
 **Boolean evaluation (for `if` conditions):**
 - `"true"`, `"1"`, `"yes"`, and other non-empty strings: truthy
 - `"false"`, `"0"`, `"no"`, `""`, and unresolved variables: falsy
 
-> **Note:** The `visible` property on nodes uses the same truthiness rules, including for unresolved variables: an unresolved template resolves to `""`, which is falsy, so the node is **hidden**. See [Styling — Visibility](/docs/view-dsl/styling#visibility).
+Comparisons are case-insensitive. The same rules decide `check`'s `checked` and `toggle`'s `on`, which take a template such as `"{done}"` (or a literal boolean).
+
+> The `visible` property on nodes uses the same truthiness rules, including for unresolved variables. An unresolved template resolves to `""`, which is falsy. The node is **hidden**. See [Styling — Visibility](/docs/view-dsl/styling#visibility).
 
 **Example:**
 ```json
@@ -273,7 +285,7 @@ The `if` node conditionally renders a node based on a variable value.
         },
         "else": {
           "type": "icon",
-          "name": "battery-half",
+          "name": "battery-2",
           "color": "#34C759"
         }
       },
@@ -312,7 +324,7 @@ The `if` node conditionally renders a node based on a variable value.
 
 ## Theme Colour Templates
 
-When a [theme](/docs/configuration/themes) is active, colours from the theme palette can be referenced using `{theme(name)}` syntax in any colour property:
+When a [theme](/docs/configuration/themes) is configured, colours from the theme palette can be referenced using `{theme(name)}` syntax in any colour property:
 
 ```json
 {
@@ -334,16 +346,18 @@ When a [theme](/docs/configuration/themes) is active, colours from the theme pal
 
 The special names `fg`, `bg`, and `shape` resolve to the palette's top-level values. Any custom colour key defined in the theme's `colors` map is also available (e.g., `{theme(blue)}`, `{theme(surface0)}`).
 
-Theme templates resolve against the active palette for the current appearance mode, so the same template produces different colours in light and dark mode.
+Theme templates resolve against the palette for the current appearance mode. The same template produces different colours in light and dark mode.
+
+A name the palette doesn't define (`shape` when the palette doesn't set it), or any name without a configured theme, is left as written, so the property uses its default colour. Inside a `foreach` in a tooltip or popup, `{theme(name)}` resolves to an empty string, so the property's default colour is used; in native menus it resolves there too.
 
 ## Built-in Template Variables
 
 All modules automatically expose these variables for use in view templates:
 
 - `{value}`: The module's current display value (e.g., the formatted time for a clock module, the battery percentage for a power module)
-- `{icon}`: The module's current icon glyph
+- `{icon}`: The module's current icon, as the resolved glyph character rather than its name
 
-**Command module** plugins can provide additional variables through the `variables` object in their JSON output. These are merged into the template scope alongside the built-in variables.
+**Command module** plugins (with `output: json`) can add variables through the `variables` object in their JSON output, and collections through `data`. These are merged into the template scope alongside the built-in variables. Some built-in modules also set variables of their own; see each [module's](/docs/modules) page.
 
 ## Best Practices
 
