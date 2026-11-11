@@ -6,18 +6,18 @@ kantan targets aarch64-darwin only (Apple Silicon Macs). It can be installed via
 
 - macOS Sequoia (15.0) or later on Apple Silicon
 
-While kantan runs on Sequoia (15.0) and later a few individual features depend on behaviour introduced in macOS Tahoe (26.0):
+A few features depend on the macOS release and on permissions:
 
 - **`focus` module** — reads the Do Not Disturb database when kantan has Full Disk Access, otherwise detects the menu bar's Focus indicator. Without Accessibility permission, that detection is unreliable on Sequoia and can't see whether the indicator is shown on macOS 27. See [Focus — Behavior](/docs/modules/focus#behavior).
 - **`mask` configuration** — with Accessibility permission, any menu bar item can be masked on every release. Without it, only system items can. On macOS 27 their positions come from saved defaults that don't follow rearrangement. See [Item Detection](/docs/configuration/masking#item-detection).
 
-Everything else (clock, power, wifi, bluetooth, volume, workspace switching, plugins) works identically on both releases.
+Everything else (clock, power, wifi, bluetooth, volume, workspace switching, plugins) works the same on every supported release.
 
 ## First-Run Permissions
 
 kantan only asks for a permission when your config uses something that needs it:
 
-- **Accessibility** — requested at launch when a module has a `mask`, or a `focus` module can't read the Focus database. kantan uses it only to read menu bar items. See [Granting Accessibility](/docs/configuration/masking#granting-accessibility).
+- **Accessibility** — requested when kantan loads a config in which a module has a `mask`, or a `focus` module can't read the Focus database. kantan uses it only to read menu bar items. See [Granting Accessibility](/docs/configuration/masking#granting-accessibility).
 - **Bluetooth** — requested by the `bluetooth` module the first time it reads Bluetooth state.
 - **Optional Full Disk Access** — only lets the `focus` module name the active Focus mode. kantan never asks: macOS has no prompt for it. See [Granting Full Disk Access](/docs/modules/focus#granting-full-disk-access).
 - **No Screen Recording or Location prompt.** Menu bar item detection without Accessibility uses window geometry and Control Centre's defaults. The `wifi` module reads the network name from IORegistry.
@@ -46,11 +46,13 @@ brew tap cmacrae/kantan
 brew install kantan
 ```
 
-A variant without plugins is also available:
+A variant without plugins is also available. It conflicts with `kantan`. Install one or the other:
 
 ```bash
 brew install kantan-without-plugins
 ```
+
+Both formulae install the bundled icon fonts and themes alongside the binary.
 
 ### Nix Flake
 
@@ -81,11 +83,13 @@ nix profile install github:cmacrae/kantan
 
 ### Homebrew Service
 
-After installing via Homebrew, you can run kantan as a background service:
+After installing via Homebrew, you can run kantan as a background service, which starts it at login and restarts it if it exits:
 
 ```bash
 brew services start kantan
 ```
+
+The service reads its config from the default location (see [Config File Locations](/docs/configuration#config-file-locations)).
 
 ### Nix Modules
 
@@ -144,7 +148,12 @@ kantan has modules for both nix-darwin and home-manager. Import the one for your
 | `programs.kantan.extraPackages` | list of packages | `[]` | Extra packages added to kantan's PATH (e.g., tools run by `command` modules) |
 | `programs.kantan.fonts` | list of packages | `[]` | Font packages to install (nix-darwin only) |
 
-Both modules create a launchd agent that starts kantan at login. The nix-darwin module passes the config via `--config` flag; the home-manager module writes it to `~/.config/kantan/config.yaml` via XDG config files.
+Both modules create a launchd agent that starts kantan at login and restarts it if it exits. The modules install kantan wrapped with `extraArgs`, and with `extraPackages` on its `PATH`.
+
+- **nix-darwin** passes `settings` with the `--config` flag, pointing at a generated file in the Nix store. That file has no `modules.d/` beside it. To use one, pass its path with `extraArgs = [ "--modules-dir" "/path/to/modules.d" ];`. `themes` are combined with the package's bundled themes into a directory passed with `--themes-dir`.
+- **home-manager** writes `settings` to `~/.config/kantan/config.yaml` and each of `themes` to `~/.config/kantan/themes/<name>.yaml`. A `modules.d/` in `~/.config/kantan` is picked up as usual.
+
+When `settings` is left empty, neither module writes a config. kantan then looks for one in the [default locations](/docs/configuration#config-file-locations).
 
 ## Plugin Customization
 
@@ -160,7 +169,7 @@ kantan.packages.aarch64-darwin.default.override {
 
 ### Additional Package Variants
 
-The flake exposes one extra top-level package output for convenience, plus a small surface of passthru attributes on the default derivation:
+The flake exposes one extra user-facing package output, plus a few passthru attributes on the default derivation:
 
 **Flake outputs (`kantan.packages.aarch64-darwin.*`)**
 
@@ -171,7 +180,7 @@ The flake exposes one extra top-level package output for convenience, plus a sma
 
 These are convenience attributes attached to the default derivation, not separate flake outputs. They are reachable as e.g. `inputs.kantan.packages.aarch64-darwin.default.withoutPlugins`:
 
-- `withoutPlugins` — the bare unwrapped binary with no plugins, themes, or bundled fonts
+- `withoutPlugins` — the bare unwrapped binary with no plugins, themes, or bundled fonts (so icon names render as plain text unless kantan is given a fonts directory with `--fonts-dir`)
 - `withPlugins` — function form of `override` ({ plugins ? …, themes ? …, … } → derivation)
 - `override` — alias for `withPlugins`, mirroring nixpkgs convention
 - `plugins` — attribute set of individual plugin packages

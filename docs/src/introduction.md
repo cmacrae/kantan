@@ -17,7 +17,7 @@ Clock, power/battery, volume, WiFi, Bluetooth, Focus mode, workspace integration
 Extend kantan with standalone executables written in any language. Plugins communicate via a JSON API and can run as long-lived background processes via watch mode for event-driven updates.
 
 **View DSL**  
-A JSON-based view description language enables plugins to create rich UIs including tooltips, popups, and menus with checkboxes and separators.
+A declarative view description language builds rich tooltips, popups, and menus with checkboxes, toggles and separators, written in YAML in your config or returned as JSON by plugins.
 
 **Menu Bar Masking**  
 Places kantan modules over native macOS menu bar items and passes clicks through to the masked item, which keeps its native menu.
@@ -26,7 +26,7 @@ Places kantan modules over native macOS menu bar items and passes clicks through
 Apply named colour palettes via theme files with support for flavours, light/dark mode, and `{theme(...)}` template syntax. kantan ships with a Catppuccin theme. With no theme, it uses the native macOS appearance.
 
 **Auto-Hide, Blur & Shapes**
-Hide the bar whenever the cursor reaches the top of the screen (with an optional dwell delay) so the native macOS menu bar is reachable underneath, apply vibrancy blur, and add per-module background shapes (pill, box, underline, overline) with configurable gaps and corner radius.
+Hide the bar while the cursor is at the top of the screen (after an optional delay) to reach the native macOS menu bar underneath. Apply vibrancy blur, round the bar's corners and inset it with gaps. Give modules background shapes (pill, box, underline, overline).
 
 ## Next Steps
 

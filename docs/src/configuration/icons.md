@@ -1,6 +1,6 @@
 # Icons
 
-kantan bundles [tabler-icons](https://tabler.io/icons), a comprehensive open-source icon set with over 5,800 icons. When no custom icon font is configured, tabler-icons is the default icon font and icon names are resolved automatically.
+kantan bundles [tabler-icons](https://tabler.io/icons), an open-source icon set with over 5,000 outline icons, more than 1,000 of which also come filled. When no custom icon font is configured, tabler-icons is the default icon font (at 15pt). Icon names resolve against it.
 
 ## Naming Convention
 
@@ -88,7 +88,7 @@ The WiFi module supports signal strength, disconnected, and SSID-specific icons:
         - "wifi-2"        # Fair
         - "wifi"          # Strong
       ssid:
-        "Home Network": "home-wifi"
+        "Home Network": "home-signal"
         iPhone: "circles-relation"
 ```
 
@@ -139,9 +139,9 @@ fonts:
     icon: "system:Font Awesome 6 Free:Solid:14"
 ```
 
-The `system:` prefix tells kantan to use a font installed on the system rather than a bundled font. See [Bar Settings](/docs/configuration/bar) for the full font descriptor format.
+The `system:` prefix marks a font installed on the system rather than a bundled one. See [Bar Settings](/docs/configuration/bar) for the full font descriptor format.
 
-When a custom icon font is set, icon name resolution against tabler-icons is still attempted for any modules that do not override the icon font. Modules with a custom icon font receive the raw `icon` string as a literal glyph.
+kantan loads tabler-icons unless the global icon font has the `system:` prefix and no module's icon font lacks it. While tabler-icons is loaded, any icon string that names a tabler-icons glyph renders from tabler-icons, at the size of the module's icon font, even in a module with a custom icon font. Other strings render as literal characters in the module's icon font. When tabler-icons isn't loaded, every icon string is rendered literally.
 
 ## Browsing Available Icons
 

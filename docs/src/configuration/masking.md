@@ -1,16 +1,16 @@
 # Menu Bar Masking
 
-Menu bar masking allows kantan modules to be positioned directly over native macOS menu bar items, effectively replacing them visually while maintaining functionality through custom interaction handlers.
+Menu bar masking places kantan modules directly over native macOS menu bar items. The module replaces the item visually. Clicks still reach the native item underneath.
 
 ## Overview
 
 When a module is configured with masking, kantan:
 
 1. Detects the position of the native menu bar item on each display
-2. Positions the kantan module at the same coordinates
-3. Overlays the native item with the custom module
+2. Positions the kantan module at the same coordinates, sized to the item's width
+3. Overlays the native item with the custom module, passing clicks through to it
 
-This creates a seamless integration where kantan modules appear to replace system items.
+Unmasked modules with the same placement are laid out inward of the masked ones, clear of the native items being masked.
 
 ## Configuration
 
@@ -43,7 +43,7 @@ Third-party items are named by their app (see [Third-Party Items](#third-party-i
 
 ### By Index
 
-Items are indexed right-to-left (index 0 is the rightmost item):
+Items are indexed right-to-left (index 0 is the rightmost item), across every item kantan detects on the display. When both `index` and `name` are set, `index` is used:
 
 ```yaml
 - name: first-item
@@ -66,7 +66,7 @@ How kantan finds native menu bar items depends on whether it has Accessibility p
 
 ### Granting Accessibility
 
-kantan asks for Accessibility permission when it starts, if any module has a `mask` (or a [focus module](/docs/modules/focus#behavior) can't read the Focus database). macOS then lists kantan in *System Settings → Privacy & Security → Accessibility*; switch it on and masks switch to live positions within a second, without restarting kantan. kantan uses the permission only to read menu bar items.
+Once per launch, kantan asks for Accessibility permission when it loads a config in which any module has a `mask` (or a [focus module](/docs/modules/focus#behavior) can't read the Focus database). macOS then lists kantan in *System Settings → Privacy & Security → Accessibility*. Switching it on moves masks to live positions within a second. kantan doesn't need a restart. kantan uses the permission only to read menu bar items.
 
 macOS ties the permission to the binary it was granted to. A Nix rebuild that changes kantan's store path needs it granted again. kantan asks again on its next launch.
 
@@ -111,7 +111,7 @@ mask:
   name: com.1password.1password   # or: 1Password
 ```
 
-Apps without a bundle identifier, such as [Rift](https://github.com/acsandmann/rift), are named by executable (`rift`). When an app has several items, the rightmost is masked; use `index` for another.
+Apps without a bundle identifier, such as [Rift](https://github.com/acsandmann/rift), are named by executable (`rift`). When an app has several items, the rightmost is masked. Use `index` for another. kantan doesn't read background-only processes. They can't own status items.
 
 ### Clock Special Case
 
@@ -119,22 +119,7 @@ Without Accessibility on macOS 15 and 26, the `Clock` item has no preferred posi
 
 ## Default Click Behavior
 
-Masked modules automatically receive `passthrough` click behavior, so clicks pass through to the underlying native menu bar item. This means clicking a masked module opens the native system menu (e.g. clicking a masked WiFi module opens the WiFi system menu).
-
-To override this, set an explicit click interaction:
-
-```yaml
-mask:
-  name: Battery
-interaction:
-  click:
-    type: popup
-    view:
-      type: vstack
-      children:
-        - type: text
-          content: "Custom battery popup"
-```
+Masked modules are always `passthrough`: they take no mouse events, so clicks reach the underlying native menu bar item. Clicking a masked module opens the native system menu (e.g. clicking a masked WiFi module opens the WiFi system menu). A masked module's `interaction` has no effect, so it shows no tooltips, menus or popups of its own.
 
 ## Multi-Display Support
 
@@ -145,6 +130,10 @@ Masking works per-screen in multi-display setups. Each display's menu bar shows 
 ### Third-Party Menu Bar Items
 
 Third-party items can only be masked with Accessibility permission. Without it, kantan can't tell them apart. On macOS 26 all status item windows are reported as owned by Control Centre, with no titles (FB18327911). On macOS 27 they aren't windows at all.
+
+### Hidden Menu Bar
+
+Masks sit over the native menu bar and don't line up when macOS hides it. kantan logs a warning at startup when the system menu bar is set to hide automatically on the desktop or in full screen.
 
 ## Example Configurations
 
@@ -157,16 +146,6 @@ Third-party items can only be masked with Accessibility permission. Without it, 
     name: Clock
   config:
     format: "HH:mm"
-  interaction:
-    click:
-      type: popup
-      view:
-        type: vstack
-        children:
-          - type: text
-            content: "Current Time"
-          - type: text
-            content: "{time}"
 ```
 
 **Replace battery indicator:**
@@ -204,7 +183,7 @@ Third-party items can only be masked with Accessibility permission. Without it, 
 
 1. **Use the same placement as the native item** -- System items sit on the right. Use `placement: right` for masked modules.
 
-2. **Provide equivalent functionality** -- If masking a system item, ensure your module provides similar or enhanced functionality through interaction handlers.
+2. **Mirror the item's width** -- A masked module is sized to the native item, so match what changes its width (see the battery percentage note above).
 
 3. **Test on multiple displays** -- With several displays, check masking on each one.
 

@@ -10,7 +10,7 @@ You can run kantan immediately with no config file. It shows a welcome bar with 
 kantan
 ```
 
-When you're ready to customise, proceed to the steps below.
+kantan checks for a config file every couple of seconds and loads it as soon as you create one.
 
 ## Step 1: Create Config Directory
 
@@ -18,7 +18,7 @@ When you're ready to customise, proceed to the steps below.
 mkdir -p ~/.config/kantan
 ```
 
-kantan looks for `~/.config/kantan/config.yaml` (or `$XDG_CONFIG_HOME/kantan/config.yaml` if that is set) by default. You can also pass an explicit path via `kantan --config <path>`.
+kantan looks for `~/.config/kantan/config.yaml` (or `$XDG_CONFIG_HOME/kantan/config.yaml` if that is set) by default, after a `config.yaml` in the current directory. You can also pass an explicit path via `kantan --config <path>`.
 
 ## Step 2: Create a Minimal Config
 
@@ -78,7 +78,7 @@ modules:
     placement: right
 ```
 
-See the Configuration and Modules sections for complete details on available modules and their options.
+Modules with the same placement appear left to right in the order they're listed. Here the battery sits at the far right with the clock beside it. See the [Configuration](/docs/configuration) and [Built-in Modules](/docs/modules) sections for every module and its options.
 
 ## Reference Configuration
 

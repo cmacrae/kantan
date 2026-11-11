@@ -20,7 +20,7 @@ Put the `modules.d/` directory beside your main `config.yaml` file. The `--modul
 
 ## File Format
 
-Each file in `modules.d/` contains a single module configuration with the same structure as an entry in the `modules:` array:
+Each file in `modules.d/` contains exactly one module configuration, with the same structure as an entry in the `modules:` array. A file that fails to parse is skipped and the error logged. Theme templates resolve against the theme set in `config.yaml`. Relative `command` paths (`./` or `../`) resolve against the `modules.d/` directory itself:
 
 **Example: `modules.d/10-sysmon.yaml`**
 ```yaml
@@ -37,7 +37,7 @@ config:
 interaction:
   hover:
     type: tooltip
-    content: "CPU: {cpu}% | Mem: {mem}%"
+    content: "CPU: {cpu} | Mem: {mem}"
   click:
     type: menu
     view:
@@ -46,7 +46,7 @@ interaction:
         - type: text
           content: "System Monitor"
         - type: text
-          content: "CPU: {cpu}%"
+          content: "CPU: {cpu}"
 ```
 
 ## Loading Order
@@ -66,6 +66,7 @@ Modules from `modules.d/` are merged with modules defined in the main `config.ya
 
 - **Left-placed modules** from `modules.d/` are **appended** to left-placed modules from `config.yaml` (appearing to the right of them, closer to center)
 - **Right-placed modules** from `modules.d/` are **prepended** to right-placed modules from `config.yaml` (appearing to the left of them, closer to center)
+- **Notch-placed modules** from `modules.d/` appear closer to the notch than the same placement's modules from `config.yaml`
 
 **Example:**
 

@@ -13,7 +13,9 @@ A theme has one or more **palettes**, each containing:
 | `shape` | no | Background colour for module shapes (pill, box, etc.) |
 | `colors` | no | Named colour map for use with `{theme(...)}` templates |
 
-When a theme is loaded, kantan resolves a palette for each appearance mode (light and dark). If no explicit `style` block is set in your config, the theme's `fg` and `bg` values are used as the global foreground and background colours automatically.
+When a theme is loaded, kantan resolves a palette for each appearance mode (light and dark). If no explicit `style` block is set in your config, the theme's `fg` and `bg` values are the global foreground and background colours. A `style` block replaces those defaults as a pair. Give it both `fg` and `bg` (e.g. `{theme(fg)}` and `{theme(bg)}`).
+
+A missing theme or flavour stops the config loading.
 
 ## Configuring a Theme
 
@@ -45,7 +47,7 @@ theme:
   dark: catppuccin[mocha]
 ```
 
-Each value follows the same format as the single-theme string, including bracket syntax for flavour selection.
+Both keys are required. Each value follows the same format as the single-theme string, including bracket syntax for flavour selection. A flavoured theme named without a flavour uses its default flavour for that mode.
 
 ## Theme File Formats
 
@@ -120,7 +122,7 @@ The `defaults` block maps each appearance mode to a flavour name. A theme named 
 
 ### Directory Themes
 
-Instead of a single YAML file, a theme can be a directory containing one YAML file per flavour and an optional `defaults.yaml`:
+A theme can also be a directory holding one YAML file per flavour (`<flavour>.yaml`) and a `defaults.yaml`. The `defaults.yaml` is needed only to reference the theme without a flavour:
 
 ```
 themes/
@@ -154,9 +156,9 @@ kantan searches for theme files in order of priority:
 
 1. `<config-dir>/themes/<name>.yaml` or `<config-dir>/themes/<name>/`
 2. `$XDG_CONFIG_HOME/kantan/themes/<name>.yaml` or `<name>/`
-3. Bundled themes (`<prefix>/share/themes/`)
+3. Bundled themes (`<prefix>/share/themes/`, or the directory given by `--themes-dir`)
 
-Where `<config-dir>` is the directory containing your config file.
+`<config-dir>` is the directory containing your config file. `<prefix>` is kantan's installation prefix (the directory above the `bin/` holding the `kantan` binary).
 
 ## Using Theme Colours
 
@@ -173,6 +175,8 @@ style:
   fg: "{theme(text)}"
   bg: "{theme(base)}"
 ```
+
+A template must be the whole value of a colour field. A name missing from the palette leaves the colour unresolved and transparent.
 
 The special names `fg`, `bg`, and `shape` resolve to the palette's top-level values:
 
@@ -220,7 +224,7 @@ style:
 
 ### In Plugin Settings
 
-Theme templates are also resolved within plugin settings strings, so plugins receive the resolved colour values:
+Theme templates are also resolved anywhere inside a string value in plugin settings. Plugins receive the colours for the current appearance:
 
 ```yaml
 modules:

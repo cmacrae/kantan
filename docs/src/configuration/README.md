@@ -10,9 +10,15 @@ kantan searches for configuration files in the following order (first found wins
 2. `./config.yaml` (current working directory)
 3. `$XDG_CONFIG_HOME/kantan/config.yaml` (defaults to `~/.config/kantan/config.yaml`)
 
+If no config file is found, kantan shows a welcome bar and checks for one every 2 seconds. It loads the file as soon as one appears.
+
+If the config file exists but fails to load (invalid YAML, an unknown theme, or, without a theme, a `style` block missing colours), kantan logs the error and shows no bar. A module that fails to parse is skipped with a logged error, and the rest of the config still loads.
+
 ## Hot-Reload
 
-Configuration changes are detected automatically and applied in real-time. Edits to the config file or modules.d/ directory are picked up with a 0.2-second debounce to prevent excessive reloads during rapid changes.
+Configuration changes are detected automatically and applied in real-time. Edits to the config file or modules.d/ directory are picked up with a 0.2-second debounce to prevent excessive reloads during rapid changes. Each reload rebuilds the bar.
+
+If the edited config fails to load, kantan logs the error and keeps the current bar until the next valid edit. When the config file is a symlink (as with Home Manager), kantan also notices the link being repointed.
 
 ## Modular Configuration
 
