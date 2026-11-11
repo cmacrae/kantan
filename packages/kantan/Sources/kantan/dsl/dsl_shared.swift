@@ -112,6 +112,17 @@ class TemplateResolver {
   }
 }
 
+// MARK: - Gauge Range
+
+/// The range a gauge spans: `min` (default 0) to `max` (default 1), in
+/// whichever order they come, with a bound that isn't finite taking its
+/// default.
+func dslGaugeRange(min: Double?, max: Double?) -> ClosedRange<Double> {
+  let lower = min.flatMap { $0.isFinite ? $0 : nil } ?? 0
+  let upper = max.flatMap { $0.isFinite ? $0 : nil } ?? 1
+  return Swift.min(lower, upper)...Swift.max(lower, upper)
+}
+
 // MARK: - Color Parsing
 
 /// Parse a hex color string (with or without leading `#`) into a SwiftUI `Color`.

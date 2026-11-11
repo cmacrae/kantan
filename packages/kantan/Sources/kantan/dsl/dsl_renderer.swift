@@ -626,15 +626,13 @@ struct DSLRendererView: View {
     value: String, min: Double?, max: Double?, label: String?, color: String?
   ) -> some View {
     let resolvedValue = resolveDouble(value, resolver: resolver) ?? 0.0
-    let minVal = min ?? 0.0
-    let maxVal = max ?? 1.0
     let resolvedLabel = label.map { resolver.resolve($0) } ?? ""
     let tint = resolveColor(
       color.map { resolver.resolve($0) },
       isNative: isNative,
       fallback: .accentColor)
 
-    Gauge(value: resolvedValue, in: minVal...maxVal) {
+    Gauge(value: resolvedValue, in: dslGaugeRange(min: min, max: max)) {
       Text(resolvedLabel)
         .font(.system(size: 11))
     }

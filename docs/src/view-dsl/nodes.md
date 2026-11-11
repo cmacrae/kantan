@@ -249,7 +249,7 @@ Advanced nodes provide specialized UI components.
 | `badge` | Capsule-shaped label (11pt medium) | `content` (string, **required**), `color` (hex or named colour, background, default accent), `textColor` (hex or named colour, foreground, default white) |
 | `grid` | Grid of equal-width columns, filled row by row | `columns` (integer, default 2), `spacing` (number, default 8; between rows and columns), `children` (array) |
 
-A `progress` or `gauge` value that isn't a number is treated as 0. The `bar` style is 6pt tall and fills the available width; the `ring` style has a 4pt stroke and fills the space it is given, so give it a size with `frame`. `gauge` uses the system gauge, with `label` shown in 11pt text; `min` must be less than or equal to `max`.
+A `progress` or `gauge` value that isn't a number is treated as 0. The `bar` style is 6pt tall and fills the available width. The `ring` style has a 4pt stroke and fills the space it is given. Give it a size with `frame`. `gauge` uses the system gauge, with `label` shown in 11pt text. It spans `min` to `max` whichever order they come in: `min: 20` alone spans 1 to 20.
 
 **Progress Example:**
 ```json
