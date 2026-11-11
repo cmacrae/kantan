@@ -88,7 +88,7 @@
       "type": "string",
       "description": "A hex colour (e.g. \"#FF3B30\" or \"FF3B30\") or a theme template (e.g. \"{theme(red)}\"), resolved against the active theme palette for the current appearance.",
       "anyOf": [
-        { "pattern": "^#?[0-9a-fA-F]{6}$" },
+        { "pattern": "^#?[0-9a-fA-F]{6}([0-9a-fA-F]{2})?$" },
         { "pattern": "^\\{theme\\([^)]+\\)\\}$" }
       ]
     },

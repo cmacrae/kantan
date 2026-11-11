@@ -106,7 +106,7 @@
     },
     "BarColor": {
       "type": "string",
-      "pattern": "^(#?[0-9a-fA-F]{6}|\\{theme\\([^)]+\\)\\})$",
+      "pattern": "^(#?[0-9a-fA-F]{6}([0-9a-fA-F]{2})?|\\{theme\\([^)]+\\)\\})$",
       "description": "A hex colour (\"#RRGGBB\" or \"RRGGBB\") or a {theme(name)} template resolved against the theme palette for the current appearance."
     },
     "Color": {

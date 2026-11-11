@@ -1191,14 +1191,18 @@ func loadFileContents(filePath: String) -> String? {
 }
 
 extension NSColor {
+  /// A colour from `RRGGBB` or `RRGGBBAA` hex, with or without a leading
+  /// `#`, or `defaultColor` for anything else.
   convenience init(hex: String, defaultColor: NSColor = NSColor.clear) {
     let hex = hex.trimmingCharacters(in: CharacterSet.alphanumerics.inverted)
 
-    if let rgbValue = UInt64(hex, radix: 16) {
-      let r = CGFloat((rgbValue & 0xFF0000) >> 16) / 255.0
-      let g = CGFloat((rgbValue & 0x00FF00) >> 8) / 255.0
-      let b = CGFloat(rgbValue & 0x0000FF) / 255.0
-      self.init(red: r, green: g, blue: b, alpha: 1)
+    if hex.count == 6 || hex.count == 8, let value = UInt64(hex, radix: 16) {
+      let rgba = hex.count == 6 ? value << 8 | 0xFF : value
+      self.init(
+        red: CGFloat(rgba >> 24 & 0xFF) / 255.0,
+        green: CGFloat(rgba >> 16 & 0xFF) / 255.0,
+        blue: CGFloat(rgba >> 8 & 0xFF) / 255.0,
+        alpha: CGFloat(rgba & 0xFF) / 255.0)
     } else {
       let rgb = defaultColor.usingColorSpace(.deviceRGB) ?? NSColor.clear
       self.init(

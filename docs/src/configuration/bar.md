@@ -70,7 +70,7 @@ style:
 | `text.fg` | Text-specific foreground colour (hex) |
 | `icon.fg` | Icon-specific foreground colour (hex) |
 
-Colours are six-digit hex strings (`#rrggbb`, with or without the `#`); quote them so YAML reads them as strings. Alpha isn't supported. Module shapes (`shape`) are set per module, not in the global style (see [Per-Module Style](/docs/configuration/modules#per-module-style)).
+Colours are hex strings, `#rrggbb` or `#rrggbbaa` with alpha, with or without the `#`; quote them so YAML reads them as strings. Other lengths aren't read as colours. Module shapes (`shape`) are set per module, not in the global style (see [Per-Module Style](/docs/configuration/modules#per-module-style)).
 
 When no theme is set and a `style` block is provided, both `light` and `dark` blocks are required and must each contain `fg` and `bg`. If `style` is omitted entirely (and no theme is set), kantan uses its native macOS appearance instead (see below).
 

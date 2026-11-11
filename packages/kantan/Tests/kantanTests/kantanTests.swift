@@ -26,6 +26,14 @@ final class FontConfigTests: XCTestCase {
 }
 
 final class NSColorHexTests: XCTestCase {
+  func testEightDigitHexCarriesAlpha() {
+    let color = NSColor(hex: "#FF000080").usingColorSpace(.deviceRGB)!
+    XCTAssertEqual(color.redComponent, 1.0, accuracy: 0.01)
+    XCTAssertEqual(color.greenComponent, 0.0, accuracy: 0.01)
+    XCTAssertEqual(color.blueComponent, 0.0, accuracy: 0.01)
+    XCTAssertEqual(color.alphaComponent, 128.0 / 255.0, accuracy: 0.01)
+  }
+
   func testInvalidHexFallsBackToDefault() {
     let fallback = NSColor.red
     let color = NSColor(hex: "not-hex", defaultColor: fallback).usingColorSpace(.deviceRGB)!
