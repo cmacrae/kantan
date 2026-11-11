@@ -269,8 +269,10 @@ struct ModuleConfig {
   let mask: MaskConfig?
   var displays: DisplaysConfig?
 
+  /// Whether clicks pass through to whatever is beneath the module. A masked
+  /// module passes them through unless its config sets a click type.
   var isPassthrough: Bool {
-    mask != nil || interaction?.click?.type == "passthrough"
+    interaction?.click?.type == "passthrough"
   }
 
   init(

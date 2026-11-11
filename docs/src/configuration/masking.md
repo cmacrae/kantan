@@ -119,7 +119,22 @@ Without Accessibility on macOS 15 and 26, the `Clock` item has no preferred posi
 
 ## Default Click Behavior
 
-Masked modules are always `passthrough`: they take no mouse events, so clicks reach the underlying native menu bar item. Clicking a masked module opens the native system menu (e.g. clicking a masked WiFi module opens the WiFi system menu). A masked module's `interaction` has no effect, so it shows no tooltips, menus or popups of its own.
+A masked module is `passthrough` unless it sets a click type: it takes no mouse events, so clicks reach the underlying native menu bar item, and it shows no tooltip. Clicking it opens the native system menu (e.g. clicking a masked WiFi module opens the WiFi system menu).
+
+To handle clicks itself, set an explicit click interaction. The module then takes clicks and hover in place of the native item, so its tooltip shows too:
+
+```yaml
+mask:
+  name: Battery
+interaction:
+  click:
+    type: popup
+    view:
+      type: vstack
+      children:
+        - type: text
+          content: "Custom battery popup"
+```
 
 ## Multi-Display Support
 

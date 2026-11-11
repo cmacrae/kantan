@@ -220,6 +220,28 @@ final class CachedStatusTests: XCTestCase {
 
 // MARK: - loadConfig() end-to-end
 
+@MainActor
+final class MaskedModuleInteractionTests: XCTestCase {
+  private func module(_ name: String, _ extra: String = "") throws -> ModuleConfig {
+    let yaml = try Yaml.load(
+      "name: \(name)\ntype: text\nplacement: right\nconfig:\n  value: x\n" + extra)
+    return try XCTUnwrap(parseModuleConfig(from: yaml))
+  }
+
+  func testAMaskedModulePassesClicksThroughUnlessItSetsAClickType() throws {
+    let masked = try module("masked", "mask:\n  name: battery\n")
+    let menu = try module(
+      "menu", "mask:\n  name: battery\ninteraction:\n  click:\n    type: popup\n")
+    XCTAssertTrue(masked.isPassthrough)
+    XCTAssertFalse(menu.isPassthrough)
+
+    let groups = BarViewModel.buildGroupsForPlacement(
+      from: [masked, menu].map { ModuleViewModel(moduleConfig: $0) }, placement: "right")
+    XCTAssertEqual(groups.map { $0.modules.map(\.moduleConfig.name) }, [["masked"], ["menu"]])
+    XCTAssertEqual(groups.map(\.isPassthrough), [true, false])
+  }
+}
+
 final class LoadConfigTests: XCTestCase {
   func testMinimalConfigReturnsNativeAppearance() throws {
     let yaml = try Yaml.load("height: 33\npadding: 10\n")

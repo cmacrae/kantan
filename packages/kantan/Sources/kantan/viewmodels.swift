@@ -562,7 +562,7 @@ class BarViewModel: ObservableObject {
     return allGroups
   }
 
-  private static func buildGroupsForPlacement(
+  static func buildGroupsForPlacement(
     from modules: [ModuleViewModel], placement: String
   )
     -> [ModuleGroup]
@@ -612,7 +612,7 @@ class BarViewModel: ObservableObject {
           ModuleGroup(
             id: "\(placement)-\(groups.count)",
             modules: [vm],
-            isPassthrough: true,
+            isPassthrough: pt,
             placement: placement,
             isDrawerContent: dc
           ))

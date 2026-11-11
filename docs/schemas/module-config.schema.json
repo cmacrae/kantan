@@ -49,7 +49,7 @@
     },
     "mask": {
       "$ref": "#/$defs/MaskConfig",
-      "description": "Position this module over a native macOS menu bar item, effectively replacing it visually. The native item remains clickable underneath (passthrough)."
+      "description": "Position this module over a native macOS menu bar item, effectively replacing it visually. Clicks reach the native item underneath (passthrough) unless interaction.click sets a type."
     },
     "displays": {
       "description": "Control which displays this module appears on. Accepts 'main', 'all', or an array of display names. When omitted, the module inherits the global 'displays' setting (which defaults to 'main').",

@@ -213,7 +213,7 @@ interaction:
     type: passthrough
 ```
 
-A passthrough module takes no mouse events at all, so it shows no tooltip either. Masked modules are always passthrough, whatever `interaction` they set (see [Menu Bar Masking](/docs/configuration/masking#default-click-behavior)). Drawer modules get a `drawer` click that toggles the drawer.
+A passthrough module takes no mouse events at all, so it shows no tooltip either. Masked modules are passthrough unless they set a click type (see [Menu Bar Masking](/docs/configuration/masking#default-click-behavior)). Drawer modules get a `drawer` click that toggles the drawer.
 
 ### View DSL
 
