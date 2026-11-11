@@ -29,6 +29,16 @@ class TemplateResolver {
     scopeStack.append(element)
   }
 
+  /// A copy of this resolver, with its fallback and command environment,
+  /// and `element` pushed as the innermost scope.
+  func scoped(with element: [String: String]) -> TemplateResolver {
+    let copy = TemplateResolver(variables: variables, data: data)
+    copy.scopeStack = scopeStack + [element]
+    copy.fallbackResolver = fallbackResolver
+    copy.commandEnvironment = commandEnvironment
+    return copy
+  }
+
   /// Pop the most recent foreach scope.
   func popScope() {
     if !scopeStack.isEmpty {

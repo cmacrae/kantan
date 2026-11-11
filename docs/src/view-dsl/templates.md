@@ -348,7 +348,7 @@ The special names `fg`, `bg`, and `shape` resolve to the palette's top-level val
 
 Theme templates resolve against the palette for the current appearance mode. The same template produces different colours in light and dark mode.
 
-A name the palette doesn't define (`shape` when the palette doesn't set it), or any name without a configured theme, is left as written, so the property uses its default colour. Inside a `foreach` in a tooltip or popup, `{theme(name)}` resolves to an empty string, so the property's default colour is used; in native menus it resolves there too.
+A name the palette doesn't define (`shape` when the palette doesn't set it), or any name without a configured theme, is left as written. The property then uses its default colour. Theme templates resolve inside `foreach` items too.
 
 ## Built-in Template Variables
 

@@ -690,21 +690,9 @@ private struct DSLForeachElementView: View {
 
   var body: some View {
     DSLRendererView(
-      node: child, resolver: scopedResolver, isNative: isNative,
+      node: child, resolver: resolver.scoped(with: element), isNative: isNative,
       dismissHandler: dismissHandler, depth: depth
     )
-  }
-
-  private var scopedResolver: TemplateResolver {
-    let r = TemplateResolver(
-      variables: resolver.variables, data: resolver.data)
-    r.commandEnvironment = resolver.commandEnvironment
-    // Copy existing scope stack and push current element
-    for scope in resolver.scopeStack {
-      r.pushScope(scope)
-    }
-    r.pushScope(element)
-    return r
   }
 }
 
