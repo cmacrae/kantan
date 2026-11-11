@@ -81,6 +81,10 @@ The plugin must output a single JSON object to stdout with the following schema:
 ```typescript
 {
   value?: string,             // Optional (falls back to raw stdout if missing)
+  segments?: Array<{          // Optional
+    text: string,
+    fg?: string
+  }>,
   icon?: string,              // Optional
   hidden?: boolean,           // Optional
   active?: boolean,           // Optional
@@ -118,6 +122,25 @@ The plugin must output a single JSON object to stdout with the following schema:
 ```
 
 **Rendering:** Displayed using the module's configured font and styling. If the module has a configured icon, it appears before this text.
+
+#### segments (optional)
+
+**Type:** `Array<{text: string, fg?: string}>`
+**Description:** The value in parts, each in its own colour, drawn in place of `value`. `fg` is a hex colour (`"#89B4FA"` or `"89B4FA"`) or a `{theme(name)}` template. A part without one takes the module's text colour. `value` should still carry the same text. Tooltips and `{value}` templates use it.
+
+**Example:**
+```json
+{
+  "value": "Review in 1h 30m",
+  "segments": [
+    {"text": "Review", "fg": "#89B4FA"},
+    {"text": " in "},
+    {"text": "1h 30m", "fg": "{theme(overlay1)}"}
+  ]
+}
+```
+
+**Rendering:** An `fg` override from `kantan trigger <name> set fg=...`, and the native appearance, colour every part alike. `kantan trigger <name> set value=...` shows its value in one colour.
 
 #### icon (optional)
 

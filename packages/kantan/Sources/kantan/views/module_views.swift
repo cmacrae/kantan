@@ -313,9 +313,8 @@ struct StandardModuleView: View {
         }
       }
       if let value = viewModel.displayValue, !value.isEmpty {
-        Text(value)
+        Text(themeProvider.valueText(for: viewModel))
           .font(themeProvider.textFont(for: viewModel))
-          .foregroundStyle(textColor)
           .lineLimit(1)
       }
     }
@@ -324,10 +323,6 @@ struct StandardModuleView: View {
     .padding(.vertical, modulePadding)
     .frame(maxHeight: expandsToBarHeight ? .infinity : nil)
     .background(shapeBackground)
-  }
-
-  private var textColor: Color {
-    themeProvider.textFgColor(for: viewModel)
   }
 
   private var iconColor: Color {

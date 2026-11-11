@@ -7,8 +7,17 @@ import Foundation
 nonisolated(unsafe) private var commandDataCache: [String: CommandOutputData] = [:]
 private let commandDataLock = NSLock()
 
+/// A part of a module's value with its own colour, from a plugin's
+/// `segments` output.
+struct ValueSegment: Equatable, Sendable {
+  let text: String
+  /// A hex colour or `{theme(name)}` template, or nil for the module's.
+  let fg: String?
+}
+
 struct CommandOutputData {
   var templateVars: [String: String] = [:]
+  var segments: [ValueSegment] = []
   var dynamicIcon: String = ""
   var viewTree: ViewNode? = nil
   var data: [String: [[String: String]]] = [:]
@@ -269,6 +278,12 @@ struct CommandConfig: ModuleConfiguration {
     return getCommandData(for: command).data
   }
 
+  /// The coloured parts of the value, or none to show it in one colour.
+  func getSegments() -> [ValueSegment] {
+    guard outputMode == "json" else { return [] }
+    return getCommandData(for: command).segments
+  }
+
   // MARK: - JSON Parsing
 
   private static func parseJsonOutput(
@@ -315,6 +330,13 @@ struct CommandConfig: ModuleConfiguration {
     // Extract template variables
     if let vars = json["variables"] as? [String: String] {
       data.templateVars = vars
+    }
+
+    // Extract the value's coloured parts
+    if let segments = json["segments"] as? [[String: Any]] {
+      data.segments = segments.compactMap { segment in
+        (segment["text"] as? String).map { ValueSegment(text: $0, fg: segment["fg"] as? String) }
+      }
     }
 
     // Extract view tree (DSL)

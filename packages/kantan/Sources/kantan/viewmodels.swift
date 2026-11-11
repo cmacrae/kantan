@@ -36,6 +36,8 @@ class ModuleViewModel: ObservableObject, Identifiable {
   @Published var templateVariables: [String: String] = [:]
   @Published var viewTree: ViewNode?
   @Published var data: [String: [[String: String]]] = [:]
+  /// The value's coloured parts, drawn in its place when there are any.
+  @Published var segments: [ValueSegment] = []
 
   @Published var fgOverride: String?
   @Published var bgOverride: String?
@@ -184,6 +186,7 @@ class ModuleViewModel: ObservableObject, Identifiable {
       viewTree = config.getViewTree()
       if let cmdConfig = config as? CommandConfig {
         data = cmdConfig.getData()
+        segments = cmdConfig.getSegments()
       }
     }
   }
@@ -680,6 +683,7 @@ class BarViewModel: ObservableObject {
       case "set":
         if let value = userInfo["value"] {
           vm.displayValue = value.isEmpty ? nil : value
+          vm.segments = []
         }
         if let icon = userInfo["icon"] {
           vm.setIcon(icon.isEmpty ? nil : icon)
@@ -844,6 +848,23 @@ class ThemeProvider: ObservableObject {
 
   func textFgColor(for vm: ModuleViewModel) -> Color {
     elementFgColor(for: vm, dynamicFg: \.textFg, elementFg: \.text)
+  }
+
+  /// The module's value, each of its segments in its own colour, or the
+  /// module's text colour for a segment without one. An `fg` override,
+  /// and the native appearance, colour it all alike.
+  func valueText(for vm: ModuleViewModel) -> AttributedString {
+    let fg = textFgColor(for: vm)
+    let colours = vm.fgOverride == nil && !isNative
+    let segments =
+      vm.segments.isEmpty ? [ValueSegment(text: vm.displayValue ?? "", fg: nil)] : vm.segments
+    return segments.reduce(into: AttributedString()) { text, segment in
+      var part = AttributedString(segment.text)
+      part.foregroundColor =
+        segment.fg.flatMap { colours && !isUnresolvableTemplate($0) ? resolvedColor($0) : nil }
+        ?? fg
+      text += part
+    }
   }
 
   func iconFgColor(for vm: ModuleViewModel) -> Color {

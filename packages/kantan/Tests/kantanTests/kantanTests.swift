@@ -1974,6 +1974,23 @@ final class CommandWatchOutputTests: XCTestCase {
     XCTAssertEqual(command.getTemplateVariables(), ["count": "3"])
   }
 
+  func testSegmentsColourTheValue() throws {
+    let command = try config("command: output-segments\noutput: json\n")
+    let segments =
+      ##"[{"text":"Review","fg":"#89b4fa"},{"text":" in "},{"fg":"#f38ba8"},"##
+      + ##"{"text":"5m","fg":"{theme(red)}"}]"##
+    let line = ##"{"value":"Review in 5m","segments":"## + segments + "}"
+    XCTAssertEqual(command.cacheWatchOutput(Data(line.utf8)), "Review in 5m")
+    XCTAssertEqual(
+      command.getSegments(),
+      [
+        ValueSegment(text: "Review", fg: "#89b4fa"), ValueSegment(text: " in ", fg: nil),
+        ValueSegment(text: "5m", fg: "{theme(red)}"),
+      ])
+    XCTAssertEqual(command.cacheWatchOutput(Data(#"{"value":"plain"}"#.utf8)), "plain")
+    XCTAssertEqual(command.getSegments(), [])
+  }
+
   func testOtherLinesAreIgnored() throws {
     let command = try config("command: watch-output-other\noutput: json\n")
     for line in ["starting up", "[1, 2]", "", #"{"value":"#] {
@@ -2018,7 +2035,7 @@ final class WatchOutputTests: XCTestCase {
       "watch-lines",
       watch: """
         echo starting
-        echo '{"value":"first","icon":"bell"}'
+        echo '{"value":"first","icon":"bell","segments":[{"text":"first","fg":"#ff0000"}]}'
         sleep 0.3
         echo 'not json'
         echo '{"value":"second"}'
@@ -2026,7 +2043,9 @@ final class WatchOutputTests: XCTestCase {
         """)
     waitUntil { vm.displayValue == "first" }
     XCTAssertEqual(vm.displayIcon, resolveIconName("bell").glyph)
+    XCTAssertEqual(vm.segments, [ValueSegment(text: "first", fg: "#ff0000")])
     waitUntil { vm.displayValue == "second" }
+    XCTAssertEqual(vm.segments, [])
   }
 
   func testWatchOutputOutlivesACommandRunStillInFlight() throws {

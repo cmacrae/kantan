@@ -10,6 +10,25 @@
       "type": "string",
       "description": "Display text shown in the status bar. If omitted, the raw stdout output is used as the display value. Supports template variable substitution with {variable_name} syntax, resolved from the 'variables' object."
     },
+    "segments": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["text"],
+        "properties": {
+          "text": {
+            "type": "string",
+            "description": "Text of this part of the value."
+          },
+          "fg": {
+            "type": "string",
+            "description": "Colour of this part: a hex colour (e.g. \"#89B4FA\" or \"89B4FA\") or a {theme(name)} template. Without it, the part takes the module's text colour."
+          }
+        }
+      },
+      "description": "The value in parts, each in its own colour, drawn in place of 'value'. 'value' should carry the same text, as tooltips and {value} templates use it."
+    },
     "icon": {
       "type": "string",
       "description": "Override the module's icon. Accepts an icon name from the bundled font (e.g. \"brain\", \"bolt-filled\") which is resolved via the icon name map, or a literal Unicode glyph. The '-filled' suffix selects the filled variant. When set, replaces the static icon from the module's YAML config."
