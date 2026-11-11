@@ -465,8 +465,6 @@ class BarViewModel: ObservableObject {
   private(set) var hasLeftDrawer: Bool = false
   private(set) var hasRightDrawer: Bool = false
   private var drawerVMs: [String: ModuleViewModel] = [:]  // side ("left"/"right") → drawer VM
-  private var drawerShowIcons: [String: String] = [:]
-  private var drawerHideIcons: [String: String] = [:]
 
   var hasDrawer: Bool { hasLeftDrawer || hasRightDrawer }
 
@@ -485,15 +483,6 @@ class BarViewModel: ObservableObject {
       // Only one drawer per side; first wins
       guard drawerVMs[side] == nil else { continue }
       drawerVMs[side] = dvm
-      var showIcon = "〈"
-      var hideIcon = "〉"
-      if let drawerConfig = dvm.moduleConfig.config as? DrawerConfig {
-        showIcon = drawerConfig.showIcon
-        hideIcon = drawerConfig.hideIcon
-      }
-      drawerShowIcons[side] = showIcon
-      drawerHideIcons[side] = hideIcon
-      dvm.setIcon(showIcon)
       if side == "left" {
         hasLeftDrawer = true
       } else {
@@ -642,9 +631,10 @@ class BarViewModel: ObservableObject {
     } else {
       rightDrawerOpen.toggle()
     }
-    let isOpen = side == "left" ? leftDrawerOpen : rightDrawerOpen
-    let newIcon = isOpen ? drawerHideIcons[side] ?? "〉" : drawerShowIcons[side] ?? "〈"
-    drawerVMs[side]?.setIcon(newIcon)
+    guard let drawer = drawerVMs[side] else { return }
+    (drawer.moduleConfig.config as? DrawerConfig)?.state.isOpen =
+      side == "left" ? leftDrawerOpen : rightDrawerOpen
+    drawer.update()
   }
 
   func refreshAll() {

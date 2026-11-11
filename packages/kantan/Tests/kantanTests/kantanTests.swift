@@ -312,6 +312,38 @@ final class CachedStatusTests: XCTestCase {
 // MARK: - loadConfig() end-to-end
 
 @MainActor
+final class DrawerIconTests: XCTestCase {
+  func testTheDrawerKeepsItsHideIconWhileOpenThroughUpdates() throws {
+    let yaml = try Yaml.load(
+      """
+      modules:
+        - name: drawer
+          type: drawer
+          placement: right
+          config:
+            icons: {show: "S", hide: "H"}
+        - name: hidden
+          type: text
+          placement: right
+          config:
+            value: x
+      """)
+    let bar = BarViewModel(config: try XCTUnwrap(loadConfig(from: yaml)))
+    let drawer = try XCTUnwrap(bar.allModules.first { $0.moduleConfig.name == "drawer" })
+    waitUntil { drawer.displayIcon == "S" }
+
+    bar.toggleDrawer(side: "right")
+    waitUntil { drawer.displayIcon == "H" }
+    drawer.update()
+    RunLoop.main.run(until: Date().addingTimeInterval(0.2))
+    XCTAssertEqual(drawer.displayIcon, "H")
+
+    bar.toggleDrawer(side: "right")
+    waitUntil { drawer.displayIcon == "S" }
+  }
+}
+
+@MainActor
 final class MaskedModuleInteractionTests: XCTestCase {
   private func module(_ name: String, _ extra: String = "") throws -> ModuleConfig {
     let yaml = try Yaml.load(
