@@ -49,7 +49,7 @@ KANTAN_SETTINGS='{"location":"San Francisco","units":"metric","refresh":600}'
 ```
 
 **Theme template resolution:**
-Settings values can contain `{theme(...)}` template references (e.g., `{theme(accent)}`). kantan resolves these against the theme palette for the current appearance before passing the JSON to the plugin, allowing theme-aware plugin configuration. Without a configured theme they are passed through unchanged.
+Settings values can contain `{theme(...)}` template references (e.g., `{theme(accent)}`). kantan resolves these against the theme palette for the current appearance before passing the JSON to the plugin. A name the palette doesn't define, or any template without a configured theme, is passed through unchanged.
 
 **Empty settings:**
 If no `settings:` field is configured, or it is empty, the variable is not set (not present in the environment).

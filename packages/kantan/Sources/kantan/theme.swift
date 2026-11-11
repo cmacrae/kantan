@@ -360,29 +360,15 @@ func resolveThemeTemplate(_ value: String, palette: ThemePalette) -> String {
 /// this scans for all occurrences and replaces them in-place. Useful for resolving
 /// templates within a JSON settings string before passing to plugins.
 func resolveAllThemeTemplates(_ input: String, palette: ThemePalette) -> String {
-  var result = input
-  while let startRange = result.range(of: "{theme(") {
-    let afterOpen = startRange.upperBound
-    guard let closeRange = result[afterOpen...].range(of: ")}") else { break }
-    let name = String(result[afterOpen..<closeRange.lowerBound])
-    let fullRange = startRange.lowerBound..<closeRange.upperBound
-
-    let resolved: String
-    if name == "fg" {
-      resolved = palette.fg
-    } else if name == "bg" {
-      resolved = palette.bg
-    } else if name == "shape", let shape = palette.shape {
-      resolved = shape
-    } else {
-      resolved = palette.colors[name] ?? String(result[fullRange])
-    }
-
-    if resolved == String(result[fullRange]) {
-      // Unresolved template — skip past it to avoid infinite loop
-      break
-    }
-    result.replaceSubrange(fullRange, with: resolved)
+  var result = ""
+  var rest = input[...]
+  while let open = rest.range(of: "{theme("),
+    let close = rest[open.upperBound...].range(of: ")}")
+  {
+    result += rest[..<open.lowerBound]
+    let template = String(rest[open.lowerBound..<close.upperBound])
+    result += resolveThemeTemplate(template, palette: palette)
+    rest = rest[close.upperBound...]
   }
-  return result
+  return result + rest
 }
