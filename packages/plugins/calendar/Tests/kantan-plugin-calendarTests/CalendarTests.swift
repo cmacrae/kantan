@@ -28,8 +28,8 @@ final class CalendarRenderTests: XCTestCase {
   func testCountsDownToTheNextEvent() {
     let output = render(events: day, settings: Settings(), now: at(9))
     XCTAssertEqual(output.value, "Review in 1h 30m")
-    XCTAssertEqual(output.variables["is_upcoming"], "true")
-    XCTAssertEqual(output.variables["is_active"], "")
+    XCTAssertEqual(output.variables["upcoming"], "true")
+    XCTAssertEqual(output.variables["active"], "")
     XCTAssertEqual(output.variables["today_count"], "2")
     XCTAssertEqual(output.variables["tomorrow_count"], "1")
     XCTAssertEqual(output.data["past_events"]?.map { $0["title"] }, ["Standup"])
@@ -40,7 +40,7 @@ final class CalendarRenderTests: XCTestCase {
   func testAnEventUnderwayIsNow() {
     let output = render(events: day, settings: Settings(), now: at(10, 45))
     XCTAssertEqual(output.value, "Review now")
-    XCTAssertEqual(output.variables["is_active"], "true")
+    XCTAssertEqual(output.variables["active"], "true")
   }
 
   func testAnUpcomingWindowHidesEventsBeyondIt() {

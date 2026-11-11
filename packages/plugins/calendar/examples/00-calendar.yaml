@@ -12,7 +12,7 @@ config:
   output: json
   watch: kantan-plugin-calendar --watch
   settings:
-    format: "{next_title}{?is_upcoming: in} {next_countdown}"
+    format: "{next_title}{?upcoming: in} {next_countdown}"
     upcoming: 1h
     calendars:
       include:

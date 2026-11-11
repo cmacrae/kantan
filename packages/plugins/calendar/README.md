@@ -33,8 +33,8 @@ This plugin is bundled with kantan and requires no separate installation. It is 
 | `{has_allday}`      | `true` / ``  | Truthy when there are all-day events today                  |
 | `{has_tomorrow}`    | `true` / ``  | Truthy when there are events tomorrow                       |
 | `{has_past}`        | `true` / ``  | Truthy when there are past (ended) events today             |
-| `{is_active}`       | `true` / ``  | Truthy when the next event is currently ongoing             |
-| `{is_upcoming}`     | `true` / ``  | Truthy when the next event has not started yet              |
+| `{active}`          | `true` / ``  | Truthy when the next event is currently ongoing             |
+| `{upcoming}`        | `true` / ``  | Truthy when the next event has not started yet              |
 
 ### Conditional Sections
 
@@ -43,7 +43,7 @@ The format string supports conditional sections that appear only when a variable
 - `{?var:text}` — Include `text` when `var` is non-empty
 - `{?!var:text}` — Include `text` when `var` is empty
 
-Example: `"{next_title}{?is_upcoming: in} {next_countdown}"` shows `Team sync in 42m` for an upcoming event and `Team sync now` for an ongoing one.
+Example: `"{next_title}{?upcoming: in} {next_countdown}"` shows `Team sync in 42m` for an upcoming event and `Team sync now` for an ongoing one.
 
 ## Configuration
 
@@ -64,7 +64,7 @@ config:
   output: json
   watch: kantan-plugin-calendar --watch
   settings:
-    format: "{next_title}{?is_upcoming: in} {next_countdown}"
+    format: "{next_title}{?upcoming: in} {next_countdown}"
     upcoming: 1h
     calendars:
       include:
@@ -93,7 +93,7 @@ Settings are passed to the plugin via the `config.settings` block. All settings 
 
 | Setting     | Default                                          | Description                                                         |
 |-------------|--------------------------------------------------|---------------------------------------------------------------------|
-| `format`    | `{next_title}{?is_upcoming: in} {next_countdown}` | Format string for the bar display value (see template variables)    |
+| `format`    | `{next_title}{?upcoming: in} {next_countdown}`   | Format string for the bar display value (see template variables)    |
 | `upcoming`  | —                                                | Time window for bar visibility (e.g. `30m`, `1h`, `2d`). When set, the module is hidden unless the next event starts within this window or is currently ongoing. When omitted, the module is shown whenever there is an upcoming event or today has all-day events |
 | `calendars` | —                                                | Calendar filter (see [Calendar Filtering](#calendar-filtering))     |
 | `icons`     | see below                                        | Icon overrides (see [Icon Settings](#icon-settings))                |
@@ -145,7 +145,7 @@ Icon values are resolved by kantan's bundled icon font system (e.g. tabler-icons
 
 ```yaml
 # Default: show title with contextual countdown
-format: "{next_title}{?is_upcoming: in} {next_countdown}"
+format: "{next_title}{?upcoming: in} {next_countdown}"
 
 # Show just the countdown
 format: "{next_countdown}"
@@ -160,7 +160,7 @@ format: "{next_title} at {next_time}"
 format: "{next_calendar}: {next_title}"
 
 # Active vs upcoming distinction
-format: "{?is_active:Now:}{?is_upcoming:Next:} {next_title}"
+format: "{?active:Now:}{?upcoming:Next:} {next_title}"
 ```
 
 ## How It Works

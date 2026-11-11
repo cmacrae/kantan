@@ -48,7 +48,7 @@ struct Settings: Decodable {
   }
 
   init() {
-    self.format = "{next_title}{?is_upcoming: in} {next_countdown}"
+    self.format = "{next_title}{?upcoming: in} {next_countdown}"
     self.upcoming = nil
     self.calendars = nil
     self.icons = .defaults
@@ -306,8 +306,8 @@ func render(events allEvents: [CalendarEvent], settings: Settings, now: Date) ->
     "has_allday": todayAllDay.isEmpty ? "" : "true",
     "has_tomorrow": tomorrowCount > 0 ? "true" : "",
     "has_past": pastTimed.isEmpty ? "" : "true",
-    "is_active": nextIsActive ? "true" : "",
-    "is_upcoming": nextIsActive ? "" : (nextEvent != nil ? "true" : ""),
+    "active": nextIsActive ? "true" : "",
+    "upcoming": nextIsActive ? "" : (nextEvent != nil ? "true" : ""),
   ]
 
   if let next = nextEvent {
