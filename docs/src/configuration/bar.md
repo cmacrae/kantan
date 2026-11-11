@@ -33,7 +33,7 @@ The font descriptor format is `Name:Weight:Size`, `Name:Size` (weight defaults t
 
 Prefix a descriptor with `system:` to mark it as a system-installed font. kantan loads its bundled icon fonts for an icon font without the prefix. A global icon font with the prefix stops kantan loading them unless a module's icon font needs them (see [Icons](/docs/configuration/icons#custom-icon-fonts)).
 
-Recognised weight names: `ultralight`, `thin`, `light`, `regular`, `medium`, `semibold` (or `demi-bold`), `bold`, `heavy` (or `extrabold`), `black`. Only `bold` changes how the font renders; any other weight renders the named font as is. To use another weight, name that face directly (e.g. `SFPro-Medium`).
+Recognised weight names: `ultralight`, `thin`, `light`, `regular`, `medium`, `semibold` (or `demi-bold`), `bold`, `heavy` (or `extrabold`), `black`. A weight other than `regular` picks the nearest face in the named font's family: `Helvetica Neue:medium:13` renders Helvetica Neue Medium. When the family has no faces to choose from, the named font renders as is. Naming a face directly (e.g. `SFPro-Medium`) always works.
 
 When no text font is specified, kantan defaults to Helvetica Neue at 13pt.
 

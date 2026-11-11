@@ -221,15 +221,37 @@ struct FontConfig: Codable {
     return weight == .bold ? .bold : []
   }
 
+  /// The font: for a weight other than regular, the face nearest that
+  /// weight in the named font's family; otherwise, or when the family has
+  /// none, the named face itself (exact for custom icon fonts).
+  var nsFont: NSFont {
+    if weight != .regular, let weighted = Self.font(familyOf: name, weight: weight, size: size) {
+      return weighted
+    }
+    let descriptor = NSFontDescriptor(name: name, size: size)
+      .withSymbolicTraits(symbolicTraits)
+    return NSFont(descriptor: descriptor, size: size) ?? NSFont.systemFont(ofSize: size)
+  }
+
+  /// The face nearest `weight` in the family `name` names or belongs to.
+  private static func font(familyOf name: String, weight: NSFont.Weight, size: CGFloat)
+    -> NSFont?
+  {
+    let family = NSFont(name: name, size: size)?.familyName ?? name
+    let descriptor = NSFontDescriptor(fontAttributes: [
+      .family: family,
+      .traits: [NSFontDescriptor.TraitKey.weight: weight.rawValue],
+    ])
+    guard let matched = descriptor.matchingFontDescriptor(withMandatoryKeys: [.family]) else {
+      return nil
+    }
+    return NSFont(descriptor: matched, size: size)
+  }
+
   /// Converts this FontConfig to a SwiftUI Font, preserving exact
   /// NSFontDescriptor behavior (critical for custom icon fonts).
   var swiftUIFont: Font {
-    let descriptor = NSFontDescriptor(name: name, size: size)
-      .withSymbolicTraits(symbolicTraits)
-    let nsFont =
-      NSFont(descriptor: descriptor, size: size)
-      ?? NSFont.systemFont(ofSize: size)
-    return Font(nsFont)
+    Font(nsFont)
   }
 }
 

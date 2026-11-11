@@ -25,6 +25,19 @@ final class FontConfigTests: XCTestCase {
   }
 }
 
+final class FontWeightTests: XCTestCase {
+  private func faceName(_ descriptor: String) -> String {
+    FontConfig(descriptor: descriptor, source: .system).nsFont.fontName
+  }
+
+  func testWeightsPickTheFamilysFace() {
+    XCTAssertEqual(faceName("HelveticaNeue:13"), "HelveticaNeue")
+    XCTAssertEqual(faceName("HelveticaNeue:medium:13"), "HelveticaNeue-Medium")
+    XCTAssertEqual(faceName("Helvetica Neue:light:13"), "HelveticaNeue-Light")
+    XCTAssertEqual(faceName("HelveticaNeue:bold:13"), "HelveticaNeue-Bold")
+  }
+}
+
 final class NSColorHexTests: XCTestCase {
   func testEightDigitHexCarriesAlpha() {
     let color = NSColor(hex: "#FF000080").usingColorSpace(.deviceRGB)!
