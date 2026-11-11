@@ -157,6 +157,20 @@ struct CommandConfig: ModuleConfiguration {
   /// Launches the toggle command and returns immediately; `completion`
   /// runs when it exits, so a slow command (e.g. one waiting on a
   /// permission prompt) never blocks the bar.
+  /// The `KANTAN_*` variables this module's toggle and view commands get,
+  /// for the current appearance.
+  func kantanEnvironment() -> [String: String] {
+    let names: [NSAppearance.Name] = [.darkAqua, .aqua]
+    let isDark = NSApp.effectiveAppearance.bestMatch(from: names) == .darkAqua
+    var env = [
+      "KANTAN_APPEARANCE": isDark ? "dark" : "light",
+      "KANTAN_PID": "\(ProcessInfo.processInfo.processIdentifier)",
+    ]
+    env["KANTAN_SETTINGS"] = resolvedSettings(isDark: isDark)
+    env["KANTAN_MODULE_NAME"] = moduleName
+    return env
+  }
+
   func handleToggle(completion: @escaping @Sendable () -> Void) {
     guard let toggle = toggleCommand, !toggle.isEmpty else {
       completion()
@@ -165,16 +179,9 @@ struct CommandConfig: ModuleConfiguration {
     let process = Process()
     process.executableURL = URL(fileURLWithPath: launchPath)
     process.arguments = launchArgs + [toggle]
-    var env = ProcessInfo.processInfo.environment
-    let names: [NSAppearance.Name] = [.darkAqua, .aqua]
-    let isDark = NSApp.effectiveAppearance.bestMatch(from: names) == .darkAqua
-    if let settings = resolvedSettings(isDark: isDark) {
-      env["KANTAN_SETTINGS"] = settings
+    process.environment = ProcessInfo.processInfo.environment.merging(kantanEnvironment()) {
+      $1
     }
-    env["KANTAN_APPEARANCE"] = isDark ? "dark" : "light"
-    env["KANTAN_MODULE_NAME"] = moduleName
-    env["KANTAN_PID"] = "\(ProcessInfo.processInfo.processIdentifier)"
-    process.environment = env
     process.standardOutput = FileHandle.nullDevice
     process.standardError = FileHandle.nullDevice
     process.terminationHandler = { _ in completion() }

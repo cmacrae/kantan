@@ -307,6 +307,7 @@ struct DSLRendererView: View {
     DSLClickableHStack(
       spacing: spacing, alignment: verticalAlignment(from: alignment),
       command: hasCommand ? resolvedCommand : nil,
+      environment: resolver.commandEnvironment,
       isNative: isNative, dismissHandler: dismissHandler
     ) {
       renderChildren(children)
@@ -697,6 +698,7 @@ private struct DSLForeachElementView: View {
   private var scopedResolver: TemplateResolver {
     let r = TemplateResolver(
       variables: resolver.variables, data: resolver.data)
+    r.commandEnvironment = resolver.commandEnvironment
     // Copy existing scope stack and push current element
     for scope in resolver.scopeStack {
       r.pushScope(scope)
@@ -714,6 +716,7 @@ private struct DSLClickableHStack<Content: View>: View {
   let spacing: Double?
   let alignment: VerticalAlignment
   let command: String?
+  let environment: [String: String]
   let isNative: Bool
   let dismissHandler: () -> Void
   @ViewBuilder let content: Content
@@ -736,7 +739,7 @@ private struct DSLClickableHStack<Content: View>: View {
       .onHover { hovering in isHovered = hovering }
       .onTapGesture {
         dismissHandler()
-        runCommand(command)
+        runCommand(command, environment: environment)
       }
     } else {
       HStack(alignment: alignment, spacing: spacing.map { CGFloat($0) }) {
@@ -817,7 +820,7 @@ private struct DSLActionView: View {
       dismissHandler()
       guard let command = command, !command.isEmpty else { return }
       let resolved = resolver.resolve(command)
-      runCommand(resolved)
+      runCommand(resolved, environment: resolver.commandEnvironment)
     }
   }
 
@@ -868,7 +871,7 @@ private struct DSLCheckView: View {
       isToggled.toggle()
       guard let cmd = cmd, !cmd.isEmpty else { return }
       let resolved = resolver.resolve(cmd)
-      runCommand(resolved)
+      runCommand(resolved, environment: resolver.commandEnvironment)
     }
   }
 }
@@ -903,7 +906,7 @@ private struct DSLToggleView: View {
         dismissHandler()
         guard let command = command, !command.isEmpty else { return }
         let resolved = resolver.resolve(command)
-        runCommand(resolved)
+        runCommand(resolved, environment: resolver.commandEnvironment)
       }
   }
 }
@@ -926,7 +929,7 @@ private struct DSLButtonView: View {
       dismissHandler()
       guard let command = command, !command.isEmpty else { return }
       let resolved = resolver.resolve(command)
-      runCommand(resolved)
+      runCommand(resolved, environment: resolver.commandEnvironment)
     }) {
       HStack(spacing: 6) {
         if let iconName = resolvedIcon, !iconName.isEmpty {

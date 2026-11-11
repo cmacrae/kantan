@@ -2070,6 +2070,37 @@ final class LineBufferTests: XCTestCase {
   }
 }
 
+@MainActor
+final class ViewCommandEnvironmentTests: XCTestCase {
+  func testAModulesViewsRunCommandsWithItsSettings() throws {
+    let yaml = try Yaml.load(
+      """
+      name: pomo
+      type: command
+      placement: right
+      config:
+        command: kantan-plugin-pomodoro
+        settings:
+          work: 50
+      """)
+    let vm = ModuleViewModel(moduleConfig: try XCTUnwrap(parseModuleConfig(from: yaml)))
+    let env = PopupManager().makeResolver(for: LiveContentProvider(viewModel: vm))
+      .commandEnvironment
+    XCTAssertEqual(env["KANTAN_SETTINGS"], #"{"work":50}"#)
+    XCTAssertEqual(env["KANTAN_MODULE_NAME"], "pomo")
+    XCTAssertNotNil(env["KANTAN_APPEARANCE"])
+  }
+
+  func testRunCommandAddsTheEnvironment() throws {
+    let file = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+    defer { try? FileManager.default.removeItem(at: file) }
+    runCommand(
+      #"printf %s "$KANTAN_SETTINGS" > '\#(file.path)'"#,
+      environment: ["KANTAN_SETTINGS": #"{"work":50}"#])
+    waitUntil { (try? String(contentsOf: file, encoding: .utf8)) == #"{"work":50}"# }
+  }
+}
+
 final class CommandWatchOutputTests: XCTestCase {
   private func config(_ yaml: String) throws -> CommandConfig {
     try CommandConfig(yaml: try Yaml.load(yaml))

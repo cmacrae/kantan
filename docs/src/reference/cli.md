@@ -84,8 +84,8 @@ kantan trigger '*' refresh
 
 ## Environment variables passed to plugins
 
-When kantan invokes a command-module plugin (one-shot, watch, or toggle), it sets a small number of environment variables on the child process, on top of kantan's own environment.
-These are documented in full in [the plugin API reference](/docs/plugins/api-reference#environment-variables); the short version:
+When kantan invokes a command-module plugin (one-shot, watch, toggle, or a command from one of its views), it sets a small number of environment variables on the child process, on top of kantan's own environment.
+[The plugin API reference](/docs/plugins/api-reference#environment-variables) documents them in full. In short:
 
 | Variable | Set when |
 |----------|----------|

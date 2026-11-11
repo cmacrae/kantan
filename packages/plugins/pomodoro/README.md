@@ -47,7 +47,7 @@ The plugin sets `active: true` in its output when a timer is running (any mode o
 
 The plugin binary doubles as a CLI for controlling the timer. Each subcommand modifies the persistent state file and exits immediately (no output); an unknown flag exits with status 1. The menu actions call these subcommands followed by `kantan trigger <module> refresh` to update the bar.
 
-`--start` and `--skip` read the segment durations from `KANTAN_SETTINGS`. kantan runs menu actions without it, so a segment started or skipped from the menu uses the default `work_duration`, `short_break`, `long_break` and `long_break_interval`, whatever the module's settings say.
+`--start` and `--skip` read the segment durations from `KANTAN_SETTINGS`, which kantan also gives the menu's actions.
 
 | Flag       | Description                                          |
 |------------|------------------------------------------------------|

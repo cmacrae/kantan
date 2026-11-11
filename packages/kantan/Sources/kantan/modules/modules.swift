@@ -299,8 +299,9 @@ struct ModuleConfig {
 
 /// Run a command asynchronously (fire-and-forget).
 /// If the command matches a URL scheme (e.g. "calshow:123", "https://..."),
-/// it is opened via NSWorkspace. Otherwise it is executed as a shell command.
-func runCommand(_ command: String) {
+/// it is opened via NSWorkspace. Otherwise it is executed as a shell command,
+/// with `environment` added to kantan's own.
+func runCommand(_ command: String, environment: [String: String] = [:]) {
   let trimmed = command.trimmingCharacters(in: .whitespaces)
   // Detect URL scheme: starts with letters followed by ":"
   if let colonRange = trimmed.range(of: ":"),
@@ -317,6 +318,7 @@ func runCommand(_ command: String) {
     let process = Process()
     process.executableURL = URL(fileURLWithPath: "/bin/sh")
     process.arguments = ["-c", command]
+    process.environment = ProcessInfo.processInfo.environment.merging(environment) { $1 }
     process.standardOutput = FileHandle.nullDevice
     process.standardError = FileHandle.nullDevice
     try? process.run()

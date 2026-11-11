@@ -14,9 +14,14 @@ class LiveContentProvider: ObservableObject {
   @Published var displayIcon: String?
   @Published var viewTree: ViewNode?
   @Published var data: [String: [[String: String]]] = [:]
+  /// Variables for the commands the module's views run.
+  let commandEnvironment: [String: String]
   private var cancellables = Set<AnyCancellable>()
 
   init(viewModel: ModuleViewModel) {
+    self.commandEnvironment =
+      (viewModel.moduleConfig.config as? CommandConfig)?.kantanEnvironment()
+      ?? ["KANTAN_MODULE_NAME": viewModel.moduleConfig.name]
     self.templateVariables = viewModel.templateVariables
     self.displayValue = viewModel.displayValue
     self.displayIcon = viewModel.displayIcon
@@ -117,6 +122,22 @@ class PopupManager {
   var defaultTextColor: Color {
     if isNative { return .primary }
     return Color(nsColor: effectiveFgColor)
+  }
+
+  /// A resolver for a module's view: its variables, data, `{value}`,
+  /// `{icon}` and theme colours, and the environment its commands run with.
+  func makeResolver(for liveContent: LiveContentProvider) -> TemplateResolver {
+    let resolver = TemplateResolver(
+      variables: liveContent.templateVariables, data: liveContent.data)
+    configureThemeResolution(resolver)
+    if let value = liveContent.displayValue {
+      resolver.variables["value"] = value
+    }
+    if let icon = liveContent.displayIcon {
+      resolver.variables["icon"] = icon
+    }
+    resolver.commandEnvironment = liveContent.commandEnvironment
+    return resolver
   }
 
   /// Configure a TemplateResolver to resolve `{theme(name)}` patterns via ThemeProvider.
@@ -237,17 +258,7 @@ class PopupManager {
     guard !isPopupActive else { return }
     hideTooltip()
 
-    let resolver = TemplateResolver(
-      variables: liveContent.templateVariables,
-      data: liveContent.data
-    )
-    configureThemeResolution(resolver)
-    if let value = liveContent.displayValue {
-      resolver.variables["value"] = value
-    }
-    if let icon = liveContent.displayIcon {
-      resolver.variables["icon"] = icon
-    }
+    let resolver = makeResolver(for: liveContent)
 
     let themeFg = defaultTextColor
     let dslView = DSLRendererView(
@@ -351,17 +362,7 @@ class PopupManager {
 
     if dismissIfActive(menuId) { return }
 
-    let resolver = TemplateResolver(
-      variables: liveContent.templateVariables,
-      data: liveContent.data
-    )
-    configureThemeResolution(resolver)
-    if let value = liveContent.displayValue {
-      resolver.variables["value"] = value
-    }
-    if let icon = liveContent.displayIcon {
-      resolver.variables["icon"] = icon
-    }
+    let resolver = makeResolver(for: liveContent)
 
     var nativeAnchor = anchorPoint
     if let minX = moduleMinX {
@@ -384,22 +385,7 @@ class PopupManager {
 
     if dismissIfActive(effectiveId) { return }
 
-    let effectiveResolver =
-      resolver
-      ?? {
-        let r = TemplateResolver(
-          variables: liveContent.templateVariables,
-          data: liveContent.data
-        )
-        configureThemeResolution(r)
-        if let value = liveContent.displayValue {
-          r.variables["value"] = value
-        }
-        if let icon = liveContent.displayIcon {
-          r.variables["icon"] = icon
-        }
-        return r
-      }()
+    let effectiveResolver = resolver ?? makeResolver(for: liveContent)
 
     let themeFg = defaultTextColor
     let dslView = DSLRendererView(

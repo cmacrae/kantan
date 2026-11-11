@@ -19,12 +19,12 @@ kantan sets these environment variables before invoking the plugin:
 
 | Variable | Type | Set When | Description |
 |----------|------|----------|-------------|
-| `KANTAN_SETTINGS` | JSON string | Normal invocation, watch, toggle, when the module has `settings:` | Module's `settings:` configuration from config file |
-| `KANTAN_APPEARANCE` | enum string | Normal invocation, watch, toggle | Current system appearance: `"dark"` or `"light"` |
-| `KANTAN_MODULE_NAME` | string | Normal invocation, watch, toggle | Module's `name:` field from config |
-| `KANTAN_PID` | string | Normal invocation, watch, toggle | kantan's process ID (useful for tying child processes to kantan's lifetime) |
+| `KANTAN_SETTINGS` | JSON string | Normal invocation, watch, toggle, view commands, when the module has `settings:` | Module's `settings:` configuration from config file |
+| `KANTAN_APPEARANCE` | enum string | Normal invocation, watch, toggle, view commands | Current system appearance: `"dark"` or `"light"` |
+| `KANTAN_MODULE_NAME` | string | Normal invocation, watch, toggle, view commands | Module's `name:` field from config |
+| `KANTAN_PID` | string | Normal invocation, watch, toggle, view commands | kantan's process ID (useful for tying child processes to kantan's lifetime) |
 
-The plugin also inherits kantan's own environment, including its `PATH`. Commands run from a View DSL node (`action`, `button`, `check`, `toggle`, a clickable `hstack`) inherit kantan's environment without these variables.
+The plugin also inherits kantan's own environment, including its `PATH`. Commands run from the module's views (`action`, `button`, `check`, `toggle`, a clickable `hstack`) get the same variables as its toggle, for the appearance when the view opened. A built-in module's view commands get `KANTAN_MODULE_NAME` alone.
 
 #### KANTAN_SETTINGS
 

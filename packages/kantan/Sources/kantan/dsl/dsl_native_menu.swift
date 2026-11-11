@@ -148,7 +148,7 @@ private func addHStackItem(
   if let command = command {
     let resolvedCommand = resolver.resolve(command)
     let target = NativeMenuTarget {
-      runCommand(resolvedCommand)
+      runCommand(resolvedCommand, environment: resolver.commandEnvironment)
     }
     item.target = target
     item.action = #selector(NativeMenuTarget.menuAction(_:))
@@ -283,7 +283,7 @@ private func addItems(
     if let command = command {
       let resolvedCommand = resolver.resolve(command)
       let target = NativeMenuTarget {
-        runCommand(resolvedCommand)
+        runCommand(resolvedCommand, environment: resolver.commandEnvironment)
       }
       item.target = target
       item.action = #selector(NativeMenuTarget.menuAction(_:))
@@ -308,7 +308,8 @@ private func addItems(
     // the menu closing after each interaction.
     let checkView = NativeMenuCheckItemView(
       label: resolvedLabel, isChecked: isChecked, command: resolvedCommand,
-      uncheckedCommand: resolvedUncheckedCommand, textColor: textColor)
+      uncheckedCommand: resolvedUncheckedCommand, environment: resolver.commandEnvironment,
+      textColor: textColor)
     item.view = checkView
     menu.addItem(item)
 
@@ -323,7 +324,7 @@ private func addItems(
     let toggleView = NativeMenuToggleView(label: resolvedLabel, isOn: isOn, textColor: textColor) {
       if let command = command {
         let resolvedCommand = resolver.resolve(command)
-        runCommand(resolvedCommand)
+        runCommand(resolvedCommand, environment: resolver.commandEnvironment)
       }
     }
     let hostingView = NSHostingView(rootView: toggleView)
@@ -542,17 +543,19 @@ class NativeMenuCheckItemView: NSView {
   private let label: String
   private let checkedCommand: String?
   private let uncheckedCommand: String?
+  private let environment: [String: String]
   private let textColor: Color?
   private var hostingView: NSHostingView<NativeMenuCheckContent>?
 
   init(
     label: String, isChecked: Bool, command: String?, uncheckedCommand: String?,
-    textColor: Color? = nil
+    environment: [String: String] = [:], textColor: Color? = nil
   ) {
     self.isChecked = isChecked
     self.label = label
     self.checkedCommand = command
     self.uncheckedCommand = uncheckedCommand
+    self.environment = environment
     self.textColor = textColor
     super.init(frame: NSRect(x: 0, y: 0, width: 280, height: 26))
     let content = NativeMenuCheckContent(label: label, isChecked: isChecked, textColor: textColor)
@@ -576,7 +579,7 @@ class NativeMenuCheckItemView: NSView {
         label: label, isChecked: isChecked, textColor: textColor)
     }
     if let command = command, !command.isEmpty {
-      runCommand(command)
+      runCommand(command, environment: environment)
     }
   }
 }

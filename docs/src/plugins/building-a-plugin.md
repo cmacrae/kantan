@@ -283,7 +283,7 @@ interaction:
     content: "Status: {status}"
 ```
 
-A `view:` in the module config takes precedence over the plugin's `view` output. Leave it out of `click` to show the plugin's view instead; a hover tooltip only shows a `view:` from the config. Commands in views run with `/bin/sh -c` without the `KANTAN_*` variables, and kantan doesn't refresh the module after them, so end them with `kantan trigger <module-name> refresh` when they change its state.
+A `view:` in the module config takes precedence over the plugin's `view` output. Leave it out of `click` to show the plugin's view instead. A hover tooltip only shows a `view:` from the config. Commands in views run with `/bin/sh -c` and the module's `KANTAN_*` variables. kantan doesn't refresh the module after them. End them with `kantan trigger <module-name> refresh` when they change its state.
 
 ## Step 5: Watch Mode (Event-Driven Plugins)
 

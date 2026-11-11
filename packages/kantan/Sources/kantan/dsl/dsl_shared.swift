@@ -15,6 +15,9 @@ class TemplateResolver {
   /// Optional fallback for resolving keys not found in variables/scopes
   /// (e.g. `theme(name)` patterns resolved via ThemeProvider).
   var fallbackResolver: ((String) -> String?)?
+  /// Variables for the commands a view runs, such as the module's
+  /// `KANTAN_SETTINGS`.
+  var commandEnvironment: [String: String] = [:]
 
   init(variables: [String: String], data: [String: [[String: String]]]) {
     self.variables = variables
