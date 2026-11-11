@@ -2335,6 +2335,41 @@ final class WatchOutputTests: XCTestCase {
     return vm
   }
 
+  func testAStoppedWatchFinishesOnStdinEOFBeforeBeingTerminated() throws {
+    let done = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+    addTeardownBlock { try? FileManager.default.removeItem(at: done) }
+    let vm = try module(
+      "watch-eof",
+      watch: """
+        echo '{"value":"up"}'
+        read _
+        sleep 0.2
+        echo cleaned > '\(done.path)'
+        """)
+    waitUntil { vm.displayValue == "up" }
+    vm.pause()
+    waitUntil { FileManager.default.fileExists(atPath: done.path) }
+  }
+
+  func testAStoppedWatchThatIgnoresEOFIsTerminated() throws {
+    let pidFile = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+    addTeardownBlock { try? FileManager.default.removeItem(at: pidFile) }
+    let vm = try module(
+      "watch-stubborn",
+      watch: """
+        echo $$ > '\(pidFile.path)'
+        echo '{"value":"up"}'
+        while :; do sleep 0.1; done
+        """)
+    waitUntil { vm.displayValue == "up" }
+    let pid = try XCTUnwrap(
+      Int32(
+        try String(contentsOf: pidFile, encoding: .utf8).trimmingCharacters(
+          in: .whitespacesAndNewlines)))
+    vm.pause()
+    waitUntil({ kill(pid, 0) != 0 }, timeout: ModuleViewModel.watchStopGrace + 3)
+  }
+
   func testEachLineTheWatchPrintsUpdatesTheModule() throws {
     let vm = try module(
       "watch-lines",

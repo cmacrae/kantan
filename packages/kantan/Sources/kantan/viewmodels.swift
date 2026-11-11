@@ -341,6 +341,10 @@ class ModuleViewModel: ObservableObject, Identifiable {
     }
   }
 
+  /// How long a stopped watch process has to exit on stdin EOF before
+  /// it's sent SIGTERM.
+  nonisolated static let watchStopGrace: TimeInterval = 1
+
   nonisolated static let maxWatchRestarts = 10
   /// How long a watch process runs before exiting for its exit to start
   /// the restart count afresh.
@@ -428,15 +432,14 @@ class ModuleViewModel: ObservableObject, Identifiable {
 
   private func terminateWatch() {
     guard let process = watchProcess else { return }
-    // Close stdin pipe first — the watch process should exit on EOF
+    // Close stdin so the watch process can exit on EOF, and send SIGTERM
+    // if it's still running once the grace period is up.
     try? watchStdinPipe?.fileHandleForWriting.close()
     watchStdinPipe = nil
-
-    // Give the process a moment to exit gracefully, then force terminate
-    if process.isRunning {
-      process.terminate()
-    }
     watchProcess = nil
+    DispatchQueue.main.asyncAfter(deadline: .now() + Self.watchStopGrace) {
+      if process.isRunning { process.terminate() }
+    }
   }
 }
 

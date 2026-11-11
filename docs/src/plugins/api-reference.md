@@ -481,7 +481,7 @@ The watch command always runs with `/bin/sh -c`. `launcher:` applies only to `co
 | Process exit | Auto-restart with exponential backoff (1s → 16s cap, max 10 consecutive restarts) |
 | Max restarts reached | Watch disabled until kantan restarts or the system wakes |
 
-When kantan stops a watch process itself, it closes the process's stdin and sends SIGTERM straight after.
+When kantan stops a watch process itself, it closes the process's stdin and sends SIGTERM if the process is still running a second later. A process that exits on EOF has that second to clean up.
 
 **Cardinality:** kantan runs **exactly one watch process per module** at a time, however many displays are configured. Module view-models are shared across all `DisplayInstance`s. The watch process is shared too. Plugin authors do not need to coordinate or deduplicate work across multiple invocations of the same module.
 

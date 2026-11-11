@@ -80,7 +80,7 @@ kantan trigger '*' refresh
 
 **Signals:** kantan installs no signal handlers. SIGTERM and SIGINT end it with the default signal behaviour. When kantan's process ends, its end of each watch process's stdin pipe closes. The watch process then reads EOF. Watch plugins should treat stdin EOF as the shutdown signal. See [Plugins — Handling stdin EOF](/docs/plugins/building-a-plugin#handling-stdin-eof).
 
-**Watch process signalling:** When kantan stops a watch process itself (on sleep, config reload, appearance change, or when no display shows its module), it closes the process's stdin pipe and sends SIGTERM straight after via `Process.terminate()`.
+**Watch process signalling:** When kantan stops a watch process itself (on sleep, config reload, appearance change, or when no display shows its module), it closes the process's stdin pipe and sends SIGTERM via `Process.terminate()` if the process is still running a second later.
 
 ## Environment variables passed to plugins
 
