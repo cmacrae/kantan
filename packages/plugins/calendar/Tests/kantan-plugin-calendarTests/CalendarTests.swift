@@ -59,6 +59,35 @@ final class CalendarRenderTests: XCTestCase {
   }
 }
 
+// MARK: - PluginKit formats
+
+final class FormatTests: XCTestCase {
+  private func format(_ json: String) throws -> Format {
+    try JSONDecoder().decode(Format.self, from: Data(json.utf8))
+  }
+
+  func testAStringIsATemplate() throws {
+    let format = try format(#""{name}{?late: late}""#)
+    XCTAssertEqual(format, .template("{name}{?late: late}"))
+    XCTAssertEqual(format.apply(["name": "Sync", "late": "true"]).value, "Sync late")
+    XCTAssertNil(format.apply([:]).segments)
+  }
+
+  func testSegmentsShowWhileTheirVariableIsTruthyOrWithBangFalsy() throws {
+    let format = try format(
+      #"""
+      [{"text": "{name}", "fg": "#FFFFFF"}, {"text": " late", "when": "late"},
+       {"text": " on time", "when": "!late"}, {"text": "{?!name:?}"}]
+      """#)
+    XCTAssertEqual(
+      format.apply(["name": "Sync", "late": "true"]).segments,
+      [ValueSegment(text: "Sync", fg: "#FFFFFF"), ValueSegment(text: " late", fg: nil)])
+    let onTime = format.apply(["name": "Sync"])
+    XCTAssertEqual(onTime.value, "Sync on time")
+    XCTAssertEqual(onTime.segments?.map(\.text), ["Sync", " on time"])
+  }
+}
+
 // MARK: - PluginKit watch mode
 
 @MainActor

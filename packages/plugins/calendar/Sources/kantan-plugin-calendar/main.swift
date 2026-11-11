@@ -38,7 +38,7 @@ struct IconConfig: Decodable {
 }
 
 struct Settings: Decodable {
-  var format: String
+  var format: Format
   var upcoming: String?
   var calendars: CalendarFilter?
   var icons: IconConfig
@@ -48,7 +48,7 @@ struct Settings: Decodable {
   }
 
   init() {
-    self.format = "{next_title}{?upcoming: in} {next_countdown}"
+    self.format = .template("{next_title}{?upcoming: in} {next_countdown}")
     self.upcoming = nil
     self.calendars = nil
     self.icons = .defaults
@@ -57,7 +57,7 @@ struct Settings: Decodable {
   init(from decoder: Decoder) throws {
     let defaults = Settings()
     let container = try decoder.container(keyedBy: CodingKeys.self)
-    self.format = try container.decodeIfPresent(String.self, forKey: .format) ?? defaults.format
+    self.format = try container.decodeIfPresent(Format.self, forKey: .format) ?? defaults.format
     self.upcoming = try container.decodeIfPresent(String.self, forKey: .upcoming)
     self.icons = try container.decodeIfPresent(IconConfig.self, forKey: .icons) ?? defaults.icons
 
@@ -476,10 +476,11 @@ func render(events allEvents: [CalendarEvent], settings: Settings, now: Date) ->
   )
 
   // Format display value
-  let value = applyFormat(settings.format, variables: variables)
+  let (value, segments) = settings.format.apply(variables)
 
   return PluginOutput(
     value: value,
+    segments: segments,
     icon: settings.icons.icon,
     hidden: !hasEvents,
     variables: variables,

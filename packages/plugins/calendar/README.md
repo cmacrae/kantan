@@ -45,6 +45,32 @@ The format string supports conditional sections that appear only when a variable
 
 Example: `"{next_title}{?upcoming: in} {next_countdown}"` shows `Team sync in 42m` for an upcoming event and `Team sync now` for an ongoing one.
 
+### Coloured Segments
+
+`format` can also be a list of segments, each in its own colour, to set parts of the value apart:
+
+```yaml
+format:
+  - text: "{next_title} "
+    fg: "{theme(blue)}"
+  - text: "in {next_countdown}"
+    fg: "{theme(overlay1)}"
+    when: upcoming
+  - text: now
+    fg: "{theme(red)}"
+    when: active
+```
+
+This shows the title in blue, then `in 42m` in overlay1 while the event is upcoming, or `now` in red once it's under way.
+
+| Key    | Description                                                                                          |
+|--------|------------------------------------------------------------------------------------------------------|
+| `text` | Template for the segment, with the same variables and conditional sections as a `format` string      |
+| `fg`   | Colour of the segment: a hex colour or `{theme(name)}` template. Without it, it takes the module's text colour |
+| `when` | A variable the segment shows only while truthy, or, as `!name`, only while empty                       |
+
+Segments that come out empty are left out.
+
 ## Configuration
 
 Copy the example config into your kantan `modules.d/` directory:
@@ -93,7 +119,7 @@ Settings are passed to the plugin via the `config.settings` block. All settings 
 
 | Setting     | Default                                          | Description                                                         |
 |-------------|--------------------------------------------------|---------------------------------------------------------------------|
-| `format`    | `{next_title}{?upcoming: in} {next_countdown}`   | Format string for the bar display value (see template variables)    |
+| `format`    | `{next_title}{?upcoming: in} {next_countdown}`   | Format string, or list of [coloured segments](#coloured-segments), for the bar display value (see template variables) |
 | `upcoming`  | —                                                | Time window for bar visibility (e.g. `30m`, `1h`, `2d`). When set, the module is hidden unless the next event starts within this window or is currently ongoing. When omitted, the module is shown whenever there is an upcoming event or today has all-day events |
 | `calendars` | —                                                | Calendar filter (see [Calendar Filtering](#calendar-filtering))     |
 | `icons`     | see below                                        | Icon overrides (see [Icon Settings](#icon-settings))                |

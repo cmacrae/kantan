@@ -137,11 +137,20 @@ func rect(
 
 // MARK: - Plugin Output
 
+/// A part of the module's value with its own colour, which kantan draws in
+/// place of the plain value.
+struct ValueSegment: Encodable, Equatable {
+  let text: String
+  /// A hex colour or `{theme(name)}` template, or nil for the module's.
+  let fg: String?
+}
+
 /// Top-level envelope emitted by command-module plugins.
 /// Optional fields are omitted from the output JSON when nil so downstream
 /// parsers see the same shape they did before unification.
 struct PluginOutput: Encodable {
   let value: String
+  let segments: [ValueSegment]?
   let icon: String?
   let hidden: Bool?
   let active: Bool?
@@ -152,6 +161,7 @@ struct PluginOutput: Encodable {
 
   init(
     value: String,
+    segments: [ValueSegment]? = nil,
     icon: String? = nil,
     hidden: Bool? = nil,
     active: Bool? = nil,
@@ -161,6 +171,7 @@ struct PluginOutput: Encodable {
     style: JSONValue? = nil
   ) {
     self.value = value
+    self.segments = segments
     self.icon = icon
     self.hidden = hidden
     self.active = active
@@ -171,12 +182,13 @@ struct PluginOutput: Encodable {
   }
 
   private enum CodingKeys: String, CodingKey {
-    case value, icon, hidden, active, variables, data, view, style
+    case value, segments, icon, hidden, active, variables, data, view, style
   }
 
   func encode(to encoder: Encoder) throws {
     var container = encoder.container(keyedBy: CodingKeys.self)
     try container.encode(value, forKey: .value)
+    try container.encodeIfPresent(segments, forKey: .segments)
     try container.encodeIfPresent(icon, forKey: .icon)
     try container.encodeIfPresent(hidden, forKey: .hidden)
     try container.encodeIfPresent(active, forKey: .active)
@@ -364,4 +376,52 @@ func applyFormat(_ format: String, variables: [String: String]) -> String {
     result = result.replacingOccurrences(of: "{\(key)}", with: value)
   }
   return result
+}
+
+/// A plugin's `format` setting: a template for the value, or segments of
+/// templates, each with an optional `fg` colour and shown only while its
+/// `when` variable is truthy, or falsy as `!name`, the tests `{?name:...}`
+/// and `{?!name:...}` make.
+enum Format: Decodable, Equatable {
+  case template(String)
+  case segments([Segment])
+
+  struct Segment: Decodable, Equatable {
+    var text: String
+    var fg: String?
+    var when: String?
+
+    /// Whether the segment shows for `variables`.
+    func shows(for variables: [String: String]) -> Bool {
+      guard let when else { return true }
+      let negated = when.hasPrefix("!")
+      let isTruthy = !(variables[String(when.dropFirst(negated ? 1 : 0))] ?? "").isEmpty
+      return negated != isTruthy
+    }
+  }
+
+  init(from decoder: Decoder) throws {
+    let container = try decoder.singleValueContainer()
+    if let template = try? container.decode(String.self) {
+      self = .template(template)
+    } else {
+      self = .segments(try container.decode([Segment].self))
+    }
+  }
+
+  /// The value for `variables`, and its coloured segments when the format
+  /// has segments; those that come out empty are left out.
+  func apply(_ variables: [String: String]) -> (value: String, segments: [ValueSegment]?) {
+    switch self {
+    case .template(let template):
+      return (applyFormat(template, variables: variables), nil)
+    case .segments(let segments):
+      let shown =
+        segments
+        .filter { $0.shows(for: variables) }
+        .map { ValueSegment(text: applyFormat($0.text, variables: variables), fg: $0.fg) }
+        .filter { !$0.text.isEmpty }
+      return (shown.map(\.text).joined(), shown)
+    }
+  }
 }
