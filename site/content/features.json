@@ -17,7 +17,7 @@
   {
     "icon": "brush",
     "title": "Themes with light/dark mode",
-    "description": "Use your own palettes or the built-in themes. Define separate light and dark schemes and kantan switches automatically. Reference theme colors anywhere with simple template syntax."
+    "description": "Use your own palettes or the bundled Catppuccin theme. Give a theme separate light and dark schemes. kantan switches between them with the system appearance. Reference theme colours anywhere with a template."
   },
   {
     "icon": "masks-theater",

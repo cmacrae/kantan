@@ -11,6 +11,12 @@ modules:
     config:
       rainbow:
         enabled: true
+        colors:
+          - "{theme(pink)}"
+          - "{theme(peach)}"
+          - "{theme(green)}"
+          - "{theme(sky)}"
+          - "{theme(mauve)}"
 
   # Drawer contents
   - name: system-monitor
@@ -25,8 +31,8 @@ modules:
     type: command
     placement: right
     icon: bell-filled
-    shape: true
     style:
+      shape: box
       icon:
         fg: "{theme(maroon)}"
     config:
@@ -35,7 +41,8 @@ modules:
       watch: kantan-plugin-reminders --watch
       interval: 0
 
-  - type: drawer
+  - name: drawer
+    type: drawer
     placement: right
 
   # Always visible
@@ -48,6 +55,11 @@ modules:
     config:
       command: kantan-plugin-caffeine
       output: json
+      interval: 0
+      toggle: kantan-plugin-caffeine --toggle
+    interaction:
+      click:
+        type: toggle
 
   - name: focus
     type: focus
