@@ -12,7 +12,7 @@ This plugin is bundled with kantan and requires no separate installation. It is 
 - **Break management** — Automatic short and long breaks based on session count
 - **Pause/resume** — Pause and resume the timer at any point
 - **Auto-transitions** — Optionally auto-start breaks after work and work after breaks
-- **Session tracking** — Counts completed work sessions across the long break interval
+- **Session tracking** — Counts completed work sessions until the timer is reset
 - **Persistent state** — Timer state survives restarts via on-disk JSON state file
 - **Dynamic menu** — View DSL popup with contextual actions (start/pause/resume/skip/reset)
 - **Customizable icons** — Override the icon for any state or action
@@ -21,7 +21,7 @@ This plugin is bundled with kantan and requires no separate installation. It is 
 
 | Variable      | Example       | Description                                            |
 |---------------|---------------|--------------------------------------------------------|
-| `{remaining}` | `12:34`       | Time remaining in `MM:SS` format                       |
+| `{remaining}` | `12:34`       | Time remaining in `MM:SS` format (`00:00` when idle)   |
 | `{mode}`      | `Work`        | Human-readable mode: `Idle`, `Work`, `Short Break`, `Long Break` |
 | `{sessions}`  | `3`           | Number of completed work sessions                      |
 | `{status}`    | `work`        | Raw mode string: `idle`, `work`, `short_break`, `long_break` |
@@ -37,21 +37,25 @@ The pomodoro cycles through the following modes:
 
 When a work session completes, the session counter increments. If `auto_start_breaks` is enabled, the appropriate break starts automatically; otherwise the timer returns to idle. When a break completes, if `auto_start_work` is enabled, a new work session starts automatically; otherwise the timer returns to idle.
 
-Long breaks occur every `long_break_interval` completed sessions (e.g. every 4th session by default).
+Long breaks occur every `long_break_interval` completed sessions (e.g. every 4th session by default); `0` disables long breaks.
+
+A segment ends when the plugin next runs after its time is up. The transition happens on the next poll.
 
 The plugin sets `active: true` in its output when a timer is running (any mode other than idle) and `active: false` when idle. This can be used with kantan's active/inactive styling to visually distinguish a running timer from an idle one.
 
 ## Subcommands
 
-The plugin binary doubles as a CLI for controlling the timer. Each subcommand modifies the persistent state file and exits immediately (no output). The menu actions call these subcommands followed by `kantan trigger <module> refresh` to update the bar.
+The plugin binary doubles as a CLI for controlling the timer. Each subcommand modifies the persistent state file and exits immediately (no output); an unknown flag exits with status 1. The menu actions call these subcommands followed by `kantan trigger <module> refresh` to update the bar.
+
+`--start` and `--skip` read the segment durations from `KANTAN_SETTINGS`. kantan runs menu actions without it, so a segment started or skipped from the menu uses the default `work_duration`, `short_break`, `long_break` and `long_break_interval`, whatever the module's settings say.
 
 | Flag       | Description                                          |
 |------------|------------------------------------------------------|
-| `--start`  | Start a new work session (resets any current timer)  |
-| `--pause`  | Pause the running timer                              |
+| `--start`  | Start a new work session, replacing any current timer; the session count is kept |
+| `--pause`  | Pause the running timer (no effect when idle or paused) |
 | `--resume` | Resume a paused timer                                |
-| `--skip`   | Skip to the next segment (work -> break or break -> work) |
-| `--reset`  | Reset to idle, clearing all state                    |
+| `--skip`   | Skip to the next segment and start it running: work -> break (counting the session) or break -> work. No effect when idle |
+| `--reset`  | Reset to idle, clearing all state including the session count |
 
 ## Polling Model
 
@@ -59,7 +63,7 @@ The plugin is polling-based by design and intentionally does not implement the o
 
 ## Persistent State
 
-Timer state is stored at `$XDG_CACHE_HOME/kantan/pomodoro.json` (falls back to `~/.cache/kantan/pomodoro.json`). The state file tracks the current mode, start time, pause time, segment duration, and completed session count.
+Timer state is stored at `$XDG_CACHE_HOME/kantan/pomodoro.json` (falls back to `~/.cache/kantan/pomodoro.json`). The state file tracks the current mode, start time, pause time, segment duration, and completed session count. A `pomodoro.lock` file beside it serialises concurrent updates from polls and menu actions.
 
 ## Configuration
 
@@ -97,7 +101,7 @@ Settings are passed to the plugin via the `config.settings` block. All settings 
 
 | Setting               | Default        | Description                                                    |
 |-----------------------|----------------|----------------------------------------------------------------|
-| `format`              | `{remaining}`  | Format string for the bar display value (see template variables) |
+| `format`              | `{remaining}`  | Format string for the bar display value (see template variables). Only `{name}` substitution is supported; conditional sections and segment lists are not |
 | `work_duration`       | `25`           | Work session duration in minutes                               |
 | `short_break`         | `5`            | Short break duration in minutes                                |
 | `long_break`          | `15`           | Long break duration in minutes                                 |

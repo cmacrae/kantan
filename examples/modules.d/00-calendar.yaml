@@ -12,7 +12,8 @@ config:
     upcoming: 1d
     calendars:
       include:
-        - Kantan Testing
+        - Work
+        - Personal
 interaction:
   hover:
     type: tooltip

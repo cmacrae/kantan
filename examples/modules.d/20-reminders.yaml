@@ -12,7 +12,7 @@ config:
   watch: kantan-plugin-reminders --watch
   settings:
     lists:
-      - name: kantan testing
+      - name: Reminders
         icon: bell-filled
         lookahead: 10m
         overdue: true

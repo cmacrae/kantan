@@ -29,9 +29,9 @@ This plugin is bundled with kantan and requires no separate installation. It is 
 | `{next_color}`      | `#1BADF8`   | Hex colour of the next event's calendar                     |
 | `{next_calendar}`   | `Work`       | Calendar name of the next event                             |
 | `{today_count}`     | `5`          | Total number of events today (all-day + timed)              |
-| `{tomorrow_count}`  | `3`          | Total number of events tomorrow                             |
+| `{tomorrow_count}`  | `3`          | Total number of events tomorrow (all-day + timed)           |
 | `{has_allday}`      | `true` / ``  | Truthy when there are all-day events today                  |
-| `{has_tomorrow}`    | `true` / ``  | Truthy when there are events tomorrow                       |
+| `{has_tomorrow}`    | `true` / ``  | Truthy when there are events tomorrow (all-day or timed)    |
 | `{has_past}`        | `true` / ``  | Truthy when there are past (ended) events today             |
 | `{active}`          | `true` / ``  | Truthy when the next event is currently ongoing             |
 | `{upcoming}`        | `true` / ``  | Truthy when the next event has not started yet              |
@@ -79,7 +79,6 @@ Copy the example config into your kantan `modules.d/` directory:
 name: calendar
 type: command
 placement: right
-icon: "\uf073"
 style:
   light:
     fg: "#8caaee"
@@ -120,7 +119,7 @@ Settings are passed to the plugin via the `config.settings` block. All settings 
 | Setting     | Default                                          | Description                                                         |
 |-------------|--------------------------------------------------|---------------------------------------------------------------------|
 | `format`    | `{next_title}{?upcoming: in} {next_countdown}`   | Format string, or list of [coloured segments](#coloured-segments), for the bar display value (see template variables) |
-| `upcoming`  | —                                                | Time window for bar visibility (e.g. `30m`, `1h`, `2d`). When set, the module is hidden unless the next event starts within this window or is currently ongoing. When omitted, the module is shown whenever there is an upcoming event or today has all-day events |
+| `upcoming`  | —                                                | Time window for bar visibility, in minutes, hours or days (e.g. `30m`, `1h`, `2d`). When set, the module is hidden unless the next event starts within this window or is currently ongoing. When omitted, the module is shown whenever there is an upcoming event or today has all-day events |
 | `calendars` | —                                                | Calendar filter (see [Calendar Filtering](#calendar-filtering))     |
 | `icons`     | see below                                        | Icon overrides (see [Icon Settings](#icon-settings))                |
 
@@ -154,7 +153,7 @@ When omitted, all calendars are shown. If `include` is specified, only those cal
 
 | Setting        | Default                  | Description                              |
 |----------------|--------------------------|------------------------------------------|
-| `icons.icon`   | `calendar-event-filled`  | Icon name for the bar module             |
+| `icons.icon`   | `calendar-event-filled`  | Icon name for the bar module; it takes the place of the module's own `icon` |
 | `icons.action` | `calendar-event-filled`  | Icon name for the "Calendar" action      |
 
 Icon values are resolved by kantan's bundled icon font system (e.g. tabler-icons glyph names). Raw Unicode glyphs are also accepted.
@@ -204,7 +203,7 @@ The popup view displays a structured agenda:
 2. All-day events as coloured badges
 3. Past events with strikethrough styling and muted colours
 4. Active/upcoming events with calendar-coloured sidebar, title, time range, and countdown
-5. **Tomorrow** section (if events exist) with a divider, header, and event list
+5. **Tomorrow** section (if events exist) with a divider, header, and tomorrow's timed events
 6. **Calendar** action button at the bottom to open Apple Calendar
 
 ### Data Collections

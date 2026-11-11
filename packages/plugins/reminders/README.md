@@ -16,7 +16,7 @@ This plugin is bundled with kantan and requires no separate installation. It is 
 - **Undated reminders** — Optionally include reminders with no due date
 - **Completed retention** — Show recently completed reminders for a configurable duration
 - **Complete/Uncomplete** — Toggle reminder completion directly from the bar menu
-- **Format string** — Customise the bar display with template variables
+- **Format string** — Customise the bar display with template variables and conditional sections
 - **Auto-hide** — Module hides automatically when there are no incomplete reminders
 - **Dynamic bar icon** — Bar icon changes to match the displayed reminder's list icon
 - **Permissions** — Automatically requests Reminders access on first run
@@ -25,13 +25,20 @@ This plugin is bundled with kantan and requires no separate installation. It is 
 
 | Variable       | Example         | Description                                       |
 |----------------|-----------------|---------------------------------------------------|
-| `{title}`      | `Buy groceries` | Title of the next incomplete reminder (truncated) |
+| `{title}`      | `Buy groceries` | Title of the next incomplete reminder, truncated to its list's `maxChars` |
 | `{full_title}` | `Buy groceries` | Full title without truncation                     |
 | `{count}`      | `3`             | Number of incomplete reminders                    |
 | `{total}`      | `5`             | Total reminders (incomplete + recently completed) |
 | `{list}`       | `Shopping`      | Reminders list name of the displayed reminder     |
-| `{list_icon}`  | (icon)          | Icon configured for the displayed reminder's list |
+| `{list_icon}`  | (icon)          | Icon configured for the displayed reminder's list (unset when the list has none) |
 | `{due}`        | `in 5 min.`     | Relative due date of the displayed reminder       |
+
+The next incomplete reminder is the one due soonest across all configured lists; undated reminders come after dated ones.
+
+The format string supports conditional sections that appear only when a variable is truthy:
+
+- `{?var:text}` — Include `text` when `var` is non-empty
+- `{?!var:text}` — Include `text` when `var` is empty
 
 ## Configuration
 
@@ -41,7 +48,7 @@ Copy the example config into your kantan `modules.d/` directory:
 name: todo
 type: command
 placement: right
-icon: "\uf0ae"
+icon: list-check
 style:
   light:
     icon:
@@ -63,7 +70,7 @@ config:
     format: "{title}"
     lists:
       - name: Reminders
-        icon: "\uf0ae"
+        icon: list-check
         lookahead: 10m
         overdue: true
         undated: false
@@ -79,11 +86,11 @@ interaction:
 
 ### Plugin Settings
 
-Settings are passed to the plugin via the `config.settings` block. All settings are optional; the plugin uses sensible defaults when omitted.
+Settings are passed to the plugin via the `config.settings` block. At least one list is needed; with none, the module stays hidden. If any setting has the wrong type (for example a list entry without a `name`), the plugin ignores all settings and the module stays hidden.
 
 | Setting  | Default   | Description                                                            |
 |----------|-----------|------------------------------------------------------------------------|
-| `format` | `{title}` | Format string for the bar display value                                |
+| `format` | `{title}` | Format string for the bar display value. Unlike the calendar plugin, it must be a string; a list of segments is not supported |
 | `lists`  | `[]`      | Reminders lists to monitor (see [List Settings](#list-settings) below) |
 | `icons`  | —         | Icon overrides (see [Icon Settings](#icon-settings) below)             |
 
@@ -97,23 +104,23 @@ The optional `icons` block lets you override the icons used in the plugin's menu
 
 #### List Settings
 
-Each entry in the `lists` array configures a Reminders list to monitor:
+Each entry in the `lists` array configures a Reminders list to monitor, matched by its exact name:
 
 | Setting              | Default | Description                                              |
 |----------------------|---------|----------------------------------------------------------|
 | `name`               | —       | **Required.** Name of the Reminders list                 |
-| `icon`               | —       | Icon glyph to display when this list's reminder is shown |
-| `lookahead`          | `10m`   | Time window for upcoming reminders (e.g. `10m`, `1h`, `2d`) |
+| `icon`               | —       | Icon to show in place of the module's `icon` while this list's reminder is displayed (icon name or glyph) |
+| `lookahead`          | `10m`   | Show dated reminders due within this long from now (e.g. `10m`, `1h`, `2d`) |
 | `overdue`            | `true`  | Include reminders past their due date                    |
 | `undated`            | `false` | Include reminders with no due date                       |
-| `completedRetention` | `0`     | How long to show completed reminders (e.g. `30m`, `1h`, `2d`) |
-| `maxChars`           | `30`    | Maximum characters for reminder titles before truncation |
+| `completedRetention` | `0`     | How long to keep completed reminders in the menu (e.g. `30m`, `1h`, `2d`); `0` hides them |
+| `maxChars`           | `30`    | Maximum characters for reminder titles before truncation with `...`; `0` disables truncation |
 
 ### Module Options
 
 | Field                       | Value                             | Description                                                    |
 |-----------------------------|-----------------------------------|----------------------------------------------------------------|
-| `config.watch`              | `kantan-plugin-reminders --watch` | Background process that triggers refreshes on EventKit changes |
+| `config.watch`              | `kantan-plugin-reminders --watch` | Background process that prints updates on EventKit changes and each minute |
 | `interaction.hover.content` | —                                 | Template string for tooltip (see variables above)              |
 | `interaction.click`         | —                                 | `menu` type renders the plugin's view tree as a native menu    |
 
@@ -126,6 +133,17 @@ The dynamic menu adapts to the current state:
 - **No items** — Shows "No reminders" text
 
 Every menu view includes a persistent "Reminders" action at the bottom that launches Apple Reminders (using the `icons.action` icon).
+
+### Data Collections
+
+With more than one item to show, the plugin outputs two data collections per list for use with the `foreach` view DSL node, named after the list with spaces replaced by underscores (e.g. `incomplete_Work_Tasks` for the list `Work Tasks`):
+
+| Collection           | Fields                                    | Description                                 |
+|----------------------|-------------------------------------------|---------------------------------------------|
+| `incomplete_<list>`  | `title`, `complete_cmd`, `uncomplete_cmd` | The list's shown incomplete reminders       |
+| `completed_<list>`   | `title`, `complete_cmd`, `uncomplete_cmd` | The list's retained completed reminders     |
+
+`title` is truncated to the list's `maxChars`. `complete_cmd` and `uncomplete_cmd` run `--complete` or `--uncomplete` on the reminder, then refresh the module.
 
 ### Format Examples
 
@@ -147,9 +165,9 @@ format: "{count} in {list}"
 
 The plugin operates in three modes:
 
-- **Default mode** — Fetches reminders from EventKit and outputs JSON with the current state. Called by kantan on each refresh cycle.
+- **Default mode** — Fetches reminders from EventKit and outputs JSON with the current state. kantan runs it when the module starts and whenever it is refreshed with `kantan trigger <module> refresh`.
 - **Watch mode** (`--watch`) — Long-lived background process that keeps one EventKit store open and prints the module's output for kantan to show: once a burst of `EKEventStoreChanged` notifications settles, and at the start of every minute as reminders come due. It prints only when the output changes. Without lists or reminders access it prints hidden output and waits. Managed by kantan's watch process lifecycle.
-- **Complete/Uncomplete** (`--complete <id>` / `--uncomplete <id>`) — Toggles a reminder's completion state by its identifier. Used by menu check-items to provide inline complete/uncomplete actions, which then refresh the module by its name.
+- **Complete/Uncomplete** (`--complete <id>` / `--uncomplete <id>`) — Marks a reminder complete or incomplete by its identifier, exiting non-zero if the reminder isn't found or can't be saved. Used by the menu's check-items and "Complete" action, which then refresh the module by its name.
 
 ### Permissions
 

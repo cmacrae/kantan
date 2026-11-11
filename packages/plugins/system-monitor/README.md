@@ -16,7 +16,7 @@ This plugin is bundled with kantan and requires no separate installation. It is 
 - **Load average** — 1/5/15 minute load
 - **Uptime** — System uptime in human-readable format
 - **Top processes** — Top N CPU consumers
-- **Dynamic colors** — CPU and thermal color thresholds are fully configurable
+- **Dynamic colors** — Configurable colours per CPU threshold, applied to the module, and per thermal state, applied to the menu's Thermal row
 - **Activity Monitor** — Quick-launch from the menu
 
 ### Template Variables
@@ -26,9 +26,9 @@ This plugin is bundled with kantan and requires no separate installation. It is 
 | `{cpu}`            | ` 45%`           | Overall CPU usage (space-padded to 3 digits) |
 | `{cpu_pct}`        | `0.45`           | CPU usage normalised to 0.00–1.00            |
 | `{mem}`            | `12.3/32 GB`     | Memory used/total                            |
-| `{mem_pct}`        | `38%`            | Memory pressure percentage                   |
-| `{mem_pct_norm}`   | `0.38`           | Memory pressure normalised to 0.00–1.00      |
-| `{mem_used}`       | `12.3 GB`        | Memory used                                  |
+| `{mem_pct}`        | `38%`            | Memory used as a percentage of total         |
+| `{mem_pct_norm}`   | `0.38`           | Memory used normalised to 0.00–1.00          |
+| `{mem_used}`       | `12.3 GB`        | Memory used (active + wired + compressed)    |
 | `{mem_total}`      | `32 GB`          | Total physical memory                        |
 | `{mem_wired}`      | `3.2 GB`         | Wired (non-pageable) memory                  |
 | `{mem_active}`     | `6.1 GB`         | Active memory                                |
@@ -39,12 +39,12 @@ This plugin is bundled with kantan and requires no separate installation. It is 
 | `{disk_pct_norm}`  | `0.50`           | Disk usage normalised to 0.00–1.00           |
 | `{disk_used}`      | `250 GB`         | Disk space used                              |
 | `{disk_total}`     | `500 GB`         | Total disk capacity                          |
-| `{disk_free}`      | `250 GB`         | Free disk space                              |
+| `{disk_free}`      | `250 GB`         | Disk space available for important use       |
 | `{thermal}`        | `Nominal`        | Thermal state name                           |
 | `{thermal_icon}`   | (icon)           | Thermometer icon matching severity           |
 | `{thermal_color}`  | `#30d158`        | Color matching thermal severity (only present when thermal colors are configured) |
 | `{show_cores}`     | `true`           | Truthy when `show_cores` is enabled          |
-| `{show_processes}` | `true`           | Truthy when top processes are available       |
+| `{show_processes}` | `true`           | Truthy when top processes are available (`process_count` above 0) |
 | `{uptime}`         | `3d 12h`         | System uptime                                |
 | `{load}`           | `2.45 1.80 1.50` | Load average (1/5/15m)                       |
 | `{load_1m}`        | `2.45`           | 1-minute load average                        |
@@ -59,7 +59,7 @@ Copy the example config into your kantan `modules.d/` directory:
 name: system-monitor
 type: command
 placement: right
-icon: "\uf2db"
+icon: activity
 style:
   light:
     fg: "#a6d189"
@@ -105,6 +105,8 @@ Settings are passed to the plugin via the `config.settings` block. All settings 
 
 Colors are defined under `style.light` and `style.dark` to match the system appearance, following kantan's convention.
 Alternatively, colors can be specified flat (without `light`/`dark` nesting) to use the same values for both modes.
+Colour values can be hex or `{theme(name)}` templates.
+The CPU colour for the current usage is applied to the module as a style override, to the part `color_target` names; thermal colours colour the Thermal row in the menu and set `{thermal_color}`.
 When a color is not configured, it is omitted from the output and kantan inherits its own default styling.
 This is respected per-setting, so if you only want to set colours for specific threshold conditions, you only need to set those.
 
@@ -126,8 +128,8 @@ This is respected per-setting, so if you only want to set colours for specific t
 | `style.dark.thermal_fair`      | —           | Thermal color for fair (dark mode)          |
 | `style.dark.thermal_serious`   | —           | Thermal color for serious (dark mode)       |
 | `style.dark.thermal_critical`  | —           | Thermal color for critical (dark mode)      |
-| `format`                       | `CPU {cpu}` | Format string for the bar display value     |
-| `color_target`                 | `both`      | What to colorise: `icon`, `text`, or `both` |
+| `format`                       | `CPU {cpu}` | Format string for the bar display value, with `{?var:text}` / `{?!var:text}` conditional sections. A list of segments is not supported |
+| `color_target`                 | `both`      | Where the CPU colour applies: `icon`, `text`, or `both` |
 | `process_count`                | `5`         | Number of top processes to show             |
 | `show_cores`                   | `false`     | Show per-core CPU usage in the menu         |
 
@@ -154,7 +156,7 @@ Icons for each menu section can be customised via the `icons` block. Values are 
 |-----------------------------|---------|--------------------------------------------------------------------------|
 | `config.interval`           | `1`     | Polling interval in seconds (the example uses `3` for a good balance)    |
 | `interaction.hover.content` | —       | Template string for tooltip (see variables above)                        |
-| `interaction.click`         | —       | `menu` for native menu with live stats, or `popup` for custom layout |
+| `interaction.click`         | —       | `menu` shows the view as a native menu, `popup` as a panel; either uses the built-in view unless a `view` is given |
 
 ### Data Collections
 
@@ -162,14 +164,14 @@ The plugin outputs these data collections for use with the `foreach` view DSL no
 
 | Collection  | Fields                       | Description            |
 |-------------|------------------------------|------------------------|
-| `cores`     | `core`, `usage`, `usage_pct` | Per-core CPU usage     |
-| `processes` | `name`, `cpu_pct`            | Top CPU consumers      |
+| `cores`     | `core`, `usage`, `usage_pct` | Per-core CPU usage, numbered from 0 (only when `show_cores` is enabled) |
+| `processes` | `name`, `cpu_pct`            | Top CPU consumers; `cpu_pct` is a percentage such as `12.3%` |
 
 ### Built-in View
 
 The plugin outputs a complete view tree via the `view` field in its JSON output. This includes an overview section (CPU, memory, disk, thermal, uptime, load), conditional per-core CPU breakdown (when `show_cores` is enabled), conditional top processes list, and an Activity Monitor launch action. The built-in view uses the configured icon overrides and thermal colors automatically.
 
-To use the built-in view, set the click interaction to `popup`:
+The example config shows it as a native menu with `click: {type: menu}`. To show it in a panel instead, set the click interaction to `popup`:
 
 ```yaml
 interaction:

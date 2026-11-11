@@ -15,7 +15,7 @@ This plugin is bundled with kantan and requires no separate installation. It is 
 
 ## How It Works
 
-The plugin reads the Tailscale [LocalAPI](https://tailscale.com/kb/1080/cli) status on each poll and reduces it to a binary connected/disconnected state, using the first installed backend that answers:
+The plugin reads the Tailscale [LocalAPI](https://tailscale.com/kb/1080/cli) status on each poll (giving up after 5 seconds) and reduces it to a binary connected/disconnected state, using the first installed backend that answers:
 
 1. **`tailscaled` Unix socket** at `/var/run/tailscaled.socket` — used when you run the open-source `tailscaled` daemon (e.g. installed via Homebrew).
 2. **Tailscale.app's bundled CLI** (`Tailscale.app/Contents/MacOS/Tailscale status --json` in `/Applications` or `~/Applications`) — used for the Mac App Store and direct-download Tailscale apps. The app keeps its LocalAPI credentials in its own container, which macOS lets only Tailscale's signed binaries read. The plugin asks the app's CLI rather than reading them itself. This needs no permissions and raises no "would like to access data from other apps" prompt.
@@ -29,8 +29,8 @@ The machine is considered **connected** only when the daemon reports `BackendSta
 | Variable    | Example          | Description                                                                     |
 |-------------|------------------|---------------------------------------------------------------------------------|
 | `{status}`  | `connected`      | Raw state string: `connected` or `disconnected`                                 |
-| `{tailnet}` | `example.ts.net` | Active tailnet name (empty when disconnected)                                   |
-| `{tooltip}` | `example.ts.net` | Convenience tooltip (the tailnet name when connected, otherwise `Disconnected`) |
+| `{tailnet}` | `example.ts.net` | Active tailnet name, or the MagicDNS suffix when the tailnet has no name (empty when disconnected) |
+| `{tooltip}` | `example.ts.net` | Convenience tooltip: the tailnet name when connected (`Connected` if it has none), otherwise `Disconnected` |
 
 ## Configuration
 
@@ -62,12 +62,12 @@ interaction:
 | Setting              | Default     | Description                                                                                               |
 |----------------------|-------------|-----------------------------------------------------------------------------------------------------------|
 | `dimming`            | `true`      | Set `active: false` on the module output when disconnected, so kantan applies the inactive (dimmed) style |
-| `icons.connected`    | `world`     | Icon shown when connected to the tailnet                                                                  |
+| `icons.connected`    | `world`     | Icon shown when connected to the tailnet; an empty value uses the default                                 |
 | `icons.disconnected` | `world-off` | Icon shown when disconnected                                                                              |
 
 ### Module Options
 
-| Field                       | Default | Description                                                                 |
+| Field                       | Value   | Description                                                                 |
 |-----------------------------|---------|-----------------------------------------------------------------------------|
 | `config.interval`           | `5`     | Polling interval in seconds (5s is plenty — tailnet state changes are rare) |
 | `interaction.hover.content` | --      | Template string for the tooltip; use `{tooltip}` for the built-in label     |
