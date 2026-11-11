@@ -100,6 +100,19 @@ class DrawerClickView: NSView {
   }
 }
 
+// MARK: - Trigger Fields
+
+/// The `key=value` arguments of `kantan trigger`, keeping empty values such
+/// as `value=`, which clear what they name. Arguments without `=` are ignored.
+func parseTriggerFields(_ args: some Sequence<String>) -> [String: String] {
+  args.reduce(into: [:]) { fields, arg in
+    let parts = arg.split(separator: "=", maxSplits: 1, omittingEmptySubsequences: false)
+    if parts.count == 2, !parts[0].isEmpty {
+      fields[String(parts[0])] = String(parts[1])
+    }
+  }
+}
+
 // MARK: - Display Instance
 
 @MainActor
@@ -1603,12 +1616,7 @@ struct Kantan {
         "action": action,
       ]
 
-      for arg in positionalArgs.dropFirst(4) {
-        let parts = arg.split(separator: "=", maxSplits: 1)
-        if parts.count == 2 {
-          userInfo[String(parts[0])] = String(parts[1])
-        }
-      }
+      userInfo.merge(parseTriggerFields(positionalArgs.dropFirst(4))) { _, field in field }
 
       DistributedNotificationCenter.default().postNotificationName(
         NSNotification.Name("com.kantan.event"),

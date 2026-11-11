@@ -161,6 +161,14 @@ final class DSLColorFromHexTests: XCTestCase {
   }
 }
 
+final class TriggerFieldsTests: XCTestCase {
+  func testFieldsKeepEmptyValuesAndEverythingAfterTheFirstEquals() {
+    XCTAssertEqual(
+      parseTriggerFields(["value=", "icon=bell", "fg=#FF0000", "cmd=a=b", "loose", "=x"]),
+      ["value": "", "icon": "bell", "fg": "#FF0000", "cmd": "a=b"])
+  }
+}
+
 final class TemplateResolverTests: XCTestCase {
   func testScopeStackOverridesVariables() {
     let r = TemplateResolver(variables: ["v": "outer"], data: [:])
