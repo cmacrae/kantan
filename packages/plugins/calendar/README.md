@@ -163,7 +163,7 @@ Icon values are resolved by kantan's bundled icon font system (e.g. tabler-icons
 
 | Field                       | Value                            | Description                                                    |
 |-----------------------------|----------------------------------|----------------------------------------------------------------|
-| `config.watch`              | `kantan-plugin-calendar --watch` | Background process that triggers refreshes on EventKit changes |
+| `config.watch`              | `kantan-plugin-calendar --watch` | Background process that prints updates on EventKit changes and each minute |
 | `interaction.hover`         | —                                | Supports `tooltip` with a `view` subtree or flat `content` string |
 | `interaction.click`         | —                                | `menu` type to display the plugin's view tree popup            |
 
