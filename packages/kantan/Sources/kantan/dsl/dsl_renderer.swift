@@ -884,30 +884,42 @@ private struct DSLToggleView: View {
   let resolver: TemplateResolver
   let isNative: Bool
   let dismissHandler: () -> Void
-  @State private var isOn: Bool = false
+  @State private var isOn: Bool
   @Environment(\.defaultTextColor) private var defaultTextColor
 
-  var body: some View {
-    let resolvedLabel = resolver.resolve(label ?? "")
+  init(
+    label: String?, on: String?, command: String?, resolver: TemplateResolver,
+    isNative: Bool, dismissHandler: @escaping () -> Void
+  ) {
+    self.label = label
+    self.on = on
+    self.command = command
+    self.resolver = resolver
+    self.isNative = isNative
+    self.dismissHandler = dismissHandler
+    _isOn = State(initialValue: on.map { resolver.resolveBool($0) } ?? false)
+  }
 
-    Toggle(resolvedLabel, isOn: $isOn)
+  /// The switch's state, running the command only when it's flipped.
+  private var switchState: Binding<Bool> {
+    Binding(
+      get: { isOn },
+      set: { newValue in
+        isOn = newValue
+        dismissHandler()
+        guard let command, !command.isEmpty else { return }
+        runCommand(resolver.resolve(command), environment: resolver.commandEnvironment)
+      })
+  }
+
+  var body: some View {
+    Toggle(resolver.resolve(label ?? ""), isOn: switchState)
       .toggleStyle(.switch)
       .controlSize(.small)
       .tint(.accentColor)
       .foregroundStyle(defaultTextColor)
       .padding(.horizontal, 14)
       .frame(height: 26)
-      .onAppear {
-        if let onStr = on {
-          isOn = resolver.resolveBool(onStr)
-        }
-      }
-      .onChange(of: isOn) { _, _ in
-        dismissHandler()
-        guard let command = command, !command.isEmpty else { return }
-        let resolved = resolver.resolve(command)
-        runCommand(resolved, environment: resolver.commandEnvironment)
-      }
   }
 }
 

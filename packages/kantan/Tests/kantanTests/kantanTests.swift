@@ -2071,6 +2071,34 @@ final class LineBufferTests: XCTestCase {
 }
 
 @MainActor
+final class DSLToggleTests: XCTestCase {
+  /// Shows `json` in a window and returns whether its command touched a file.
+  private func ranCommandOnShow(_ on: String) throws -> Bool {
+    let file = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+    defer { try? FileManager.default.removeItem(at: file) }
+    let json = #"{"type":"toggle","label":"Focus","on":"\#(on)","command":"touch '\#(file.path)'"}"#
+    let node = try JSONDecoder().decode(ViewNode.self, from: Data(json.utf8))
+    var dismissed = false
+    let view = DSLRendererView(
+      node: node, resolver: TemplateResolver(variables: [:], data: [:]), isNative: false,
+      dismissHandler: { dismissed = true }, depth: 0)
+    let window = NSWindow(
+      contentRect: NSRect(x: 0, y: 0, width: 200, height: 40), styleMask: [.borderless],
+      backing: .buffered, defer: false)
+    window.contentView = NSHostingView(rootView: view)
+    window.orderFront(nil)
+    defer { window.orderOut(nil) }
+    RunLoop.main.run(until: Date().addingTimeInterval(0.5))
+    return dismissed || FileManager.default.fileExists(atPath: file.path)
+  }
+
+  func testAToggleThatStartsOnDoesNotRunItsCommandWhenShown() throws {
+    XCTAssertFalse(try ranCommandOnShow("true"))
+    XCTAssertFalse(try ranCommandOnShow("false"))
+  }
+}
+
+@MainActor
 final class ViewCommandEnvironmentTests: XCTestCase {
   func testAModulesViewsRunCommandsWithItsSettings() throws {
     let yaml = try Yaml.load(
