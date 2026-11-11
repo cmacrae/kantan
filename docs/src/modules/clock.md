@@ -9,7 +9,9 @@ Displays the current date and time using a configurable format string.
 | Key | Type | Default | Description |
 |-----|------|---------|-------------|
 | `format` | string | *(required)* | Date format string (DateFormatter syntax) |
-| `timezone` | string | system default | IANA timezone identifier (e.g. `"America/New_York"`) |
+| `timezone` | string | system default | IANA timezone identifier (e.g. `"America/New_York"`). An unrecognised identifier uses the system timezone |
+
+The clock redraws every second.
 
 ## Format String
 

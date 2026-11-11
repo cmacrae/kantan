@@ -11,12 +11,16 @@ Icon-only Bluetooth status indicator. Shows whether Bluetooth is powered on or o
 | `icon` | string | `"bluetooth"` | Icon when Bluetooth is on |
 | `disabledIcon` | string | `"bluetooth-off"` | Icon when Bluetooth is off |
 
+These go under `config`. The module-level `icon` field has no effect on this module.
+
 ## Behavior
 
 The Bluetooth module is event-driven and updates automatically when:
 
 - A Bluetooth device connects or disconnects
 - Bluetooth power state changes (on/off)
+
+Reading Bluetooth state needs kantan's Bluetooth permission. macOS asks for it the first time the module starts. Until it is answered, the module shows `icon` dimmed.
 
 The module uses an inactive (dimmed) state to indicate status:
 

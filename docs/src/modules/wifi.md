@@ -8,9 +8,11 @@ Icon-only WiFi connection status indicator. Uses CoreWLAN with event-driven upda
 
 | Key | Type | Default | Description |
 |-----|------|---------|-------------|
-| `icons.strength` | array | `["wifi-1", "wifi-2", "wifi"]` | Icons for signal strength levels (weak to strong) |
+| `icons.strength` | array | `["wifi-1", "wifi-2", "wifi"]` | Icons for signal strength levels (weak to strong). Must not be empty |
 | `icons.disconnected` | string | `"wifi-off"` | Icon when disconnected |
 | `icons.ssid` | object | -- | SSID-specific icon overrides |
+
+Signal strength maps RSSI from -90 dBm (weakest) to -30 dBm (strongest), split evenly across the `icons.strength` entries. The module shows `disconnected` while WiFi is off or not associated with a network.
 
 ### SSID Icons
 
@@ -27,7 +29,7 @@ icons:
 
 ### Background Icon
 
-When connected, the WiFi module renders a dimmed "full strength" icon behind the current signal-strength icon, providing a visual reference for signal quality. This background icon is automatically hidden when an SSID-specific icon override is active or when signal is at full strength.
+When connected, the WiFi module renders a dimmed copy of the last `icons.strength` icon behind the current signal-strength icon, providing a visual reference for signal quality. This background icon is automatically hidden when an SSID-specific icon override is active or when signal is at full strength.
 
 ## Behavior
 
@@ -77,7 +79,7 @@ With SSID-specific icons:
         - wifi-2
         - wifi
       ssid:
-        "Home Network": home-wifi
+        "Home Network": home-signal
         iPhone: circles-relation
 ```
 

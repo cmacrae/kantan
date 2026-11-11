@@ -13,10 +13,10 @@ Displays window manager workspace indicators. Supports native macOS spaces and t
 | `overflow.enabled` | bool | `false` | Enable overflow mode to limit visible workspaces |
 | `overflow.max` | int | `5` | Maximum visible workspaces before overflow kicks in |
 | `overflow.icon` | bool/string/object | `true` | Overflow indicator icons (see below) |
-| `overflow.style` | object | -- | Style overrides for overflow indicators |
+| `overflow.style` | object | -- | Style for overflow indicators; only `fg` (a hex colour) is used |
 | `rainbow.enabled` | bool | `false` | Enable rainbow colouring for workspace indicators |
 | `rainbow.random` | bool | `true` | Randomise colour order (deterministic, no adjacent repeats) |
-| `rainbow.colors` | array | -- | Colour palette for rainbow mode |
+| `rainbow.colors` | array | -- | Colour palette for rainbow mode (hex or `{theme(name)}`) |
 | `scrolling.enabled` | bool | `false` | Show the windows of a Rift scrolling layout instead of the workspaces (see [Scrolling](#scrolling)) |
 | `scrolling.icon` | string | `"rectangle-vertical-filled"` | Icon for each window |
 | `scrolling.icons` | object | -- | App → icon overrides |
@@ -27,6 +27,8 @@ Displays window manager workspace indicators. Supports native macOS spaces and t
 ### Icons
 
 The `icons` array maps workspace indices (0-based) to icon names. Workspaces beyond the array length fall back to the module-level `icon` field (if set), or the workspace label (number/name).
+
+Indices follow the provider's order: Rift's workspace order, AeroSpace's workspaces sorted with numeric names first, or, for native spaces, every space across all displays in turn. Native full-screen spaces aren't shown but still take an index. Labels and `icons` entries skip them.
 
 ```yaml
 icon: point-filled        # Fallback for workspaces beyond the icons list
@@ -39,7 +41,7 @@ config:
 
 ### Overflow
 
-When there are many workspaces, overflow mode limits how many are shown and adds directional indicators:
+When there are more workspaces than `max`, overflow mode splits them into pages of `max` and shows the page holding the active workspace, with directional indicators where workspaces are hidden before or after it:
 
 ```yaml
 config:
@@ -58,6 +60,8 @@ The `icon` field accepts:
 - A string - use the same icon/text for both directions
 - An object with `left` and `right` keys
 
+Indicators accept icon names or literal text. They're drawn in the inactive colour unless `overflow.style.fg` sets one.
+
 ### Rainbow
 
 Rainbow mode assigns colours from a palette to each workspace indicator:
@@ -75,7 +79,7 @@ config:
       - "#0000FF"
 ```
 
-When `random` is true (default), colours are shuffled deterministically based on the workspace count, ensuring no two adjacent workspaces share the same colour.
+Rainbow mode needs both `enabled: true` and a non-empty `colors` list. When `random` is true (default), colours are shuffled deterministically based on the workspace count. No two adjacent workspaces share the same colour. With `random: false`, workspaces take the colours in order, cycling through the list. Inactive workspaces show their colour dimmed. With the native appearance, rainbow colours aren't applied.
 
 ### Scrolling
 
@@ -111,15 +115,15 @@ Scrolling over the module steps to the next or previous segment, stopping at eit
 
 kantan switches through the provider's CLI (`rift-cli execute workspace switch` and `rift-cli execute window focus`, or `aerospace workspace`). The module updates when the provider reports the change, the same as for a switch made any other way.
 
-Native macOS spaces can't be switched from the bar, as macOS has no public interface for it. A module with its own `interaction.click` keeps that click, and its segments don't switch.
+Native macOS spaces can't be switched from the bar. macOS has no public interface for switching them. A module with its own `interaction.click` keeps that click. Neither clicking its segments nor scrolling over it switches.
 
 ## Behavior
 
 The workspace module does not poll. Updates are driven by:
 
 - **Native**: `NSWorkspace.activeSpaceDidChangeNotification` (via EventObserver)
-- **Aerospace**: CLI triggers (`kantan trigger`)
-- **Rift**: `workspace_changed` events from a `rift-cli subscribe mach` process kantan keeps running, so Rift needs no configuration. If Rift restarts, kantan reconnects and resynchronises automatically
+- **Aerospace**: CLI triggers, run from AeroSpace's `exec-on-workspace-change` (see [Aerospace](#aerospace))
+- **Rift**: `workspace_changed` events from a `rift-cli subscribe mach` process kantan keeps running. Rift needs no configuration. If Rift restarts or the subscription exits, kantan relaunches the process, waiting 1s doubling to 16s between failed attempts. It resynchronises once the process is back
 
 The active workspace is highlighted. Inactive workspaces are dimmed. Changes animate. Segments fade as they come and go. The modules beside the workspace module move with it as it changes width. With *Reduce motion* on (*System Settings → Accessibility → Display*), changes are shown at once.
 
@@ -127,11 +131,17 @@ The active workspace is highlighted. Inactive workspaces are dimmed. Changes ani
 
 kantan runs the `aerospace` CLI that shipped with the running AeroSpace.app: the one in the `bin` directory beside the app (release archive and Nix package layouts), then Homebrew's (`/opt/homebrew/bin` or `/usr/local/bin`), falling back to `aerospace` on kantan's `PATH`. No workspaces are shown while AeroSpace isn't running.
 
+AeroSpace doesn't report workspace changes on its own. Have it refresh the module, by its `name`, from `aerospace.toml`:
+
+```toml
+exec-on-workspace-change = ['/bin/sh', '-c', 'kantan trigger workspaces refresh']
+```
+
 ### Rift
 
 kantan shows the virtual workspaces of the active display's macOS space, in Rift's workspace order, labelled with their `workspace_names` unless `icons` or a module `icon` is set. It runs the `rift-cli` installed beside the running `rift`. Nothing needs adding to kantan's `PATH`. The CLI always matches the running Rift, including after an upgrade restarts Rift from a new location. No workspaces are shown while Rift isn't running.
 
-With `scrolling.enabled`, kantan subscribes to all of Rift's events instead of `workspace_changed` alone, as opening, closing, focusing and moving windows all change the scroll. Window title and stack changes are ignored, as are layout changes outside a scrolling layout, and a burst of events, such as scrolling the strip by gesture, refreshes the module once.
+With `scrolling.enabled`, kantan subscribes to all of Rift's events instead of `workspace_changed` alone. Opening, closing, focusing and moving windows all change the scroll. Only workspace, window and focus changes, and layout and selection changes within a scrolling layout, refresh the module. Others, such as window title and stack changes, are ignored. Events are batched, refreshing the module at most once every 50 ms. A burst such as scrolling the strip by gesture doesn't refresh it for every frame.
 
 ## Examples
 

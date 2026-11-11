@@ -20,11 +20,12 @@ kantan includes a variety of built-in modules for displaying system information 
 
 ## Common Configuration
 
-All modules share common configuration fields documented in the Configuration section:
+All modules share common configuration fields documented in the Configuration section. `name`, `type` and `placement` are required. A module missing any of them, or whose `config` is invalid, is skipped.
 
-- `name` - Module identifier
+- `name` - Module identifier, used by `kantan trigger <name> ...`
 - `type` - Module type (from the table above)
 - `placement` - Position on the bar (`left`, `right`, `notchleft`, `notchright`). Supports or-wise specs like `"right|notchright"` for screens with/without a notch
+- `config` - Type-specific options, documented on each module's page
 - `icon` - Icon to display
 - `style` - Visual styling overrides
 - `interaction` - Click/hover behavior

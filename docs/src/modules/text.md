@@ -8,11 +8,13 @@ Displays static text content. Useful for labels, separators, or custom status me
 
 | Key | Type | Default | Description |
 |-----|------|---------|-------------|
-| `value` | string | *(required)* | The text to display |
+| `value` | string | *(required)* | The text to display. Quote values YAML would otherwise read as a number or boolean (e.g. `"42"`), or the module is skipped |
 
 ## Behavior
 
 The text module displays a static text value. It does not update or poll any system state.
+
+`kantan trigger <name> set value=...` replaces the text until the module next refreshes, such as on a space change or wake. Add `duration=<seconds>` to hold it for that long instead.
 
 ## Examples
 

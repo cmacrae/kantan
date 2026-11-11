@@ -8,13 +8,13 @@ Icon-only system audio volume indicator. Uses CoreAudio with real-time callbacks
 
 | Key | Type | Default | Description |
 |-----|------|---------|-------------|
-| `icons.level` | array | `["volume-4", "volume-2", "volume"]` | Icons for volume levels (low to high) |
+| `icons.level` | array | `["volume-4", "volume-2", "volume"]` | Icons for volume levels (low to high), split evenly across 0–100%. Must not be empty |
 | `icons.muted` | string | `"volume-off"` | Icon when muted |
 | `icons.device` | object | see below | Device-specific icon overrides |
 
 ### Device Icons
 
-The `icons.device` field maps audio device name substrings (case-insensitive) to icon names. When the current output device name contains a matching key, that icon is used instead of the level-based icons.
+The `icons.device` field maps audio device name substrings (case-insensitive) to icon names. When the current output device name contains a matching key, that icon is used instead of the level-based icons. The `muted` icon takes precedence over device icons.
 
 Default device icons:
 
@@ -25,7 +25,7 @@ icons:
     Headphones: headphones
 ```
 
-Set `device: {}` to disable device-specific icons entirely.
+Setting `icons.device` replaces these defaults rather than adding to them. Set `device: {}` to disable device-specific icons entirely.
 
 ## Behavior
 

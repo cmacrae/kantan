@@ -23,9 +23,13 @@ Which modules become drawer contents depends on the placement side:
 - **Right / notchleft placement**: Modules that appear **before** the drawer in the configuration (within the same placement group) become the drawer's contents.
 - **Left / notchright placement**: Modules that appear **after** the drawer in the configuration (within the same placement group) become the drawer's contents.
 
+Drawer contents start hidden. Clicking the drawer toggles them. So does clicking an empty part of the bar on the drawer's half of the screen. A drawer gets this click automatically unless it sets its own `interaction.click.type`.
+
+The bar has at most one drawer per side: `left` and `notchleft` placements share the left drawer, and `right` and `notchright` the right one. When a side has several, the first in the configuration is the one that toggles.
+
 ### Notch Placement Interaction
 
-Drawers on `notchleft` or `notchright` placement will automatically hide notch-placed modules if an open drawer would occlude them. This prevents visual overlap in the notch area.
+When an open drawer's contents would overlap `notchleft` or `notchright` modules, those modules are hidden while it is open. This prevents visual overlap in the notch area.
 
 ## Module Ordering
 

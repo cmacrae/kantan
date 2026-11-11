@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://github.com/cmacrae/kantan/docs/schemas/module-config.schema.json",
   "title": "Kantan Module Configuration",
-  "description": "JSON schema for a kantan module YAML configuration entry. Each module is defined either inline in config.yaml under 'modules:' or as a standalone file in modules.d/. This schema describes the structure of a single module definition.\n\nEnvironment variables available to command-type plugins:\n  - KANTAN_SETTINGS: JSON string of the module's 'settings:' block (plugin-defined structure)\n  - KANTAN_APPEARANCE: \"dark\" or \"light\" (current system appearance)\n  - KANTAN_PID: Kantan's process ID (for IPC via 'kantan trigger')\n  - KANTAN_MODULE_NAME: The module's 'name' field from config (only available to 'watch' processes)",
+  "description": "JSON schema for a kantan module YAML configuration entry. Each module is defined either inline in config.yaml under 'modules:' or as a standalone file in modules.d/. This schema describes the structure of a single module definition.\n\nEnvironment variables available to command-type plugins:\n  - KANTAN_SETTINGS: JSON string of the module's 'settings:' block (plugin-defined structure)\n  - KANTAN_APPEARANCE: \"dark\" or \"light\" (current system appearance)\n  - KANTAN_PID: Kantan's process ID (e.g. to tie child processes to kantan's lifetime)\n  - KANTAN_MODULE_NAME: The module's 'name' field from config\nAll four are given to the 'command', 'watch' and 'toggle' commands; KANTAN_SETTINGS is unset when there are no settings.",
   "type": "object",
   "required": ["name", "type", "placement"],
   "additionalProperties": false,
@@ -59,28 +59,38 @@
       ]
     },
     "config": {
-      "description": "Module-type-specific configuration. The structure depends on the 'type' field. For 'command' type (used by plugins), see the CommandConfig definition.",
-      "oneOf": [
-        { "$ref": "#/$defs/CommandConfig" },
-        { "$ref": "#/$defs/ClockConfig" },
-        { "$ref": "#/$defs/PowerConfig" },
-        { "$ref": "#/$defs/VolumeConfig" },
-        { "$ref": "#/$defs/WiFiConfig" },
-        { "$ref": "#/$defs/BluetoothConfig" },
-        { "$ref": "#/$defs/WorkspaceConfig" },
-        { "$ref": "#/$defs/DrawerConfig" },
-        { "$ref": "#/$defs/TextConfig" },
-        { "$ref": "#/$defs/IconConfig" },
-        { "$ref": "#/$defs/FocusConfig" }
-      ]
+      "description": "Module-type-specific configuration. The structure depends on the 'type' field. Required for 'text', 'clock' and 'command'; optional for the rest, whose fields all have defaults.",
+      "type": "object"
     }
   },
+  "allOf": [
+    { "if": { "properties": { "type": { "const": "command" } } }, "then": { "required": ["config"], "properties": { "config": { "$ref": "#/$defs/CommandConfig" } } } },
+    { "if": { "properties": { "type": { "const": "clock" } } }, "then": { "required": ["config"], "properties": { "config": { "$ref": "#/$defs/ClockConfig" } } } },
+    { "if": { "properties": { "type": { "const": "text" } } }, "then": { "required": ["config"], "properties": { "config": { "$ref": "#/$defs/TextConfig" } } } },
+    { "if": { "properties": { "type": { "const": "power" } } }, "then": { "properties": { "config": { "$ref": "#/$defs/PowerConfig" } } } },
+    { "if": { "properties": { "type": { "const": "volume" } } }, "then": { "properties": { "config": { "$ref": "#/$defs/VolumeConfig" } } } },
+    { "if": { "properties": { "type": { "const": "wifi" } } }, "then": { "properties": { "config": { "$ref": "#/$defs/WiFiConfig" } } } },
+    { "if": { "properties": { "type": { "const": "bluetooth" } } }, "then": { "properties": { "config": { "$ref": "#/$defs/BluetoothConfig" } } } },
+    { "if": { "properties": { "type": { "const": "workspace" } } }, "then": { "properties": { "config": { "$ref": "#/$defs/WorkspaceConfig" } } } },
+    { "if": { "properties": { "type": { "const": "drawer" } } }, "then": { "properties": { "config": { "$ref": "#/$defs/DrawerConfig" } } } },
+    { "if": { "properties": { "type": { "const": "icon" } } }, "then": { "properties": { "config": { "$ref": "#/$defs/IconConfig" } } } },
+    { "if": { "properties": { "type": { "const": "focus" } } }, "then": { "properties": { "config": { "$ref": "#/$defs/FocusConfig" } } } }
+  ],
   "$defs": {
     "PlacementSpec": {
       "type": "string",
       "description": "Placement specification. Single values position the module on a specific side. Or-wise syntax (e.g. \"right|notchright\") selects placement based on whether the display has a notch.\n\nOn a notched display, the four placements correspond to:\n  |← left →|← notchleft|[NOTCH]|notchright →|← right →|\n\nBehavior per placement:\n  - left: left side, grows rightward. Always visible.\n  - right: right side, grows leftward. Always visible.\n  - notchleft: adjacent to notch in left ear, grows leftward. Hidden on non-notch displays.\n  - notchright: adjacent to notch in right ear, grows rightward. Hidden on non-notch displays.\n  - right|notchright: notchright on notched displays, right on others.\n  - left|notchleft: notchleft on notched displays, left on others.",
       "pattern": "^(left|right|notchleft|notchright)(\\|(left|right|notchleft|notchright))?$",
       "examples": ["left", "right", "notchleft", "notchright", "right|notchright", "left|notchleft"]
+    },
+
+    "Color": {
+      "type": "string",
+      "description": "A hex colour (e.g. \"#FF3B30\" or \"FF3B30\") or a theme template (e.g. \"{theme(red)}\"), resolved against the active theme palette for the current appearance.",
+      "anyOf": [
+        { "pattern": "^#?[0-9a-fA-F]{6}$" },
+        { "pattern": "^\\{theme\\([^)]+\\)\\}$" }
+      ]
     },
 
     "StyleConfig": {
@@ -104,30 +114,28 @@
     "StyleModeConfig": {
       "type": "object",
       "additionalProperties": false,
-      "description": "Per-appearance-mode style. Colors are hex strings (e.g. \"#FF3B30\" or \"FF3B30\").",
+      "description": "Per-appearance-mode style. Colours are hex strings or theme templates (see Color).",
       "properties": {
         "fg": {
-          "type": "string",
-          "pattern": "^#?[0-9a-fA-F]{6}$",
+          "$ref": "#/$defs/Color",
           "description": "Foreground color — applies to both icon and text unless overridden by 'text' or 'icon'."
         },
         "bg": {
-          "type": "string",
-          "pattern": "^#?[0-9a-fA-F]{6}$",
+          "$ref": "#/$defs/Color",
           "description": "Background color for the module's shape."
         },
         "text": {
           "type": "object",
           "additionalProperties": false,
           "properties": {
-            "fg": { "type": "string", "pattern": "^#?[0-9a-fA-F]{6}$", "description": "Text-specific foreground color." }
+            "fg": { "$ref": "#/$defs/Color", "description": "Text-specific foreground color." }
           }
         },
         "icon": {
           "type": "object",
           "additionalProperties": false,
           "properties": {
-            "fg": { "type": "string", "pattern": "^#?[0-9a-fA-F]{6}$", "description": "Icon-specific foreground color." }
+            "fg": { "$ref": "#/$defs/Color", "description": "Icon-specific foreground color." }
           }
         },
         "shape": {
@@ -164,7 +172,7 @@
         },
         "content": {
           "type": "string",
-          "description": "Text content for the tooltip. Supports {variable} substitution from the module's template variables."
+          "description": "Text content for the tooltip. Defaults to '{value}'. Supports {value}, {icon} and the module's template variables (e.g. a plugin's 'variables' or the focus module's {mode})."
         },
         "view": {
           "description": "View DSL tree for rich tooltip content. See plugin-output.schema.json for the ViewNode schema. When 'view' is present, it takes priority over 'content'.",
@@ -210,31 +218,30 @@
     },
 
     "StateStyle": {
-      "description": "Per-state style override (power states, Focus modes). Accepts a hex color string shorthand (applied as fg) or an object with fg/bg/icon.fg/text.fg.",
+      "description": "Per-state style override (power states, Focus modes), taking priority over the module style while its state applies. Accepts a colour string shorthand (applied as fg) or an object with fg/bg/icon.fg/text.fg.",
       "oneOf": [
         {
-          "type": "string",
-          "pattern": "^#?[0-9a-fA-F]{6}$",
-          "description": "Hex color applied as the foreground color."
+          "$ref": "#/$defs/Color",
+          "description": "Colour applied as the foreground colour."
         },
         {
           "type": "object",
           "additionalProperties": false,
           "properties": {
-            "fg": { "type": "string", "pattern": "^#?[0-9a-fA-F]{6}$", "description": "Foreground color." },
-            "bg": { "type": "string", "pattern": "^#?[0-9a-fA-F]{6}$", "description": "Background color." },
+            "fg": { "$ref": "#/$defs/Color", "description": "Foreground color." },
+            "bg": { "$ref": "#/$defs/Color", "description": "Background color." },
             "icon": {
               "type": "object",
               "additionalProperties": false,
               "properties": {
-                "fg": { "type": "string", "pattern": "^#?[0-9a-fA-F]{6}$", "description": "Icon-specific foreground color." }
+                "fg": { "$ref": "#/$defs/Color", "description": "Icon-specific foreground color." }
               }
             },
             "text": {
               "type": "object",
               "additionalProperties": false,
               "properties": {
-                "fg": { "type": "string", "pattern": "^#?[0-9a-fA-F]{6}$", "description": "Text-specific foreground color." }
+                "fg": { "$ref": "#/$defs/Color", "description": "Text-specific foreground color." }
               }
             }
           }
@@ -249,19 +256,19 @@
       "properties": {
         "command": {
           "type": "string",
-          "description": "Shell command or executable path to run. Relative paths (starting with ./ or ../) are resolved against the config directory. The command receives KANTAN_SETTINGS, KANTAN_APPEARANCE, and KANTAN_PID as environment variables."
+          "description": "Shell command or executable path to run. A command starting with ./ or ../ runs from the config directory. Run with the launcher (default /bin/sh -c) and given KANTAN_SETTINGS, KANTAN_APPEARANCE, KANTAN_MODULE_NAME and KANTAN_PID. Stdout, trimmed of surrounding newlines, is the module's value; a non-zero exit or timeout shows nothing."
         },
         "output": {
           "type": "string",
           "enum": ["text", "json"],
           "default": "text",
-          "description": "'text' treats stdout as the display value. 'json' parses stdout as a JSON object (see plugin-output.schema.json)."
+          "description": "'text' treats stdout as the display value. 'json' parses stdout as a JSON object (see plugin-output.schema.json); output that isn't a JSON object, or an object without a string 'value', is shown as plain text."
         },
         "interval": {
           "type": "number",
           "minimum": 0,
           "default": 1,
-          "description": "Polling interval in seconds. Set to 0 for event-driven modules (used with 'watch'). The command is re-executed every 'interval' seconds."
+          "description": "Polling interval in seconds: the command is re-executed every 'interval' seconds. 0 disables the timer, so the command runs only at startup, on wake and space changes, and on 'kantan trigger <name> refresh'. Ignored when 'watch' is set."
         },
         "timeout": {
           "type": "number",
@@ -271,21 +278,21 @@
         },
         "watch": {
           "type": "string",
-          "description": "Long-lived watcher process command. Launched as a background process that runs continuously. The watcher receives KANTAN_MODULE_NAME, KANTAN_SETTINGS, KANTAN_APPEARANCE, and KANTAN_PID env vars (KANTAN_MODULE_NAME is only available to the watch process, not the main command). Its stdin is piped — EOF signals shutdown. To trigger an update, the watcher executes: kantan trigger <module_name> refresh. Typically used with interval: 0 for purely event-driven modules."
+          "description": "Long-lived watcher process command, run with /bin/sh -c and given KANTAN_MODULE_NAME, KANTAN_SETTINGS, KANTAN_APPEARANCE and KANTAN_PID. Disables polling. With output: json, each stdout line that is a JSON object becomes the module's output; alternatively the watcher runs 'kantan trigger <module_name> refresh' to re-run 'command'. Its stdin is a pipe that reaches EOF when kantan exits. Stopped on sleep, started on wake, relaunched on appearance changes; when it exits it is restarted after 1s doubling to 16s, giving up after 10 consecutive restarts (a run of 30s or more resets the count)."
         },
         "toggle": {
           "type": "string",
-          "description": "Shell command executed when the module is toggled (click interaction type: 'toggle'). Receives the same environment variables as 'command'."
+          "description": "Command executed with the launcher when the module is clicked with click type 'toggle' or 'complete'; the module refreshes once it exits. Receives the same environment variables as 'command'. Not resolved against the config directory."
         },
         "settings": {
           "type": "object",
-          "description": "Plugin-specific settings. This object is serialized to JSON and passed to the plugin via the KANTAN_SETTINGS environment variable. The structure is entirely plugin-defined — kantan passes it through opaquely.",
+          "description": "Plugin-specific settings. This object is serialized to JSON and passed to the plugin via the KANTAN_SETTINGS environment variable, with {theme(name)} templates resolved for the current appearance. The structure is otherwise plugin-defined.",
           "additionalProperties": true
         },
         "launcher": {
           "type": "object",
           "additionalProperties": false,
-          "description": "Override the shell used to execute commands. Defaults to /bin/sh -c.",
+          "description": "Override the shell used to execute 'command' and 'toggle' (not 'watch'). Defaults to /bin/sh -c.",
           "properties": {
             "path": {
               "type": "string",
@@ -316,7 +323,7 @@
         },
         "timezone": {
           "type": "string",
-          "description": "IANA timezone identifier (e.g. \"America/New_York\", \"Europe/London\"). Defaults to system timezone when omitted."
+          "description": "IANA timezone identifier (e.g. \"America/New_York\", \"Europe/London\"). Defaults to the system timezone when omitted or unrecognised."
         }
       }
     },
@@ -345,23 +352,24 @@
             },
             "plugged": {
               "type": "string",
-              "description": "Icon shown when plugged in but fully charged. Defaults to 'plug'."
+              "description": "Icon shown when on AC power but not charging. Defaults to 'plug'."
             },
             "level": {
               "type": "array",
               "items": { "type": "string" },
-              "description": "Icons for battery levels (empty to full). The appropriate icon is selected based on current charge level. Defaults to tabler-icons battery icons."
+              "minItems": 1,
+              "description": "Icons for battery levels (empty to full), split evenly across 0-100%. Defaults to battery-filled, battery-1-filled ... battery-4-filled."
             }
           }
         },
         "style": {
           "type": "object",
-          "description": "Per-state style overrides. Each can be a hex color string (applied as fg) or an object with fg/bg/icon.fg/text.fg.",
+          "description": "Per-state style overrides, in priority order charging, plugged, lowPowerMode, low. Each can be a colour string (applied as fg) or an object with fg/bg/icon.fg/text.fg.",
           "properties": {
             "charging": { "$ref": "#/$defs/StateStyle", "description": "Style when charging." },
-            "plugged": { "$ref": "#/$defs/StateStyle", "description": "Style when plugged in and fully charged." },
-            "lowPowerMode": { "$ref": "#/$defs/StateStyle", "description": "Style when Low Power Mode is active." },
-            "low": { "$ref": "#/$defs/StateStyle", "description": "Style when battery is below lowThreshold." }
+            "plugged": { "$ref": "#/$defs/StateStyle", "description": "Style when on AC power and not charging." },
+            "lowPowerMode": { "$ref": "#/$defs/StateStyle", "description": "Style when Low Power Mode is active on battery." },
+            "low": { "$ref": "#/$defs/StateStyle", "description": "Style when on battery below lowThreshold." }
           }
         }
       }
@@ -378,7 +386,8 @@
             "level": {
               "type": "array",
               "items": { "type": "string" },
-              "description": "Icons for volume levels (silent to loud). Selected based on current volume. Defaults to tabler-icons volume icons."
+              "minItems": 1,
+              "description": "Icons for volume levels (low to high), split evenly across 0-100%. Defaults to [\"volume-4\", \"volume-2\", \"volume\"]."
             },
             "muted": {
               "type": "string",
@@ -387,7 +396,7 @@
             "device": {
               "type": "object",
               "additionalProperties": { "type": "string" },
-              "description": "Device-specific icon overrides. Keys are matched case-insensitively as substrings of the CoreAudio device name. Example: {\"AirPods\": \"device-airpods\"}. Set to {} to disable defaults."
+              "description": "Device-specific icon overrides. Keys are matched case-insensitively as substrings of the CoreAudio device name. Defaults to {\"AirPods\": \"device-airpods\", \"Headphones\": \"headphones\"}; setting it replaces the defaults, and {} disables device icons. The muted icon takes precedence."
             }
           }
         }
@@ -405,7 +414,8 @@
             "strength": {
               "type": "array",
               "items": { "type": "string" },
-              "description": "Icons for signal strength levels (weak to strong). Defaults to tabler-icons wifi icons."
+              "minItems": 1,
+              "description": "Icons for signal strength levels (weak to strong), split evenly across -90 to -30 dBm. Defaults to [\"wifi-1\", \"wifi-2\", \"wifi\"]."
             },
             "disconnected": {
               "type": "string",
@@ -414,7 +424,7 @@
             "ssid": {
               "type": "object",
               "additionalProperties": { "type": "string" },
-              "description": "SSID-specific icon overrides. When the current SSID matches a key, that icon is used instead of the signal-strength icon. The special key 'iPhone' is also matched as a fallback for SSIDs ending with 'iPhone' (hotspot detection)."
+              "description": "SSID-specific icon overrides. When the current SSID matches a key exactly, that icon is used instead of the signal-strength icon. SSIDs ending with 'iPhone' (hotspots) otherwise use the 'iPhone' key, or 'circles-relation' without one."
             }
           }
         }
@@ -423,7 +433,7 @@
     "BluetoothConfig": {
       "type": "object",
       "title": "Bluetooth Module Config",
-      "description": "Configuration for the built-in Bluetooth module. Icon-only display (no text). Shows active/inactive state based on whether devices are connected.",
+      "description": "Configuration for the built-in Bluetooth module. Icon-only display (no text). The icon is dimmed while Bluetooth is off or no devices are connected. The module-level 'icon' has no effect.",
       "properties": {
         "icon": {
           "type": "string",
@@ -449,24 +459,24 @@
         "icons": {
           "type": "array",
           "items": { "type": "string" },
-          "description": "Ordered list of icons for workspaces. Index 0 maps to space 1, etc. Workspaces beyond the array length fall back to the module-level 'icon' field."
+          "description": "Ordered list of icons for workspaces, by the provider's 0-based index (native spaces count across all displays, including hidden full-screen spaces). Workspaces beyond the array length fall back to the module-level 'icon' field, then the workspace's label."
         },
         "rainbow": {
           "type": "object",
-          "description": "Per-workspace color cycling.",
+          "description": "Per-workspace colours. Applied only when enabled with a non-empty 'colors', and not with the native appearance.",
           "properties": {
             "enabled": { "type": "boolean", "default": false },
-            "random": { "type": "boolean", "default": true, "description": "When true, colours are assigned in a deterministic random order avoiding adjacent repeats. When false, colours map index-wise." },
-            "colors": { "type": "array", "items": { "type": "string" }, "description": "Array of hex color strings to cycle through." }
+            "random": { "type": "boolean", "default": true, "description": "When true, colours are assigned in a deterministic random order avoiding adjacent repeats. When false, colours map index-wise, cycling." },
+            "colors": { "type": "array", "items": { "$ref": "#/$defs/Color" }, "description": "Colours to cycle through." }
           }
         },
         "overflow": {
           "type": "object",
           "properties": {
             "enabled": { "type": "boolean", "default": false },
-            "max": { "type": "integer", "minimum": 1, "default": 5, "description": "Maximum visible workspaces before overflow." },
+            "max": { "type": "integer", "minimum": 1, "default": 5, "description": "Workspaces per page. With more, the page holding the active workspace is shown, with indicators for hidden pages." },
             "icon": {
-              "description": "Overflow indicator icon. Can be false (disable), a string (same icon for both directions), or an object with 'left' and 'right' keys.",
+              "description": "Overflow indicator icon or text. Can be false (disable), a string (same icon for both directions), or an object with 'left' and 'right' keys. Defaults to '‹' and '›'.",
               "oneOf": [
                 { "type": "boolean", "const": false },
                 { "type": "string" },
@@ -481,7 +491,7 @@
             },
             "style": {
               "$ref": "#/$defs/StyleConfig",
-              "description": "Style overrides for overflow indicator segments."
+              "description": "Style for overflow indicators. Only 'fg' is used, as a hex colour; without it indicators take the inactive colour."
             }
           }
         },
@@ -502,7 +512,7 @@
               "description": "Colours each app's windows from a palette.",
               "properties": {
                 "enabled": { "type": "boolean", "default": false },
-                "colors": { "type": "array", "items": { "type": "string" }, "description": "Palette for window colours. Defaults to the module's rainbow.colors." }
+                "colors": { "type": "array", "items": { "$ref": "#/$defs/Color" }, "description": "Palette for window colours. Defaults to the module's rainbow.colors." }
               }
             }
           }
@@ -512,7 +522,7 @@
     "DrawerConfig": {
       "type": "object",
       "title": "Drawer Module Config",
-      "description": "Configuration for drawer modules. A drawer hides/shows adjacent modules in the same placement group. For right-to-left placements (right, notchleft), the drawer controls modules listed before it in config. For left-to-right placements (left, notchright), it controls modules listed after it.",
+      "description": "Configuration for drawer modules. A drawer hides/shows adjacent modules in the same placement group. For right-to-left placements (right, notchleft), the drawer controls modules listed before it in config. For left-to-right placements (left, notchright), it controls modules listed after it. There is one drawer per side (left/notchleft, right/notchright); the first configured on a side is the one that toggles.",
       "properties": {
         "icons": {
           "type": "object",
@@ -531,7 +541,7 @@
       "properties": {
         "value": {
           "type": "string",
-          "description": "Static text to display."
+          "description": "Static text to display. Must be a string; quote values YAML would read as a number or boolean."
         }
       }
     },

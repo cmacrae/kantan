@@ -8,11 +8,11 @@ Displays battery level and charging state. Uses IOKit to monitor battery informa
 
 | Key | Type | Default | Description |
 |-----|------|---------|-------------|
-| `showLevel` | bool | `false` | Show battery percentage text |
+| `showLevel` | bool | `false` | Show battery percentage text (e.g. `85%`) |
 | `lowThreshold` | int | `20` | Battery level (%) below which the low style applies |
 | `icons.charging` | string | `"bolt-filled"` | Icon when charging |
-| `icons.plugged` | string | `"plug"` | Icon when plugged in but not charging |
-| `icons.level` | array | see below | Icons for battery levels (low to full) |
+| `icons.plugged` | string | `"plug"` | Icon when on AC power but not charging |
+| `icons.level` | array | see below | Icons for battery levels (low to full). Must not be empty |
 | `style.charging` | string/object | -- | Style override when charging |
 | `style.plugged` | string/object | -- | Style override when plugged in |
 | `style.lowPowerMode` | string/object | -- | Style override when Low Power Mode is active (on battery) |
@@ -20,7 +20,7 @@ Displays battery level and charging state. Uses IOKit to monitor battery informa
 
 ### Default Level Icons
 
-The default `icons.level` array contains five battery states from empty to full:
+The battery level is split evenly across the `icons.level` entries: with five icons, 0–19% shows the first, 20–39% the second, and so on. Without a battery, the module shows the first level icon and no text. The default array contains five battery states from empty to full:
 
 ```yaml
 icons:
@@ -34,22 +34,23 @@ icons:
 
 ### Style Overrides
 
-Power state styles can be specified as a simple string (sets the foreground colour) or an expanded object:
+Power state styles go under `config.style` and take priority over the module's own `style` while their state applies. Each can be a string (sets the foreground colour) or an expanded object. Colours can be hex or `{theme(name)}` templates:
 
 ```yaml
-style:
-  charging: "#00FF00"     # Shorthand: sets fg colour
+config:
+  style:
+    charging: "#00FF00"     # Shorthand: sets fg colour
 
-  low:                    # Expanded form
-    fg: "#FF0000"
-    bg: "#330000"
-    icon:
-      fg: "#FF3333"
-    text:
-      fg: "#FF6666"
+    low:                    # Expanded form
+      fg: "#FF0000"
+      bg: "#330000"
+      icon:
+        fg: "#FF3333"
+      text:
+        fg: "#FF6666"
 ```
 
-Style priority (highest to lowest): charging, plugged, lowPowerMode, low.
+Style priority (highest to lowest): charging, plugged, lowPowerMode, low. Only the first configured style whose state applies is used.
 
 ## Behavior
 
