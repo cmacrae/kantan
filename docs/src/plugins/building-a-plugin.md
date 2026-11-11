@@ -615,10 +615,6 @@ The polling interval is ignored whenever `watch:` is configured. Set `interval: 
 `kantan trigger` posts a distributed notification and returns immediately — see [the CLI reference](/docs/reference/cli#trigger-command).
 It neither waits for kantan to act on the notification nor reports whether kantan picked it up. Watch processes should treat trigger calls as fire-and-forget.
 
-### Two modules running the same command
-
-kantan keeps a JSON module's latest output under its `command` string, so two modules with an identical `command` (say, two `kantan-plugin-reminders` modules with different `settings:`) share one icon, variables, view and style: whichever ran last. Give each module a distinct `command` string.
-
 ## Performance Considerations
 
 - Keep polling plugins fast (< 100ms execution time)

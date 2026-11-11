@@ -2075,6 +2075,17 @@ final class CommandWatchOutputTests: XCTestCase {
     try CommandConfig(yaml: try Yaml.load(yaml))
   }
 
+  func testModulesRunningTheSameCommandKeepTheirOwnOutput() throws {
+    var work = try config("command: shared-command\noutput: json\n")
+    var home = work
+    work.moduleName = "work"
+    home.moduleName = "home"
+    XCTAssertEqual(work.cacheWatchOutput(Data(#"{"value":"1","icon":"briefcase"}"#.utf8)), "1")
+    XCTAssertEqual(home.cacheWatchOutput(Data(#"{"value":"2","icon":"home"}"#.utf8)), "2")
+    XCTAssertEqual(work.getIcon(), "briefcase")
+    XCTAssertEqual(home.getIcon(), "home")
+  }
+
   func testJSONObjectLinesBecomeTheCommandsOutput() throws {
     let command = try config("command: watch-output-object\noutput: json\n")
     let line = #"{"value":"3","icon":"bell","variables":{"count":"3"}}"#

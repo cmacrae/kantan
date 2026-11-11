@@ -192,6 +192,7 @@ struct CommandConfig: ModuleConfiguration {
     let timeoutInterval = self.timeout
     let mode = self.outputMode
     let moduleName = self.moduleName
+    let key = cacheKey
 
     // Capture appearance on main thread before dispatching to background.
     let names: [NSAppearance.Name] = [.darkAqua, .aqua]
@@ -211,16 +212,20 @@ struct CommandConfig: ModuleConfiguration {
       )
 
       if mode == "json" {
-        Self.parseJsonOutput(result, cacheKey: cmd, completion: completion)
+        Self.parseJsonOutput(result, cacheKey: key, completion: completion)
       } else {
         completion(result)
       }
     }
   }
 
+  /// Where this module's output is cached: under its name, so modules
+  /// running the same command keep their own output.
+  private var cacheKey: String { moduleName ?? command }
+
   func getIcon() -> String {
     if outputMode == "json" {
-      let data = getCommandData(for: command)
+      let data = getCommandData(for: cacheKey)
       if !data.dynamicIcon.isEmpty {
         return data.dynamicIcon
       }
@@ -230,14 +235,14 @@ struct CommandConfig: ModuleConfiguration {
 
   func getTemplateVariables() -> [String: String] {
     if outputMode == "json" {
-      return getCommandData(for: command).templateVars
+      return getCommandData(for: cacheKey).templateVars
     }
     return [:]
   }
 
   func shouldDisplay() -> Bool {
     if outputMode == "json" {
-      if let hidden = getCommandData(for: command).hidden {
+      if let hidden = getCommandData(for: cacheKey).hidden {
         return !hidden
       }
     }
@@ -246,7 +251,7 @@ struct CommandConfig: ModuleConfiguration {
 
   func isActive() -> Bool {
     if outputMode == "json" {
-      if let active = getCommandData(for: command).active {
+      if let active = getCommandData(for: cacheKey).active {
         return active
       }
     }
@@ -255,7 +260,7 @@ struct CommandConfig: ModuleConfiguration {
 
   func getDynamicStyle() -> DynamicStyleOverride? {
     guard outputMode == "json" else { return nil }
-    let data = getCommandData(for: command)
+    let data = getCommandData(for: cacheKey)
     guard
       data.styleFg != nil || data.styleBg != nil || data.styleIconFg != nil
         || data.styleTextFg != nil
@@ -270,18 +275,18 @@ struct CommandConfig: ModuleConfiguration {
 
   func getViewTree() -> ViewNode? {
     guard outputMode == "json" else { return nil }
-    return getCommandData(for: command).viewTree
+    return getCommandData(for: cacheKey).viewTree
   }
 
   func getData() -> [String: [[String: String]]] {
     guard outputMode == "json" else { return [:] }
-    return getCommandData(for: command).data
+    return getCommandData(for: cacheKey).data
   }
 
   /// The coloured parts of the value, or none to show it in one colour.
   func getSegments() -> [ValueSegment] {
     guard outputMode == "json" else { return [] }
-    return getCommandData(for: command).segments
+    return getCommandData(for: cacheKey).segments
   }
 
   // MARK: - JSON Parsing
@@ -313,7 +318,7 @@ struct CommandConfig: ModuleConfiguration {
       let json = try? JSONSerialization.jsonObject(with: line) as? [String: Any]
     else { return nil }
     let (data, value) = Self.parseOutput(json, raw: String(decoding: line, as: UTF8.self))
-    setCommandData(data, for: command)
+    setCommandData(data, for: cacheKey)
     return value
   }
 

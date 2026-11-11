@@ -579,7 +579,7 @@ The `command` module type supports plugins through these config fields:
 | `settings` | object | none | Arbitrary settings passed as JSON via `KANTAN_SETTINGS` |
 | `launcher` | object | `{path: "/bin/sh", args: ["-c"]}` | Interpreter for `command` and `toggle`: kantan runs `path` with `args` followed by the command string |
 
-kantan keeps a JSON module's latest output under its `command` string, so modules with identical `command` strings share one icon, variables, view and style. Give each module a distinct `command`.
+Each module keeps its own output. Modules can run the same `command` with different `settings`.
 
 ### Interaction with interval and watch
 
