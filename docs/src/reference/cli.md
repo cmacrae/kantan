@@ -51,7 +51,7 @@ Sends an IPC notification to a running kantan instance via `DistributedNotificat
 - `<action>` — The action to perform
 - `[key=value ...]` — Optional key-value pairs included in the notification payload. An argument without `=`, or with nothing before it, is ignored. Everything after the first `=` is the value. An empty value (`fg=`) clears what it names
 
-Both `<module-name>` and `<action>` are required: `kantan trigger` with fewer arguments starts the bar instead.
+Both `<module-name>` and `<action>` are required. With fewer, kantan prints its usage to stderr and exits with code `2`. Arguments starting with `-` are not part of the command.
 
 **Supported actions:**
 
@@ -76,6 +76,7 @@ kantan trigger '*' refresh
 | Subcommand | Exit code | Meaning |
 |------------|-----------|---------|
 | `kantan trigger …` | `0` | Notification posted (delivery not guaranteed — see above) |
+| `kantan trigger` without a module and action, or an unknown command | `2` | Usage printed to stderr; no bar is started |
 
 **Signals:** kantan installs no signal handlers. SIGTERM and SIGINT end it with the default signal behaviour. When kantan's process ends, its end of each watch process's stdin pipe closes. The watch process then reads EOF. Watch plugins should treat stdin EOF as the shutdown signal. See [Plugins — Handling stdin EOF](/docs/plugins/building-a-plugin#handling-stdin-eof).
 

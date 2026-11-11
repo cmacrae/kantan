@@ -161,6 +161,27 @@ final class DSLColorFromHexTests: XCTestCase {
   }
 }
 
+final class CommandLineTests: XCTestCase {
+  func testNoWordsRunsTheBarIgnoringDashArguments() {
+    XCTAssertEqual(parseCommand([]), .run)
+    XCTAssertEqual(parseCommand(["-NSDocumentRevisionsDebugMode", "-psn_0_1"]), .run)
+  }
+
+  func testATriggerNeedsAModuleAndAnAction() {
+    XCTAssertEqual(
+      parseCommand(["trigger", "clock", "set", "value=", "module=other"]),
+      .trigger(["module": "clock", "action": "set", "value": ""]))
+    XCTAssertEqual(
+      parseCommand(["trigger", "clock"]), .usageError("trigger needs a module and an action"))
+    XCTAssertEqual(parseCommand(["trigger"]), .usageError("trigger needs a module and an action"))
+  }
+
+  func testAnUnknownCommandIsAnError() {
+    XCTAssertEqual(
+      parseCommand(["trgger", "clock", "refresh"]), .usageError("unknown command 'trgger'"))
+  }
+}
+
 final class TriggerFieldsTests: XCTestCase {
   func testFieldsKeepEmptyValuesAndEverythingAfterTheFirstEquals() {
     XCTAssertEqual(

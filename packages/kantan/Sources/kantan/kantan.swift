@@ -100,6 +100,36 @@ class DrawerClickView: NSView {
   }
 }
 
+// MARK: - Command Line
+
+/// What kantan's positional arguments ask it to do.
+enum KantanCommand: Equatable {
+  /// Run the bar.
+  case run
+  /// Post a trigger event with these fields to the running bar.
+  case trigger([String: String])
+  /// The arguments aren't a command kantan knows.
+  case usageError(String)
+}
+
+let kantanUsage = """
+  usage: kantan [--config <path>] [--modules-dir <path>] [--fonts-dir <path>] [--themes-dir <path>]
+         kantan trigger <module> <action> [key=value ...]
+  """
+
+/// The command for the positional arguments that follow the program name.
+/// Arguments starting with `-` are ignored, as macOS may pass its own.
+func parseCommand(_ args: some Collection<String>) -> KantanCommand {
+  let words = args.filter { !$0.hasPrefix("-") }
+  guard let command = words.first else { return .run }
+  guard command == "trigger" else { return .usageError("unknown command '\(command)'") }
+  guard words.count >= 3 else { return .usageError("trigger needs a module and an action") }
+  var fields = parseTriggerFields(words.dropFirst(3))
+  fields["module"] = words[1]
+  fields["action"] = words[2]
+  return .trigger(fields)
+}
+
 // MARK: - Trigger Fields
 
 /// The `key=value` arguments of `kantan trigger`, keeping empty values such
@@ -1573,17 +1603,10 @@ struct Kantan {
       }
     }
 
-    if positionalArgs.count >= 4 && positionalArgs[1] == "trigger" {
-      let module = positionalArgs[2]
-      let action = positionalArgs[3]
-
-      var userInfo: [String: String] = [
-        "module": module,
-        "action": action,
-      ]
-
-      userInfo.merge(parseTriggerFields(positionalArgs.dropFirst(4))) { _, field in field }
-
+    switch parseCommand(positionalArgs.dropFirst()) {
+    case .run:
+      break
+    case .trigger(let userInfo):
       DistributedNotificationCenter.default().postNotificationName(
         NSNotification.Name("com.kantan.event"),
         object: nil,
@@ -1591,6 +1614,9 @@ struct Kantan {
         deliverImmediately: true
       )
       return
+    case .usageError(let message):
+      FileHandle.standardError.write(Data("kantan: \(message)\n\(kantanUsage)\n".utf8))
+      exit(2)
     }
 
     let app = NSApplication.shared
