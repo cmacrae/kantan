@@ -311,6 +311,19 @@ final class CachedStatusTests: XCTestCase {
 
 // MARK: - loadConfig() end-to-end
 
+final class PointerHoverTests: XCTestCase {
+  func testHoverChangesOnlyOnEnteringLeavingOrPressing() {
+    let frame = NSRect(x: 100, y: 0, width: 40, height: 24)
+    var hover = PointerHover()
+    XCTAssertNil(hover.pointer(at: NSPoint(x: 10, y: 10), in: frame, pressed: false))
+    XCTAssertEqual(hover.pointer(at: NSPoint(x: 110, y: 10), in: frame, pressed: false), true)
+    XCTAssertNil(hover.pointer(at: NSPoint(x: 120, y: 12), in: frame, pressed: false))
+    XCTAssertEqual(hover.pointer(at: NSPoint(x: 120, y: 12), in: frame, pressed: true), false)
+    XCTAssertEqual(hover.pointer(at: NSPoint(x: 121, y: 12), in: frame, pressed: false), true)
+    XCTAssertEqual(hover.pointer(at: NSPoint(x: 200, y: 12), in: frame, pressed: false), false)
+  }
+}
+
 @MainActor
 final class DrawerIconTests: XCTestCase {
   func testTheDrawerKeepsItsHideIconWhileOpenThroughUpdates() throws {

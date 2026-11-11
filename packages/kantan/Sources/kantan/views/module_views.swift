@@ -129,6 +129,83 @@ class ScrollWheelReaderView: NSView {
   }
 }
 
+// MARK: - Passthrough Hover
+
+/// Whether the pointer is over a view, from where it is and whether a
+/// button was just pressed, which ends a hover.
+struct PointerHover {
+  private(set) var isHovering = false
+
+  /// The new hover state, or nil when it hasn't changed.
+  mutating func pointer(at point: NSPoint, in frame: NSRect, pressed: Bool) -> Bool? {
+    let hovering = !pressed && frame.contains(point)
+    guard hovering != isHovering else { return nil }
+    isHovering = hovering
+    return hovering
+  }
+}
+
+/// Calls `onHover` as the pointer enters and leaves the view it backs, for
+/// views in panels that ignore the mouse, where SwiftUI's hover never fires.
+struct PassthroughHoverReader: NSViewRepresentable {
+  let onHover: (Bool) -> Void
+
+  func makeNSView(context: Context) -> PassthroughHoverReaderView {
+    let view = PassthroughHoverReaderView()
+    view.onHover = onHover
+    return view
+  }
+
+  func updateNSView(_ nsView: PassthroughHoverReaderView, context: Context) {
+    nsView.onHover = onHover
+  }
+}
+
+class PassthroughHoverReaderView: NSView {
+  var onHover: ((Bool) -> Void)?
+  private var hover = PointerHover()
+  nonisolated(unsafe) private var monitors: [Any] = []
+
+  deinit {
+    monitors.forEach(NSEvent.removeMonitor)
+  }
+
+  override func hitTest(_ point: NSPoint) -> NSView? { nil }
+
+  /// Watches the pointer while in a window, through monitors that see the
+  /// mouse moves and presses the panel itself ignores.
+  override func viewDidMoveToWindow() {
+    super.viewDidMoveToWindow()
+    monitors.forEach(NSEvent.removeMonitor)
+    monitors = []
+    guard window != nil else {
+      if hover.isHovering { onHover?(false) }
+      hover = PointerHover()
+      return
+    }
+    let mask: NSEvent.EventTypeMask = [.mouseMoved, .leftMouseDown, .rightMouseDown]
+    let handle: (NSEvent) -> Void = { [weak self] event in
+      let pressed = event.type != .mouseMoved
+      MainActor.assumeIsolated { self?.pointerMoved(pressed: pressed) }
+    }
+    monitors = [
+      NSEvent.addGlobalMonitorForEvents(matching: mask, handler: handle),
+      NSEvent.addLocalMonitorForEvents(matching: mask) { event in
+        handle(event)
+        return event
+      },
+    ].compactMap { $0 }
+  }
+
+  private func pointerMoved(pressed: Bool) {
+    guard let window else { return }
+    let frame = window.convertToScreen(convert(bounds, to: nil))
+    if let hovering = hover.pointer(at: NSEvent.mouseLocation, in: frame, pressed: pressed) {
+      onHover?(hovering)
+    }
+  }
+}
+
 // MARK: - Module Container View
 
 /// Wraps each module's visual content with interaction handling
@@ -171,12 +248,10 @@ struct ModuleContainerView: View {
     .contentShape(Rectangle())
     .padding(.horizontal, viewModel.moduleConfig.type == "drawer" ? -6 : 0)
     .allowsHitTesting(hasInteraction)
-    .onHover { hovering in
-      guard hasInteraction else { return }
-      if hovering {
-        showTooltipIfConfigured()
-      } else {
-        popupManager.hideTooltip()
+    .onHover(perform: hoverChanged)
+    .background {
+      if viewModel.moduleConfig.isPassthrough, hasTooltip {
+        PassthroughHoverReader(onHover: hoverChanged)
       }
     }
     .onTapGesture {
@@ -185,6 +260,20 @@ struct ModuleContainerView: View {
   }
 
   // MARK: - Interaction
+
+  /// Whether the module shows a tooltip on hover.
+  private var hasTooltip: Bool {
+    viewModel.moduleConfig.interaction?.hover?.type == "tooltip"
+  }
+
+  private func hoverChanged(_ hovering: Bool) {
+    guard hasInteraction else { return }
+    if hovering {
+      showTooltipIfConfigured()
+    } else {
+      popupManager.hideTooltip()
+    }
+  }
 
   private var anchorPoint: NSPoint {
     let swiftUIPoint = NSPoint(x: moduleFrame.midX, y: moduleFrame.maxY)
