@@ -673,6 +673,17 @@ final class ModuleViewModelUpdateGenerationTests: XCTestCase {
     wait(for: [exp], timeout: 1.0)
   }
 
+  func testResumingUpdatesOnce() {
+    let mock = CapturingModuleConfig()
+    let vm = ModuleViewModel(
+      moduleConfig: ModuleConfig(
+        name: "test", placement: PlacementSpec(raw: "left"), type: "test", config: mock))
+    XCTAssertEqual(mock.completionCount, 1)
+    vm.pause()
+    vm.resume()
+    XCTAssertEqual(mock.completionCount, 2, "resume should trigger one update()")
+  }
+
   func testStaleCompletionDoesNotOverwriteFreshValue() {
     let mock = CapturingModuleConfig()
     let cfg = ModuleConfig(

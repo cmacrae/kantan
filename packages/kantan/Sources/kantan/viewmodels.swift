@@ -112,8 +112,8 @@ class ModuleViewModel: ObservableObject, Identifiable {
       self.iconScaleFactor = resolved.scaleFactor
     }
 
+    update()
     if let eventModule = moduleConfig.config as? EventDrivenModule {
-      update()
       startEventObservation(eventModule)
     } else {
       startPolling()
@@ -251,8 +251,8 @@ class ModuleViewModel: ObservableObject, Identifiable {
     }
   }
 
+  /// Starts the module's polling timer; the caller runs the first update.
   private func startPolling() {
-    update()
     // When a watch process is configured, it is responsible for all
     // subsequent refreshes, printing output or running `kantan trigger`.
     // Running a polling timer alongside it causes redundant command
