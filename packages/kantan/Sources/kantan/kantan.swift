@@ -923,7 +923,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
   func applicationDidFinishLaunching(_ aNotification: Notification) {
     NSApp.setActivationPolicy(.accessory)
 
-    var config: Config
+    let config: Config
 
     if let configPath = resolveConfigPath(explicit: Kantan.configPath) {
       self.configFilePath = configPath
@@ -932,35 +932,15 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         explicit: Kantan.modulesDirPath, configPath: configPath)
       self.modulesDirPath = modulesDirPath
 
-      let configDir = URL(fileURLWithPath: configPath).deletingLastPathComponent().path
-
-      guard let fileData = loadFileContents(filePath: configPath) else {
-        print("Failed to load file contents")
-        return
+      switch loadConfigFile(at: configPath, modulesDir: modulesDirPath) {
+      case .success(let loaded):
+        config = loaded
+      case .failure(let error):
+        print("Config \(configPath) \(error.summary)\(Self.detail(of: error))")
+        config = .loadError(error, path: configPath)
       }
-
-      let yaml: Yaml
-      do {
-        yaml = try Yaml.load(fileData)
-      } catch {
-        print(error)
-        return
-      }
-
-      guard var loadedConfig = loadConfig(from: yaml, configDir: configDir) else {
-        print("Configuration not loaded")
-        return
-      }
-
-      let extraModules = loadModulesFromDirectory(path: modulesDirPath, theme: loadedConfig.theme)
-      loadedConfig.modules = mergeModules(base: loadedConfig.modules, extra: extraModules)
-      config = loadedConfig
     } else {
       config = .welcome
-    }
-
-    if config.modules.isEmpty {
-      config.modules = Config.welcome.modules
     }
 
     if config.needsBundledIconFonts {
@@ -1481,33 +1461,13 @@ class AppDelegate: NSObject, NSApplicationDelegate {
   func reloadConfig() {
     guard let path = configFilePath else { return }
 
-    guard let fileData = loadFileContents(filePath: path) else {
-      print("Hot-reload: failed to read config file")
+    let newConfig: Config
+    switch loadConfigFile(at: path, modulesDir: modulesDirPath) {
+    case .success(let loaded):
+      newConfig = loaded
+    case .failure(let error):
+      print("Hot-reload: config \(error.summary)\(Self.detail(of: error)), keeping current bar")
       return
-    }
-
-    let configDir = URL(fileURLWithPath: path).deletingLastPathComponent().path
-    var newConfig: Config?
-    do {
-      let yaml = try Yaml.load(fileData)
-      newConfig = loadConfig(from: yaml, configDir: configDir)
-    } catch {
-      print("Hot-reload: failed to parse config -- \(error)")
-      return
-    }
-
-    guard var newConfig = newConfig else {
-      print("Hot-reload: invalid config, keeping current bar")
-      return
-    }
-
-    if let dir = modulesDirPath {
-      let extraModules = loadModulesFromDirectory(path: dir, theme: newConfig.theme)
-      newConfig.modules = mergeModules(base: newConfig.modules, extra: extraModules)
-    }
-
-    if newConfig.modules.isEmpty {
-      newConfig.modules = Config.welcome.modules
     }
 
     if newConfig.needsBundledIconFonts {
@@ -1531,6 +1491,12 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     if let dir = modulesDirPath {
       startWatchingModulesDir(path: dir)
     }
+  }
+
+  /// The parser's message for an invalid YAML error, set apart for the log.
+  private static func detail(of error: ConfigLoadError) -> String {
+    if case .invalidYaml(let message) = error { return " -- \(message)" }
+    return ""
   }
 
   /// Cancel every config/modules-dir file-system watcher. Owned by the

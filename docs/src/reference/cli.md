@@ -24,7 +24,7 @@ Each flag takes the next argument as its path, with a leading `~` expanded, and 
 2. `./config.yaml` (current working directory)
 3. `$XDG_CONFIG_HOME/kantan/config.yaml` (defaults to `~/.config/kantan/config.yaml`)
 
-An explicit `--config` path that doesn't exist is not followed by the other locations. If no config file is found, kantan displays a default welcome bar with a setup hint, and checks every 2 seconds for a config file to appear. kantan watches the config file and the modules directory, and reloads when either changes. If the config file can't be read or parsed at launch, kantan shows no bar and prints the error to its stdout.
+An explicit `--config` path that doesn't exist is not followed by the other locations. If no config file is found, kantan shows a default welcome bar with a setup hint and checks every 2 seconds for a config file to appear. kantan watches the config file and the modules directory and reloads when either changes. If the config file can't be read or parsed at launch, kantan prints the error to its stdout and shows a bar saying so until the file is fixed.
 
 **Modules directory resolution:**
 1. `--modules-dir` flag (explicit path)

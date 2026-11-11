@@ -89,6 +89,29 @@ struct Config {
     theme == nil && style.light?.fg == nil && style.dark?.fg == nil
   }
 
+  /// Bar shown when the config file at `path` fails to load, until it's fixed.
+  static func loadError(_ error: ConfigLoadError, path: String) -> Config {
+    var config = welcome
+    config.modules = [
+      ModuleConfig(
+        name: "config-error",
+        placement: PlacementSpec(raw: "notchleft|left"),
+        type: "text",
+        icon: "alert-triangle",
+        config: TextConfig(
+          value: "\(URL(fileURLWithPath: path).lastPathComponent) \(error.summary)")
+      ),
+      ModuleConfig(
+        name: "config-error-hint",
+        placement: PlacementSpec(raw: "notchright|right"),
+        type: "text",
+        icon: "file-alert",
+        config: TextConfig(value: "Fix it and save to reload")
+      ),
+    ]
+    return config
+  }
+
   /// Default config shown when no configuration file is found.
   static let welcome = Config(
     theme: nil,
@@ -1113,6 +1136,46 @@ func mergeModules(base: [ModuleConfig], extra: [ModuleConfig]) -> [ModuleConfig]
   let baseRight = base.filter { $0.placement.isRightSide }
   let baseLeft = base.filter { !$0.placement.isRightSide }
   return baseLeft + extraLeft + extraRight + baseRight
+}
+
+/// Why a config file couldn't be loaded.
+enum ConfigLoadError: Error, Equatable {
+  case unreadable
+  case invalidYaml(String)
+  case invalidConfig
+
+  /// A short description for the bar.
+  var summary: String {
+    switch self {
+    case .unreadable: "can't be read"
+    case .invalidYaml: "isn't valid YAML"
+    case .invalidConfig: "isn't a valid configuration"
+    }
+  }
+}
+
+/// Reads and parses the config file at `path`, merging in the modules from
+/// `modulesDir`. A config with no modules gets the welcome modules.
+func loadConfigFile(at path: String, modulesDir: String?) -> Result<Config, ConfigLoadError> {
+  guard let contents = loadFileContents(filePath: path) else { return .failure(.unreadable) }
+  let yaml: Yaml
+  do {
+    yaml = try Yaml.load(contents)
+  } catch {
+    return .failure(.invalidYaml("\(error)"))
+  }
+  let configDir = URL(fileURLWithPath: path).deletingLastPathComponent().path
+  guard var config = loadConfig(from: yaml, configDir: configDir) else {
+    return .failure(.invalidConfig)
+  }
+  if let modulesDir {
+    let extraModules = loadModulesFromDirectory(path: modulesDir, theme: config.theme)
+    config.modules = mergeModules(base: config.modules, extra: extraModules)
+  }
+  if config.modules.isEmpty {
+    config.modules = Config.welcome.modules
+  }
+  return .success(config)
 }
 
 func loadFileContents(filePath: String) -> String? {

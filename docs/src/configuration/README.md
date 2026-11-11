@@ -12,7 +12,7 @@ kantan searches for configuration files in the following order (first found wins
 
 If no config file is found, kantan shows a welcome bar and checks for one every 2 seconds. It loads the file as soon as one appears.
 
-If the config file exists but fails to load (invalid YAML, an unknown theme, or, without a theme, a `style` block missing colours), kantan logs the error and shows no bar. A module that fails to parse is skipped with a logged error, and the rest of the config still loads.
+If the config file exists but fails to load (invalid YAML, an unknown theme, or, without a theme, a `style` block missing colours), kantan logs the error and shows a bar naming the file and what's wrong with it. kantan keeps watching the file and loads it once a fix is saved. A module that fails to parse is skipped with a logged error. The rest of the config still loads.
 
 ## Hot-Reload
 

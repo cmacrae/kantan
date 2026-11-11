@@ -242,6 +242,64 @@ final class MaskedModuleInteractionTests: XCTestCase {
   }
 }
 
+final class LoadConfigFileTests: XCTestCase {
+  private var dir: URL!
+
+  override func setUpWithError() throws {
+    dir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+    try FileManager.default.createDirectory(
+      at: dir.appendingPathComponent("modules.d"), withIntermediateDirectories: true)
+  }
+
+  override func tearDownWithError() throws {
+    try FileManager.default.removeItem(at: dir)
+  }
+
+  private func write(_ contents: String, to name: String) throws -> String {
+    let file = dir.appendingPathComponent(name)
+    try contents.write(to: file, atomically: true, encoding: .utf8)
+    return file.path
+  }
+
+  private var modulesDir: String { dir.appendingPathComponent("modules.d").path }
+
+  private func error(loading path: String) -> ConfigLoadError? {
+    if case .failure(let error) = loadConfigFile(at: path, modulesDir: nil) { return error }
+    return nil
+  }
+
+  func testFailuresSayWhy() throws {
+    XCTAssertEqual(error(loading: dir.appendingPathComponent("missing.yaml").path), .unreadable)
+    guard case .invalidYaml = error(loading: try write("height: [33\n", to: "bad.yaml")) else {
+      return XCTFail("expected invalid YAML")
+    }
+    XCTAssertEqual(
+      error(loading: try write("style:\n  light:\n    fg: \"#000000\"\n", to: "partial.yaml")),
+      .invalidConfig)
+  }
+
+  func testMergesModulesDirAndFallsBackToTheWelcomeModules() throws {
+    let path = try write("height: 30\n", to: "config.yaml")
+    XCTAssertEqual(
+      try loadConfigFile(at: path, modulesDir: modulesDir).get().modules.map(\.name),
+      Config.welcome.modules.map(\.name))
+
+    _ = try write(
+      "name: extra\ntype: text\nplacement: right\nconfig:\n  value: hi\n",
+      to: "modules.d/extra.yaml")
+    let config = try loadConfigFile(at: path, modulesDir: modulesDir).get()
+    XCTAssertEqual(config.height, 30)
+    XCTAssertEqual(config.modules.map(\.name), ["extra"])
+  }
+
+  func testTheLoadErrorBarNamesTheFileAndWhy() {
+    let config = Config.loadError(.invalidConfig, path: "/a/b/config.yaml")
+    XCTAssertEqual(
+      config.modules.compactMap { ($0.config as? TextConfig)?.value },
+      ["config.yaml isn't a valid configuration", "Fix it and save to reload"])
+  }
+}
+
 final class LoadConfigTests: XCTestCase {
   func testMinimalConfigReturnsNativeAppearance() throws {
     let yaml = try Yaml.load("height: 33\npadding: 10\n")
