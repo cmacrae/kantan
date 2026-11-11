@@ -142,6 +142,7 @@
         inherit
           self
           pkgs
+          swift
           docs
           site
           pluginPackages

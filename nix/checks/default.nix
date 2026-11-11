@@ -1,6 +1,7 @@
 {
   self,
   pkgs,
+  swift,
   docs,
   site,
   pluginPackages,
@@ -80,6 +81,7 @@ in
 {
   formatting = treefmtEval.config.build.check self;
   kantan = _kantan;
+  kantan-tests = (swift.withSwiftTests _kantan).overrideAttrs { pname = "kantan-tests"; };
   kantan-with-plugins = kantan;
   inherit tabler-icons;
   release = release.full;

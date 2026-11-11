@@ -56,20 +56,21 @@ let
         // meta;
       }
     );
+  # Runs a Swift package's tests after building it.
+  withSwiftTests =
+    drv:
+    drv.overrideAttrs {
+      doCheck = true;
+      checkPhase = swiftCheckPhase;
+    };
 in
 {
-  inherit buildSwiftPackage;
+  inherit buildSwiftPackage withSwiftTests;
 
   buildSwiftPlugin =
     {
       name,
       src,
     }:
-    buildSwiftPackage (
-      plugin.pluginAttrs { inherit name src; }
-      // {
-        doCheck = true;
-        checkPhase = swiftCheckPhase;
-      }
-    );
+    withSwiftTests (buildSwiftPackage (plugin.pluginAttrs { inherit name src; }));
 }
