@@ -10,13 +10,16 @@ Location: `docs/schemas/plugin-output.schema.json`
 
 Key fields:
 - `value` — display text (optional; raw stdout used if omitted)
-- `icon` — icon override
+- `segments` — the value in parts, each with its own colour
+- `icon` — icon override (icon name or glyph)
 - `hidden` — hide module
 - `active` — active state
 - `variables` — template variables for `{key}` substitution
 - `data` — named data arrays for `foreach` iteration in the View DSL
-- `style` — dynamic color overrides (fg, bg, icon, text)
-- `view` — View DSL tree for rich popup/menu/tooltip content
+- `style` — dynamic colour overrides (fg, bg, icon, text)
+- `view` — View DSL tree for the module's click menu or popup
+
+kantan ignores fields it doesn't know. The schema rejects them to catch typos.
 
 See the [Plugin API Reference](/docs/plugins/api-reference) for detailed field documentation.
 
@@ -39,13 +42,13 @@ See the [Configuration](/docs/configuration/modules) section for human-readable 
 **Schema draft:**
 
 Both schemas target [JSON Schema draft 2020-12](https://json-schema.org/draft/2020-12) (declared via their `$schema` keyword).
-Validators that understand this draft — `ajv` (with `--draft=2020`), `jsonschema` (Python ≥ 4.18), `check-jsonschema`, IntelliJ, VS Code's built-in YAML/JSON support — will work out of the box.
+Validators that understand this draft — `ajv-cli` (with `--spec=draft2020`), `jsonschema` (Python ≥ 4.18), `check-jsonschema`, IntelliJ, VS Code's built-in YAML/JSON support — will work out of the box.
 
 **Using schemas for validation:**
 
-You can use any JSON Schema validator to check your configuration or plugin output against these schemas. For example, with `ajv`:
+You can use any JSON Schema validator to check your configuration or plugin output against these schemas. For example, with `ajv-cli`:
 ```bash
-ajv validate -s docs/schemas/plugin-output.schema.json -d my-plugin-output.json
+ajv validate --spec=draft2020 -s docs/schemas/plugin-output.schema.json -d my-plugin-output.json
 ```
 
 **Editor integration:**

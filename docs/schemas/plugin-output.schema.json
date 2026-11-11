@@ -2,13 +2,13 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://github.com/cmacrae/kantan/docs/schemas/plugin-output.schema.json",
   "title": "Kantan Plugin Output",
-  "description": "JSON schema for the stdout output of a kantan plugin. Plugins print a single JSON object to stdout and exit. If JSON parsing fails, the raw output is treated as plain text for the module's display value.",
+  "description": "JSON schema for the output of a kantan plugin: the single JSON object a command prints to stdout before exiting, or one line of JSON a watch process prints. If JSON parsing fails, the raw output is treated as plain text for the module's display value. kantan ignores unknown fields and fields of the wrong type; this schema rejects unknown fields to catch typos.",
   "type": "object",
   "additionalProperties": false,
   "properties": {
     "value": {
       "type": "string",
-      "description": "Display text shown in the status bar. If omitted, the raw stdout output is used as the display value. Supports template variable substitution with {variable_name} syntax, resolved from the 'variables' object."
+      "description": "Display text shown in the status bar, as given (it is not a template). If omitted, the raw output (the JSON text itself) is used as the display value."
     },
     "segments": {
       "type": "array",
@@ -22,7 +22,7 @@
             "description": "Text of this part of the value."
           },
           "fg": {
-            "type": "string",
+            "$ref": "#/$defs/BarColor",
             "description": "Colour of this part: a hex colour (e.g. \"#89B4FA\" or \"89B4FA\") or a {theme(name)} template. Without it, the part takes the module's text colour."
           }
         }
@@ -31,7 +31,7 @@
     },
     "icon": {
       "type": "string",
-      "description": "Override the module's icon. Accepts an icon name from the bundled font (e.g. \"brain\", \"bolt-filled\") which is resolved via the icon name map, or a literal Unicode glyph. The '-filled' suffix selects the filled variant. When set, replaces the static icon from the module's YAML config."
+      "description": "Override the module's icon. Accepts an icon name from the bundled font (e.g. \"brain\", \"bolt-filled\") which is resolved via the icon name map, or a literal Unicode glyph. The '-filled' suffix selects the filled variant. When set and non-empty, replaces the static icon from the module's YAML config."
     },
     "hidden": {
       "type": "boolean",
@@ -41,12 +41,12 @@
     "active": {
       "type": "boolean",
       "default": true,
-      "description": "Module's active/inactive state. When false, the module is rendered in a dimmed/inactive style."
+      "description": "Module's active/inactive state. When false, the module's icon is drawn at reduced opacity."
     },
     "variables": {
       "type": "object",
       "additionalProperties": { "type": "string" },
-      "description": "Template variables available for substitution in 'value', tooltip 'content', and view DSL text nodes. Use {key} syntax in strings to reference these. Example: if variables is {\"cpu\": \"45%\"}, then \"CPU {cpu}\" resolves to \"CPU 45%\"."
+      "description": "Template variables available for substitution in tooltip 'content' and view DSL strings. Use {key} syntax in strings to reference these. Example: if variables is {\"cpu\": \"45%\"}, then \"CPU {cpu}\" resolves to \"CPU 45%\". If any value is not a string, kantan ignores the whole object."
     },
     "data": {
       "type": "object",
@@ -57,31 +57,29 @@
           "additionalProperties": true
         }
       },
-      "description": "Named data collections for 'foreach' iteration in the view DSL. Each key is a collection name referenced by foreach's 'items' field. Values are arrays of objects whose keys become template variables within the foreach child. Values may be any JSON type (string, number, boolean); non-string values are coerced to strings internally."
+      "description": "Named data collections for 'foreach' iteration in the view DSL. Each key is a collection name referenced by foreach's 'items' field. Values are arrays of objects whose keys become template variables within the foreach child. Values may be strings, numbers or booleans; non-string values are coerced to strings internally (a boolean becomes \"1\" or \"0\"). If any entry is not an array of objects, kantan ignores the whole object."
     },
     "style": {
       "$ref": "#/$defs/StyleOverride",
-      "description": "Dynamic style overrides applied at runtime. These take priority over the module's static YAML style config."
+      "description": "Dynamic style overrides applied at runtime to the module in the bar. These take priority over the module's static YAML style config, and give way to colours set with `kantan trigger <name> set fg=... bg=...`."
     },
     "view": {
       "$ref": "#/$defs/ViewNode",
-      "description": "A structured view tree for rich popup/menu/tooltip content. Rendered as native SwiftUI views. This defines what appears when the user interacts with the module (hover tooltip or click menu/popup)."
+      "description": "A structured view tree shown when the module is clicked, for a click interaction of type 'menu' (a native menu, showing a subset of nodes) or 'popup' (rendered as SwiftUI views). A 'view' in the module's click config takes precedence; hover tooltips only show a view from the config. A view that fails to decode is dropped."
     }
   },
   "$defs": {
     "StyleOverride": {
       "type": "object",
       "additionalProperties": false,
-      "description": "Runtime style overrides. Colors are hex strings (e.g. \"#FF3B30\" or \"FF3B30\"). These override the module's YAML-defined style for the current update cycle.",
+      "description": "Runtime style overrides. Colors are hex strings (e.g. \"#FF3B30\" or \"FF3B30\") or {theme(name)} templates. These override the module's YAML-defined style until the next output.",
       "properties": {
         "fg": {
-          "type": "string",
-          "pattern": "^#?[0-9a-fA-F]{6}$",
+          "$ref": "#/$defs/BarColor",
           "description": "Foreground color override (applies to both icon and text unless overridden individually)."
         },
         "bg": {
-          "type": "string",
-          "pattern": "^#?[0-9a-fA-F]{6}$",
+          "$ref": "#/$defs/BarColor",
           "description": "Background color override for the module's background shape."
         },
         "icon": {
@@ -89,8 +87,7 @@
           "additionalProperties": false,
           "properties": {
             "fg": {
-              "type": "string",
-              "pattern": "^#?[0-9a-fA-F]{6}$",
+              "$ref": "#/$defs/BarColor",
               "description": "Icon-specific foreground color override."
             }
           }
@@ -100,13 +97,25 @@
           "additionalProperties": false,
           "properties": {
             "fg": {
-              "type": "string",
-              "pattern": "^#?[0-9a-fA-F]{6}$",
+              "$ref": "#/$defs/BarColor",
               "description": "Text-specific foreground color override."
             }
           }
         }
       }
+    },
+    "BarColor": {
+      "type": "string",
+      "pattern": "^(#?[0-9a-fA-F]{6}|\\{theme\\([^)]+\\)\\})$",
+      "description": "A hex colour (\"#RRGGBB\" or \"RRGGBB\") or a {theme(name)} template resolved against the theme palette for the current appearance."
+    },
+    "Color": {
+      "type": "string",
+      "description": "A view colour: a hex colour (\"#RRGGBB\" or \"#RRGGBBAA\", '#' optional), a named colour (primary, secondary, accent, red, orange, yellow, green, blue, purple, pink, gray, grey, white, black, clear), or a template such as {var} or {theme(name)} that resolves to one."
+    },
+    "LiteralColor": {
+      "type": "string",
+      "description": "A hex colour (\"#RRGGBB\" or \"#RRGGBBAA\", '#' optional) or a named colour (primary, secondary, accent, red, orange, yellow, green, blue, purple, pink, gray, grey, white, black, clear). Templates are not resolved."
     },
     "CommonNodeProperties": {
       "type": "object",
@@ -125,8 +134,7 @@
           "description": "Opacity of the node (0 = fully transparent, 1 = fully opaque)."
         },
         "background": {
-          "type": "string",
-          "pattern": "^#?[0-9a-fA-F]{6}$",
+          "$ref": "#/$defs/Color",
           "description": "Background color for this node."
         },
         "cornerRadius": {
@@ -136,7 +144,7 @@
         },
         "visible": {
           "type": "string",
-          "description": "Conditional visibility. Accepts a bare variable name without braces (e.g. \"has_events\", not \"{has_events}\"). The variable is resolved and the node is shown if the value is truthy (non-empty, not \"false\", not \"0\", not \"no\"). Unresolved variables default to visible."
+          "description": "Conditional visibility. Accepts a bare variable name without braces (e.g. \"has_events\", not \"{has_events}\"). The variable is resolved and the node is shown only if the value is truthy (non-empty, not \"false\", not \"0\", not \"no\"). An unresolved variable is falsy, hiding the node."
         }
       }
     },
@@ -345,7 +353,7 @@
         "size": { "type": "number", "description": "Font size in points." },
         "weight": { "$ref": "#/$defs/TextWeight" },
         "style": { "$ref": "#/$defs/TextStyle" },
-        "color": { "type": "string", "pattern": "^#?[0-9a-fA-F]{6}$", "description": "Text color (hex)." },
+        "color": { "$ref": "#/$defs/Color", "description": "Text color." },
         "align": { "$ref": "#/$defs/TextAlignment" },
         "strikethrough": { "type": "boolean", "description": "Render text with a strikethrough line." }
       },
@@ -358,7 +366,7 @@
         "type": { "const": "icon" },
         "name": { "type": "string", "description": "Icon name from the bundled font (e.g. \"bell\", \"bolt-filled\") or a literal Unicode glyph. The '-filled' suffix selects the filled variant." },
         "size": { "type": "number", "description": "Icon size in points." },
-        "color": { "type": "string", "pattern": "^#?[0-9a-fA-F]{6}$", "description": "Icon color (hex)." },
+        "color": { "$ref": "#/$defs/Color", "description": "Icon color." },
         "style": { "$ref": "#/$defs/IconStyle" }
       },
       "required": ["type", "name"]
@@ -400,9 +408,9 @@
         "type": { "const": "rect" },
         "width": { "type": "number" },
         "height": { "type": "number" },
-        "color": { "type": "string", "pattern": "^#?[0-9a-fA-F]{6}$", "description": "Fill color." },
+        "color": { "$ref": "#/$defs/Color", "description": "Fill color." },
         "cornerRadius": { "type": "number" },
-        "strokeColor": { "type": "string", "pattern": "^#?[0-9a-fA-F]{6}$" },
+        "strokeColor": { "$ref": "#/$defs/LiteralColor" },
         "strokeWidth": { "type": "number" }
       },
       "required": ["type"]
@@ -413,8 +421,8 @@
       "properties": {
         "type": { "const": "circle" },
         "size": { "type": "number", "description": "Diameter of the circle in points." },
-        "color": { "type": "string", "pattern": "^#?[0-9a-fA-F]{6}$" },
-        "strokeColor": { "type": "string", "pattern": "^#?[0-9a-fA-F]{6}$" },
+        "color": { "$ref": "#/$defs/Color" },
+        "strokeColor": { "$ref": "#/$defs/LiteralColor" },
         "strokeWidth": { "type": "number" }
       },
       "required": ["type"]
@@ -426,7 +434,7 @@
         "type": { "const": "capsule" },
         "width": { "type": "number" },
         "height": { "type": "number" },
-        "color": { "type": "string", "pattern": "^#?[0-9a-fA-F]{6}$" }
+        "color": { "$ref": "#/$defs/Color" }
       },
       "required": ["type"]
     },
@@ -438,7 +446,7 @@
         "type": { "const": "action" },
         "label": { "type": "string", "description": "Action text. Supports {variable} substitution." },
         "icon": { "type": "string", "description": "Icon character for the action." },
-        "command": { "type": "string", "description": "Shell command to execute on click." },
+        "command": { "type": "string", "description": "Shell command to execute on click, or a URL to open. Supports {variable} substitution." },
         "iconFont": { "type": "string", "description": "Override icon font name for this action's icon." }
       },
       "required": ["type"]
@@ -514,10 +522,10 @@
         "type": { "const": "progress" },
         "value": {
           "$ref": "#/$defs/FlexibleValue",
-          "description": "Progress value (0-1 or 0-100). Accepts template variables."
+          "description": "Progress value from 0 to 1; values outside are clamped. Accepts template variables."
         },
-        "color": { "type": "string", "pattern": "^#?[0-9a-fA-F]{6}$", "description": "Progress fill color." },
-        "trackColor": { "type": "string", "pattern": "^#?[0-9a-fA-F]{6}$", "description": "Track (background) color." },
+        "color": { "$ref": "#/$defs/Color", "description": "Progress fill color." },
+        "trackColor": { "$ref": "#/$defs/Color", "description": "Track (background) color." },
         "style": { "$ref": "#/$defs/ProgressStyle" }
       },
       "required": ["type", "value"]
@@ -534,7 +542,7 @@
         "min": { "type": "number", "default": 0 },
         "max": { "type": "number", "default": 1 },
         "label": { "type": "string" },
-        "color": { "type": "string", "pattern": "^#?[0-9a-fA-F]{6}$" }
+        "color": { "$ref": "#/$defs/Color" }
       },
       "required": ["type", "value"]
     },
@@ -544,8 +552,8 @@
       "properties": {
         "type": { "const": "badge" },
         "content": { "type": "string", "description": "Badge text. Supports {variable} substitution." },
-        "color": { "type": "string", "pattern": "^#?[0-9a-fA-F]{6}$", "description": "Badge background color." },
-        "textColor": { "type": "string", "pattern": "^#?[0-9a-fA-F]{6}$", "description": "Badge text color." }
+        "color": { "$ref": "#/$defs/Color", "description": "Badge background color." },
+        "textColor": { "$ref": "#/$defs/Color", "description": "Badge text color." }
       },
       "required": ["type", "content"]
     },

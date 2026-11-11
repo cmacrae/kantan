@@ -19,10 +19,12 @@ kantan sets these environment variables before invoking the plugin:
 
 | Variable | Type | Set When | Description |
 |----------|------|----------|-------------|
-| `KANTAN_SETTINGS` | JSON string | Normal invocation, watch, toggle | Module's `settings:` configuration from config file |
+| `KANTAN_SETTINGS` | JSON string | Normal invocation, watch, toggle, when the module has `settings:` | Module's `settings:` configuration from config file |
 | `KANTAN_APPEARANCE` | enum string | Normal invocation, watch, toggle | Current system appearance: `"dark"` or `"light"` |
 | `KANTAN_MODULE_NAME` | string | Normal invocation, watch, toggle | Module's `name:` field from config |
 | `KANTAN_PID` | string | Normal invocation, watch, toggle | kantan's process ID (useful for tying child processes to kantan's lifetime) |
+
+The plugin also inherits kantan's own environment, including its `PATH`. Commands run from a View DSL node (`action`, `button`, `check`, `toggle`, a clickable `hstack`) inherit kantan's environment without these variables.
 
 #### KANTAN_SETTINGS
 
@@ -47,10 +49,10 @@ KANTAN_SETTINGS='{"location":"San Francisco","units":"metric","refresh":600}'
 ```
 
 **Theme template resolution:**
-Settings values can contain `{theme(...)}` template references (e.g., `{theme(accent)}`). kantan resolves these against the active theme palette before passing the JSON to the plugin, allowing theme-aware plugin configuration.
+Settings values can contain `{theme(...)}` template references (e.g., `{theme(accent)}`). kantan resolves these against the theme palette for the current appearance before passing the JSON to the plugin, allowing theme-aware plugin configuration. Without a configured theme they are passed through unchanged.
 
 **Empty settings:**
-If no `settings:` field is configured, the variable is not set (not present in the environment).
+If no `settings:` field is configured, or it is empty, the variable is not set (not present in the environment).
 
 #### KANTAN_APPEARANCE
 
@@ -106,13 +108,15 @@ The plugin must output a single JSON object to stdout with the following schema:
 }
 ```
 
+kantan ignores fields it doesn't know. A field of the wrong type is treated as absent. Each output replaces the previous one entirely: a field left out is cleared rather than kept.
+
 ### Field Definitions
 
 #### value (optional)
 
 **Type:** `string`
 **Default:** Raw stdout output
-**Description:** Primary text displayed in the status bar. If omitted, the entire raw stdout string is used as the display value.
+**Description:** Primary text displayed in the status bar. If omitted, or not a string, the entire raw stdout string (the JSON text itself) is used as the display value. Always include it.
 
 **Examples:**
 ```json
@@ -121,7 +125,7 @@ The plugin must output a single JSON object to stdout with the following schema:
 {"value": "Idle"}
 ```
 
-**Rendering:** Displayed using the module's configured font and styling. If the module has a configured icon, it appears before this text.
+**Rendering:** Displayed using the module's configured font and styling, after the icon. An empty value shows the icon alone.
 
 #### segments (optional)
 
@@ -145,17 +149,16 @@ The plugin must output a single JSON object to stdout with the following schema:
 #### icon (optional)
 
 **Type:** `string`  
-**Description:** Icon character to display before the value. Overrides the module's configured `icon:` field.
+**Description:** Icon to display before the value: an icon name from the bundled icon font (e.g. `"bell"`, with `-filled` for the filled variant, `"bell-filled"`) or a literal glyph in the module's icon font. Overrides the module's configured `icon:` field.
 
 **Examples:**
 ```json
-{"value": "42°C", "icon": "\uf2c9"}
-{"value": "Online", "icon": "\uf1eb"}
+{"value": "42°C", "icon": "temperature"}
+{"value": "Online", "icon": "wifi"}
 ```
 
 **Typical use cases:**
 - Dynamic icon based on state (battery level, network status)
-- SF Symbols or custom icon fonts
 - Omit the field entirely to fall back to the module's configured `icon:` (an empty string also falls back to the configured icon)
 
 #### hidden (optional)
@@ -187,12 +190,12 @@ The plugin must output a single JSON object to stdout with the following schema:
 {"value": "Disabled", "active": false}
 ```
 
-**Styling:** When `active: false`, kantan applies the module's inactive style (typically dimmed or muted appearance). Useful for toggle buttons and stateful indicators.
+**Styling:** When `active: false`, kantan draws the module's icon at reduced opacity and leaves the text unchanged. It suits toggle buttons and stateful indicators.
 
 #### variables (optional)
 
 **Type:** `object` (key-value pairs, values must be strings)  
-**Description:** Template variables for substitution in tooltips, views, and interaction content.
+**Description:** Template variables for substitution in tooltips, views, and interaction content. If any value isn't a string, kantan ignores the whole object. `{value}` and `{icon}` are always available alongside them.
 
 **Examples:**
 ```json
@@ -220,11 +223,12 @@ interaction:
 - Use lowercase, snake_case or camelCase
 - Avoid spaces and special characters
 - Values must be strings (convert numbers/bools to strings)
+- The bar text is not a template: `value` is shown as given
 
 #### data (optional)
 
-**Type:** `object` containing named arrays  
-**Description:** Named datasets for iteration in View DSL `foreach` elements.
+**Type:** `object` containing named arrays of objects  
+**Description:** Named datasets for iteration in View DSL `foreach` elements. If any entry isn't an array of objects, kantan ignores the whole `data` object.
 
 **Examples:**
 ```json
@@ -258,7 +262,7 @@ interaction:
 **Data access:**
 - Reference arrays by name in `foreach` elements
 - Each item's fields become template variables within the loop
-- All field values are converted to strings internally (numbers, bools, etc. are stringified via `"\(value)"`)
+- Field values are converted to strings. Give them as strings, numbers or bools. A bool becomes `"1"` or `"0"`. Nested arrays and objects don't become usable text
 
 #### style (optional)
 
@@ -268,10 +272,12 @@ interaction:
 **Fields:**
 | Field | Type | Description |
 |-------|------|-------------|
-| `fg` | string | Foreground color (applies to both icon and text) as hex: `#RRGGBB` |
-| `bg` | string | Background color as hex: `#RRGGBB` |
+| `fg` | string | Foreground colour (applies to both icon and text) |
+| `bg` | string | Background colour |
 | `icon` | object | Icon-specific overrides: `{"fg": "#RRGGBB"}` |
 | `text` | object | Text-specific overrides: `{"fg": "#RRGGBB"}` |
+
+Colours are hex (`#RRGGBB` or `RRGGBB`) or `{theme(name)}` templates, resolved against the theme palette for the current appearance. A template that doesn't resolve is skipped.
 
 When both `fg` and `icon.fg`/`text.fg` are set, the specific overrides take precedence for their respective elements.
 
@@ -297,14 +303,15 @@ When both `fg` and `icon.fg`/`text.fg` are set, the specific overrides take prec
 ```
 
 **Behavior:**
-- Overrides module's configured colors
+- Overrides module's configured colours, including under the native appearance
+- Is itself overridden by `kantan trigger <name> set fg=… bg=…`
 - Applies to status bar display only (not popups/menus)
 - Use sparingly for state-driven colour changes (alerts, status indicators)
 
 #### view (optional)
 
 **Type:** `ViewNode` (View DSL tree)  
-**Description:** Rich UI definition for popups, menus, and tooltips using kantan's View DSL.
+**Description:** Rich UI definition using kantan's View DSL, shown when the module is clicked with `click.type: menu` or `popup`. A `view:` in the module's `click` config takes precedence. Hover tooltips only show a `view:` from the config. A `view` that fails to decode (an unknown node type, a missing required field) is dropped. The rest of the output still applies.
 
 **Node categories** (full reference in [View DSL nodes](/docs/view-dsl/nodes)):
 
@@ -347,6 +354,8 @@ The data nodes (`foreach`, `if`) and advanced nodes (`progress`, `gauge`, `grid`
 }
 ```
 
+A `menu` is a native macOS menu. It shows text, headers, dividers, `action`, `check` and `toggle` rows, and each `hstack` as one row of its text and icons. It skips `button`, shapes, images, `progress`, `gauge` and `badge` elsewhere. A `popup` renders every node. Commands in a view run with `/bin/sh -c`. A URL such as `https://…` is opened instead. kantan doesn't refresh the module afterwards. End a command with `&& kantan trigger <module-name> refresh` when it changes the module's state.
+
 See the [View DSL documentation](/docs/view-dsl) for complete specification.
 
 ## Exit Codes
@@ -354,12 +363,14 @@ See the [View DSL documentation](/docs/view-dsl) for complete specification.
 | Code | Meaning | kantan Behavior |
 |------|---------|----------------|
 | `0` | Success | Parse JSON output and update module |
-| Non-zero | Error | Empty string returned; cached icon/variables/style are cleared |
+| Non-zero | Error | Value is empty; every other output field is cleared |
 
 **Error scenarios:**
-- Non-zero exit code: Empty string returned (nothing displayed), cached icon/variables/style are cleared
-- Invalid JSON: Cached icon/variables/style are cleared and the raw stdout is shown as plain text
-- Execution timeout: Process terminated, treated as non-zero exit (empty string returned)
+- Non-zero exit code: The value is empty and the output's icon, segments, variables, data, style, view, `hidden` and `active` are cleared. The module shows its configured icon alone
+- Invalid JSON: The same fields are cleared and the raw stdout is shown as plain text
+- Execution timeout: The process is terminated with SIGTERM and treated as a non-zero exit
+
+kantan trims trailing newlines from stdout and discards stderr.
 
 ## IPC Protocol
 
@@ -369,14 +380,14 @@ Watch processes and external scripts can trigger module updates using the `kanta
 
 **Syntax:**
 ```bash
-kantan trigger <module-name> refresh
+kantan trigger <module-name> <action> [key=value ...]
 ```
 
 **Parameters:**
 | Parameter | Description |
 |-----------|-------------|
 | `module-name` | The module's `name:` field from config (or `*` for all modules) |
-| `action` | Action to perform: `refresh` (re-invoke command) or `set` (directly update display values) |
+| `action` | Action to perform: `refresh` (re-invoke command) or `set` (directly update display values). Any other action does nothing |
 
 **Example:**
 ```bash
@@ -387,7 +398,7 @@ kantan trigger weather refresh
 
 #### refresh
 
-Re-invokes the module's command and updates the display with the new output.
+Re-invokes the module's command and updates the display with the new output. Built-in modules take it too and re-read their data.
 
 ```bash
 kantan trigger weather refresh
@@ -399,15 +410,17 @@ Directly updates module display values without re-invoking the command. Accepts 
 
 | Key | Description |
 |-----|-------------|
-| `value=` | Set the display text (empty string clears it) |
-| `icon=` | Set the display icon (empty string clears it) |
-| `fg=` | Set foreground color override (hex, empty string clears it) |
-| `bg=` | Set background color override (hex, empty string clears it) |
-| `duration=` | Auto-reset all overrides after N seconds |
+| `value=` | Set the display text, in one colour |
+| `icon=` | Set the display icon (an icon name or a glyph) |
+| `fg=` | Set a foreground colour override for icon and text (hex only) |
+| `bg=` | Set a background colour override (hex only) |
+| `duration=` | After N seconds, clear the `fg`/`bg` overrides and run the module's command again |
 
 ```bash
-kantan trigger mymodule set value="Hello" icon="\uf06a" fg="#ff0000" duration=5
+kantan trigger mymodule set value="Hello" icon=alert-circle fg="#ff0000" duration=5
 ```
+
+A `value` or `icon` set without `duration` lasts until the module next updates. `fg` and `bg` overrides last until a `set … duration=N` ends. A key with an empty value clears what it names. `fg=` removes the override. `value=` or `icon=` shows none. While a `duration` is pending, kantan ignores the module's refreshes, polls and watch process output.
 
 **Behavior (refresh):**
 1. Posts a distributed notification that kantan listens for
@@ -416,7 +429,7 @@ kantan trigger mymodule set value="Hello" icon="\uf06a" fg="#ff0000" duration=5
 
 **Delivery semantics:** `kantan trigger` posts a distributed notification and returns immediately with no exit-code variation
 if the module name is unknown or if no kantan instance is running. Treat it as fire-and-forget — watch processes should not assume
-delivery and should not block waiting for kantan to act. See [the CLI reference](/docs/reference/cli#trigger) for the full semantics.
+delivery and should not block waiting for kantan to act. See [the CLI reference](/docs/reference/cli#trigger-command) for the full semantics.
 
 **Typical use case in watch process:**
 ```swift
@@ -452,21 +465,25 @@ Enable watch mode by adding a `watch:` field to the module config:
     watch: kantan-plugin-my-events --watch
 ```
 
+The watch command always runs with `/bin/sh -c`. `launcher:` applies only to `command` and `toggle`. Its stderr is discarded.
+
 ### Process Lifecycle
 
 | Event | Behavior |
 |-------|----------|
 | kantan launch | Watch process started |
-| kantan quit | stdin pipe closed (EOF), process should exit gracefully |
-| System sleep | Watch process terminated |
-| System wake | Watch process restarted |
+| kantan quit | stdin reaches EOF when kantan's end of the pipe closes. The process should exit |
+| Config reload | Watch process stopped, and a new one started for the reloaded module |
+| System sleep | Watch process stopped |
+| System wake | Watch process restarted, with the restart count reset |
+| No display shows the module | Watch process stopped, and restarted once a display shows it again |
 | Appearance change | Watch process restarted, with the new `KANTAN_APPEARANCE` and settings resolved for it |
 | Process exit | Auto-restart with exponential backoff (1s → 16s cap, max 10 consecutive restarts) |
 | Max restarts reached | Watch disabled until kantan restarts or the system wakes |
 
-**Cardinality:** kantan runs **exactly one watch process per module** for the lifetime of the kantan process,
-regardless of how many displays are configured. Module view-models are shared across all `DisplayInstance`s,
-so the watch process is shared too. Plugin authors do not need to coordinate or deduplicate work across multiple invocations of the same module.
+When kantan stops a watch process itself, it closes the process's stdin and sends SIGTERM straight after.
+
+**Cardinality:** kantan runs **exactly one watch process per module** at a time, however many displays are configured. Module view-models are shared across all `DisplayInstance`s. The watch process is shared too. Plugin authors do not need to coordinate or deduplicate work across multiple invocations of the same module.
 
 ### Watch Process Requirements
 
@@ -480,15 +497,15 @@ The watch process must:
 
 ### Printing Output
 
-A watch process can send the module's output itself. Each line it prints to stdout that is a JSON object is shown as though the command had printed it, in the [output format](#output-specification): its value, icon, variables, style, view and data replace the module's. This saves kantan launching the command for each update, and lets the watch process send state it already holds.
+A watch process can send the module's output itself. Each line it prints to stdout that is a JSON object is shown as though the command had printed it, in the [output format](#output-specification). Its fields replace the module's. A line without `value` shows the line itself. This saves kantan launching the command for each update and lets the watch process send state it already holds.
 
-- Print each output as one line, and flush stdout after it.
-- Lines that aren't JSON objects are ignored, so stray logging does no harm, though stderr is the place for it.
+- Print each output as one line and flush stdout after it.
+- Lines that aren't JSON objects are ignored. Logging belongs on stderr, which kantan discards.
 - Only modules with `output: json` read a watch process's output.
-- kantan still runs the command when the module starts, on wake and on `kantan trigger <name> refresh`, so the command and the watch process should report the same state.
-- While a `kantan trigger <name> set … duration=N` override shows, printed output is ignored; kantan runs the command when the override ends.
+- kantan still runs the command when the module starts, on wake, when the active Space changes, after a `toggle`, and on `kantan trigger <name> refresh`. The command and the watch process should report the same state.
+- Printed output is ignored while a `kantan trigger <name> set … duration=N` override shows. kantan runs the command when the override ends.
 
-A watch process that prints nothing, and calls `kantan trigger` instead, works as before.
+A watch process may instead print nothing and call `kantan trigger <name> refresh` when something changes.
 
 ### Watch Process Example
 
@@ -535,7 +552,7 @@ RunLoop.main.run()
 
 When a watch process exits without kantan stopping it (any exit code, including 0):
 
-1. kantan logs the failure
+1. kantan prints the exit to its stdout
 2. Waits according to exponential backoff schedule:
    - Attempt 1: 1 second
    - Attempt 2: 2 seconds
@@ -553,21 +570,23 @@ The `command` module type supports plugins through these config fields:
 
 | Field | Type | Default | Description |
 |-------|------|---------|-------------|
-| `command` | string | required | Executable path or name (must be on PATH) |
+| `command` | string | required | Shell command to run, looked up on kantan's `PATH`. One starting with `./` or `../` runs from the directory of the file that declares the module |
 | `output` | string | `"text"` | Output format: `"json"` for plugin protocol, `"text"` for plain text |
-| `interval` | number | `1` | Polling interval in seconds (0 = event-driven only, no polling) |
+| `interval` | number | `1` | Polling interval in seconds (0 = no polling) |
 | `timeout` | number | `10` | Execution timeout in seconds |
-| `watch` | string | none | Long-lived watcher process command |
-| `toggle` | string | none | Command to run on click (when `click.type: toggle`) |
-| `settings` | object | none | Arbitrary JSON passed via `KANTAN_SETTINGS` |
-| `launcher` | object | `{path: "/bin/sh", args: ["-c"]}` | Shell interpreter for command execution (with `path` and `args` sub-fields) |
+| `watch` | string | none | Long-lived watcher process command, run with `/bin/sh -c` |
+| `toggle` | string | none | Command to run on click when `click.type` is `toggle` or `complete`; its output is discarded and the module refreshes when it exits |
+| `settings` | object | none | Arbitrary settings passed as JSON via `KANTAN_SETTINGS` |
+| `launcher` | object | `{path: "/bin/sh", args: ["-c"]}` | Interpreter for `command` and `toggle`: kantan runs `path` with `args` followed by the command string |
+
+kantan keeps a JSON module's latest output under its `command` string, so modules with identical `command` strings share one icon, variables, view and style. Give each module a distinct `command`.
 
 ### Interaction with interval and watch
 
 | Configuration | Behavior |
 |---------------|----------|
 | `interval: 10` (no watch) | Poll every 10 seconds |
-| `interval: 0` (no watch) | Never poll (static module) |
+| `interval: 0` (no watch) | Never poll; the command runs only on start, wake, Space change, toggle and refresh |
 | `watch: ...` + `interval: N` | Run watch process only, no polling (interval is ignored when watch is configured) |
 | `watch: ...` + `interval: 0` | Run watch process only, no polling |
 
@@ -601,7 +620,7 @@ The plugin protocol is versioned through the kantan release version.
 - `settings:` field can contain arbitrary user-provided data — validate all inputs
 - Commands in View DSL execute via shell — sanitize user input carefully
 - Watch processes run persistently — ensure clean resource management
-- Plugin binaries must be on PATH — ensure PATH is controlled and trusted
+- Plugin commands are looked up on kantan's PATH — ensure PATH is controlled and trusted
 
 ## Performance Guidelines
 
@@ -633,7 +652,7 @@ echo '{}' | ./kantan-plugin-name --watch
 # Watch should exit when stdin closes
 ```
 
-**kantan logs:** Check Console.app for kantan plugin errors and crashes.
+**kantan logs:** kantan prints watch process exits and restarts to its own stdout. Run `kantan` from a terminal to see them. Plugins' stderr is discarded.
 
 ## Examples
 

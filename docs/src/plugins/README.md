@@ -12,18 +12,18 @@ Plugins are executable programs that integrate with kantan modules through the `
 - **Simple protocol**: Input via environment variables, output via JSON on stdout
 - **Flexible invocation**: Polling-based (periodic execution) or event-driven (via watch mode)
 - **Rich UI support**: Use the View DSL to create interactive menus, tooltips, and popups
-- **Standalone executables**: Binaries named `kantan-plugin-<name>` placed on PATH
+- **Standalone executables**: Run by a module's `command:`. Bundled plugins are named `kantan-plugin-<name>`
 
 ## Communication Model
 
 ```
 kantan → Environment Variables → Plugin
 Plugin → JSON stdout → kantan
-Plugin → JSON lines on stdout, or `kantan trigger <name> refresh` IPC → kantan (watch mode)
+Plugin → JSON lines on stdout, or `kantan trigger <name> refresh` → kantan (watch mode)
 ```
 
 kantan invokes the plugin as a subprocess, passing configuration through environment variables:
-- `KANTAN_SETTINGS`: Module's `settings:` configuration as JSON
+- `KANTAN_SETTINGS`: Module's `settings:` configuration as JSON (unset when the module has no `settings:`)
 - `KANTAN_APPEARANCE`: Current system appearance (`"dark"` or `"light"`)
 - `KANTAN_MODULE_NAME`: Module identifier from config
 - `KANTAN_PID`: kantan's process ID
@@ -32,7 +32,7 @@ The plugin processes these inputs and outputs a JSON object describing what to d
 ```json
 {
   "value": "Display text",
-  "icon": "\uf0ae",
+  "icon": "list-check",
   "variables": {"count": "5"},
   "view": { ... }
 }
@@ -41,7 +41,7 @@ The plugin processes these inputs and outputs a JSON object describing what to d
 ## Plugin Modes
 
 ### Polling Mode
-kantan invokes the plugin at regular intervals based on the configured `interval` (in seconds). Suitable for monitoring resources that don't provide event notifications.
+kantan invokes the plugin at regular intervals based on the configured `interval` (in seconds, default 1). It suits resources that have no event notifications.
 
 ### Event-Driven Mode (Watch)
 A plugin that responds to external events can run a long-lived watch process that sends updates when events occur. The watch process prints the module's new output to stdout, one line of JSON at a time. Or it runs `kantan trigger` to have kantan run the main command again.
@@ -62,9 +62,9 @@ Their sources in `packages/plugins/` are reference implementations.
 
 ## View DSL Integration
 
-Plugins can define rich interactive interfaces using kantan's View DSL. By returning a `view` field in the JSON output, plugins can create:
+A plugin's `view` output field holds a View DSL tree, shown by the module's click `menu` or `popup`. Hover tooltips take their view from the module config. Views can contain:
 
-- Custom tooltips with formatted text and icons
+- Formatted text, icons, badges and shapes
 - Multi-level menus with submenus and actions
 - Interactive popups with buttons and status displays
 - Data-driven lists using `foreach` iteration
@@ -82,7 +82,7 @@ This section contains detailed guides for plugin development:
 
 Plugins can be:
 - Distributed as standalone executables via any package manager
-- Packaged with the kantan flake using the built-in build helpers (`buildSwiftPlugin`, `buildGoPlugin`, `buildShellPlugin`)
-- Auto-discovered from `packages/plugins/` in the kantan repository (detected by `Package.swift`, `go.mod`, or `main.sh`)
+- Added to the kantan flake package with `kantan.withPlugins { extraPlugins = [ ... ]; }`, which puts each package's `bin/` on kantan's PATH
+- Built in the kantan repository from `packages/plugins/<name>/`, which the flake discovers and builds as `kantan-plugin-<name>` (Swift, Go or shell, detected by `Package.swift`, `go.mod` or `main.sh`)
 
-The only requirement is that the executable is named `kantan-plugin-<name>` and available on PATH when kantan invokes it.
+kantan runs a module's `command:` through `/bin/sh -c`. A plugin can be any name or path the shell can run. The `kantan-plugin-<name>` naming is the convention the bundled plugins follow.
