@@ -39,17 +39,33 @@ class TemplateResolver {
   /// 1. Innermost foreach scope (top of stack)
   /// 2. Outer foreach scopes (walking down the stack)
   /// 3. Top-level `variables` map
+  ///
+  /// Placeholders within a substituted value are resolved in turn, up to
+  /// `maxResolveDepth` levels. A value that resolves to its own placeholder,
+  /// such as an unknown `{theme(name)}`, is kept as written.
   func resolve(_ template: String) -> String {
-    var result = template
-    while let openRange = result.range(of: "{") {
-      guard let closeRange = result[openRange.upperBound...].range(of: "}") else {
-        break
-      }
-      let key = String(result[openRange.upperBound..<closeRange.lowerBound])
-      let replacement = lookupValue(for: key) ?? ""
-      result.replaceSubrange(openRange.lowerBound..<closeRange.upperBound, with: replacement)
+    resolve(template, depth: 0)
+  }
+
+  /// How many levels of placeholders within substituted values are resolved.
+  static let maxResolveDepth = 8
+
+  private func resolve(_ template: String, depth: Int) -> String {
+    var result = ""
+    var rest = template[...]
+    while let open = rest.firstIndex(of: "{"),
+      let close = rest[rest.index(after: open)...].firstIndex(of: "}")
+    {
+      result += rest[..<open]
+      let placeholder = rest[open...close]
+      let key = String(rest[rest.index(after: open)..<close])
+      let value = lookupValue(for: key) ?? ""
+      result +=
+        value == placeholder || depth >= Self.maxResolveDepth
+        ? value : resolve(value, depth: depth + 1)
+      rest = rest[rest.index(after: close)...]
     }
-    return result
+    return result + rest
   }
 
   /// Resolve a template string to a boolean value.
