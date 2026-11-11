@@ -221,6 +221,55 @@ final class TemplateResolverTests: XCTestCase {
   }
 }
 
+final class CommandTemplateTests: XCTestCase {
+  private let hostile = #"a b; echo pwned $(id) `id` 'q' "dq" \"#
+  private lazy var resolver = TemplateResolver(
+    variables: [
+      "v": hostile, "empty": "", "id": "x-1",
+      "cmd": "kantan-plugin-reminders --complete 'x-1' && kantan trigger r refresh",
+    ], data: [:])
+
+  /// What `sh -c` prints for `command`.
+  private func shell(_ command: String) throws -> String {
+    let process = Process()
+    let pipe = Pipe()
+    process.executableURL = URL(fileURLWithPath: "/bin/sh")
+    process.arguments = ["-c", command]
+    process.standardOutput = pipe
+    try process.run()
+    process.waitUntilExit()
+    return String(decoding: pipe.fileHandleForReading.readDataToEndOfFile(), as: UTF8.self)
+  }
+
+  func testValuesStayOneArgumentWhereverThePlaceholderSits() throws {
+    for template in [
+      "printf '[%s]' {v}", "printf '[%s]' '{v}'", #"printf '[%s]' "{v}""#,
+      #"printf '[%s]' pre{v}"#,
+    ] {
+      let command = resolver.resolveCommand(template)
+      let expected = template.hasSuffix("pre{v}") ? "[pre\(hostile)]" : "[\(hostile)]"
+      XCTAssertEqual(try shell(command), expected, template)
+    }
+  }
+
+  func testAnEmptyBareValueLeavesNothing() {
+    XCTAssertEqual(resolver.resolveCommand("cmd {empty} --x {id}"), "cmd  --x 'x-1'")
+  }
+
+  func testACommandThatIsOnePlaceholderRunsAsTheValue() {
+    XCTAssertEqual(
+      resolver.resolveCommand(" {cmd} "),
+      "kantan-plugin-reminders --complete 'x-1' && kantan trigger r refresh")
+  }
+
+  func testURLCommandsPercentEncodeValues() {
+    let r = TemplateResolver(variables: ["q": "a b&c=d"], data: [:])
+    XCTAssertEqual(
+      r.resolveCommand("https://example.com/search?q={q}"),
+      "https://example.com/search?q=a%20b%26c%3Dd")
+  }
+}
+
 final class DSLCanonicalNormalisationTests: XCTestCase {
   func testCanonicalBoolRoundTripsThroughResolveBool() {
     let r = TemplateResolver(

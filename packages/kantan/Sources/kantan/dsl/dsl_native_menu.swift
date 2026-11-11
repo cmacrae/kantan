@@ -146,7 +146,7 @@ private func addHStackItem(
   }
   item.view = rowView
   if let command = command {
-    let resolvedCommand = resolver.resolve(command)
+    let resolvedCommand = resolver.resolveCommand(command)
     let target = NativeMenuTarget {
       runCommand(resolvedCommand, environment: resolver.commandEnvironment)
     }
@@ -281,7 +281,7 @@ private func addItems(
     let item = NSMenuItem(title: "", action: nil, keyEquivalent: "")
     item.attributedTitle = title
     if let command = command {
-      let resolvedCommand = resolver.resolve(command)
+      let resolvedCommand = resolver.resolveCommand(command)
       let target = NativeMenuTarget {
         runCommand(resolvedCommand, environment: resolver.commandEnvironment)
       }
@@ -298,8 +298,8 @@ private func addItems(
   case .check(let label, let checked, let command, let uncheckedCommand, _):
     let resolvedLabel = resolver.resolve(label ?? "")
     let isChecked = checked.map { resolver.resolveBool($0) } ?? false
-    let resolvedCommand = command.map { resolver.resolve($0) }
-    let resolvedUncheckedCommand = uncheckedCommand.map { resolver.resolve($0) }
+    let resolvedCommand = command.map { resolver.resolveCommand($0) }
+    let resolvedUncheckedCommand = uncheckedCommand.map { resolver.resolveCommand($0) }
 
     let item = NSMenuItem(title: "", action: nil, keyEquivalent: "")
 
@@ -323,7 +323,7 @@ private func addItems(
 
     let toggleView = NativeMenuToggleView(label: resolvedLabel, isOn: isOn, textColor: textColor) {
       if let command = command {
-        let resolvedCommand = resolver.resolve(command)
+        let resolvedCommand = resolver.resolveCommand(command)
         runCommand(resolvedCommand, environment: resolver.commandEnvironment)
       }
     }

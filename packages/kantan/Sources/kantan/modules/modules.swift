@@ -297,18 +297,20 @@ struct ModuleConfig {
 
 // MARK: - Command Utility
 
+/// Whether `command` is opened as a URL rather than run: a letters-only
+/// scheme followed by `:`, and no spaces.
+func isURLCommand(_ command: String) -> Bool {
+  guard let colon = command.firstIndex(of: ":"), colon > command.startIndex else { return false }
+  return command[..<colon].allSatisfy(\.isLetter) && !command.contains(" ")
+}
+
 /// Run a command asynchronously (fire-and-forget).
 /// If the command matches a URL scheme (e.g. "calshow:123", "https://..."),
 /// it is opened via NSWorkspace. Otherwise it is executed as a shell command,
 /// with `environment` added to kantan's own.
 func runCommand(_ command: String, environment: [String: String] = [:]) {
   let trimmed = command.trimmingCharacters(in: .whitespaces)
-  // Detect URL scheme: starts with letters followed by ":"
-  if let colonRange = trimmed.range(of: ":"),
-    trimmed[trimmed.startIndex..<colonRange.lowerBound].allSatisfy({ $0.isLetter }),
-    !trimmed.contains(" "),
-    let url = URL(string: trimmed)
-  {
+  if isURLCommand(trimmed), let url = URL(string: trimmed) {
     DispatchQueue.main.async {
       NSWorkspace.shared.open(url)
     }

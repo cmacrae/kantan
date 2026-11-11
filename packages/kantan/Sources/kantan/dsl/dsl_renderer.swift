@@ -302,7 +302,7 @@ struct DSLRendererView: View {
   private func renderHStack(
     spacing: Double?, alignment: ViewAlignment?, children: [ViewNode], command: String? = nil
   ) -> some View {
-    let resolvedCommand = command.map { resolver.resolve($0) }
+    let resolvedCommand = command.map { resolver.resolveCommand($0) }
     let hasCommand = !(resolvedCommand?.isEmpty ?? true)
     DSLClickableHStack(
       spacing: spacing, alignment: verticalAlignment(from: alignment),
@@ -805,7 +805,7 @@ private struct DSLActionView: View {
     .onTapGesture {
       dismissHandler()
       guard let command = command, !command.isEmpty else { return }
-      let resolved = resolver.resolve(command)
+      let resolved = resolver.resolveCommand(command)
       runCommand(resolved, environment: resolver.commandEnvironment)
     }
   }
@@ -856,7 +856,7 @@ private struct DSLCheckView: View {
       let cmd = isChecked ? (uncheckedCommand ?? command) : command
       isToggled.toggle()
       guard let cmd = cmd, !cmd.isEmpty else { return }
-      let resolved = resolver.resolve(cmd)
+      let resolved = resolver.resolveCommand(cmd)
       runCommand(resolved, environment: resolver.commandEnvironment)
     }
   }
@@ -894,7 +894,7 @@ private struct DSLToggleView: View {
         isOn = newValue
         dismissHandler()
         guard let command, !command.isEmpty else { return }
-        runCommand(resolver.resolve(command), environment: resolver.commandEnvironment)
+        runCommand(resolver.resolveCommand(command), environment: resolver.commandEnvironment)
       })
   }
 
@@ -926,7 +926,7 @@ private struct DSLButtonView: View {
     Button(action: {
       dismissHandler()
       guard let command = command, !command.isEmpty else { return }
-      let resolved = resolver.resolve(command)
+      let resolved = resolver.resolveCommand(command)
       runCommand(resolved, environment: resolver.commandEnvironment)
     }) {
       HStack(spacing: 6) {

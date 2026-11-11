@@ -81,6 +81,70 @@ class TemplateResolver {
     return result + rest
   }
 
+  /// Resolve a view command's placeholders so that no value can change what
+  /// the command does. Each value is quoted for where its placeholder sits:
+  /// bare, inside single quotes, or inside double quotes; an empty bare
+  /// value leaves nothing, as it always has. In a URL command
+  /// values are percent-encoded. A command that is a single placeholder
+  /// is a command the plugin built, and runs as the value.
+  func resolveCommand(_ template: String) -> String {
+    let trimmed = template.trimmingCharacters(in: .whitespaces)
+    if trimmed.hasPrefix("{"), trimmed.hasSuffix("}"),
+      trimmed.dropFirst().firstIndex(where: { $0 == "{" || $0 == "}" })
+        == trimmed.index(before: trimmed.endIndex)
+    {
+      return resolve(trimmed)
+    }
+    if isURLCommand(trimmed) {
+      return substitute(template) {
+        $1.addingPercentEncoding(withAllowedCharacters: Self.urlValueAllowed) ?? ""
+      }
+    }
+    return substitute(template) { quote, value in
+      switch quote {
+      case "'": value.replacingOccurrences(of: "'", with: #"'\''"#)
+      case "\"":
+        value.reduce(into: "") { escaped, char in
+          if "\\\"$`".contains(char) { escaped.append("\\") }
+          escaped.append(char)
+        }
+      default: value.isEmpty ? "" : "'" + value.replacingOccurrences(of: "'", with: #"'\''"#) + "'"
+      }
+    }
+  }
+
+  /// Characters a value may keep unencoded in a URL command.
+  private static let urlValueAllowed = CharacterSet.urlQueryAllowed.subtracting(
+    CharacterSet(charactersIn: "&=+#?"))
+
+  /// Replaces each placeholder in a command with `encode(quote, value)`,
+  /// `quote` being the shell quote character the placeholder sits within,
+  /// or nil.
+  private func substitute(
+    _ template: String, encode: (Character?, String) -> String
+  ) -> String {
+    var result = ""
+    var quote: Character?
+    var index = template.startIndex
+    while index < template.endIndex {
+      let char = template[index]
+      if char == "{", let close = template[index...].firstIndex(of: "}") {
+        result += encode(quote, resolve(String(template[index...close])))
+        index = template.index(after: close)
+        continue
+      }
+      result.append(char)
+      if char == "\\", quote != "'", template.index(after: index) < template.endIndex {
+        index = template.index(after: index)
+        result.append(template[index])
+      } else if char == "'" || char == "\"" {
+        quote = quote == nil ? char : (quote == char ? nil : quote)
+      }
+      index = template.index(after: index)
+    }
+    return result
+  }
+
   /// Resolve a template string to a boolean value.
   ///
   /// Returns `true` if the resolved string is "true", "1", "yes", or a non-empty
