@@ -148,6 +148,14 @@
       darwinModules.default = import ./nix/module/darwin.nix kantan;
       homeManagerModules.default = import ./nix/module/home-manager.nix kantan;
 
+      devShells.${system}.default = pkgs.mkShellNoCC {
+        packages = [
+          pkgs.cocogitto
+          pkgs.go
+        ];
+        shellHook = swift.xcodeEnv;
+      };
+
       formatter.${system} = treefmtEval.config.build.wrapper;
       checks.${system} = import ./nix/checks {
         inherit

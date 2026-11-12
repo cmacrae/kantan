@@ -4,13 +4,18 @@
 }:
 
 let
-  swiftBuildPhase = pname: ''
-    runHook preBuild
-
+  # Puts the system Xcode's Swift toolchain and SDK first.
+  xcodeEnv = ''
     export DEVELOPER_DIR=$(/usr/bin/xcode-select -p)
     export SDKROOT=$(/usr/bin/xcrun --show-sdk-path)
     export TOOLCHAINS=default
     export PATH="$DEVELOPER_DIR/Toolchains/XcodeDefault.xctoolchain/usr/bin:$DEVELOPER_DIR/usr/bin:/usr/bin:$PATH"
+  '';
+
+  swiftBuildPhase = pname: ''
+    runHook preBuild
+
+    ${xcodeEnv}
     export HOME="$TMPDIR"
 
     swift build -c release --disable-sandbox --scratch-path .build --product ${pname}
@@ -64,7 +69,7 @@ let
     };
 in
 {
-  inherit buildSwiftPackage withSwiftTests;
+  inherit buildSwiftPackage withSwiftTests xcodeEnv;
 
   buildSwiftPlugin =
     {
