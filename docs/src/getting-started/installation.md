@@ -42,14 +42,13 @@ For EventKit plugins (`reminders`, `calendar`), macOS shows the consent dialog u
 ### Homebrew
 
 ```bash
-brew tap cmacrae/kantan
-brew install kantan
+brew install cmacrae/tap/kantan
 ```
 
 A variant without plugins is also available. It conflicts with `kantan`. Install one or the other:
 
 ```bash
-brew install kantan-without-plugins
+brew install cmacrae/tap/kantan-without-plugins
 ```
 
 Both formulae install the bundled icon fonts and themes alongside the binary.

@@ -16,8 +16,7 @@ programs.kantan.enable = true;`,
   },
   {
     label: "Homebrew",
-    content: `brew tap cmacrae/kantan
-brew install kantan
+    content: `brew install cmacrae/tap/kantan
 brew services start kantan`,
   },
   {

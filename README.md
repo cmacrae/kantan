@@ -26,7 +26,7 @@ kantan is a macOS status bar that replaces or overlays the native menu bar. It's
 nix run github:cmacrae/kantan
 
 # Via Homebrew
-brew tap cmacrae/kantan && brew install kantan
+brew install cmacrae/tap/kantan
 kantan
 ```
 
