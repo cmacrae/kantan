@@ -1,0 +1,11 @@
+version: 2
+updates:
+  # Action tags in the workflows, with actions.lock updated to match.
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    cooldown:
+      default-days: 7
+    commit-message:
+      prefix: ci

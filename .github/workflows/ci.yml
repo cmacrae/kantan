@@ -1,0 +1,64 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    runs-on: macos-26
+    steps:
+      - uses: actions/checkout@v7.0.1
+        with:
+          # cog reads the commits being checked.
+          fetch-depth: 0
+          persist-credentials: false
+
+      # The build uses the runner's Xcode, outside the Nix store, so the
+      # sandbox stays off, as on a local macOS Nix install.
+      - uses: cachix/install-nix-action@v31.11.5
+        with:
+          extra_nix_config: |
+            sandbox = false
+
+      - name: Check commit messages
+        env:
+          BASE: ${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha || github.event.before }}
+          HEAD: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
+        run: |
+          # Only the commits this push or pull request adds; the earliest
+          # history predates conventional commits.
+          if [ "$BASE" = "0000000000000000000000000000000000000000" ]; then
+            echo "No earlier commit to check from"
+            exit 0
+          fi
+          nix develop --command cog check --ignore-merge-commits "$BASE..$HEAD"
+
+      - name: Smoke test
+        run: nix run . -- --version
+
+      - name: Flake checks
+        run: nix flake check --print-build-logs
+
+  # Every action the workflows use matches the commit actions.lock records.
+  actions-lock:
+    runs-on: ubuntu-slim
+    steps:
+      - uses: actions/checkout@v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Verify actions.lock
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh extension install github/gh-actions-lock --pin v0.4.1
+          gh actions-lock --verify
