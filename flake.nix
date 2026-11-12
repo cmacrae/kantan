@@ -125,6 +125,7 @@
         inherit pkgs;
         version = version.release;
         tarballs = release;
+        releaseUrl = "https://github.com/cmacrae/kantan/releases/download/v${version.release}";
       };
     in
     {
@@ -138,6 +139,7 @@
         release-without-plugins = release.core;
         homebrew-formula = homebrew.kantan;
         homebrew-formula-without-plugins = homebrew.kantan-without-plugins;
+        homebrew-tap = homebrew.tap;
       };
 
       apps.${system} = {

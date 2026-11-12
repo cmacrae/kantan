@@ -2,6 +2,7 @@
   pkgs,
   version,
   tarballs,
+  releaseUrl,
 }:
 
 let
@@ -13,6 +14,7 @@ let
       tarball,
       hasPlugins,
       conflictsWith ? null,
+      tarballUrl,
     }:
     let
       pluginInstall = pkgs.lib.optionalString hasPlugins "\n    Dir[\"bin/kantan-plugin-*\"].each { |f| bin.install f }";
@@ -28,7 +30,7 @@ let
         desc "${desc}"
         homepage "https://github.com/cmacrae/kantan"
         version "${version}"
-        url "file://${tarball}"
+        url "${tarballUrl tarball}"
         sha256 "${sha256}"
 
         depends_on arch: :arm64
@@ -47,8 +49,11 @@ let
         end
       end
     '';
-  formulae = {
+
+  # Both formulae, downloading each tarball from `tarballUrl tarball`.
+  mkFormulae = tarballUrl: {
     kantan = mkFormula {
+      inherit tarballUrl;
       pname = "kantan";
       className = "Kantan";
       desc = "A beautifully simple status bar for macOS";
@@ -58,6 +63,7 @@ let
     };
 
     kantan-without-plugins = mkFormula {
+      inherit tarballUrl;
       pname = "kantan-without-plugins";
       className = "KantanWithoutPlugins";
       desc = "A beautifully simple status bar for macOS (without plugins)";
@@ -66,9 +72,21 @@ let
       conflictsWith = "kantan";
     };
   };
+
+  # Formulae for the tarballs in the Nix store.
+  formulae = mkFormulae (tarball: "file://${tarball}");
+
+  # The tap's Formula directory, for the tarballs attached to the release.
+  tap = pkgs.linkFarm "homebrew-tap-${version}" (
+    pkgs.lib.mapAttrsToList (name: formula: {
+      name = "Formula/${name}.rb";
+      path = formula;
+    }) (mkFormulae (tarball: "${releaseUrl}/${tarball.name}"))
+  );
 in
 formulae
 // {
+  inherit tap;
   generateApp = {
     type = "app";
     program = toString (
