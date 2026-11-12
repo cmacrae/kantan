@@ -87,6 +87,20 @@ in
   inherit tabler-icons;
   release = release.full;
   release-core = release.core;
+  workflows =
+    pkgs.runCommand "kantan-workflows"
+      {
+        nativeBuildInputs = [
+          pkgs.git
+          pkgs.zizmor
+        ];
+      }
+      ''
+        cp -r ${../../.github} .github
+        git init --quiet
+        zizmor --offline .
+        touch $out
+      '';
   release-smoke = pkgs.runCommand "kantan-release-smoke" { } ''
     tar -xzf ${release.full}
     test "$(bin/kantan --version)" = "kantan ${version.release}"

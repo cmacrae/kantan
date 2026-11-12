@@ -59,6 +59,7 @@
         programs.swift-format.enable = true;
         programs.gofmt.enable = true;
         programs.shfmt.enable = true;
+        programs.actionlint.enable = true;
       };
 
       mkKantan =
@@ -151,7 +152,10 @@
       devShells.${system}.default = pkgs.mkShellNoCC {
         packages = [
           pkgs.cocogitto
+          pkgs.gh
+          pkgs.gh-actions-lock
           pkgs.go
+          pkgs.zizmor
         ];
         shellHook = swift.xcodeEnv;
       };
