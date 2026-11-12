@@ -160,8 +160,7 @@ struct CommandConfig: ModuleConfiguration {
   /// The `KANTAN_*` variables this module's toggle and view commands get,
   /// for the current appearance.
   func kantanEnvironment() -> [String: String] {
-    let names: [NSAppearance.Name] = [.darkAqua, .aqua]
-    let isDark = NSApp.effectiveAppearance.bestMatch(from: names) == .darkAqua
+    let isDark = Self.appearanceIsDark()
     var env = [
       "KANTAN_APPEARANCE": isDark ? "dark" : "light",
       "KANTAN_PID": "\(ProcessInfo.processInfo.processIdentifier)",
@@ -192,6 +191,16 @@ struct CommandConfig: ModuleConfiguration {
     }
   }
 
+  /// Whether the app's appearance is dark, read on the main thread.
+  static func appearanceIsDark() -> Bool {
+    let read = {
+      MainActor.assumeIsolated {
+        NSApplication.shared.effectiveAppearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
+      }
+    }
+    return Thread.isMainThread ? read() : DispatchQueue.main.sync(execute: read)
+  }
+
   func getValue(completion: @escaping @Sendable (String) -> Void) {
     let cmd = self.command
     let path = self.launchPath
@@ -201,9 +210,8 @@ struct CommandConfig: ModuleConfiguration {
     let moduleName = self.moduleName
     let key = cacheKey
 
-    // Capture appearance on main thread before dispatching to background.
-    let names: [NSAppearance.Name] = [.darkAqua, .aqua]
-    let isDark = NSApp.effectiveAppearance.bestMatch(from: names) == .darkAqua
+    // Capture appearance before dispatching to background.
+    let isDark = Self.appearanceIsDark()
     let settings = resolvedSettings(isDark: isDark)
     let appearance = isDark ? "dark" : "light"
 
