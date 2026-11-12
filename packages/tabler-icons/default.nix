@@ -56,6 +56,7 @@ stdenvNoCC.mkDerivation rec {
     mkdir -p $out/share/fonts
     cp package/dist/fonts/tabler-icons.ttf $out/share/fonts/tabler-icons.ttf
     cp tabler-icons-filled.ttf $out/share/fonts/tabler-icons-filled.ttf
+    install -D -m 644 package/LICENSE $out/share/doc/tabler-icons/LICENSE
     runHook postInstall
   '';
 

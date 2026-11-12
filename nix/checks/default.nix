@@ -108,6 +108,33 @@ in
     for plugin in bin/kantan-plugin-*; do test -x "$plugin"; done
     touch $out
   '';
+  # Both tarballs carry kantan's licence and the third-party notices.
+  release-notices = pkgs.runCommand "kantan-release-notices" { } ''
+    for tarball in ${release.full} ${release.core}; do
+      mkdir staging
+      tar -xzf $tarball -C staging
+      cmp staging/share/doc/kantan/LICENSE ${../../LICENSE}
+      cmp staging/share/doc/kantan/THIRD_PARTY_NOTICES ${../../THIRD_PARTY_NOTICES}
+      test -f staging/share/doc/tabler-icons/LICENSE
+      rm -rf staging
+    done
+    touch $out
+  '';
+
+  third-party-notices =
+    pkgs.runCommand "kantan-third-party-notices" { nativeBuildInputs = [ pkgs.perl ]; }
+      ''
+        tar -xzf ${pkgs.go.src} go/LICENSE
+        for license in \
+          ${tabler-icons}/share/doc/tabler-icons/LICENSE \
+          ${_kantan.swiftpmDeps}/Packages/Yams/LICENSE \
+          ${pkgs.libyaml.src}/License \
+          go/LICENSE; do
+          perl -0777 -e 'open my $f, "<", $ARGV[0] or die; my $n = <$f>; open $f, "<", $ARGV[1] or die; exit(index(<$f>, $n) < 0)' \
+            "$license" ${../../THIRD_PARTY_NOTICES} || { echo "THIRD_PARTY_NOTICES lacks $license"; exit 1; }
+        done
+        touch $out
+      '';
   docs = docs.package;
   site = site.package;
   homebrew-formula = homebrew.kantan;
@@ -120,6 +147,7 @@ in
       keg=$name/${version.release}
       test "$($keg/bin/kantan --version)" = "kantan ${version.release}"
       test -f $keg/share/fonts/tabler-icons.ttf
+      test -f $keg/share/doc/kantan/THIRD_PARTY_NOTICES
       jq -e .built_as_bottle $keg/INSTALL_RECEIPT.json
     done
     test -x kantan/${version.release}/bin/kantan-plugin-calendar

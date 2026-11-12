@@ -53,3 +53,7 @@ Read the [documentation](https://kantan.bar/docs) for:
 ## Philosophy
 
 kantan aims to be simple to use and to extend. Configure your bar in YAML. Build plugins as standalone executables, with no SDK or framework: a plugin reads environment variables and prints JSON.
+
+## License
+
+kantan is released under the [MIT License](LICENSE). It bundles third-party software under their own licences, listed in [THIRD_PARTY_NOTICES](THIRD_PARTY_NOTICES).

@@ -60,6 +60,7 @@ let
       class ${className} < Formula
         desc "${desc}"
         homepage "https://github.com/cmacrae/kantan"
+        license "MIT"
         version "${version}"
         url "${tarballUrl tarball}"
         sha256 "${builtins.hashFile "sha256" tarball}"

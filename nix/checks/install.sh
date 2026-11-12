@@ -20,6 +20,7 @@ install
 test "$("$local/bin/kantan" --version)" = "kantan $version"
 test -x "$local/bin/kantan-plugin-calendar"
 test -f "$local/lib/kantan/share/fonts/tabler-icons.ttf"
+test -f "$local/lib/kantan/share/doc/kantan/THIRD_PARTY_NOTICES"
 
 install --without-plugins
 test "$("$local/bin/kantan" --version)" = "kantan $version"

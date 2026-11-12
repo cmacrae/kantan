@@ -75,8 +75,13 @@
           preBuild = ''
             printf 'let kantanVersion = "%s"\n' '${kantanVersion}' > Sources/kantan/Version.swift
           '';
+          postInstall = ''
+            install -D -m 644 ${./LICENSE} $out/share/doc/kantan/LICENSE
+            install -D -m 644 ${./THIRD_PARTY_NOTICES} $out/share/doc/kantan/THIRD_PARTY_NOTICES
+          '';
           meta = {
             description = "A beautifully simple status bar for macOS";
+            license = pkgs.lib.licenses.mit;
             mainProgram = "kantan";
           };
         };
