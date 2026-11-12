@@ -1,0 +1,97 @@
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-${{ github.ref }}
+
+jobs:
+  # Builds the tarballs and formulae for the tag, and publishes the
+  # GitHub Release with the tarballs attached.
+  release:
+    runs-on: macos-26
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v7.0.1
+        with:
+          # cog reads the commits since the last release.
+          fetch-depth: 0
+          persist-credentials: false
+
+      # The build uses the runner's Xcode, outside the Nix store, so the
+      # sandbox stays off, as on a local macOS Nix install.
+      - uses: cachix/install-nix-action@v31.11.5
+        with:
+          extra_nix_config: |
+            sandbox = false
+
+      - name: Check the tag matches VERSION
+        run: |
+          if [ "$GITHUB_REF_NAME" != "v$(cat VERSION)" ]; then
+            echo "Tag $GITHUB_REF_NAME doesn't match VERSION $(cat VERSION)"
+            exit 1
+          fi
+
+      - name: Build
+        run: |
+          nix build --print-build-logs \
+            .#checks.aarch64-darwin.release-smoke \
+            .#release \
+            .#release-without-plugins \
+            .#homebrew-tap
+          mkdir dist
+          for tarball in $(nix path-info .#release .#release-without-plugins); do
+            # Store paths start with their hash; the asset takes the name.
+            cp "$tarball" "dist/${tarball#/nix/store/*-}"
+          done
+          cp -rL "$(nix path-info .#homebrew-tap)" tap
+
+      - name: Write release notes
+        run: nix develop --command cog changelog --at "$GITHUB_REF_NAME" > notes.md
+
+      - name: Publish the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" dist/* \
+            --verify-tag \
+            --title "$GITHUB_REF_NAME" \
+            --notes-file notes.md
+
+      - uses: actions/upload-artifact@v7.0.2
+        with:
+          name: formulae
+          path: tap/Formula
+          if-no-files-found: error
+
+  # Commits the release's formulae to the Homebrew tap.
+  homebrew:
+    needs: release
+    runs-on: ubuntu-slim
+    environment: homebrew
+    steps:
+      - uses: actions/download-artifact@v8.0.2
+        with:
+          name: formulae
+          path: formulae
+
+      - name: Update the tap
+        env:
+          GH_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+        run: |
+          gh repo clone cmacrae/homebrew-tap tap
+          gh auth setup-git
+          mkdir -p tap/Formula
+          cp formulae/*.rb tap/Formula/
+          cd tap
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add Formula
+          git commit --message "kantan ${GITHUB_REF_NAME#v}"
+          git push
