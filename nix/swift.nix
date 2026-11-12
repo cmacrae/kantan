@@ -34,8 +34,9 @@ let
 
   swiftInstallPhase = pname: ''
     runHook preInstall
+    ${xcodeEnv}
     mkdir -p $out/bin
-    cp .build/arm64-apple-macosx/release/${pname} $out/bin/${pname}
+    cp "$(swift build -c release --scratch-path .build --show-bin-path)/${pname}" $out/bin/${pname}
     runHook postInstall
   '';
 
