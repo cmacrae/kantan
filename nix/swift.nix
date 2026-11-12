@@ -16,12 +16,11 @@ let
     (pkgs.darwinMinVersionHook "15.0")
   ];
 
-  # Runs the package's tests, when it has any, with Swift Testing, serially,
-  # as each may change process-wide state.
+  # Runs the package's tests, when it has any, with Swift Testing.
   swiftCheckPhase = ''
     runHook preCheck
     if [ -d Tests ]; then
-      swift test --disable-xctest --disable-get-task-allow-entitlement --no-parallel
+      swift test --disable-xctest --disable-get-task-allow-entitlement
     fi
     runHook postCheck
   '';
