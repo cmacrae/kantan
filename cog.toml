@@ -1,0 +1,8 @@
+# Conventional commit checks and version bumps: `cog check`, `cog bump --auto`.
+tag_prefix = "v"
+branch_whitelist = ["main"]
+# Release notes go in the GitHub Release, from `cog changelog`.
+disable_changelog = true
+pre_bump_hooks = ["printf '%s\n' {{version}} > VERSION"]
+# cog doesn't sign tags; replace its tag with a signed, annotated one.
+post_bump_hooks = ["git tag -f -s -m v{{version}} v{{version}}"]

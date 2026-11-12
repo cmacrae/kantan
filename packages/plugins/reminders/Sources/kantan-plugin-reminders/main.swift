@@ -170,7 +170,7 @@ func fetchReminders(store: EKEventStore, lists: [ListConfig], now: Date)
     configs[reminder.list].map { isShown(dueDate: reminder.dueDate, from: $0, now: now) } ?? false
   }.sorted { a, b in
     switch (a.dueDate, b.dueDate) {
-    case let (da?, db?): return da < db
+    case (let da?, let db?): return da < db
     case (_?, nil): return true
     default: return false
     }
