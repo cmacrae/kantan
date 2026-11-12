@@ -1,4 +1,4 @@
-{ }:
+{ version }:
 
 let
   binName = name: "kantan-plugin-${name}";
@@ -18,7 +18,7 @@ in
     { name, src }:
     {
       pname = binName name;
-      version = "0.1.0";
+      inherit version;
       inherit src;
       dontFixup = true;
       postInstall = examplesPostInstall src;

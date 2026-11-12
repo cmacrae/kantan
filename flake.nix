@@ -18,7 +18,8 @@
       system = "aarch64-darwin";
       pkgs = nixpkgs.legacyPackages.${system};
 
-      plugin = import ./nix/plugin.nix { };
+      version = import ./nix/version.nix { inherit self; };
+      plugin = import ./nix/plugin.nix { version = version.release; };
       go = import ./nix/go.nix { inherit pkgs plugin; };
       swift = import ./nix/swift.nix { inherit pkgs plugin; };
       shell = import ./nix/shell.nix { inherit pkgs plugin; };
@@ -26,9 +27,11 @@
       docs = import ./nix/docs.nix {
         inherit pkgs;
         pluginsDir = ./packages/plugins;
+        version = version.release;
       };
       site = import ./nix/site.nix {
         inherit pkgs docs;
+        version = version.release;
       };
 
       plugins = import ./nix/plugins.nix {
@@ -58,14 +61,22 @@
         programs.shfmt.enable = true;
       };
 
-      _kantan = buildSwiftPackage {
-        pname = "kantan";
-        src = ./packages/kantan;
-        meta = {
-          description = "A beautifully simple status bar for macOS";
-          mainProgram = "kantan";
+      mkKantan =
+        kantanVersion:
+        buildSwiftPackage {
+          pname = "kantan";
+          version = kantanVersion;
+          src = ./packages/kantan;
+          preBuild = ''
+            printf 'let kantanVersion = "%s"\n' '${kantanVersion}' > Sources/kantan/Version.swift
+          '';
+          meta = {
+            description = "A beautifully simple status bar for macOS";
+            mainProgram = "kantan";
+          };
         };
-      };
+
+      _kantan = mkKantan version.build;
 
       kantanWithPlugins =
         {
@@ -103,15 +114,15 @@
 
       release = import ./nix/release.nix {
         inherit pkgs tabler-icons;
-        inherit (_kantan) version;
-        kantanBin = _kantan;
+        version = version.release;
+        kantanBin = mkKantan version.release;
         plugins = builtins.attrValues pluginPackages;
         themes = builtins.attrValues themePackages;
       };
 
       homebrew = import ./nix/homebrew.nix {
         inherit pkgs;
-        inherit (_kantan) version;
+        version = version.release;
         tarballs = release;
       };
     in

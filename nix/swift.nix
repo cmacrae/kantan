@@ -43,7 +43,6 @@ let
     }:
     pkgs.stdenvNoCC.mkDerivation (
       {
-        version = "0.1.0";
         dontFixup = true;
       }
       // builtins.removeAttrs args [ "meta" ]

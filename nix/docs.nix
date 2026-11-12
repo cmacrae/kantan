@@ -1,4 +1,8 @@
-{ pkgs, pluginsDir }:
+{
+  pkgs,
+  pluginsDir,
+  version,
+}:
 let
   docsDir = ../docs;
 
@@ -16,7 +20,7 @@ let
 
   docs = pkgs.stdenvNoCC.mkDerivation {
     pname = "kantan-docs";
-    version = "0.1.0";
+    inherit version;
 
     src = assembledSrc;
 

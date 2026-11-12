@@ -1,13 +1,14 @@
 {
   pkgs,
   docs,
+  version,
 }:
 let
   siteDir = ../site;
 
   landing = pkgs.stdenvNoCC.mkDerivation {
     pname = "kantan-landing";
-    version = "0.1.0";
+    inherit version;
     src = pkgs.lib.cleanSource siteDir;
     nativeBuildInputs = [ pkgs.esbuild ];
     buildPhase = ''
