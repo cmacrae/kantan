@@ -110,6 +110,21 @@ in
   docs = docs.package;
   site = site.package;
   homebrew-formula = homebrew.kantan;
+
+  homebrew-bottles = pkgs.runCommand "kantan-homebrew-bottles" { nativeBuildInputs = [ pkgs.jq ]; } ''
+    for bottle in ${homebrew.bottles}/*.bottle.tar.gz; do
+      name=$(basename "$bottle")
+      name=''${name%-${version.release}.*}
+      tar -xzf "$bottle"
+      keg=$name/${version.release}
+      test "$($keg/bin/kantan --version)" = "kantan ${version.release}"
+      test -f $keg/share/fonts/tabler-icons.ttf
+      jq -e .built_as_bottle $keg/INSTALL_RECEIPT.json
+    done
+    test -x kantan/${version.release}/bin/kantan-plugin-calendar
+    test ! -e kantan-without-plugins/${version.release}/bin/kantan-plugin-calendar
+    touch $out
+  '';
   module-darwin = mkModuleCheck {
     name = "darwin";
     module = import ../module/darwin.nix kantan;

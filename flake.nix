@@ -144,6 +144,7 @@
         homebrew-formula = homebrew.kantan;
         homebrew-formula-without-plugins = homebrew.kantan-without-plugins;
         homebrew-tap = homebrew.tap;
+        homebrew-bottles = homebrew.bottles;
       };
 
       apps.${system} = {

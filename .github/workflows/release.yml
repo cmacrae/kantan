@@ -11,8 +11,8 @@ concurrency:
   group: release-${{ github.ref }}
 
 jobs:
-  # Builds the tarballs and formulae for the tag, and publishes the
-  # GitHub Release with the tarballs attached.
+  # Builds the tarballs, bottles and formulae for the tag, and publishes
+  # the GitHub Release with the tarballs and bottles attached.
   release:
     runs-on: macos-26
     permissions:
@@ -42,14 +42,17 @@ jobs:
         run: |
           nix build --print-build-logs \
             .#checks.aarch64-darwin.release-smoke \
+            .#checks.aarch64-darwin.homebrew-bottles \
             .#release \
             .#release-without-plugins \
+            .#homebrew-bottles \
             .#homebrew-tap
           mkdir dist
           for tarball in $(nix path-info .#release .#release-without-plugins); do
             # Store paths start with their hash; the asset takes the name.
             cp "$tarball" "dist/${tarball#/nix/store/*-}"
           done
+          cp -L "$(nix path-info .#homebrew-bottles)"/* dist/
           cp -rL "$(nix path-info .#homebrew-tap)" tap
 
       - name: Write release notes
