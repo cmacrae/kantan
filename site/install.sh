@@ -107,6 +107,12 @@ trap 'rm -rf "$tmp"' EXIT
 say "Downloading kantan $version"
 curl -fsSL -o "$tmp/$tarball" "$releases/download/v$version/$tarball" ||
   die "couldn't download $tarball"
+curl -fsSL -o "$tmp/SHA256SUMS" "$releases/download/v$version/SHA256SUMS" ||
+  die "couldn't download the release's checksums"
+expected=$(awk -v f="$tarball" '$2 == f { print $1 }' "$tmp/SHA256SUMS")
+[ -n "$expected" ] || die "the release's checksums don't list $tarball"
+actual=$(shasum -a 256 "$tmp/$tarball" | cut -d' ' -f1)
+[ "$actual" = "$expected" ] || die "$tarball doesn't match its checksum"
 mkdir "$tmp/keg"
 tar -xzf "$tmp/$tarball" -C "$tmp/keg"
 [ -x "$tmp/keg/bin/kantan" ] || die "$tarball has no kantan binary"

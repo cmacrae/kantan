@@ -21,9 +21,16 @@ brew services start kantan`,
   },
   {
     label: "Script",
-    content: `curl -fsSL https://kantan.bar/install.sh | sh`,
+    content: `# Install the latest release to ~/.local
+curl -fsSL https://kantan.bar/install.sh | sh
+
+# Without the bundled plugins
+curl -fsSL https://kantan.bar/install.sh | sh -s -- --without-plugins
+
+# Uninstall
+curl -fsSL https://kantan.bar/install.sh | sh -s -- --uninstall`,
     note: {
-      text: "Installs to ~/.local; see the docs for options",
+      text: "See the docs for the script's options",
       href: "/docs/getting-started/installation.html#install-script",
     },
   },

@@ -131,6 +131,15 @@
         tarballs = release;
         releaseUrl = "https://github.com/cmacrae/kantan/releases/download/v${version.release}";
       };
+
+      releaseAssets = pkgs.runCommand "kantan-release-assets-${version.release}" { } ''
+        mkdir $out
+        cd $out
+        cp ${release.full} ${release.full.name}
+        cp ${release.core} ${release.core.name}
+        cp ${homebrew.bottles}/* .
+        sha256sum * > SHA256SUMS
+      '';
     in
     {
       packages.${system} = {
@@ -145,6 +154,7 @@
         homebrew-formula-without-plugins = homebrew.kantan-without-plugins;
         homebrew-tap = homebrew.tap;
         homebrew-bottles = homebrew.bottles;
+        release-assets = releaseAssets;
       };
 
       apps.${system} = {
@@ -184,6 +194,7 @@
           kantan
           release
           homebrew
+          releaseAssets
           ;
       };
     };

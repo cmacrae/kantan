@@ -13,6 +13,7 @@
   kantan,
   release,
   homebrew,
+  releaseAssets,
 }:
 let
   inherit (pkgs) lib;
@@ -125,20 +126,20 @@ in
     test ! -e kantan-without-plugins/${version.release}/bin/kantan-plugin-calendar
     touch $out
   '';
-  # install.sh installs, replaces and removes each release from a local
-  # copy of the releases, on a stand-in for macOS 15.
+
   install-script =
     pkgs.runCommand "kantan-install-script"
       {
         nativeBuildInputs = [
           pkgs.curl
+          pkgs.perl
           pkgs.shellcheck
           (pkgs.writeShellScriptBin "sw_vers" "echo 15.0")
         ];
       }
       ''
         shellcheck ${../../site/install.sh}
-        bash ${./install.sh} ${../../site/install.sh} ${release.full} ${release.core} ${version.release}
+        bash ${./install.sh} ${../../site/install.sh} ${releaseAssets} ${version.release}
         touch $out
       '';
   module-darwin = mkModuleCheck {

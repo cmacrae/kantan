@@ -72,7 +72,7 @@ curl -fsSL https://kantan.bar/install.sh | sh -s -- --version 0.1.0
 | `--without-plugins` | Install kantan without its bundled plugins |
 | `--uninstall` | Remove kantan from the prefix |
 
-Running the script again replaces the installed release. It never overwrites a file in `bin` that isn't one of its links.
+The script checks the download against the release's `SHA256SUMS` and stops if they don't match. Running it again replaces the installed release. It never overwrites a file in `bin` that isn't one of its links.
 
 ### Nix Flake
 
