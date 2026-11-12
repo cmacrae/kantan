@@ -153,6 +153,7 @@
         inherit
           self
           pkgs
+          version
           swift
           docs
           site

@@ -1,6 +1,7 @@
 {
   self,
   pkgs,
+  version,
   swift,
   docs,
   site,
@@ -86,6 +87,12 @@ in
   inherit tabler-icons;
   release = release.full;
   release-core = release.core;
+  release-smoke = pkgs.runCommand "kantan-release-smoke" { } ''
+    tar -xzf ${release.full}
+    test "$(bin/kantan --version)" = "kantan ${version.release}"
+    for plugin in bin/kantan-plugin-*; do test -x "$plugin"; done
+    touch $out
+  '';
   docs = docs.package;
   site = site.package;
   homebrew-formula = homebrew.kantan;

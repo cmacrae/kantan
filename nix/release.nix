@@ -24,6 +24,7 @@ let
           cp -rL --no-preserve=mode "${c}"/share/* staging/share/
         fi
       '') components}
+      chmod +x staging/bin/*
 
       tar -czf $out -C staging .
     '';
