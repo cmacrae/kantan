@@ -418,7 +418,7 @@ The kantan flake discovers every directory in `packages/plugins/` (except those 
 
 | Marker | Builder | Build | Tests |
 |--------|---------|-------|-------|
-| `Package.swift` | `buildSwiftPlugin` | `swift build -c release --product kantan-plugin-<name>` with the system Xcode toolchain | `swift test`, when the package has a `Tests/` directory |
+| `Package.swift` | `buildSwiftPlugin` | `swift build -c release` with nixpkgs' Swift toolchain and macOS 26 SDK, for macOS 15 and later, with no package dependencies fetched | `swift test`, when the package has a `Tests/` directory. Tests use Swift Testing. XCTest isn't available |
 | `go.mod` | `buildGoPlugin` | `go build`, with no module dependencies fetched (`vendorHash = null`): use the standard library or a checked-in `vendor/` | `go test ./...` |
 | `main.sh` | `buildShellPlugin` | `main.sh` is installed as the executable. Give it a shebang | none |
 

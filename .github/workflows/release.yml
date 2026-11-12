@@ -24,8 +24,8 @@ jobs:
           fetch-depth: 0
           persist-credentials: false
 
-      # The build uses the runner's Xcode, outside the Nix store, so the
-      # sandbox stays off, as on a local macOS Nix install.
+      # kantan's tests use AppKit, which reads system files the Nix sandbox
+      # hides, so the sandbox stays off, as on a local macOS Nix install.
       - uses: cachix/install-nix-action@v31.11.5
         with:
           extra_nix_config: |

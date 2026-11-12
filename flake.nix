@@ -68,6 +68,10 @@
           pname = "kantan";
           version = kantanVersion;
           src = ./packages/kantan;
+          swiftpmDeps = pkgs.fetchSwiftPMDeps {
+            src = ./packages/kantan;
+            hash = "sha256-jtRNPJ+2f7agoEUgHT+d0AAh+EWXf5NKmyQq7UEgaDs=";
+          };
           preBuild = ''
             printf 'let kantanVersion = "%s"\n' '${kantanVersion}' > Sources/kantan/Version.swift
           '';
@@ -151,15 +155,15 @@
       darwinModules.default = import ./nix/module/darwin.nix kantan;
       homeManagerModules.default = import ./nix/module/home-manager.nix kantan;
 
-      devShells.${system}.default = pkgs.mkShellNoCC {
-        packages = [
+      devShells.${system}.default = pkgs.mkShell.override { inherit (swift.shell) stdenv; } {
+        packages = swift.shell.packages ++ [
           pkgs.cocogitto
           pkgs.gh
           pkgs.gh-actions-lock
           pkgs.go
           pkgs.zizmor
         ];
-        shellHook = swift.xcodeEnv;
+        inherit (swift.shell) buildInputs;
       };
 
       formatter.${system} = treefmtEval.config.build.wrapper;

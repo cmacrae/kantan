@@ -4,64 +4,68 @@
 }:
 
 let
-  # Puts the system Xcode's Swift toolchain and SDK first.
-  xcodeEnv = ''
-    export DEVELOPER_DIR=$(/usr/bin/xcode-select -p)
-    export SDKROOT=$(/usr/bin/xcrun --show-sdk-path)
-    export TOOLCHAINS=default
-    export PATH="$DEVELOPER_DIR/Toolchains/XcodeDefault.xctoolchain/usr/bin:$DEVELOPER_DIR/usr/bin:/usr/bin:$PATH"
-  '';
+  # The Swift toolchain, and the SDK and macOS version kantan builds for.
+  inherit (pkgs.swiftPackages) stdenv;
+  nativeBuildInputs = [
+    pkgs.swift
+    pkgs.swiftpm
+  ];
+  buildInputs = [
+    # The newest SDK whose module interfaces nixpkgs' Swift can read.
+    pkgs.apple-sdk_26
+    (pkgs.darwinMinVersionHook "15.0")
+  ];
 
-  swiftBuildPhase = pname: ''
-    runHook preBuild
-
-    ${xcodeEnv}
-    export HOME="$TMPDIR"
-
-    swift build -c release --disable-sandbox --scratch-path .build --product ${pname}
-
-    runHook postBuild
-  '';
-
-  # Runs the package's tests, when it has any.
+  # Runs the package's tests, when it has any, with Swift Testing, serially,
+  # as each may change process-wide state.
   swiftCheckPhase = ''
     runHook preCheck
     if [ -d Tests ]; then
-      # Serially, as each test may change process-wide state.
-      swift test --disable-sandbox --scratch-path .build --no-parallel
+      swift test --disable-xctest --disable-get-task-allow-entitlement --no-parallel
     fi
     runHook postCheck
   '';
 
-  swiftInstallPhase = pname: ''
-    runHook preInstall
-    ${xcodeEnv}
-    mkdir -p $out/bin
-    cp "$(swift build -c release --scratch-path .build --show-bin-path)/${pname}" $out/bin/${pname}
-    runHook postInstall
+  # Removes the binaries' rpaths into the Nix store, as they link only the
+  # system's Swift runtime, and signs them again.
+  dropStoreRpaths = ''
+    for bin in $out/bin/*; do
+      for rpath in $(otool -l "$bin" | awk '$1 == "path" && $2 ~ /^\/nix\/store\// { print $2 }'); do
+        install_name_tool -delete_rpath "$rpath" "$bin"
+      done
+      codesign --force --sign - "$bin"
+    done
   '';
 
+  # Builds the Swift package at `src` and installs its `pname` executable.
   buildSwiftPackage =
     args@{
       pname,
-      src,
       meta ? { },
+      postInstall ? "",
       ...
     }:
-    pkgs.stdenvNoCC.mkDerivation (
-      {
-        dontFixup = true;
-      }
-      // builtins.removeAttrs args [ "meta" ]
+    stdenv.mkDerivation (
+      builtins.removeAttrs args [
+        "meta"
+        "postInstall"
+      ]
       // {
-        buildPhase = swiftBuildPhase pname;
-        installPhase = swiftInstallPhase pname;
+        nativeBuildInputs = nativeBuildInputs ++ [ pkgs.darwin.sigtool ] ++ args.nativeBuildInputs or [ ];
+        buildInputs = buildInputs ++ args.buildInputs or [ ];
+        installPhase = ''
+          runHook preInstall
+          install -D -m 755 "$(swiftpmBinPath)/${pname}" $out/bin/${pname}
+          runHook postInstall
+        '';
+        postInstall = dropStoreRpaths + postInstall;
         meta = {
           platforms = [ "aarch64-darwin" ];
         }
         // meta;
       }
     );
+
   # Runs a Swift package's tests after building it.
   withSwiftTests =
     drv:
@@ -71,7 +75,14 @@ let
     };
 in
 {
-  inherit buildSwiftPackage withSwiftTests xcodeEnv;
+  inherit buildSwiftPackage withSwiftTests;
+
+  # The toolchain, SDK and macOS version, for a development shell.
+  shell = {
+    inherit stdenv;
+    packages = nativeBuildInputs;
+    inherit buildInputs;
+  };
 
   buildSwiftPlugin =
     {
