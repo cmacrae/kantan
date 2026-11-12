@@ -1,8 +1,9 @@
-import XCTest
+import Foundation
+import Testing
 
 @testable import kantan_plugin_calendar
 
-final class CalendarRenderTests: XCTestCase {
+final class CalendarRenderTests {
   private let today = Calendar.current.startOfDay(for: Date())
 
   /// Today, or `days` later, at `hour:minute`.
@@ -25,82 +26,82 @@ final class CalendarRenderTests: XCTestCase {
     event("Planning", at(9, days: 1), at(10, days: 1)),
   ]
 
-  func testCountsDownToTheNextEvent() {
+  @Test func testCountsDownToTheNextEvent() {
     let output = render(events: day, settings: Settings(), now: at(9))
-    XCTAssertEqual(output.value, "Review in 1h 30m")
-    XCTAssertEqual(output.variables["upcoming"], "true")
-    XCTAssertEqual(output.variables["active"], "")
-    XCTAssertEqual(output.variables["today_count"], "2")
-    XCTAssertEqual(output.variables["tomorrow_count"], "1")
-    XCTAssertEqual(output.data["past_events"]?.map { $0["title"] }, ["Standup"])
-    XCTAssertEqual(output.data["today_events"]?.map { $0["countdown"] }, ["1h 30m"])
-    XCTAssertEqual(output.hidden, false)
+    #expect(output.value == "Review in 1h 30m")
+    #expect(output.variables["upcoming"] == "true")
+    #expect(output.variables["active"] == "")
+    #expect(output.variables["today_count"] == "2")
+    #expect(output.variables["tomorrow_count"] == "1")
+    #expect((output.data["past_events"]?.map { $0["title"] }) == ["Standup"])
+    #expect((output.data["today_events"]?.map { $0["countdown"] }) == ["1h 30m"])
+    #expect(output.hidden == false)
   }
 
-  func testAnEventUnderwayIsNow() {
+  @Test func testAnEventUnderwayIsNow() {
     let output = render(events: day, settings: Settings(), now: at(10, 45))
-    XCTAssertEqual(output.value, "Review now")
-    XCTAssertEqual(output.variables["active"], "true")
+    #expect(output.value == "Review now")
+    #expect(output.variables["active"] == "true")
   }
 
-  func testAnUpcomingWindowHidesEventsBeyondIt() {
+  @Test func testAnUpcomingWindowHidesEventsBeyondIt() {
     var settings = Settings()
     settings.upcoming = "30m"
-    XCTAssertEqual(render(events: day, settings: settings, now: at(9)).hidden, true)
-    XCTAssertEqual(render(events: day, settings: settings, now: at(10, 15)).hidden, false)
+    #expect(render(events: day, settings: settings, now: at(9)).hidden == true)
+    #expect(render(events: day, settings: settings, now: at(10, 15)).hidden == false)
   }
 
-  func testCountdowns() {
+  @Test func testCountdowns() {
     let now = at(9)
-    XCTAssertEqual(formatCountdown(from: now, to: now.addingTimeInterval(30)), "<1m")
-    XCTAssertEqual(formatCountdown(from: now, to: at(9, 45)), "45m")
-    XCTAssertEqual(formatCountdown(from: now, to: at(11)), "2h")
-    XCTAssertEqual(formatCountdown(from: now, to: at(8)), "now")
+    #expect(formatCountdown(from: now, to: now.addingTimeInterval(30)) == "<1m")
+    #expect(formatCountdown(from: now, to: at(9, 45)) == "45m")
+    #expect(formatCountdown(from: now, to: at(11)) == "2h")
+    #expect(formatCountdown(from: now, to: at(8)) == "now")
   }
 }
 
 // MARK: - PluginKit formats
 
-final class FormatTests: XCTestCase {
+final class FormatTests {
   private func format(_ json: String) throws -> Format {
     try JSONDecoder().decode(Format.self, from: Data(json.utf8))
   }
 
-  func testAStringIsATemplate() throws {
+  @Test func testAStringIsATemplate() throws {
     let format = try format(#""{name}{?late: late}""#)
-    XCTAssertEqual(format, .template("{name}{?late: late}"))
-    XCTAssertEqual(format.apply(["name": "Sync", "late": "true"]).value, "Sync late")
-    XCTAssertNil(format.apply([:]).segments)
+    #expect(format == .template("{name}{?late: late}"))
+    #expect(format.apply(["name": "Sync", "late": "true"]).value == "Sync late")
+    #expect(format.apply([:]).segments == nil)
   }
 
-  func testSegmentsShowWhileTheirVariableIsTruthyOrWithBangFalsy() throws {
+  @Test func testSegmentsShowWhileTheirVariableIsTruthyOrWithBangFalsy() throws {
     let format = try format(
       #"""
       [{"text": "{name}", "fg": "#FFFFFF"}, {"text": " late", "when": "late"},
        {"text": " on time", "when": "!late"}, {"text": "{?!name:?}"}]
       """#)
-    XCTAssertEqual(
-      format.apply(["name": "Sync", "late": "true"]).segments,
-      [ValueSegment(text: "Sync", fg: "#FFFFFF"), ValueSegment(text: " late", fg: nil)])
+    #expect(
+      format.apply(["name": "Sync", "late": "true"]).segments == [
+        ValueSegment(text: "Sync", fg: "#FFFFFF"), ValueSegment(text: " late", fg: nil),
+      ])
     let onTime = format.apply(["name": "Sync"])
-    XCTAssertEqual(onTime.value, "Sync on time")
-    XCTAssertEqual(onTime.segments?.map(\.text), ["Sync", " on time"])
+    #expect(onTime.value == "Sync on time")
+    #expect(onTime.segments?.map(\.text) == ["Sync", " on time"])
   }
 }
 
 // MARK: - PluginKit watch mode
 
 @MainActor
-final class WatchTests: XCTestCase {
-  func testOutputSkipsRepeatsOfTheLastLine() {
+final class WatchTests {
+  @Test func testOutputSkipsRepeatsOfTheLastLine() {
     var lines: [String] = []
     let output = WatchOutput { lines.append(String(decoding: $0, as: UTF8.self)) }
     output.show(PluginOutput(value: "a"))
     output.show(PluginOutput(value: "a"))
     output.show(PluginOutput(value: "b"))
     output.show(PluginOutput(value: "a"))
-    XCTAssertEqual(
-      lines,
-      ["a", "b", "a"].map { #"{"data":{},"value":"\#($0)","variables":{}}"# + "\n" })
+    #expect(
+      lines == (["a", "b", "a"].map { #"{"data":{},"value":"\#($0)","variables":{}}"# + "\n" }))
   }
 }

@@ -1,72 +1,108 @@
 import AppKit
 import Combine
 import CoreGraphics
+import Foundation
 import SwiftUI
-import XCTest
+import Testing
 import os
 
 @testable import kantan
 
-final class FontConfigTests: XCTestCase {
-  func testNameWeightSizeDescriptorParsesBoth() {
-    let font = FontConfig(descriptor: "HelveticaNeue:medium:20")
-    XCTAssertEqual(font.name, "HelveticaNeue")
-    XCTAssertEqual(font.weight, .medium)
-    XCTAssertEqual(font.size, 20)
-  }
+/// Something a test waits for, fulfilled from any thread.
+final class Expectation: @unchecked Sendable {
+  private let lock = NSLock()
+  private var fulfilled = false
 
-  func testWeightAliases() {
-    XCTAssertEqual(FontConfig(descriptor: "Foo:ultralight").weight, .ultraLight)
-    XCTAssertEqual(FontConfig(descriptor: "Foo:semibold").weight, .semibold)
-    XCTAssertEqual(FontConfig(descriptor: "Foo:demi-bold").weight, .semibold)
-    XCTAssertEqual(FontConfig(descriptor: "Foo:heavy").weight, .heavy)
-    XCTAssertEqual(FontConfig(descriptor: "Foo:extrabold").weight, .heavy)
-    XCTAssertEqual(FontConfig(descriptor: "Foo:black").weight, .black)
+  func fulfill() { lock.withLock { fulfilled = true } }
+
+  var isFulfilled: Bool { lock.withLock { fulfilled } }
+}
+
+/// Whether every one of `expectations` is fulfilled within `timeout`.
+func fulfillment(of expectations: [Expectation], timeout: TimeInterval) async -> Bool {
+  let deadline = Date(timeIntervalSinceNow: timeout)
+  while !expectations.allSatisfy(\.isFulfilled), Date() < deadline {
+    try? await Task.sleep(for: .milliseconds(10))
+  }
+  return expectations.allSatisfy(\.isFulfilled)
+}
+
+/// Runs the main run loop, and the main actor's other work, for `duration`.
+@MainActor
+func runMainLoop(for duration: TimeInterval) async {
+  let deadline = Date(timeIntervalSinceNow: duration)
+  while Date() < deadline {
+    spinMainLoop(until: min(deadline, Date(timeIntervalSinceNow: 0.01)))
+    try? await Task.sleep(for: .milliseconds(1))
   }
 }
 
-final class FontWeightTests: XCTestCase {
+/// Runs the main run loop until `date`.
+@MainActor
+private func spinMainLoop(until date: Date) {
+  RunLoop.main.run(until: date)
+}
+
+final class FontConfigTests {
+  @Test func testNameWeightSizeDescriptorParsesBoth() {
+    let font = FontConfig(descriptor: "HelveticaNeue:medium:20")
+    #expect(font.name == "HelveticaNeue")
+    #expect(font.weight == .medium)
+    #expect(font.size == 20)
+  }
+
+  @Test func testWeightAliases() {
+    #expect(FontConfig(descriptor: "Foo:ultralight").weight == .ultraLight)
+    #expect(FontConfig(descriptor: "Foo:semibold").weight == .semibold)
+    #expect(FontConfig(descriptor: "Foo:demi-bold").weight == .semibold)
+    #expect(FontConfig(descriptor: "Foo:heavy").weight == .heavy)
+    #expect(FontConfig(descriptor: "Foo:extrabold").weight == .heavy)
+    #expect(FontConfig(descriptor: "Foo:black").weight == .black)
+  }
+}
+
+final class FontWeightTests {
   private func faceName(_ descriptor: String) -> String {
     FontConfig(descriptor: descriptor, source: .system).nsFont.fontName
   }
 
-  func testWeightsPickTheFamilysFace() {
-    XCTAssertEqual(faceName("HelveticaNeue:13"), "HelveticaNeue")
-    XCTAssertEqual(faceName("HelveticaNeue:medium:13"), "HelveticaNeue-Medium")
-    XCTAssertEqual(faceName("Helvetica Neue:light:13"), "HelveticaNeue-Light")
-    XCTAssertEqual(faceName("HelveticaNeue:bold:13"), "HelveticaNeue-Bold")
+  @Test func testWeightsPickTheFamilysFace() {
+    #expect(faceName("HelveticaNeue:13") == "HelveticaNeue")
+    #expect(faceName("HelveticaNeue:medium:13") == "HelveticaNeue-Medium")
+    #expect(faceName("Helvetica Neue:light:13") == "HelveticaNeue-Light")
+    #expect(faceName("HelveticaNeue:bold:13") == "HelveticaNeue-Bold")
   }
 }
 
-final class NSColorHexTests: XCTestCase {
-  func testEightDigitHexCarriesAlpha() {
+final class NSColorHexTests {
+  @Test func testEightDigitHexCarriesAlpha() {
     let color = NSColor(hex: "#FF000080").usingColorSpace(.deviceRGB)!
-    XCTAssertEqual(color.redComponent, 1.0, accuracy: 0.01)
-    XCTAssertEqual(color.greenComponent, 0.0, accuracy: 0.01)
-    XCTAssertEqual(color.blueComponent, 0.0, accuracy: 0.01)
-    XCTAssertEqual(color.alphaComponent, 128.0 / 255.0, accuracy: 0.01)
+    #expect(abs(color.redComponent - 1.0) <= 0.01)
+    #expect(abs(color.greenComponent - 0.0) <= 0.01)
+    #expect(abs(color.blueComponent - 0.0) <= 0.01)
+    #expect(abs(color.alphaComponent - (128.0 / 255.0)) <= 0.01)
   }
 
-  func testInvalidHexFallsBackToDefault() {
+  @Test func testInvalidHexFallsBackToDefault() {
     let fallback = NSColor.red
     let color = NSColor(hex: "not-hex", defaultColor: fallback).usingColorSpace(.deviceRGB)!
     let expected = fallback.usingColorSpace(.deviceRGB)!
-    XCTAssertEqual(color.redComponent, expected.redComponent, accuracy: 0.01)
-    XCTAssertEqual(color.greenComponent, expected.greenComponent, accuracy: 0.01)
-    XCTAssertEqual(color.blueComponent, expected.blueComponent, accuracy: 0.01)
+    #expect(abs(color.redComponent - expected.redComponent) <= 0.01)
+    #expect(abs(color.greenComponent - expected.greenComponent) <= 0.01)
+    #expect(abs(color.blueComponent - expected.blueComponent) <= 0.01)
   }
 }
 
-final class PlacementSpecTests: XCTestCase {
-  func testOrPairPicksNotchVariantOnNotchedScreens() {
+final class PlacementSpecTests {
+  @Test func testOrPairPicksNotchVariantOnNotchedScreens() {
     let spec = PlacementSpec(raw: "notchleft|left")
-    XCTAssertEqual(spec.resolve(hasNotch: true), "notchleft")
-    XCTAssertEqual(spec.resolve(hasNotch: false), "left")
+    #expect(spec.resolve(hasNotch: true) == "notchleft")
+    #expect(spec.resolve(hasNotch: false) == "left")
   }
 }
 
-final class StyleParsingTests: XCTestCase {
-  func testParseStyleConfigWithNestedLightAndDark() {
+final class StyleParsingTests {
+  @Test func testParseStyleConfigWithNestedLightAndDark() {
     let yaml: Yaml = .dictionary([
       .string("light"): .dictionary([
         .string("fg"): .string("#000000"),
@@ -78,53 +114,53 @@ final class StyleParsingTests: XCTestCase {
       ]),
     ])
     let style = parseStyleConfig(from: yaml)
-    XCTAssertEqual(style?.light?.fg, "#000000")
-    XCTAssertEqual(style?.light?.bg, "#ffffff")
-    XCTAssertEqual(style?.dark?.fg, "#ffffff")
-    XCTAssertEqual(style?.dark?.bg, "#000000")
+    #expect(style?.light?.fg == "#000000")
+    #expect(style?.light?.bg == "#ffffff")
+    #expect(style?.dark?.fg == "#ffffff")
+    #expect(style?.dark?.bg == "#000000")
   }
 
-  func testParseStyleConfigFlatAppliesToBothModes() {
+  @Test func testParseStyleConfigFlatAppliesToBothModes() {
     let yaml: Yaml = .dictionary([
       .string("fg"): .string("#abcdef"),
       .string("bg"): .string("#012345"),
     ])
     let style = parseStyleConfig(from: yaml)
-    XCTAssertEqual(style?.light?.fg, "#abcdef")
-    XCTAssertEqual(style?.dark?.fg, "#abcdef")
-    XCTAssertEqual(style?.light?.bg, "#012345")
-    XCTAssertEqual(style?.dark?.bg, "#012345")
+    #expect(style?.light?.fg == "#abcdef")
+    #expect(style?.dark?.fg == "#abcdef")
+    #expect(style?.light?.bg == "#012345")
+    #expect(style?.dark?.bg == "#012345")
   }
 }
 
-final class ModuleMergeTests: XCTestCase {
+final class ModuleMergeTests {
   private func mod(_ name: String, _ placement: String) -> ModuleConfig {
     ModuleConfig(name: name, placement: PlacementSpec(raw: placement), type: "text")
   }
 
-  func testMergeAppendsExtrasLeftAndPrependsExtrasRight() {
+  @Test func testMergeAppendsExtrasLeftAndPrependsExtrasRight() {
     let base = [mod("L1", "left"), mod("L2", "left"), mod("R1", "right"), mod("R2", "right")]
     let extra = [mod("EL", "left"), mod("ER", "right")]
     let result = mergeModules(base: base, extra: extra).map(\.name)
-    XCTAssertEqual(result, ["L1", "L2", "EL", "ER", "R1", "R2"])
+    #expect(result == ["L1", "L2", "EL", "ER", "R1", "R2"])
   }
 }
 
-final class IconForLevelTests: XCTestCase {
-  func testFirstBucketForLowLevel() {
+final class IconForLevelTests {
+  @Test func testFirstBucketForLowLevel() {
     let icons = ["empty", "quarter", "half", "three-quarter", "full"]
-    XCTAssertEqual(iconForLevel(0, icons: icons), "empty")
-    XCTAssertEqual(iconForLevel(10, icons: icons), "empty")
+    #expect(iconForLevel(0, icons: icons) == "empty")
+    #expect(iconForLevel(10, icons: icons) == "empty")
   }
 
-  func testClampsAboveMax() {
+  @Test func testClampsAboveMax() {
     let icons = ["a", "b", "c"]
-    XCTAssertEqual(iconForLevel(500, icons: icons), "c")
+    #expect(iconForLevel(500, icons: icons) == "c")
   }
 }
 
-final class YamlTests: XCTestCase {
-  func testLoadParsesScalarsAndCollections() throws {
+final class YamlTests {
+  @Test func testLoadParsesScalarsAndCollections() throws {
     let source = """
       height: 33
       padding: 10
@@ -133,16 +169,16 @@ final class YamlTests: XCTestCase {
           enabled: true
       """
     let yaml = try Yaml.load(source)
-    XCTAssertEqual(yaml["height"].int, 33)
-    XCTAssertEqual(yaml["padding"].int, 10)
-    XCTAssertEqual(yaml["modules"].array?.count, 1)
-    XCTAssertEqual(yaml["modules"][0]["name"].string, "clock")
-    XCTAssertEqual(yaml["modules"][0]["enabled"].bool, true)
+    #expect(yaml["height"].int == 33)
+    #expect(yaml["padding"].int == 10)
+    #expect(yaml["modules"].array?.count == 1)
+    #expect(yaml["modules"][0]["name"].string == "clock")
+    #expect(yaml["modules"][0]["enabled"].bool == true)
   }
 }
 
-final class ConfigShapeTests: XCTestCase {
-  func testNeedsBundledIconFontsTrueWhenAnyModuleUsesBundled() {
+final class ConfigShapeTests {
+  @Test func testNeedsBundledIconFontsTrueWhenAnyModuleUsesBundled() {
     let bundledModule = ModuleConfig(
       name: "x", placement: PlacementSpec(raw: "left"), type: "text",
       iconFont: FontConfig(descriptor: "tabler-icons", source: .bundled)
@@ -154,11 +190,11 @@ final class ConfigShapeTests: XCTestCase {
       cornerRadius: 0, blur: 0, gaps: .default,
       autohide: .default, displays: .main, modules: [bundledModule]
     )
-    XCTAssertTrue(cfg.needsBundledIconFonts)
+    #expect(cfg.needsBundledIconFonts)
   }
 }
 
-final class DSLColorFromHexTests: XCTestCase {
+final class DSLColorFromHexTests {
   private func components(_ color: Color) -> (r: Double, g: Double, b: Double, a: Double)? {
     guard let ns = NSColor(color).usingColorSpace(.deviceRGB) else { return nil }
     return (
@@ -167,85 +203,86 @@ final class DSLColorFromHexTests: XCTestCase {
     )
   }
 
-  func testParses8CharRGBAExtractsAlpha() {
+  @Test func testParses8CharRGBAExtractsAlpha() {
     guard let c = dslColorFromHex("ff000080"), let comps = components(c) else {
-      return XCTFail("expected non-nil color")
+      Issue.record("expected non-nil color")
+      return
     }
-    XCTAssertEqual(comps.r, 1.0, accuracy: 0.01)
-    XCTAssertEqual(comps.g, 0.0, accuracy: 0.01)
-    XCTAssertEqual(comps.b, 0.0, accuracy: 0.01)
-    XCTAssertEqual(comps.a, 128.0 / 255.0, accuracy: 0.01)
+    #expect(abs(comps.r - 1.0) <= 0.01)
+    #expect(abs(comps.g - 0.0) <= 0.01)
+    #expect(abs(comps.b - 0.0) <= 0.01)
+    #expect(abs(comps.a - (128.0 / 255.0)) <= 0.01)
   }
 
-  func testRejectsNonHexString() {
-    XCTAssertNil(dslColorFromHex("not-a-color"))
+  @Test func testRejectsNonHexString() {
+    #expect(dslColorFromHex("not-a-color") == nil)
   }
 }
 
-final class CommandLineTests: XCTestCase {
-  func testNoWordsRunsTheBarIgnoringDashArguments() {
-    XCTAssertEqual(parseCommand([]), .run)
-    XCTAssertEqual(parseCommand(["-NSDocumentRevisionsDebugMode", "-psn_0_1"]), .run)
+final class CommandLineTests {
+  @Test func testNoWordsRunsTheBarIgnoringDashArguments() {
+    #expect(parseCommand([]) == .run)
+    #expect(parseCommand(["-NSDocumentRevisionsDebugMode", "-psn_0_1"]) == .run)
   }
 
-  func testATriggerNeedsAModuleAndAnAction() {
-    XCTAssertEqual(
-      parseCommand(["trigger", "clock", "set", "value=", "module=other"]),
-      .trigger(["module": "clock", "action": "set", "value": ""]))
-    XCTAssertEqual(
-      parseCommand(["trigger", "clock"]), .usageError("trigger needs a module and an action"))
-    XCTAssertEqual(parseCommand(["trigger"]), .usageError("trigger needs a module and an action"))
+  @Test func testATriggerNeedsAModuleAndAnAction() {
+    #expect(
+      parseCommand(["trigger", "clock", "set", "value=", "module=other"])
+        == .trigger(["module": "clock", "action": "set", "value": ""]))
+    #expect(
+      parseCommand(["trigger", "clock"]) == .usageError("trigger needs a module and an action"))
+    #expect(parseCommand(["trigger"]) == .usageError("trigger needs a module and an action"))
   }
 
-  func testFlagsSetOptionsAnywhereAndExpandTilde() {
+  @Test func testFlagsSetOptionsAnywhereAndExpandTilde() {
     let parsed = parseArguments([
       "trigger", "--config", "~/k.yaml", "clock", "--themes-dir", "/t", "refresh",
     ])
-    XCTAssertEqual(
-      parsed.options,
-      KantanOptions(configPath: NSHomeDirectory() + "/k.yaml", themesDirPath: "/t"))
-    XCTAssertEqual(parsed.command, .trigger(["module": "clock", "action": "refresh"]))
+    #expect(
+      parsed.options
+        == KantanOptions(configPath: NSHomeDirectory() + "/k.yaml", themesDirPath: "/t"))
+    #expect(parsed.command == .trigger(["module": "clock", "action": "refresh"]))
   }
 
-  func testHelpAndVersionWinOverEverythingElse() {
-    XCTAssertEqual(parseArguments(["--help"]).command, .help)
-    XCTAssertEqual(parseArguments(["-h", "--confg"]).command, .help)
-    XCTAssertEqual(parseArguments(["trigger", "x", "-V"]).command, .version)
-    XCTAssertEqual(parseArguments(["--version"]).command, .version)
+  @Test func testHelpAndVersionWinOverEverythingElse() {
+    #expect(parseArguments(["--help"]).command == .help)
+    #expect(parseArguments(["-h", "--confg"]).command == .help)
+    #expect(parseArguments(["trigger", "x", "-V"]).command == .version)
+    #expect(parseArguments(["--version"]).command == .version)
   }
 
-  func testUnknownFlagsAndMissingPathsAreErrors() {
-    XCTAssertEqual(
-      parseArguments(["--confg", "x"]).command, .usageError("unknown option '--confg'"))
-    XCTAssertEqual(parseArguments(["--config"]).command, .usageError("--config needs a path"))
-    XCTAssertEqual(parseArguments(["-psn_0_1"]).command, .run)
+  @Test func testUnknownFlagsAndMissingPathsAreErrors() {
+    #expect(parseArguments(["--confg", "x"]).command == .usageError("unknown option '--confg'"))
+    #expect(parseArguments(["--config"]).command == .usageError("--config needs a path"))
+    #expect(parseArguments(["-psn_0_1"]).command == .run)
   }
 
-  func testAnUnknownCommandIsAnError() {
-    XCTAssertEqual(
-      parseCommand(["trgger", "clock", "refresh"]), .usageError("unknown command 'trgger'"))
-  }
-}
-
-final class TriggerFieldsTests: XCTestCase {
-  func testFieldsKeepEmptyValuesAndEverythingAfterTheFirstEquals() {
-    XCTAssertEqual(
-      parseTriggerFields(["value=", "icon=bell", "fg=#FF0000", "cmd=a=b", "loose", "=x"]),
-      ["value": "", "icon": "bell", "fg": "#FF0000", "cmd": "a=b"])
+  @Test func testAnUnknownCommandIsAnError() {
+    #expect(
+      parseCommand(["trgger", "clock", "refresh"]) == .usageError("unknown command 'trgger'"))
   }
 }
 
-final class TemplateResolverTests: XCTestCase {
-  func testScopeStackOverridesVariables() {
+final class TriggerFieldsTests {
+  @Test func testFieldsKeepEmptyValuesAndEverythingAfterTheFirstEquals() {
+    #expect(
+      parseTriggerFields(["value=", "icon=bell", "fg=#FF0000", "cmd=a=b", "loose", "=x"]) == [
+        "value": "", "icon": "bell", "fg": "#FF0000", "cmd": "a=b",
+      ])
+  }
+}
+
+final class TemplateResolverTests {
+  @Test func testScopeStackOverridesVariables() {
     let r = TemplateResolver(variables: ["v": "outer"], data: [:])
     r.pushScope(["v": "inner"])
-    XCTAssertEqual(r.resolve("{v}"), "inner")
+    #expect(r.resolve("{v}") == "inner")
     r.popScope()
-    XCTAssertEqual(r.resolve("{v}"), "outer")
+    #expect(r.resolve("{v}") == "outer")
   }
 }
 
-final class CommandTemplateTests: XCTestCase {
+final class CommandTemplateTests {
   private let hostile = #"a b; echo pwned $(id) `id` 'q' "dq" \"#
   private lazy var resolver = TemplateResolver(
     variables: [
@@ -265,53 +302,53 @@ final class CommandTemplateTests: XCTestCase {
     return String(decoding: pipe.fileHandleForReading.readDataToEndOfFile(), as: UTF8.self)
   }
 
-  func testValuesStayOneArgumentWhereverThePlaceholderSits() throws {
+  @Test func testValuesStayOneArgumentWhereverThePlaceholderSits() throws {
     for template in [
       "printf '[%s]' {v}", "printf '[%s]' '{v}'", #"printf '[%s]' "{v}""#,
       #"printf '[%s]' pre{v}"#,
     ] {
       let command = resolver.resolveCommand(template)
       let expected = template.hasSuffix("pre{v}") ? "[pre\(hostile)]" : "[\(hostile)]"
-      XCTAssertEqual(try shell(command), expected, template)
+      #expect((try shell(command)) == expected, "\(template)")
     }
   }
 
-  func testAnEmptyBareValueLeavesNothing() {
-    XCTAssertEqual(resolver.resolveCommand("cmd {empty} --x {id}"), "cmd  --x 'x-1'")
+  @Test func testAnEmptyBareValueLeavesNothing() {
+    #expect(resolver.resolveCommand("cmd {empty} --x {id}") == "cmd  --x 'x-1'")
   }
 
-  func testACommandThatIsOnePlaceholderRunsAsTheValue() {
-    XCTAssertEqual(
-      resolver.resolveCommand(" {cmd} "),
-      "kantan-plugin-reminders --complete 'x-1' && kantan trigger r refresh")
+  @Test func testACommandThatIsOnePlaceholderRunsAsTheValue() {
+    #expect(
+      resolver.resolveCommand(" {cmd} ")
+        == "kantan-plugin-reminders --complete 'x-1' && kantan trigger r refresh")
   }
 
-  func testURLCommandsPercentEncodeValues() {
+  @Test func testURLCommandsPercentEncodeValues() {
     let r = TemplateResolver(variables: ["q": "a b&c=d"], data: [:])
-    XCTAssertEqual(
-      r.resolveCommand("https://example.com/search?q={q}"),
-      "https://example.com/search?q=a%20b%26c%3Dd")
+    #expect(
+      r.resolveCommand("https://example.com/search?q={q}")
+        == "https://example.com/search?q=a%20b%26c%3Dd")
   }
 }
 
-final class DSLCanonicalNormalisationTests: XCTestCase {
-  func testCanonicalBoolRoundTripsThroughResolveBool() {
+final class DSLCanonicalNormalisationTests {
+  @Test func testCanonicalBoolRoundTripsThroughResolveBool() {
     let r = TemplateResolver(
       variables: ["t": dslCanonicalBool(true), "f": dslCanonicalBool(false)],
       data: [:])
-    XCTAssertTrue(r.resolveBool("{t}"))
-    XCTAssertFalse(r.resolveBool("{f}"))
+    #expect(r.resolveBool("{t}"))
+    #expect(!r.resolveBool("{f}"))
   }
 
-  func testCanonicalNumberRoundTripsThroughDouble() {
+  @Test func testCanonicalNumberRoundTripsThroughDouble() {
     for value in [0.0, 1.0, 75.0, -3.0, 3.5, 0.125, 1e6] {
-      XCTAssertEqual(Double(dslCanonicalNumber(value)), value)
+      #expect(Double(dslCanonicalNumber(value)) == value)
     }
   }
 }
 
-final class CachedStatusTests: XCTestCase {
-  func testConcurrentSetAndGetDoesNotCrash() {
+final class CachedStatusTests {
+  @Test func testConcurrentSetAndGetDoesNotCrash() {
     let cache = CachedStatus<Int>(fallback: 0)
     let iterations = 1_000
     let group = DispatchGroup()
@@ -329,28 +366,28 @@ final class CachedStatusTests: XCTestCase {
         group.leave()
       }
     }
-    XCTAssertEqual(group.wait(timeout: .now() + 5), .success)
+    #expect(group.wait(timeout: .now() + 5) == .success)
   }
 }
 
 // MARK: - loadConfig() end-to-end
 
-final class PointerHoverTests: XCTestCase {
-  func testHoverChangesOnlyOnEnteringLeavingOrPressing() {
+final class PointerHoverTests {
+  @Test func testHoverChangesOnlyOnEnteringLeavingOrPressing() {
     let frame = NSRect(x: 100, y: 0, width: 40, height: 24)
     var hover = PointerHover()
-    XCTAssertNil(hover.pointer(at: NSPoint(x: 10, y: 10), in: frame, pressed: false))
-    XCTAssertEqual(hover.pointer(at: NSPoint(x: 110, y: 10), in: frame, pressed: false), true)
-    XCTAssertNil(hover.pointer(at: NSPoint(x: 120, y: 12), in: frame, pressed: false))
-    XCTAssertEqual(hover.pointer(at: NSPoint(x: 120, y: 12), in: frame, pressed: true), false)
-    XCTAssertEqual(hover.pointer(at: NSPoint(x: 121, y: 12), in: frame, pressed: false), true)
-    XCTAssertEqual(hover.pointer(at: NSPoint(x: 200, y: 12), in: frame, pressed: false), false)
+    #expect(hover.pointer(at: NSPoint(x: 10, y: 10), in: frame, pressed: false) == nil)
+    #expect(hover.pointer(at: NSPoint(x: 110, y: 10), in: frame, pressed: false) == true)
+    #expect(hover.pointer(at: NSPoint(x: 120, y: 12), in: frame, pressed: false) == nil)
+    #expect(hover.pointer(at: NSPoint(x: 120, y: 12), in: frame, pressed: true) == false)
+    #expect(hover.pointer(at: NSPoint(x: 121, y: 12), in: frame, pressed: false) == true)
+    #expect(hover.pointer(at: NSPoint(x: 200, y: 12), in: frame, pressed: false) == false)
   }
 }
 
 @MainActor
-final class DrawerIconTests: XCTestCase {
-  func testTheDrawerKeepsItsHideIconWhileOpenThroughUpdates() throws {
+final class DrawerIconTests {
+  @Test func testTheDrawerKeepsItsHideIconWhileOpenThroughUpdates() async throws {
     let yaml = try Yaml.load(
       """
       modules:
@@ -365,54 +402,54 @@ final class DrawerIconTests: XCTestCase {
           config:
             value: x
       """)
-    let bar = BarViewModel(config: try XCTUnwrap(loadConfig(from: yaml)))
-    let drawer = try XCTUnwrap(bar.allModules.first { $0.moduleConfig.name == "drawer" })
-    waitUntil { drawer.displayIcon == "S" }
+    let bar = BarViewModel(config: try #require(loadConfig(from: yaml)))
+    let drawer = try #require(bar.allModules.first { $0.moduleConfig.name == "drawer" })
+    await waitUntil { drawer.displayIcon == "S" }
 
     bar.toggleDrawer(side: "right")
-    waitUntil { drawer.displayIcon == "H" }
+    await waitUntil { drawer.displayIcon == "H" }
     drawer.update()
-    RunLoop.main.run(until: Date().addingTimeInterval(0.2))
-    XCTAssertEqual(drawer.displayIcon, "H")
+    await runMainLoop(for: 0.2)
+    #expect(drawer.displayIcon == "H")
 
     bar.toggleDrawer(side: "right")
-    waitUntil { drawer.displayIcon == "S" }
+    await waitUntil { drawer.displayIcon == "S" }
   }
 }
 
 @MainActor
-final class MaskedModuleInteractionTests: XCTestCase {
+final class MaskedModuleInteractionTests {
   private func module(_ name: String, _ extra: String = "") throws -> ModuleConfig {
     let yaml = try Yaml.load(
       "name: \(name)\ntype: text\nplacement: right\nconfig:\n  value: x\n" + extra)
-    return try XCTUnwrap(parseModuleConfig(from: yaml))
+    return try #require(parseModuleConfig(from: yaml))
   }
 
-  func testAMaskedModulePassesClicksThroughUnlessItSetsAClickType() throws {
+  @Test func testAMaskedModulePassesClicksThroughUnlessItSetsAClickType() throws {
     let masked = try module("masked", "mask:\n  name: battery\n")
     let menu = try module(
       "menu", "mask:\n  name: battery\ninteraction:\n  click:\n    type: popup\n")
-    XCTAssertTrue(masked.isPassthrough)
-    XCTAssertFalse(menu.isPassthrough)
+    #expect(masked.isPassthrough)
+    #expect(!menu.isPassthrough)
 
     let groups = BarViewModel.buildGroupsForPlacement(
       from: [masked, menu].map { ModuleViewModel(moduleConfig: $0) }, placement: "right")
-    XCTAssertEqual(groups.map { $0.modules.map(\.moduleConfig.name) }, [["masked"], ["menu"]])
-    XCTAssertEqual(groups.map(\.isPassthrough), [true, false])
+    #expect((groups.map { $0.modules.map(\.moduleConfig.name) }) == [["masked"], ["menu"]])
+    #expect(groups.map(\.isPassthrough) == [true, false])
   }
 }
 
-final class LoadConfigFileTests: XCTestCase {
+final class LoadConfigFileTests {
   private var dir: URL!
 
-  override func setUpWithError() throws {
+  init() throws {
     dir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
     try FileManager.default.createDirectory(
       at: dir.appendingPathComponent("modules.d"), withIntermediateDirectories: true)
   }
 
-  override func tearDownWithError() throws {
-    try FileManager.default.removeItem(at: dir)
+  deinit {
+    try? FileManager.default.removeItem(at: dir)
   }
 
   private func write(_ contents: String, to name: String) throws -> String {
@@ -428,49 +465,51 @@ final class LoadConfigFileTests: XCTestCase {
     return nil
   }
 
-  func testFailuresSayWhy() throws {
-    XCTAssertEqual(error(loading: dir.appendingPathComponent("missing.yaml").path), .unreadable)
+  @Test func testFailuresSayWhy() throws {
+    #expect(error(loading: dir.appendingPathComponent("missing.yaml").path) == .unreadable)
     guard case .invalidYaml = error(loading: try write("height: [33\n", to: "bad.yaml")) else {
-      return XCTFail("expected invalid YAML")
+      Issue.record("expected invalid YAML")
+      return
     }
-    XCTAssertEqual(
-      error(loading: try write("style:\n  light:\n    fg: \"#000000\"\n", to: "partial.yaml")),
-      .invalidConfig)
+    #expect(
+      error(loading: try write("style:\n  light:\n    fg: \"#000000\"\n", to: "partial.yaml"))
+        == .invalidConfig)
   }
 
-  func testMergesModulesDirAndFallsBackToTheWelcomeModules() throws {
+  @Test func testMergesModulesDirAndFallsBackToTheWelcomeModules() throws {
     let path = try write("height: 30\n", to: "config.yaml")
-    XCTAssertEqual(
-      try loadConfigFile(at: path, modulesDir: modulesDir).get().modules.map(\.name),
-      Config.welcome.modules.map(\.name))
+    #expect(
+      (try loadConfigFile(at: path, modulesDir: modulesDir).get().modules.map(\.name))
+        == Config.welcome.modules.map(\.name))
 
     _ = try write(
       "name: extra\ntype: text\nplacement: right\nconfig:\n  value: hi\n",
       to: "modules.d/extra.yaml")
     let config = try loadConfigFile(at: path, modulesDir: modulesDir).get()
-    XCTAssertEqual(config.height, 30)
-    XCTAssertEqual(config.modules.map(\.name), ["extra"])
+    #expect(config.height == 30)
+    #expect(config.modules.map(\.name) == ["extra"])
   }
 
-  func testTheLoadErrorBarNamesTheFileAndWhy() {
+  @Test func testTheLoadErrorBarNamesTheFileAndWhy() {
     let config = Config.loadError(.invalidConfig, path: "/a/b/config.yaml")
-    XCTAssertEqual(
-      config.modules.compactMap { ($0.config as? TextConfig)?.value },
-      ["config.yaml isn't a valid configuration", "Fix it and save to reload"])
+    #expect(
+      (config.modules.compactMap { ($0.config as? TextConfig)?.value }) == [
+        "config.yaml isn't a valid configuration", "Fix it and save to reload",
+      ])
   }
 }
 
-final class LoadConfigTests: XCTestCase {
-  func testMinimalConfigReturnsNativeAppearance() throws {
+final class LoadConfigTests {
+  @Test func testMinimalConfigReturnsNativeAppearance() throws {
     let yaml = try Yaml.load("height: 33\npadding: 10\n")
-    let config = try XCTUnwrap(loadConfig(from: yaml))
-    XCTAssertEqual(config.height, 33)
-    XCTAssertEqual(config.padding, 10)
-    XCTAssertTrue(config.isNativeAppearance)
-    XCTAssertTrue(config.modules.isEmpty)
+    let config = try #require(loadConfig(from: yaml))
+    #expect(config.height == 33)
+    #expect(config.padding == 10)
+    #expect(config.isNativeAppearance)
+    #expect(config.modules.isEmpty)
   }
 
-  func testReturnsNilWhenStyleIncompleteWithoutTheme() throws {
+  @Test func testReturnsNilWhenStyleIncompleteWithoutTheme() throws {
     let yaml = try Yaml.load(
       """
       height: 33
@@ -479,10 +518,10 @@ final class LoadConfigTests: XCTestCase {
         light:
           fg: "#000000"
       """)
-    XCTAssertNil(loadConfig(from: yaml))
+    #expect(loadConfig(from: yaml) == nil)
   }
 
-  func testParsesTextModule() throws {
+  @Test func testParsesTextModule() throws {
     let yaml = try Yaml.load(
       """
       height: 33
@@ -494,13 +533,13 @@ final class LoadConfigTests: XCTestCase {
           config:
             value: hello
       """)
-    let config = try XCTUnwrap(loadConfig(from: yaml))
-    XCTAssertEqual(config.modules.count, 1)
-    XCTAssertEqual(config.modules.first?.name, "greeting")
-    XCTAssertEqual(config.modules.first?.type, "text")
+    let config = try #require(loadConfig(from: yaml))
+    #expect(config.modules.count == 1)
+    #expect(config.modules.first?.name == "greeting")
+    #expect(config.modules.first?.type == "text")
   }
 
-  func testSkipsModuleWithUnknownType() throws {
+  @Test func testSkipsModuleWithUnknownType() throws {
     let yaml = try Yaml.load(
       """
       height: 33
@@ -510,16 +549,16 @@ final class LoadConfigTests: XCTestCase {
           placement: left
           type: nonsense
       """)
-    let config = try XCTUnwrap(loadConfig(from: yaml))
-    XCTAssertTrue(config.modules.isEmpty)
+    let config = try #require(loadConfig(from: yaml))
+    #expect(config.modules.isEmpty)
   }
 
-  func testBlurClampsAboveSixToSix() throws {
+  @Test func testBlurClampsAboveSixToSix() throws {
     let yaml = try Yaml.load("height: 33\npadding: 10\nblur: 100\n")
-    XCTAssertEqual(loadConfig(from: yaml)?.blur, 6)
+    #expect(loadConfig(from: yaml)?.blur == 6)
   }
 
-  func testAutohideParsesEnabledAndDelay() throws {
+  @Test func testAutohideParsesEnabledAndDelay() throws {
     let yaml = try Yaml.load(
       """
       height: 33
@@ -528,88 +567,94 @@ final class LoadConfigTests: XCTestCase {
         enabled: false
         delay: 0.5
       """)
-    let config = try XCTUnwrap(loadConfig(from: yaml))
-    XCTAssertEqual(config.autohide.enabled, false)
-    XCTAssertEqual(config.autohide.delay, 0.5)
+    let config = try #require(loadConfig(from: yaml))
+    #expect(config.autohide.enabled == false)
+    #expect(config.autohide.delay == 0.5)
   }
 }
 
 // MARK: - ViewNode JSON decoding (plugin protocol)
 
-final class ViewNodeJSONDecodingTests: XCTestCase {
+final class ViewNodeJSONDecodingTests {
   private func decode(_ json: String) throws -> ViewNode {
     try JSONDecoder().decode(ViewNode.self, from: Data(json.utf8))
   }
 
-  func testVstackWithSpacingAndChildren() throws {
+  @Test func testVstackWithSpacingAndChildren() throws {
     let json = #"{"type":"vstack","spacing":4,"children":[{"type":"text","content":"a"}]}"#
     guard case .vstack(let spacing, _, let children, _) = try decode(json) else {
-      return XCTFail("expected vstack")
+      Issue.record("expected vstack")
+      return
     }
-    XCTAssertEqual(spacing, 4)
-    XCTAssertEqual(children.count, 1)
+    #expect(spacing == 4)
+    #expect(children.count == 1)
   }
 
-  func testCheckAcceptsBoolForChecked() throws {
+  @Test func testCheckAcceptsBoolForChecked() throws {
     let json = #"{"type":"check","label":"Done","checked":true}"#
     guard case .check(_, let checked, _, _, _) = try decode(json) else {
-      return XCTFail("expected check")
+      Issue.record("expected check")
+      return
     }
-    XCTAssertEqual(checked, "true")
+    #expect(checked == "true")
   }
 
-  func testForeachDecodes() throws {
+  @Test func testForeachDecodes() throws {
     let json = #"{"type":"foreach","items":"rows","child":{"type":"text","content":"{name}"}}"#
     guard case .foreach(let items, _, _) = try decode(json) else {
-      return XCTFail("expected foreach")
+      Issue.record("expected foreach")
+      return
     }
-    XCTAssertEqual(items, "rows")
+    #expect(items == "rows")
   }
 
-  func testIfDecodesWithElse() throws {
+  @Test func testIfDecodesWithElse() throws {
     let json = #"""
       {"type":"if","condition":"on","then":{"type":"text","content":"yes"},"else":{"type":"text","content":"no"}}
       """#
     guard case .if(let condition, _, let elseNode, _) = try decode(json) else {
-      return XCTFail("expected if")
+      Issue.record("expected if")
+      return
     }
-    XCTAssertEqual(condition, "on")
-    XCTAssertNotNil(elseNode)
+    #expect(condition == "on")
+    #expect(elseNode != nil)
   }
 
-  func testCommonPropertiesDecodeAlongsideNode() throws {
+  @Test func testCommonPropertiesDecodeAlongsideNode() throws {
     let json = #"""
       {"type":"text","content":"x","padding":8,"opacity":0.5,"background":"#112233"}
       """#
     guard case .text(_, _, _, _, _, _, _, let common) = try decode(json) else {
-      return XCTFail("expected text")
+      Issue.record("expected text")
+      return
     }
-    XCTAssertEqual(common.opacity, 0.5)
-    XCTAssertEqual(common.background, "#112233")
+    #expect(common.opacity == 0.5)
+    #expect(common.background == "#112233")
     guard case .uniform(let value) = common.padding else {
-      return XCTFail("expected uniform padding")
+      Issue.record("expected uniform padding")
+      return
     }
-    XCTAssertEqual(value, 8)
+    #expect(value == 8)
   }
 
-  func testPaddingArrayIsRejected() {
+  @Test func testPaddingArrayIsRejected() {
     let json = #"{"type":"text","content":"x","padding":[1,2,3,4]}"#
-    XCTAssertThrowsError(try decode(json))
+    #expect(throws: (any Error).self) { try decode(json) }
   }
 
-  func testUnknownTypeThrows() {
-    XCTAssertThrowsError(try decode(#"{"type":"flibbertigibbet"}"#))
+  @Test func testUnknownTypeThrows() {
+    #expect(throws: (any Error).self) { try decode(#"{"type":"flibbertigibbet"}"#) }
   }
 }
 
 // MARK: - parseViewNodeFromYaml
 
-final class ParseViewNodeFromYamlTests: XCTestCase {
+final class ParseViewNodeFromYamlTests {
   private func yaml(_ source: String) throws -> Yaml {
     try Yaml.load(source)
   }
 
-  func testVstackRecursesIntoChildren() throws {
+  @Test func testVstackRecursesIntoChildren() throws {
     let y = try yaml(
       """
       type: vstack
@@ -621,12 +666,13 @@ final class ParseViewNodeFromYamlTests: XCTestCase {
           content: b
       """)
     guard case .vstack(_, _, let children, _) = parseViewNodeFromYaml(y) else {
-      return XCTFail("expected vstack")
+      Issue.record("expected vstack")
+      return
     }
-    XCTAssertEqual(children.count, 2)
+    #expect(children.count == 2)
   }
 
-  func testPaddingObjectFromYamlMapping() throws {
+  @Test func testPaddingObjectFromYamlMapping() throws {
     let y = try yaml(
       """
       type: vstack
@@ -638,38 +684,41 @@ final class ParseViewNodeFromYamlTests: XCTestCase {
       children: []
       """)
     guard case .vstack(_, _, _, let common) = parseViewNodeFromYaml(y) else {
-      return XCTFail("expected vstack")
+      Issue.record("expected vstack")
+      return
     }
     guard case .edges(let top, let leading, let bottom, let trailing) = common.padding else {
-      return XCTFail("expected edges padding")
+      Issue.record("expected edges padding")
+      return
     }
-    XCTAssertEqual(top, 1)
-    XCTAssertEqual(leading, 2)
-    XCTAssertEqual(bottom, 3)
-    XCTAssertEqual(trailing, 4)
+    #expect(top == 1)
+    #expect(leading == 2)
+    #expect(bottom == 3)
+    #expect(trailing == 4)
   }
 
-  func testCheckCoercesYamlYesToCanonicalTrue() throws {
+  @Test func testCheckCoercesYamlYesToCanonicalTrue() throws {
     let y = try yaml("type: check\nlabel: Done\nchecked: yes\n")
     guard case .check(_, let checked, _, _, _) = parseViewNodeFromYaml(y) else {
-      return XCTFail("expected check")
+      Issue.record("expected check")
+      return
     }
-    XCTAssertEqual(checked, dslCanonicalBool(true))
+    #expect(checked == dslCanonicalBool(true))
   }
 
-  func testForeachReturnsNilWithoutChild() throws {
+  @Test func testForeachReturnsNilWithoutChild() throws {
     let y = try yaml("type: foreach\nitems: rows\n")
-    XCTAssertNil(parseViewNodeFromYaml(y))
+    #expect(parseViewNodeFromYaml(y) == nil)
   }
 
-  func testIfRequiresThenBranch() throws {
+  @Test func testIfRequiresThenBranch() throws {
     let y = try yaml("type: if\ncondition: x\n")
-    XCTAssertNil(parseViewNodeFromYaml(y))
+    #expect(parseViewNodeFromYaml(y) == nil)
   }
 
-  func testUnknownTypeReturnsNil() throws {
+  @Test func testUnknownTypeReturnsNil() throws {
     let y = try yaml("type: snickerdoodle")
-    XCTAssertNil(parseViewNodeFromYaml(y))
+    #expect(parseViewNodeFromYaml(y) == nil)
   }
 }
 
@@ -703,65 +752,65 @@ private final class CapturingModuleConfig: ModuleConfiguration, @unchecked Senda
 }
 
 @MainActor
-final class ModuleViewModelUpdateGenerationTests: XCTestCase {
-  private func drainMainQueue() {
-    let exp = expectation(description: "drain")
+final class ModuleViewModelUpdateGenerationTests {
+  private func drainMainQueue() async {
+    let exp = Expectation()
     DispatchQueue.main.async { exp.fulfill() }
-    wait(for: [exp], timeout: 1.0)
+    #expect(await fulfillment(of: [exp], timeout: 1.0))
   }
 
-  func testResumingUpdatesOnce() {
+  @Test func testResumingUpdatesOnce() {
     let mock = CapturingModuleConfig()
     let vm = ModuleViewModel(
       moduleConfig: ModuleConfig(
         name: "test", placement: PlacementSpec(raw: "left"), type: "test", config: mock))
-    XCTAssertEqual(mock.completionCount, 1)
+    #expect(mock.completionCount == 1)
     vm.pause()
     vm.resume()
-    XCTAssertEqual(mock.completionCount, 2, "resume should trigger one update()")
+    #expect(mock.completionCount == 2, "resume should trigger one update()")
   }
 
-  func testStaleCompletionDoesNotOverwriteFreshValue() {
+  @Test func testStaleCompletionDoesNotOverwriteFreshValue() async {
     let mock = CapturingModuleConfig()
     let cfg = ModuleConfig(
       name: "test", placement: PlacementSpec(raw: "left"), type: "test", config: mock)
     let vm = ModuleViewModel(moduleConfig: cfg)
 
-    XCTAssertEqual(mock.completionCount, 1, "init should trigger one update()")
+    #expect(mock.completionCount == 1, "init should trigger one update()")
     vm.update()
-    XCTAssertEqual(mock.completionCount, 2)
+    #expect(mock.completionCount == 2)
 
     mock.fire(at: 1, with: "fresh")
-    drainMainQueue()
-    XCTAssertEqual(vm.displayValue, "fresh")
+    await drainMainQueue()
+    #expect(vm.displayValue == "fresh")
 
     mock.fire(at: 0, with: "stale")
-    drainMainQueue()
-    XCTAssertEqual(
-      vm.displayValue, "fresh",
-      "completion captured before the latest update() must be discarded")
+    await drainMainQueue()
+    #expect(
+      vm.displayValue == "fresh", "completion captured before the latest update() must be discarded"
+    )
   }
 
-  func testInOrderCompletionsApplySequentially() {
+  @Test func testInOrderCompletionsApplySequentially() async {
     let mock = CapturingModuleConfig()
     let cfg = ModuleConfig(
       name: "test", placement: PlacementSpec(raw: "left"), type: "test", config: mock)
     let vm = ModuleViewModel(moduleConfig: cfg)
 
     mock.fire(at: 0, with: "first")
-    drainMainQueue()
-    XCTAssertEqual(vm.displayValue, "first")
+    await drainMainQueue()
+    #expect(vm.displayValue == "first")
 
     vm.update()
     mock.fire(at: 1, with: "second")
-    drainMainQueue()
-    XCTAssertEqual(vm.displayValue, "second")
+    await drainMainQueue()
+    #expect(vm.displayValue == "second")
   }
 }
 
 // MARK: - Theme template resolution
 
-final class ThemeTemplateResolutionTests: XCTestCase {
+final class ThemeTemplateResolutionTests {
   private let palette = ThemePalette(
     fg: "#ffffff",
     bg: "#000000",
@@ -769,53 +818,51 @@ final class ThemeTemplateResolutionTests: XCTestCase {
     colors: ["accent": "#ff8800", "muted": "#888888"]
   )
 
-  func testResolvesNamedColor() {
-    XCTAssertEqual(resolveThemeTemplate("{theme(accent)}", palette: palette), "#ff8800")
+  @Test func testResolvesNamedColor() {
+    #expect(resolveThemeTemplate("{theme(accent)}", palette: palette) == "#ff8800")
   }
 
-  func testReturnsOriginalForUnknownColor() {
+  @Test func testReturnsOriginalForUnknownColor() {
     let input = "{theme(missing)}"
-    XCTAssertEqual(resolveThemeTemplate(input, palette: palette), input)
+    #expect(resolveThemeTemplate(input, palette: palette) == input)
   }
 
-  func testEmbeddedTemplatesResolvedInPlace() {
+  @Test func testEmbeddedTemplatesResolvedInPlace() {
     let input = "fg={theme(fg)} bg={theme(bg)}"
-    XCTAssertEqual(
-      resolveAllThemeTemplates(input, palette: palette),
-      "fg=#ffffff bg=#000000")
+    #expect(resolveAllThemeTemplates(input, palette: palette) == "fg=#ffffff bg=#000000")
   }
 }
 
 // MARK: - MenuBarItemDetector coordinate conversion
 
-final class MenuBarItemDetectorCoordinateTests: XCTestCase {
-  func testFlipsYAroundPrimaryHeight() {
+final class MenuBarItemDetectorCoordinateTests {
+  @Test func testFlipsYAroundPrimaryHeight() {
     let cg = CGRect(x: 100, y: 0, width: 30, height: 24)
     let ns = MenuBarItemDetector.appKitRect(from: cg, primaryHeight: 900)
-    XCTAssertEqual(ns.origin.x, 100)
-    XCTAssertEqual(ns.origin.y, 900 - 0 - 24)
-    XCTAssertEqual(ns.width, 30)
-    XCTAssertEqual(ns.height, 24)
+    #expect(ns.origin.x == 100)
+    #expect(ns.origin.y == CGFloat(900 - 0 - 24))
+    #expect(ns.width == 30)
+    #expect(ns.height == 24)
   }
 
-  func testCGItemOnSecondaryScreenAbovePrimary() {
+  @Test func testCGItemOnSecondaryScreenAbovePrimary() {
     // Secondary screen above primary → CG origin y is negative (above primary top).
     let cg = CGRect(x: -1440, y: -900, width: 30, height: 24)
     let ns = MenuBarItemDetector.appKitRect(from: cg, primaryHeight: 900)
-    XCTAssertEqual(ns.origin.x, -1440)
-    XCTAssertEqual(ns.origin.y, 900 - (-900) - 24)
-    XCTAssertEqual(ns.height, 24)
+    #expect(ns.origin.x == -1440)
+    #expect(ns.origin.y == CGFloat(900 - (-900) - 24))
+    #expect(ns.height == 24)
   }
 }
 
 // MARK: - WindowListCache
 
-final class WindowListCacheTests: XCTestCase {
+final class WindowListCacheTests {
   private func sample(_ tag: String) -> [[String: Any]] {
     [["tag": tag]]
   }
 
-  func testSecondGetWithinTTLReturnsCached() {
+  @Test func testSecondGetWithinTTLReturnsCached() {
     var cache = WindowListCache()
     var calls = 0
     _ = cache.get(
@@ -830,11 +877,11 @@ final class WindowListCacheTests: XCTestCase {
         calls += 1
         return self.sample("b")
       })
-    XCTAssertEqual(calls, 1)
-    XCTAssertEqual(result.first?["tag"] as? String, "a")
+    #expect(calls == 1)
+    #expect((result.first?["tag"] as? String) == "a")
   }
 
-  func testGetAfterTTLRefetches() {
+  @Test func testGetAfterTTLRefetches() {
     var cache = WindowListCache()
     var calls = 0
     _ = cache.get(
@@ -849,14 +896,14 @@ final class WindowListCacheTests: XCTestCase {
         calls += 1
         return self.sample("b")
       })
-    XCTAssertEqual(calls, 2)
-    XCTAssertEqual(result.first?["tag"] as? String, "b")
+    #expect(calls == 2)
+    #expect((result.first?["tag"] as? String) == "b")
   }
 }
 
 // MARK: - MenuBarItemDetector filterMenuBarItems
 
-final class MenuBarItemDetectorFilterTests: XCTestCase {
+final class MenuBarItemDetectorFilterTests {
   private static let statusLevel = Int(CGWindowLevelForKey(.statusWindow))
 
   private func window(
@@ -871,7 +918,7 @@ final class MenuBarItemDetectorFilterTests: XCTestCase {
     ]
   }
 
-  func testSortsRightToLeftAndIndexes() {
+  @Test func testSortsRightToLeftAndIndexes() {
     let windows = [
       window(owner: "ControlCenter", x: 1000, y: 0),
       window(owner: "ControlCenter", x: 1100, y: 0),
@@ -880,12 +927,12 @@ final class MenuBarItemDetectorFilterTests: XCTestCase {
     let items = MenuBarItemDetector.filterMenuBarItems(
       from: windows, primaryHeight: 1080,
       screenFrame: NSRect(x: 0, y: 0, width: 1920, height: 1080))
-    XCTAssertEqual(items.count, 3)
-    XCTAssertEqual(items.map { $0.cgRect.origin.x }, [1100, 1000, 900])
-    XCTAssertEqual(items.map { $0.index }, [0, 1, 2])
+    #expect(items.count == 3)
+    #expect((items.map { $0.cgRect.origin.x }) == [1100, 1000, 900])
+    #expect((items.map { $0.index }) == [0, 1, 2])
   }
 
-  func testDropsNonStatusLevelWindows() {
+  @Test func testDropsNonStatusLevelWindows() {
     let windows = [
       window(owner: "ControlCenter", x: 1000, y: 0),
       window(owner: "OtherApp", level: 0, x: 1100, y: 0),
@@ -893,11 +940,11 @@ final class MenuBarItemDetectorFilterTests: XCTestCase {
     let items = MenuBarItemDetector.filterMenuBarItems(
       from: windows, primaryHeight: 1080,
       screenFrame: NSRect(x: 0, y: 0, width: 1920, height: 1080))
-    XCTAssertEqual(items.count, 1)
-    XCTAssertEqual(items.first?.owner, "ControlCenter")
+    #expect(items.count == 1)
+    #expect(items.first?.owner == "ControlCenter")
   }
 
-  func testFiltersByScreenXRange() {
+  @Test func testFiltersByScreenXRange() {
     // Two screens side-by-side: primary 0..1920, secondary 1920..3840.
     // An item at CG X >= 1920 belongs to the secondary screen, not primary.
     let windows = [
@@ -907,17 +954,17 @@ final class MenuBarItemDetectorFilterTests: XCTestCase {
     let primary = MenuBarItemDetector.filterMenuBarItems(
       from: windows, primaryHeight: 1080,
       screenFrame: NSRect(x: 0, y: 0, width: 1920, height: 1080))
-    XCTAssertEqual(primary.count, 1)
-    XCTAssertEqual(primary.first?.cgRect.origin.x, 1500)
+    #expect(primary.count == 1)
+    #expect(primary.first?.cgRect.origin.x == 1500)
 
     let secondary = MenuBarItemDetector.filterMenuBarItems(
       from: windows, primaryHeight: 1080,
       screenFrame: NSRect(x: 1920, y: 0, width: 1920, height: 1080))
-    XCTAssertEqual(secondary.count, 1)
-    XCTAssertEqual(secondary.first?.cgRect.origin.x, 2500)
+    #expect(secondary.count == 1)
+    #expect(secondary.first?.cgRect.origin.x == 2500)
   }
 
-  func testSecondaryScreenAbovePrimary() {
+  @Test func testSecondaryScreenAbovePrimary() {
     // Secondary screen above primary in NSScreen coords: screen.frame.maxY > primaryHeight.
     // CG Y of secondary's top = primaryHeight - screen.frame.maxY (negative).
     let primaryHeight: CGFloat = 1080
@@ -929,14 +976,14 @@ final class MenuBarItemDetectorFilterTests: XCTestCase {
     ]
     let items = MenuBarItemDetector.filterMenuBarItems(
       from: windows, primaryHeight: primaryHeight, screenFrame: secondaryFrame)
-    XCTAssertEqual(items.count, 1)
-    XCTAssertEqual(items.first?.cgRect.origin.y, cgTop)
+    #expect(items.count == 1)
+    #expect(items.first?.cgRect.origin.y == cgTop)
   }
 }
 
 // MARK: - PersistedMenuBarLayout
 
-final class PersistedMenuBarLayoutTests: XCTestCase {
+final class PersistedMenuBarLayoutTests {
   /// Control Centre module positions captured on macOS 27 with a 1512×982
   /// primary display. The frames asserted below are what Accessibility
   /// reported for the same layout.
@@ -963,7 +1010,7 @@ final class PersistedMenuBarLayoutTests: XCTestCase {
     items.first { $0.identifier == id }
   }
 
-  func testModuleContentMatchesMeasuredFrames() {
+  @Test func testModuleContentMatchesMeasuredFrames() {
     let measured: [String: (x: CGFloat, width: CGFloat)] = [
       "Clock": (1455, 37), "BentoBox-0": (1413, 26), "Battery": (1371, 26),
       "WiFi": (1333, 22), "Sound": (1295, 22), "Bluetooth": (1263, 16),
@@ -971,56 +1018,59 @@ final class PersistedMenuBarLayoutTests: XCTestCase {
     ]
     let items = layout(positions)
     for (id, frame) in measured {
-      guard let found = item(id, in: items) else { return XCTFail("missing \(id)") }
+      guard let found = item(id, in: items) else {
+        Issue.record("missing \(id)")
+        return
+      }
       let content = found.cgRect.insetBy(dx: PersistedMenuBarLayout.moduleSpacing / 2, dy: 0)
-      XCTAssertEqual(content.minX, frame.x, accuracy: 1, id)
-      XCTAssertEqual(content.maxX, frame.x + frame.width, accuracy: 1, id)
+      #expect(abs(content.minX - frame.x) <= 1, "\(id)")
+      #expect(abs(content.maxX - (frame.x + frame.width)) <= 1, "\(id)")
     }
   }
 
-  func testModuleSlotsAbutLikeWindowBackedItems() {
+  @Test func testModuleSlotsAbutLikeWindowBackedItems() {
     let items = layout(positions)
-    XCTAssertEqual(items.first?.cgRect.maxX, 1512 - PersistedMenuBarLayout.trailingEdgeInset)
+    #expect(items.first?.cgRect.maxX == (1512 - PersistedMenuBarLayout.trailingEdgeInset))
     for (right, left) in zip(items, items.dropFirst()) {
-      XCTAssertEqual(left.cgRect.maxX, right.cgRect.minX)
+      #expect(left.cgRect.maxX == right.cgRect.minX)
     }
   }
 
-  func testSortsRightToLeftAndIndexes() {
+  @Test func testSortsRightToLeftAndIndexes() {
     let items = layout(positions)
-    XCTAssertEqual(
-      Array(items.prefix(7)).map { $0.identifier },
-      ["Clock", "BentoBox-0", "Battery", "WiFi", "Sound", "Bluetooth", "FocusModes"])
-    XCTAssertEqual(items.map { $0.index }, Array(0..<positions.count))
+    #expect(
+      (Array(items.prefix(7)).map { $0.identifier }) == [
+        "Clock", "BentoBox-0", "Battery", "WiFi", "Sound", "Bluetooth", "FocusModes",
+      ])
+    #expect((items.map { $0.index }) == Array(0..<positions.count))
   }
 
-  func testLeftmostItemUsesDefaultWidth() {
+  @Test func testLeftmostItemUsesDefaultWidth() {
     let items = layout(["module:Clock": 0, "module:WiFi": 36.5])
-    XCTAssertEqual(
-      item("WiFi", in: items)?.cgRect.width,
-      PersistedMenuBarLayout.defaultContentWidth + PersistedMenuBarLayout.moduleSpacing)
+    #expect(
+      item("WiFi", in: items)?.cgRect.width
+        == (PersistedMenuBarLayout.defaultContentWidth + PersistedMenuBarLayout.moduleSpacing))
   }
 
-  func testLaysOutAgainstEachScreensRightEdgeAndTop() {
+  @Test func testLaysOutAgainstEachScreensRightEdgeAndTop() {
     let secondary = NSRect(x: 1512, y: -100, width: 1920, height: 1080)
     let items = layout(positions, screenFrame: secondary)
-    XCTAssertEqual(
-      items.first?.cgRect.maxX, secondary.maxX - PersistedMenuBarLayout.trailingEdgeInset)
-    XCTAssertEqual(items.first?.cgRect.origin.y, 982 - secondary.maxY)
+    #expect(items.first?.cgRect.maxX == (secondary.maxX - PersistedMenuBarLayout.trailingEdgeInset))
+    #expect(items.first?.cgRect.origin.y == (982 - secondary.maxY))
   }
 
-  func testResolveItemMatchesIdentifiersThroughAliases() {
+  @Test func testResolveItemMatchesIdentifiersThroughAliases() {
     let items = layout(positions)
     let resolve = { MenuBarItemDetector.resolveItem(for: MaskConfig(name: $0), from: items) }
-    XCTAssertEqual(resolve("Clock")?.identifier, "Clock")
-    XCTAssertEqual(resolve("ControlCenter")?.identifier, "BentoBox-0")
-    XCTAssertEqual(resolve("Volume")?.identifier, "Sound")
-    XCTAssertEqual(resolve("Focus")?.identifier, "FocusModes")
-    XCTAssertEqual(resolve("WiFi")?.identifier, "WiFi")
-    XCTAssertNil(resolve("NowPlaying"))
-    XCTAssertEqual(
-      MenuBarItemDetector.resolveItem(for: MaskConfig(index: 1), from: items)?.identifier,
-      "BentoBox-0")
+    #expect(resolve("Clock")?.identifier == "Clock")
+    #expect(resolve("ControlCenter")?.identifier == "BentoBox-0")
+    #expect(resolve("Volume")?.identifier == "Sound")
+    #expect(resolve("Focus")?.identifier == "FocusModes")
+    #expect(resolve("WiFi")?.identifier == "WiFi")
+    #expect(resolve("NowPlaying") == nil)
+    #expect(
+      MenuBarItemDetector.resolveItem(for: MaskConfig(index: 1), from: items)?.identifier
+        == "BentoBox-0")
   }
 
   /// `com.apple.controlcenter` defaults from the machine the fixture above
@@ -1038,24 +1088,24 @@ final class PersistedMenuBarLayoutTests: XCTestCase {
     "NSStatusItem VisibleCC Clock": 1,
   ]
 
-  func testLegacyPositionsMatchMenuBarAgentPositions() {
+  @Test func testLegacyPositionsMatchMenuBarAgentPositions() {
     let legacy = PersistedMenuBarLayout.legacyPositions { self.controlCentreDefaults[$0] }
-    XCTAssertEqual(legacy, positions.filter { $0.key.hasPrefix("module:") })
+    #expect(legacy == (positions.filter { $0.key.hasPrefix("module:") }))
   }
 
-  func testLegacyPositionsWithoutClockStartAtEdge() {
+  @Test func testLegacyPositionsWithoutClockStartAtEdge() {
     var defaults = controlCentreDefaults
     defaults["NSStatusItem VisibleCC Clock"] = 0
     let legacy = PersistedMenuBarLayout.legacyPositions { defaults[$0] }
-    XCTAssertNil(legacy["module:Clock"])
-    XCTAssertEqual(legacy["module:BentoBox-0"], 63 + 1.5 - 12)
-    XCTAssertEqual(legacy["module:Battery"], 105 + 1.5 - 12 - 16)
+    #expect(legacy["module:Clock"] == nil)
+    #expect(legacy["module:BentoBox-0"] == Double(63 + 1.5 - 12))
+    #expect(legacy["module:Battery"] == Double(105 + 1.5 - 12 - 16))
   }
 }
 
 // MARK: - Menu bar Accessibility
 
-final class MenuBarAccessibilityTests: XCTestCase {
+final class MenuBarAccessibilityTests {
   private let screen = NSRect(x: 0, y: 0, width: 1512, height: 982)
 
   private func system(_ name: String, _ x: CGFloat, _ width: CGFloat) -> AccessibleMenuBarItem {
@@ -1098,7 +1148,7 @@ final class MenuBarAccessibilityTests: XCTestCase {
     MenuBarItemDetector.resolveItem(for: MaskConfig(name: name), from: items)
   }
 
-  func testSystemSlotsMatchControlCentreReconstruction() {
+  @Test func testSystemSlotsMatchControlCentreReconstruction() {
     let positions: [String: Double] = [
       "module:Clock": 0, "module:BentoBox-0": 36.5, "module:Battery": 62.5,
       "module:WiFi": 88.5, "module:Sound": 110.5, "module:Bluetooth": 132.5,
@@ -1109,110 +1159,116 @@ final class MenuBarAccessibilityTests: XCTestCase {
     let live = layout(reported)
     for expected in reconstructed {
       guard let found = live.first(where: { $0.identifier == expected.identifier }) else {
-        return XCTFail("missing \(expected.identifier ?? "?")")
+        Issue.record("missing \(expected.identifier ?? "?")")
+        return
       }
-      XCTAssertEqual(found.cgRect.minX, expected.cgRect.minX, accuracy: 1)
-      XCTAssertEqual(found.cgRect.width, expected.cgRect.width, accuracy: 1)
-      XCTAssertEqual(found.cgRect.origin.y, 0)
-      XCTAssertEqual(found.cgRect.height, 33)
+      #expect(abs(found.cgRect.minX - expected.cgRect.minX) <= 1)
+      #expect(abs(found.cgRect.width - expected.cgRect.width) <= 1)
+      #expect(found.cgRect.origin.y == 0)
+      #expect(found.cgRect.height == 33)
     }
   }
 
-  func testThirdPartyItemsKeepTheirFrame() {
+  @Test func testThirdPartyItemsKeepTheirFrame() {
     let rift = resolve("rift", in: layout(reported))
-    XCTAssertEqual(rift?.cgRect, CGRect(x: 1150, y: 0, width: 22, height: 33))
-    XCTAssertNil(rift?.identifier)
+    #expect(rift?.cgRect == CGRect(x: 1150, y: 0, width: 22, height: 33))
+    #expect(rift?.identifier == nil)
   }
 
-  func testSortsRightToLeftAndIndexes() {
+  @Test func testSortsRightToLeftAndIndexes() {
     let items = layout(reported)
-    XCTAssertEqual(
-      items.prefix(8).map { $0.identifier ?? $0.owner },
-      ["Clock", "BentoBox-0", "Battery", "WiFi", "Sound", "Bluetooth", "FocusModes", "Tailscale"])
-    XCTAssertEqual(items.map { $0.index }, Array(0..<reported.count))
-    XCTAssertEqual(
-      MenuBarItemDetector.resolveItem(for: MaskConfig(index: 8), from: items)?.owner, "rift")
+    #expect(
+      (items.prefix(8).map { $0.identifier ?? $0.owner }) == [
+        "Clock", "BentoBox-0", "Battery", "WiFi", "Sound", "Bluetooth", "FocusModes", "Tailscale",
+      ])
+    #expect((items.map { $0.index }) == Array(0..<reported.count))
+    #expect(
+      MenuBarItemDetector.resolveItem(for: MaskConfig(index: 8), from: items)?.owner == "rift")
   }
 
-  func testMasksNameSystemItemsThroughAliasesAndIdentifiers() {
+  @Test func testMasksNameSystemItemsThroughAliasesAndIdentifiers() {
     let items = layout(reported)
-    XCTAssertEqual(resolve("Focus", in: items)?.identifier, "FocusModes")
-    XCTAssertEqual(resolve("Volume", in: items)?.identifier, "Sound")
-    XCTAssertEqual(resolve("ControlCenter", in: items)?.identifier, "BentoBox-0")
-    XCTAssertEqual(resolve("wifi", in: items)?.identifier, "WiFi")
-    XCTAssertEqual(resolve("com.apple.menuextra.battery", in: items)?.identifier, "Battery")
-    XCTAssertNil(resolve("NowPlaying", in: items))
+    #expect(resolve("Focus", in: items)?.identifier == "FocusModes")
+    #expect(resolve("Volume", in: items)?.identifier == "Sound")
+    #expect(resolve("ControlCenter", in: items)?.identifier == "BentoBox-0")
+    #expect(resolve("wifi", in: items)?.identifier == "WiFi")
+    #expect(resolve("com.apple.menuextra.battery", in: items)?.identifier == "Battery")
+    #expect(resolve("NowPlaying", in: items) == nil)
   }
 
-  func testMasksNameThirdPartyItemsByApp() {
+  @Test func testMasksNameThirdPartyItemsByApp() {
     let items = layout(reported)
-    XCTAssertEqual(resolve("RIFT", in: items)?.owner, "rift")
-    XCTAssertEqual(resolve("com.1password.1password", in: items)?.owner, "1Password")
-    XCTAssertEqual(resolve("1password", in: items)?.owner, "1Password")
-    XCTAssertEqual(resolve("Karabiner-Menu", in: items)?.owner, "Karabiner-Menu")
-    XCTAssertNil(resolve("Raycast", in: items))
+    #expect(resolve("RIFT", in: items)?.owner == "rift")
+    #expect(resolve("com.1password.1password", in: items)?.owner == "1Password")
+    #expect(resolve("1password", in: items)?.owner == "1Password")
+    #expect(resolve("Karabiner-Menu", in: items)?.owner == "Karabiner-Menu")
+    #expect(resolve("Raycast", in: items) == nil)
   }
 
-  func testRightmostItemOfAnAppWins() {
+  @Test func testRightmostItemOfAnAppWins() {
     let items = layout([
       app(["com.example.menus", "Menus"], 1000, 30), app(["com.example.menus", "Menus"], 1100, 30),
     ])
-    XCTAssertEqual(resolve("Menus", in: items)?.cgRect.minX, 1100)
+    #expect(resolve("Menus", in: items)?.cgRect.minX == 1100)
   }
 
-  func testItemsMoveAcrossToEachScreen() {
+  @Test func testItemsMoveAcrossToEachScreen() {
     let secondary = NSRect(x: 1512, y: -100, width: 1920, height: 1080)
     let items = layout(reported, on: secondary, screens: [screen, secondary])
     let clock = items.first { $0.identifier == "Clock" }
-    XCTAssertEqual(clock?.cgRect.maxX, secondary.maxX - PersistedMenuBarLayout.trailingEdgeInset)
-    XCTAssertEqual(clock?.cgRect.origin.y, 982 - secondary.maxY)
-    XCTAssertEqual(resolve("rift", in: items)?.cgRect.minX, 1150 + secondary.maxX - screen.maxX)
+    #expect(clock?.cgRect.maxX == (secondary.maxX - PersistedMenuBarLayout.trailingEdgeInset))
+    #expect(clock?.cgRect.origin.y == (982 - secondary.maxY))
+    #expect(resolve("rift", in: items)?.cgRect.minX == (1150 + secondary.maxX - screen.maxX))
   }
 
-  func testItemsOffEveryScreenAreDropped() {
+  @Test func testItemsOffEveryScreenAreDropped() {
     let offscreen = AccessibleMenuBarItem(
       frame: CGRect(x: -500, y: 0, width: 22, height: 33), identifier: nil, owner: "Ghost",
       appNames: ["Ghost"], isMenuBarAgentItem: false)
-    XCTAssertTrue(layout([offscreen]).isEmpty)
+    #expect(layout([offscreen]).isEmpty)
   }
 
-  func testControlCentreIdentifierForName() {
-    XCTAssertEqual(MenuBarAccessibility.controlCentreIdentifier(forName: "focusmode"), "FocusModes")
-    XCTAssertEqual(MenuBarAccessibility.controlCentreIdentifier(forName: "clock"), "Clock")
-    XCTAssertEqual(
-      MenuBarAccessibility.controlCentreIdentifier(forName: "nowplaying"), "NowPlaying")
-    XCTAssertEqual(MenuBarAccessibility.controlCentreIdentifier(forName: "spotlight"), "spotlight")
+  @Test func testControlCentreIdentifierForName() {
+    #expect(MenuBarAccessibility.controlCentreIdentifier(forName: "focusmode") == "FocusModes")
+    #expect(MenuBarAccessibility.controlCentreIdentifier(forName: "clock") == "Clock")
+    #expect(MenuBarAccessibility.controlCentreIdentifier(forName: "nowplaying") == "NowPlaying")
+    #expect(MenuBarAccessibility.controlCentreIdentifier(forName: "spotlight") == "spotlight")
   }
 
-  func testNeededOnlyForMasksOrFocusWithoutFullDiskAccess() {
+  @Test func testNeededOnlyForMasksOrFocusWithoutFullDiskAccess() {
     func module(_ type: String, mask: MaskConfig? = nil) -> ModuleConfig {
       ModuleConfig(name: type, placement: PlacementSpec(raw: "right"), type: type, mask: mask)
     }
     let plain = [module("clock"), module("bluetooth")]
-    XCTAssertFalse(MenuBarAccessibility.isNeeded(by: plain, fullDiskAccess: false))
-    XCTAssertTrue(
+    #expect(!MenuBarAccessibility.isNeeded(by: plain, fullDiskAccess: false))
+    #expect(
       MenuBarAccessibility.isNeeded(
         by: plain + [module("text", mask: MaskConfig(name: "rift"))], fullDiskAccess: true))
-    XCTAssertTrue(MenuBarAccessibility.isNeeded(by: [module("focus")], fullDiskAccess: false))
-    XCTAssertFalse(MenuBarAccessibility.isNeeded(by: [module("focus")], fullDiskAccess: true))
+    #expect(MenuBarAccessibility.isNeeded(by: [module("focus")], fullDiskAccess: false))
+    #expect(!MenuBarAccessibility.isNeeded(by: [module("focus")], fullDiskAccess: true))
   }
 }
 
 // MARK: - Full Disk Access
 
-final class FullDiskAccessTests: XCTestCase {
+final class FullDiskAccessTests {
+  @Test(
+    .enabled(
+      if: FileManager.default.fileExists(atPath: "/Library/Application Support/com.apple.TCC"),
+      "needs the host's TCC directory"))
   func testProbeFileExists() {
     // A missing probe file reads as "not granted" even with access granted.
-    XCTAssertTrue(FileManager.default.fileExists(atPath: FullDiskAccess.probePath))
+    #expect(FileManager.default.fileExists(atPath: FullDiskAccess.probePath))
   }
 }
 
 // MARK: - Focus database
 
-final class FocusDatabaseTests: XCTestCase {
+final class FocusDatabaseTests {
   private let calendar: Calendar = {
     var calendar = Calendar(identifier: .gregorian)
-    calendar.timeZone = TimeZone(identifier: "Europe/London")!
+    // British Summer Time, London's offset all that week.
+    calendar.timeZone = TimeZone(secondsFromGMT: 3600)!
     return calendar
   }()
 
@@ -1296,91 +1352,90 @@ final class FocusDatabaseTests: XCTestCase {
     database(assertionsJSON).activeMode(at: date, calendar: calendar)?.name
   }
 
-  func testParsesModesAndOnlyEnabledSchedules() {
+  @Test func testParsesModesAndOnlyEnabledSchedules() {
     let db = database(assertions())
-    XCTAssertEqual(db.modes["com.apple.focus.mindfulness"]?.name, "Mindfulness")
-    XCTAssertEqual(db.modes["com.apple.sleep.sleep-mode"]?.name, "Sleep")
-    XCTAssertEqual(
-      Set(db.schedules.map { $0.modeIdentifier }),
-      ["com.apple.focus.mindfulness", "com.apple.donotdisturb.mode.default"])
+    #expect(db.modes["com.apple.focus.mindfulness"]?.name == "Mindfulness")
+    #expect(db.modes["com.apple.sleep.sleep-mode"]?.name == "Sleep")
+    #expect(
+      Set(db.schedules.map { $0.modeIdentifier }) == [
+        "com.apple.focus.mindfulness", "com.apple.donotdisturb.mode.default",
+      ])
   }
 
-  func testScheduledModeIsActiveWithoutAssertions() {
-    XCTAssertEqual(activeName(assertions(), at: at(24, 15, 34)), "Mindfulness")
-    XCTAssertEqual(activeName(assertions(), at: at(24, 22)), "Do Not Disturb")
+  @Test func testScheduledModeIsActiveWithoutAssertions() {
+    #expect(activeName(assertions(), at: at(24, 15, 34)) == "Mindfulness")
+    #expect(activeName(assertions(), at: at(24, 22)) == "Do Not Disturb")
   }
 
-  func testOvernightScheduleCarriesIntoNextMorning() {
-    XCTAssertEqual(activeName(assertions(), at: at(25, 3)), "Do Not Disturb")
-    XCTAssertNil(activeName(assertions(), at: at(25, 6, 45)))
+  @Test func testOvernightScheduleCarriesIntoNextMorning() {
+    #expect(activeName(assertions(), at: at(25, 3)) == "Do Not Disturb")
+    #expect(activeName(assertions(), at: at(25, 6, 45)) == nil)
   }
 
-  func testDisabledScheduleIsIgnored() {
+  @Test func testDisabledScheduleIsIgnored() {
     // Work's 09:00–17:00 weekday schedule is disabled; Mindfulness covers the day.
-    XCTAssertEqual(activeName(assertions(), at: at(24, 10)), "Mindfulness")
+    #expect(activeName(assertions(), at: at(24, 10)) == "Mindfulness")
   }
 
-  func testAssertionNamesTheActiveMode() {
+  @Test func testAssertionNamesTheActiveMode() {
     let json = assertions(active: [("com.apple.donotdisturb.mode.default", at(24, 15, 34))])
-    XCTAssertEqual(activeName(json, at: at(24, 15, 35)), "Do Not Disturb")
+    #expect(activeName(json, at: at(24, 15, 35)) == "Do Not Disturb")
   }
 
-  func testLaterScheduleWindowOverridesEarlierAssertion() {
+  @Test func testLaterScheduleWindowOverridesEarlierAssertion() {
     let json = assertions(active: [("com.apple.focus.mindfulness", at(24, 15, 34))])
-    XCTAssertEqual(activeName(json, at: at(24, 22)), "Do Not Disturb")
+    #expect(activeName(json, at: at(24, 22)) == "Do Not Disturb")
   }
 
-  func testStateChangeEndsScheduleUntilNextWindow() {
+  @Test func testStateChangeEndsScheduleUntilNextWindow() {
     let json = assertions(requests: [("any", at(24, 15, 34))])
-    XCTAssertNil(activeName(json, at: at(24, 15, 35)))
-    XCTAssertEqual(activeName(json, at: at(24, 21, 31)), "Do Not Disturb")
+    #expect(activeName(json, at: at(24, 15, 35)) == nil)
+    #expect(activeName(json, at: at(24, 21, 31)) == "Do Not Disturb")
   }
 
-  func testTargetedInvalidationDoesNotEndSchedule() {
+  @Test func testTargetedInvalidationDoesNotEndSchedule() {
     let json = assertions(requests: [("uuid", at(24, 15, 34))])
-    XCTAssertEqual(activeName(json, at: at(24, 15, 35)), "Mindfulness")
+    #expect(activeName(json, at: at(24, 15, 35)) == "Mindfulness")
   }
 
-  func testWeekdayBitsStartOnMonday() {
+  @Test func testWeekdayBitsStartOnMonday() {
     // 31 = Monday–Friday, 96 = Saturday–Sunday.
     let weekdays = FocusSchedule(
       modeIdentifier: "m", startMinute: 6 * 60 + 30, endMinute: 9 * 60, weekdays: 31)
     let weekend = FocusSchedule(
       modeIdentifier: "m", startMinute: 6 * 60 + 30, endMinute: 21 * 60 + 30, weekdays: 96)
-    XCTAssertNotNil(weekdays.activeWindowStart(at: at(21, 8), calendar: calendar))  // Monday
-    XCTAssertNotNil(weekdays.activeWindowStart(at: at(25, 8), calendar: calendar))  // Friday
-    XCTAssertNil(weekdays.activeWindowStart(at: at(26, 8), calendar: calendar))  // Saturday
-    XCTAssertNotNil(weekend.activeWindowStart(at: at(27, 12), calendar: calendar))  // Sunday
-    XCTAssertNil(weekend.activeWindowStart(at: at(25, 12), calendar: calendar))  // Friday
+    #expect(weekdays.activeWindowStart(at: at(21, 8), calendar: calendar) != nil)  // Monday
+    #expect(weekdays.activeWindowStart(at: at(25, 8), calendar: calendar) != nil)  // Friday
+    #expect(weekdays.activeWindowStart(at: at(26, 8), calendar: calendar) == nil)  // Saturday
+    #expect(weekend.activeWindowStart(at: at(27, 12), calendar: calendar) != nil)  // Sunday
+    #expect(weekend.activeWindowStart(at: at(25, 12), calendar: calendar) == nil)  // Friday
   }
 
-  func testOvernightWindowBelongsToItsStartDay() {
+  @Test func testOvernightWindowBelongsToItsStartDay() {
     // Friday only (bit 4), 21:30–06:30.
     let friday = FocusSchedule(
       modeIdentifier: "m", startMinute: 21 * 60 + 30, endMinute: 6 * 60 + 30, weekdays: 1 << 4)
-    XCTAssertEqual(
-      friday.activeWindowStart(at: at(26, 3), calendar: calendar), at(25, 21, 30))
-    XCTAssertNil(friday.activeWindowStart(at: at(25, 3), calendar: calendar))
+    #expect(friday.activeWindowStart(at: at(26, 3), calendar: calendar) == at(25, 21, 30))
+    #expect(friday.activeWindowStart(at: at(25, 3), calendar: calendar) == nil)
   }
 
-  func testUnreadableDatabaseIsNil() {
-    XCTAssertNil(
-      FocusDatabase(assertionsJSON: Data("{}".utf8), modeConfigurationsJSON: Data()))
-    XCTAssertNil(
-      FocusDatabase.load(from: URL(fileURLWithPath: "/nonexistent-\(UUID().uuidString)")))
+  @Test func testUnreadableDatabaseIsNil() {
+    #expect(FocusDatabase(assertionsJSON: Data("{}".utf8), modeConfigurationsJSON: Data()) == nil)
+    #expect(
+      FocusDatabase.load(from: URL(fileURLWithPath: "/nonexistent-\(UUID().uuidString)")) == nil)
   }
 
-  func testEntryMatchesModeNameThenIdentifier() {
+  @Test func testEntryMatchesModeNameThenIdentifier() {
     let mindfulness = FocusMode(identifier: "com.apple.focus.mindfulness", name: "Mindfulness")
     let dnd = FocusMode(identifier: "com.apple.donotdisturb.mode.default", name: "Do Not Disturb")
     let icons = ["Mindfulness": "brain", "com.apple.donotdisturb.mode.default": "moon-filled"]
-    XCTAssertEqual(FocusConfig.entry(for: mindfulness, in: icons), "brain")
-    XCTAssertEqual(FocusConfig.entry(for: dnd, in: icons), "moon-filled")
-    XCTAssertNil(FocusConfig.entry(for: FocusMode(identifier: "x", name: "Work"), in: icons))
-    XCTAssertNil(FocusConfig.entry(for: nil, in: icons))
+    #expect(FocusConfig.entry(for: mindfulness, in: icons) == "brain")
+    #expect(FocusConfig.entry(for: dnd, in: icons) == "moon-filled")
+    #expect(FocusConfig.entry(for: FocusMode(identifier: "x", name: "Work"), in: icons) == nil)
+    #expect(FocusConfig.entry(for: nil, in: icons) == nil)
   }
 
-  func testFactoryParsesIconAndStyleMaps() throws {
+  @Test func testFactoryParsesIconAndStyleMaps() throws {
     let yaml = try Yaml.load(
       """
       icons:
@@ -1395,31 +1450,30 @@ final class FocusDatabaseTests: XCTestCase {
         Sleep: {}
       """)
     let config = try FocusConfigFactory().configuration(from: yaml, configDir: nil, theme: nil)
-    let focus = try XCTUnwrap(config as? FocusConfig)
-    XCTAssertEqual(focus.icons, ["Mindfulness": "brain", "Do Not Disturb": "moon-filled"])
-    XCTAssertEqual(
-      focus.styles,
-      [
+    let focus = try #require(config as? FocusConfig)
+    #expect(focus.icons == ["Mindfulness": "brain", "Do Not Disturb": "moon-filled"])
+    #expect(
+      focus.styles == [
         "Mindfulness": StateStyle(fg: "{theme(teal)}", bg: nil, iconFg: nil, textFg: nil),
         "com.apple.focus.work": StateStyle(
           fg: nil, bg: "#313244", iconFg: "{theme(peach)}", textFg: nil),
       ])
-    let defaults = try XCTUnwrap(FocusConfigFactory().defaultConfiguration() as? FocusConfig)
-    XCTAssertEqual(defaults.icons, [:])
-    XCTAssertEqual(defaults.styles, [:])
+    let defaults = try #require(FocusConfigFactory().defaultConfiguration() as? FocusConfig)
+    #expect(defaults.icons == [:])
+    #expect(defaults.styles == [:])
   }
 }
 
 // MARK: - State style
 
-final class StateStyleTests: XCTestCase {
-  func testStringShorthandSetsForeground() throws {
-    XCTAssertEqual(
-      StateStyle.parse(from: try Yaml.load("'{theme(red)}'")),
-      StateStyle(fg: "{theme(red)}", bg: nil, iconFg: nil, textFg: nil))
+final class StateStyleTests {
+  @Test func testStringShorthandSetsForeground() throws {
+    #expect(
+      StateStyle.parse(from: try Yaml.load("'{theme(red)}'"))
+        == StateStyle(fg: "{theme(red)}", bg: nil, iconFg: nil, textFg: nil))
   }
 
-  func testExpandedFormReadsEachElement() throws {
+  @Test func testExpandedFormReadsEachElement() throws {
     let yaml = try Yaml.load(
       """
       fg: '#ffffff'
@@ -1429,65 +1483,66 @@ final class StateStyleTests: XCTestCase {
       text:
         fg: '{theme(text)}'
       """)
-    let style = try XCTUnwrap(StateStyle.parse(from: yaml))
-    XCTAssertEqual(
-      style,
-      StateStyle(fg: "#ffffff", bg: "#000000", iconFg: "{theme(peach)}", textFg: "{theme(text)}"))
-    XCTAssertEqual(style.toDynamicStyle().iconFg, "{theme(peach)}")
+    let style = try #require(StateStyle.parse(from: yaml))
+    #expect(
+      style
+        == StateStyle(
+          fg: "#ffffff", bg: "#000000", iconFg: "{theme(peach)}", textFg: "{theme(text)}"))
+    #expect(style.toDynamicStyle().iconFg == "{theme(peach)}")
   }
 }
 
 // MARK: - Screen diff
 
-final class ScreenDiffTests: XCTestCase {
-  func testMixedAddAndRemove() {
+final class ScreenDiffTests {
+  @Test func testMixedAddAndRemove() {
     let diff = computeScreenDiff(existing: ["A", "B", "C"], target: ["B", "C", "D"])
-    XCTAssertEqual(diff.toAdd, ["D"])
-    XCTAssertEqual(diff.toRemove, ["A"])
+    #expect(diff.toAdd == ["D"])
+    #expect(diff.toRemove == ["A"])
   }
 
-  func testReorderingAloneProducesNoChanges() {
+  @Test func testReorderingAloneProducesNoChanges() {
     let diff = computeScreenDiff(existing: ["A", "B", "C"], target: ["C", "B", "A"])
-    XCTAssertTrue(diff.toAdd.isEmpty)
-    XCTAssertTrue(diff.toRemove.isEmpty)
+    #expect(diff.toAdd.isEmpty)
+    #expect(diff.toRemove.isEmpty)
   }
 }
 
 // MARK: - ScreenLayout
 
-final class ScreenLayoutTests: XCTestCase {
-  func testSecondaryScreenOffsetToRight() {
+final class ScreenLayoutTests {
+  @Test func testSecondaryScreenOffsetToRight() {
     let frame = NSRect(x: 1920, y: 0, width: 1440, height: 900)
     let gaps = GapsConfig(top: 0, bottom: 0, left: 0, right: 0)
     let layout = ScreenLayout(screenFrame: frame, gaps: gaps, height: 24)
-    XCTAssertEqual(layout.screenLeft, 1920)
-    XCTAssertEqual(layout.screenRight, 3360)
-    XCTAssertEqual(layout.statusBarY, 900 - 24)
-    XCTAssertEqual(layout.barFrame, NSRect(x: 1920, y: 876, width: 1440, height: 24))
+    #expect(layout.screenLeft == 1920)
+    #expect(layout.screenRight == 3360)
+    #expect(layout.statusBarY == CGFloat(900 - 24))
+    #expect(layout.barFrame == NSRect(x: 1920, y: 876, width: 1440, height: 24))
   }
 
-  func testTopGapPushesStatusBarDown() {
+  @Test func testTopGapPushesStatusBarDown() {
     let frame = NSRect(x: 0, y: 0, width: 1000, height: 800)
     let gaps = GapsConfig(top: 10, bottom: 0, left: 0, right: 0)
     let layout = ScreenLayout(screenFrame: frame, gaps: gaps, height: 30)
-    XCTAssertEqual(layout.statusBarY, 800 - 30 - 10)
-    XCTAssertEqual(layout.barFrame.origin.y, layout.statusBarY)
+    #expect(layout.statusBarY == CGFloat(800 - 30 - 10))
+    #expect(layout.barFrame.origin.y == layout.statusBarY)
   }
 }
 
 // MARK: - Workspace rainbow memoisation
 
-final class ShuffledRainbowTests: XCTestCase {
-  func testIsDeterministicForSameInputs() {
+final class ShuffledRainbowTests {
+  @Test func testIsDeterministicForSameInputs() {
     let a = WorkspaceConfig.shuffledRainbow(["r", "g", "b", "y"], spaceCount: 4)
     let b = WorkspaceConfig.shuffledRainbow(["r", "g", "b", "y"], spaceCount: 4)
-    XCTAssertEqual(a, b)
+    #expect(a == b)
   }
 
-  func testNoAdjacentRepeatsWhenCycling() {
+  @Test func testNoAdjacentRepeatsWhenCycling() {
     let result = WorkspaceConfig.shuffledRainbow(["r", "g", "b"], spaceCount: 10)
     for i in 1..<result.count {
-      XCTAssertNotEqual(result[i], result[i - 1])
+      #expect(result[i] != result[i - 1])
     }
   }
 }
@@ -1508,28 +1563,28 @@ private func makeExecutables(_ paths: [String]) throws -> URL {
   return root
 }
 
-final class WorkspaceProviderSelectionTests: XCTestCase {
-  func testTypeSelectsProvider() throws {
-    XCTAssertTrue(WorkspaceConfig(yaml: nil).provider is NativeWorkspaces)
-    XCTAssertTrue(
+final class WorkspaceProviderSelectionTests {
+  @Test func testTypeSelectsProvider() throws {
+    #expect(WorkspaceConfig(yaml: nil).provider is NativeWorkspaces)
+    #expect(
       WorkspaceConfig(yaml: try Yaml.load("type: aerospace\n")).provider is AerospaceWorkspaces)
-    XCTAssertTrue(WorkspaceConfig(yaml: try Yaml.load("type: rift\n")).provider is RiftWorkspaces)
+    #expect(WorkspaceConfig(yaml: try Yaml.load("type: rift\n")).provider is RiftWorkspaces)
   }
 
-  func testScrollingSubscribesRiftToScrollEvents() throws {
-    let plain = try XCTUnwrap(
+  @Test func testScrollingSubscribesRiftToScrollEvents() throws {
+    let plain = try #require(
       WorkspaceConfig(yaml: try Yaml.load("type: rift\n")).provider as? RiftWorkspaces)
-    XCTAssertFalse(plain.scrolling)
-    let scrolling = try XCTUnwrap(
+    #expect(!plain.scrolling)
+    let scrolling = try #require(
       WorkspaceConfig(yaml: try Yaml.load("type: rift\nscrolling:\n  enabled: true\n")).provider
         as? RiftWorkspaces)
-    XCTAssertTrue(scrolling.scrolling)
+    #expect(scrolling.scrolling)
   }
 }
 
 // MARK: - Workspace scrolling
 
-final class WorkspaceScrollingTests: XCTestCase {
+final class WorkspaceScrollingTests {
   private let scroll = [
     ScrollWindow(
       id: "1-1", app: "Ghostty", bundleIdentifier: "com.mitchellh.ghostty", isSelected: false),
@@ -1551,7 +1606,7 @@ final class WorkspaceScrollingTests: XCTestCase {
     WorkspaceConfig(yaml: try Yaml.load(yaml))
   }
 
-  func testParsesScrollingConfig() throws {
+  @Test func testParsesScrollingConfig() throws {
     let scrolling = try config(
       """
       scrolling:
@@ -1562,21 +1617,21 @@ final class WorkspaceScrollingTests: XCTestCase {
           Ghostty: terminal-2
       """
     ).scrolling
-    XCTAssertTrue(scrolling.enabled)
-    XCTAssertEqual(scrolling.icon, "app-window")
-    XCTAssertFalse(scrolling.showsWorkspaces)
-    XCTAssertEqual(scrolling.icons, ["ghostty": "terminal-2"])
+    #expect(scrolling.enabled)
+    #expect(scrolling.icon == "app-window")
+    #expect(!scrolling.showsWorkspaces)
+    #expect(scrolling.icons == ["ghostty": "terminal-2"])
   }
 
-  func testWindowIconsMatchBundleIdentifierThenNameIgnoringCase() {
+  @Test func testWindowIconsMatchBundleIdentifierThenNameIgnoringCase() {
     let scrolling = ScrollingConfig(
       enabled: true, icon: "fallback",
       icons: ["COM.MITCHELLH.GHOSTTY": "terminal-2", "arc": "world", "Browser": "unused"],
       showsWorkspaces: true)
-    XCTAssertEqual(scroll.map(scrolling.icon(for:)), ["terminal-2", "world", "fallback"])
+    #expect(scroll.map(scrolling.icon(for:)) == ["terminal-2", "world", "fallback"])
   }
 
-  func testShowsTheActiveScrollsWindows() throws {
+  @Test func testShowsTheActiveScrollsWindows() throws {
     let display = try config(
       """
       scrolling:
@@ -1585,25 +1640,25 @@ final class WorkspaceScrollingTests: XCTestCase {
           Ghostty: terminal-2
       """
     ).display(of: workspaces(activeScroll: scroll))
-    XCTAssertTrue(display.isScroll)
-    XCTAssertEqual(display.slot?.id, "workspace-1")
-    XCTAssertEqual(display.segments.map(\.id), ["window-1-1", "window-2-1", "window-3-1"])
-    XCTAssertEqual(display.segments.map(\.isActive), [false, true, false])
-    XCTAssertEqual(
-      display.segments.map(\.label),
-      ["terminal-2", ScrollingConfig.defaultIcon, ScrollingConfig.defaultIcon].map {
-        resolveIconName($0).glyph
-      })
+    #expect(display.isScroll)
+    #expect(display.slot?.id == "workspace-1")
+    #expect(display.segments.map(\.id) == ["window-1-1", "window-2-1", "window-3-1"])
+    #expect(display.segments.map(\.isActive) == [false, true, false])
+    #expect(
+      display.segments.map(\.label)
+        == (["terminal-2", ScrollingConfig.defaultIcon, ScrollingConfig.defaultIcon].map {
+          resolveIconName($0).glyph
+        }))
   }
 
-  func testPipsShowWorkspacesWithWindowsAndTheActiveOne() throws {
+  @Test func testPipsShowWorkspacesWithWindowsAndTheActiveOne() throws {
     let display = try config("scrolling:\n  enabled: true\n").display(
       of: workspaces(activeScroll: scroll))
-    XCTAssertEqual(display.pips.map(\.id), ["workspace-0", "workspace-1", "workspace-3"])
-    XCTAssertEqual(display.pips.map(\.isActive), [false, true, false])
+    #expect(display.pips.map(\.id) == ["workspace-0", "workspace-1", "workspace-3"])
+    #expect(display.pips.map(\.isActive) == [false, true, false])
   }
 
-  func testWindowsTakeTheActiveWorkspacesRainbowColour() throws {
+  @Test func testWindowsTakeTheActiveWorkspacesRainbowColour() throws {
     let display = try config(
       """
       scrolling:
@@ -1614,11 +1669,11 @@ final class WorkspaceScrollingTests: XCTestCase {
         colors: [red, green, blue]
       """
     ).display(of: workspaces(activeScroll: scroll))
-    XCTAssertEqual(display.segments.map(\.colorOverride), ["green", "green", "green"])
-    XCTAssertEqual(display.pips.map(\.colorOverride), ["red", "green", "red"])
+    #expect(display.segments.map(\.colorOverride) == ["green", "green", "green"])
+    #expect(display.pips.map(\.colorOverride) == ["red", "green", "red"])
   }
 
-  func testScrollRainbowColoursWindowsByApp() throws {
+  @Test func testScrollRainbowColoursWindowsByApp() throws {
     let config = try config(
       """
       scrolling:
@@ -1636,16 +1691,17 @@ final class WorkspaceScrollingTests: XCTestCase {
       $0.colorOverride
     }
     let palette = ["red", "green", "blue", "cyan", "magenta", "yellow"]
-    XCTAssertTrue(colors.allSatisfy { $0.map(palette.contains) == true })
-    XCTAssertEqual(colors[0], colors[3])
-    XCTAssertEqual(
-      config.scrolling.color(for: scroll[0]),
-      config.scrolling.color(
-        for: ScrollWindow(
-          id: "9-9", app: "ghostty", bundleIdentifier: "COM.MITCHELLH.GHOSTTY", isSelected: true)))
+    #expect(colors.allSatisfy { $0.map(palette.contains) == true })
+    #expect(colors[0] == colors[3])
+    #expect(
+      config.scrolling.color(for: scroll[0])
+        == config.scrolling.color(
+          for: ScrollWindow(
+            id: "9-9", app: "ghostty", bundleIdentifier: "COM.MITCHELLH.GHOSTTY", isSelected: true))
+    )
   }
 
-  func testSummaryChangesWithWhatIsShown() throws {
+  @Test func testSummaryChangesWithWhatIsShown() throws {
     let config = try config("scrolling:\n  enabled: true\n")
     let workspaces = config.display(of: workspaces(activeScroll: nil))
     let windows = config.display(of: self.workspaces(activeScroll: scroll))
@@ -1656,12 +1712,12 @@ final class WorkspaceScrollingTests: XCTestCase {
             id: $0.id, app: $0.app, bundleIdentifier: $0.bundleIdentifier,
             isSelected: $0.id == "1-1")
         }))
-    XCTAssertEqual(Set([workspaces.summary, windows.summary, moved.summary]).count, 3)
+    #expect(Set([workspaces.summary, windows.summary, moved.summary]).count == 3)
   }
 }
 
-final class RiftWorkspacesTests: XCTestCase {
-  func testParsesWorkspacesInIndexOrder() {
+final class RiftWorkspacesTests {
+  @Test func testParsesWorkspacesInIndexOrder() {
     let json = """
       [{"id":"VirtualWorkspaceId(2v1)","index":1,"is_active":true,"layout_mode":"bsp",
         "name":"code","window_count":0,"windows":[]},
@@ -1670,16 +1726,15 @@ final class RiftWorkspacesTests: XCTestCase {
        {"id":"VirtualWorkspaceId(3v1)","index":2,"is_active":false,"layout_mode":"traditional",
         "name":"chat","window_count":0,"windows":[]}]
       """
-    XCTAssertEqual(
-      RiftWorkspaces.parse(Data(json.utf8)),
-      [
+    #expect(
+      RiftWorkspaces.parse(Data(json.utf8)) == [
         Workspace(index: 0, label: "web", isActive: false, hasWindows: true, scroll: []),
         Workspace(index: 1, label: "code", isActive: true),
         Workspace(index: 2, label: "chat", isActive: false),
       ])
   }
 
-  func testParsesScrollInStripOrderWithoutFloatingWindows() {
+  @Test func testParsesScrollInStripOrderWithoutFloatingWindows() {
     let json = """
       [{"index":0,"is_active":true,"layout_mode":"scrolling","name":"1","window_count":5,
         "windows":[
@@ -1692,9 +1747,8 @@ final class RiftWorkspacesTests: XCTestCase {
            "layout_position":{"column":1,"row":0}},
           {"app_name":"Mail","id":{"idx":6,"pid":60},"is_floating":false,"is_focused":false}]}]
       """
-    XCTAssertEqual(
-      RiftWorkspaces.parse(Data(json.utf8)).first?.scroll,
-      [
+    #expect(
+      RiftWorkspaces.parse(Data(json.utf8)).first?.scroll == [
         ScrollWindow(
           id: "10-1", app: "Ghostty", bundleIdentifier: "com.mitchellh.ghostty", isSelected: true),
         ScrollWindow(id: "20-2", app: "Arc", bundleIdentifier: nil, isSelected: false),
@@ -1703,25 +1757,25 @@ final class RiftWorkspacesTests: XCTestCase {
       ])
   }
 
-  func testReadsTheLayoutsSelectedWindow() {
+  @Test func testReadsTheLayoutsSelectedWindow() {
     let layout = #"{"mode":"scrolling","focused_window":null,"selected_window":{"idx":2,"pid":20}}"#
-    XCTAssertEqual(RiftWorkspaces.selectedWindow(in: Data(layout.utf8)), "20-2")
-    XCTAssertNil(RiftWorkspaces.selectedWindow(in: Data(#"{"selected_window":null}"#.utf8)))
-    XCTAssertNil(RiftWorkspaces.selectedWindow(in: Data("Failed to connect".utf8)))
+    #expect(RiftWorkspaces.selectedWindow(in: Data(layout.utf8)) == "20-2")
+    #expect(RiftWorkspaces.selectedWindow(in: Data(#"{"selected_window":null}"#.utf8)) == nil)
+    #expect(RiftWorkspaces.selectedWindow(in: Data("Failed to connect".utf8)) == nil)
   }
 
-  func testSelectingAWindowOutsideTheScrollKeepsItsSelection() {
+  @Test func testSelectingAWindowOutsideTheScrollKeepsItsSelection() {
     let focused = ScrollWindow(id: "1-1", app: "Ghostty", bundleIdentifier: nil, isSelected: true)
     let other = ScrollWindow(id: "2-1", app: "Arc", bundleIdentifier: nil, isSelected: false)
     var workspace = Workspace(index: 0, label: "1", isActive: true, scroll: [focused, other])
 
     workspace.selectWindow("9-9")
-    XCTAssertEqual(workspace.scroll?.map(\.isSelected), [true, false])
+    #expect(workspace.scroll?.map(\.isSelected) == [true, false])
     workspace.selectWindow("2-1")
-    XCTAssertEqual(workspace.scroll?.map(\.isSelected), [false, true])
+    #expect(workspace.scroll?.map(\.isSelected) == [false, true])
   }
 
-  func testScrollEventsExcludeTitlesStacksAndOtherLayouts() {
+  @Test func testScrollEventsExcludeTitlesStacksAndOtherLayouts() {
     let events = [
       #"{"type":"workspace_changed","space_id":1}"#: true,
       #"{"type":"windows_changed","windows":[]}"#: true,
@@ -1734,35 +1788,34 @@ final class RiftWorkspacesTests: XCTestCase {
       "not json": false,
     ]
     for (event, affects) in events {
-      XCTAssertEqual(RiftWorkspaces.affectsScroll(Data(event.utf8)), affects, event)
+      #expect(RiftWorkspaces.affectsScroll(Data(event.utf8)) == affects, "\(event)")
     }
   }
 
-  func testMalformedOutputYieldsNoWorkspaces() {
-    XCTAssertTrue(RiftWorkspaces.parse(Data("Failed to connect".utf8)).isEmpty)
+  @Test func testMalformedOutputYieldsNoWorkspaces() {
+    #expect(RiftWorkspaces.parse(Data("Failed to connect".utf8)).isEmpty)
   }
 
-  func testFindsCLIBesideRunningRift() throws {
+  @Test func testFindsCLIBesideRunningRift() throws {
     let bin = try makeExecutables(["rift"])
     defer { try? FileManager.default.removeItem(at: bin) }
     let running = [nil, URL(fileURLWithPath: "/usr/bin/true"), bin.appendingPathComponent("rift")]
-    XCTAssertNil(RiftWorkspaces.cli(among: running))
+    #expect(RiftWorkspaces.cli(among: running) == nil)
 
     FileManager.default.createFile(
       atPath: bin.appendingPathComponent("rift-cli").path, contents: Data(),
       attributes: [.posixPermissions: 0o755])
-    XCTAssertEqual(RiftWorkspaces.cli(among: running), bin.appendingPathComponent("rift-cli").path)
-    XCTAssertNil(RiftWorkspaces.cli(among: [URL(fileURLWithPath: "/usr/bin/true")]))
+    #expect(RiftWorkspaces.cli(among: running) == bin.appendingPathComponent("rift-cli").path)
+    #expect(RiftWorkspaces.cli(among: [URL(fileURLWithPath: "/usr/bin/true")]) == nil)
   }
 }
 
-final class AerospaceWorkspacesTests: XCTestCase {
-  func testParsesNumericWorkspacesFirstInNumericOrder() {
+final class AerospaceWorkspacesTests {
+  @Test func testParsesNumericWorkspacesFirstInNumericOrder() {
     let all = #"[{"workspace":"B"},{"workspace":"10"},{"workspace":"2"},{"workspace":"A"}]"#
     let focused = #"[{"workspace":"10"}]"#
-    XCTAssertEqual(
-      AerospaceWorkspaces.parse(all: Data(all.utf8), focused: Data(focused.utf8)),
-      [
+    #expect(
+      AerospaceWorkspaces.parse(all: Data(all.utf8), focused: Data(focused.utf8)) == [
         Workspace(index: 0, label: "2", isActive: false),
         Workspace(index: 1, label: "10", isActive: true),
         Workspace(index: 2, label: "A", isActive: false),
@@ -1770,42 +1823,41 @@ final class AerospaceWorkspacesTests: XCTestCase {
       ])
   }
 
-  func testFindsCLIBesideReleaseArchiveApp() throws {
+  @Test func testFindsCLIBesideReleaseArchiveApp() throws {
     let root = try makeExecutables(["AeroSpace-v1/bin/aerospace"])
     defer { try? FileManager.default.removeItem(at: root) }
-    XCTAssertEqual(
+    #expect(
       AerospaceWorkspaces.cli(
-        forApp: root.appendingPathComponent("AeroSpace-v1/AeroSpace.app"), fallbacks: []),
-      root.appendingPathComponent("AeroSpace-v1/bin/aerospace").path)
+        forApp: root.appendingPathComponent("AeroSpace-v1/AeroSpace.app"), fallbacks: [])
+        == root.appendingPathComponent("AeroSpace-v1/bin/aerospace").path)
   }
 
-  func testFindsCLIInNixPackageLayout() throws {
+  @Test func testFindsCLIInNixPackageLayout() throws {
     let root = try makeExecutables(["out/bin/aerospace"])
     defer { try? FileManager.default.removeItem(at: root) }
-    XCTAssertEqual(
+    #expect(
       AerospaceWorkspaces.cli(
-        forApp: root.appendingPathComponent("out/Applications/AeroSpace.app"), fallbacks: []),
-      root.appendingPathComponent("out/bin/aerospace").path)
+        forApp: root.appendingPathComponent("out/Applications/AeroSpace.app"), fallbacks: [])
+        == root.appendingPathComponent("out/bin/aerospace").path)
   }
 
-  func testFallsBackWhenAppShipsNoCLI() throws {
+  @Test func testFallsBackWhenAppShipsNoCLI() throws {
     let root = try makeExecutables(["homebrew/bin/aerospace"])
     defer { try? FileManager.default.removeItem(at: root) }
     let homebrew = root.appendingPathComponent("homebrew/bin/aerospace").path
-    XCTAssertEqual(
+    #expect(
       AerospaceWorkspaces.cli(
         forApp: root.appendingPathComponent("Applications/AeroSpace.app"),
-        fallbacks: [root.appendingPathComponent("missing/aerospace").path, homebrew]),
-      homebrew)
-    XCTAssertNil(
+        fallbacks: [root.appendingPathComponent("missing/aerospace").path, homebrew]) == homebrew)
+    #expect(
       AerospaceWorkspaces.cli(
-        forApp: root.appendingPathComponent("Applications/AeroSpace.app"), fallbacks: []))
+        forApp: root.appendingPathComponent("Applications/AeroSpace.app"), fallbacks: []) == nil)
   }
 }
 
 // MARK: - Workspace activation
 
-final class WorkspaceActivationTests: XCTestCase {
+final class WorkspaceActivationTests {
   private let scroll = [
     ScrollWindow(id: "10-1", app: "Ghostty", bundleIdentifier: nil, isSelected: false),
     ScrollWindow(id: "20-2", app: "Arc", bundleIdentifier: nil, isSelected: true),
@@ -1818,153 +1870,156 @@ final class WorkspaceActivationTests: XCTestCase {
     Workspace(index: 2, label: "chat", isActive: false),
   ]
 
-  func testWorkspaceSegmentsTargetTheirWorkspaceExceptTheActiveOne() {
-    XCTAssertEqual(
-      WorkspaceConfig(yaml: nil).display(of: spaces).segments.map(\.target),
-      [.workspace(index: 0, label: "web"), nil, .workspace(index: 2, label: "chat")])
+  @Test func testWorkspaceSegmentsTargetTheirWorkspaceExceptTheActiveOne() {
+    #expect(
+      WorkspaceConfig(yaml: nil).display(of: spaces).segments.map(\.target) == [
+        .workspace(index: 0, label: "web"), nil, .workspace(index: 2, label: "chat"),
+      ])
   }
 
-  func testScrollSegmentsTargetTheirWindowsAndPipsTheirWorkspaces() throws {
+  @Test func testScrollSegmentsTargetTheirWindowsAndPipsTheirWorkspaces() throws {
     var spaces = self.spaces
     spaces[1].scroll = scroll
     let display = WorkspaceConfig(yaml: try Yaml.load("scrolling:\n  enabled: true\n"))
       .display(of: spaces)
-    XCTAssertEqual(
-      display.segments.map(\.target),
-      [.window(id: "10-1"), .window(id: "20-2"), .window(id: "30-3")])
-    XCTAssertEqual(display.pips.map(\.target), [.workspace(index: 0, label: "web"), nil])
+    #expect(
+      display.segments.map(\.target) == [
+        .window(id: "10-1"), .window(id: "20-2"), .window(id: "30-3"),
+      ])
+    #expect(display.pips.map(\.target) == [.workspace(index: 0, label: "web"), nil])
   }
 
-  func testSteppingMovesFromTheActiveSegmentAndStopsAtTheEnds() {
+  @Test func testSteppingMovesFromTheActiveSegmentAndStopsAtTheEnds() {
     let display = WorkspaceConfig(yaml: nil).display(of: spaces)
-    XCTAssertEqual(display.target(steppingBy: 1), .workspace(index: 2, label: "chat"))
-    XCTAssertEqual(display.target(steppingBy: -1), .workspace(index: 0, label: "web"))
-    XCTAssertEqual(display.target(steppingBy: 5), .workspace(index: 2, label: "chat"))
-    XCTAssertEqual(display.target(steppingBy: -5), .workspace(index: 0, label: "web"))
-    XCTAssertNil(display.target(steppingBy: 0))
+    #expect(display.target(steppingBy: 1) == .workspace(index: 2, label: "chat"))
+    #expect(display.target(steppingBy: -1) == .workspace(index: 0, label: "web"))
+    #expect(display.target(steppingBy: 5) == .workspace(index: 2, label: "chat"))
+    #expect(display.target(steppingBy: -5) == .workspace(index: 0, label: "web"))
+    #expect(display.target(steppingBy: 0) == nil)
   }
 
-  func testSteppingPastTheLastSegmentOrWithoutAnActiveOneDoesNothing() {
+  @Test func testSteppingPastTheLastSegmentOrWithoutAnActiveOneDoesNothing() {
     let display = WorkspaceConfig(yaml: nil).display(
       of: [
         Workspace(index: 0, label: "1", isActive: false),
         Workspace(index: 1, label: "2", isActive: true),
       ])
-    XCTAssertNil(display.target(steppingBy: 1))
-    XCTAssertNil(WorkspaceDisplay().target(steppingBy: 1))
+    #expect(display.target(steppingBy: 1) == nil)
+    #expect(WorkspaceDisplay().target(steppingBy: 1) == nil)
   }
 
-  func testRiftSwitchesWorkspacesByIndexAndFocusesWindowsByID() {
-    XCTAssertEqual(
-      RiftWorkspaces.arguments(for: .workspace(index: 3, label: "chat")),
-      ["execute", "workspace", "switch", "3"])
-    XCTAssertEqual(
-      RiftWorkspaces.arguments(for: .window(id: "96136-21335")),
-      ["execute", "window", "focus", "--window-id", #"{"pid":96136,"idx":21335}"#])
-    XCTAssertNil(RiftWorkspaces.arguments(for: .window(id: "not-a-window")))
+  @Test func testRiftSwitchesWorkspacesByIndexAndFocusesWindowsByID() {
+    #expect(
+      RiftWorkspaces.arguments(for: .workspace(index: 3, label: "chat")) == [
+        "execute", "workspace", "switch", "3",
+      ])
+    #expect(
+      RiftWorkspaces.arguments(for: .window(id: "96136-21335")) == [
+        "execute", "window", "focus", "--window-id", #"{"pid":96136,"idx":21335}"#,
+      ])
+    #expect(RiftWorkspaces.arguments(for: .window(id: "not-a-window")) == nil)
   }
 
-  func testAerospaceSwitchesWorkspacesByName() {
-    XCTAssertEqual(
-      AerospaceWorkspaces.arguments(for: .workspace(index: 0, label: "web")),
-      ["workspace", "web"])
-    XCTAssertNil(AerospaceWorkspaces.arguments(for: .window(id: "1-1")))
+  @Test func testAerospaceSwitchesWorkspacesByName() {
+    #expect(
+      AerospaceWorkspaces.arguments(for: .workspace(index: 0, label: "web")) == [
+        "workspace", "web",
+      ])
+    #expect(AerospaceWorkspaces.arguments(for: .window(id: "1-1")) == nil)
   }
 
-  func testSegmentsSwitchWithProvidersThatCanUnlessTheModuleHasAClick() throws {
+  @Test func testSegmentsSwitchWithProvidersThatCanUnlessTheModuleHasAClick() throws {
     func module(_ type: String, click: String? = nil) throws -> ModuleConfig {
       ModuleConfig(
         name: "spaces", placement: PlacementSpec(raw: "left"), type: "workspace",
         config: WorkspaceConfig(yaml: try Yaml.load("type: \(type)\n")),
         interaction: click.map { InteractionConfig(hover: nil, click: ClickConfig(type: $0)) })
     }
-    XCTAssertTrue(WorkspaceModuleView.activates(try module("rift")))
-    XCTAssertTrue(WorkspaceModuleView.activates(try module("aerospace")))
-    XCTAssertFalse(WorkspaceModuleView.activates(try module("native")))
-    XCTAssertFalse(WorkspaceModuleView.activates(try module("rift", click: "menu")))
+    #expect(WorkspaceModuleView.activates(try module("rift")))
+    #expect(WorkspaceModuleView.activates(try module("aerospace")))
+    #expect(!WorkspaceModuleView.activates(try module("native")))
+    #expect(!WorkspaceModuleView.activates(try module("rift", click: "menu")))
   }
 }
 
 // MARK: - Scroll stepping
 
-final class ScrollStepperTests: XCTestCase {
+final class ScrollStepperTests {
   private func scroll(
     _ delta: CGFloat, precise: Bool = true, begins: Bool = false, momentum: Bool = false
   ) -> ScrollWheelDelta {
     ScrollWheelDelta(delta: delta, isPrecise: precise, begins: begins, isMomentum: momentum)
   }
 
-  func testEachWheelNotchStepsOnce() {
+  @Test func testEachWheelNotchStepsOnce() {
     var stepper = ScrollStepper()
-    XCTAssertEqual(stepper.steps(for: scroll(-3, precise: false)), 1)
-    XCTAssertEqual(stepper.steps(for: scroll(1, precise: false)), -1)
-    XCTAssertEqual(stepper.steps(for: scroll(0, precise: false)), 0)
+    #expect(stepper.steps(for: scroll(-3, precise: false)) == 1)
+    #expect(stepper.steps(for: scroll(1, precise: false)) == -1)
+    #expect(stepper.steps(for: scroll(0, precise: false)) == 0)
   }
 
-  func testTrackpadStepsOncePerDistanceScrolled() {
+  @Test func testTrackpadStepsOncePerDistanceScrolled() {
     var stepper = ScrollStepper()
     let half = ScrollStepper.distance / 2
-    XCTAssertEqual(stepper.steps(for: scroll(-half, begins: true)), 0)
-    XCTAssertEqual(stepper.steps(for: scroll(-half)), 1)
-    XCTAssertEqual(stepper.steps(for: scroll(-ScrollStepper.distance * 2)), 2)
-    XCTAssertEqual(stepper.steps(for: scroll(ScrollStepper.distance)), -1)
+    #expect(stepper.steps(for: scroll(-half, begins: true)) == 0)
+    #expect(stepper.steps(for: scroll(-half)) == 1)
+    #expect(stepper.steps(for: scroll(-ScrollStepper.distance * 2)) == 2)
+    #expect(stepper.steps(for: scroll(ScrollStepper.distance)) == -1)
   }
 
-  func testANewGestureStartsAfresh() {
+  @Test func testANewGestureStartsAfresh() {
     var stepper = ScrollStepper()
     let most = ScrollStepper.distance * 0.75
-    XCTAssertEqual(stepper.steps(for: scroll(-most, begins: true)), 0)
-    XCTAssertEqual(stepper.steps(for: scroll(-most, begins: true)), 0)
+    #expect(stepper.steps(for: scroll(-most, begins: true)) == 0)
+    #expect(stepper.steps(for: scroll(-most, begins: true)) == 0)
   }
 
-  func testReversingDirectionStartsAfresh() {
+  @Test func testReversingDirectionStartsAfresh() {
     var stepper = ScrollStepper()
     let most = ScrollStepper.distance * 0.75
-    XCTAssertEqual(stepper.steps(for: scroll(-most)), 0)
-    XCTAssertEqual(stepper.steps(for: scroll(most)), 0)
-    XCTAssertEqual(stepper.steps(for: scroll(most)), -1)
+    #expect(stepper.steps(for: scroll(-most)) == 0)
+    #expect(stepper.steps(for: scroll(most)) == 0)
+    #expect(stepper.steps(for: scroll(most)) == -1)
   }
 
-  func testMomentumDoesNotStep() {
+  @Test func testMomentumDoesNotStep() {
     var stepper = ScrollStepper()
-    XCTAssertEqual(stepper.steps(for: scroll(-ScrollStepper.distance * 3, momentum: true)), 0)
+    #expect(stepper.steps(for: scroll(-ScrollStepper.distance * 3, momentum: true)) == 0)
   }
 }
 
 // MARK: - Event stream process
 
-final class EventStreamProcessTests: XCTestCase {
-  func testRestartDelayDoublesToCap() {
-    XCTAssertEqual(
-      (1...7).map { EventStreamProcess.restartDelay(afterFailures: $0) },
-      [1, 2, 4, 8, 16, 16, 16])
+final class EventStreamProcessTests {
+  @Test func testRestartDelayDoublesToCap() {
+    #expect(
+      ((1...7).map { EventStreamProcess.restartDelay(afterFailures: $0) }) == [
+        1, 2, 4, 8, 16, 16, 16,
+      ])
   }
 
-  func testOutputFiresEvent() {
-    let event = expectation(description: "event")
-    event.assertForOverFulfill = false
+  @Test func testOutputFiresEvent() async {
+    let event = Expectation()
     let stream = EventStreamProcess(
       command: { ["/bin/sh", "-c", "echo changed; sleep 5"] }
     ) { event.fulfill() }
     stream.start()
-    wait(for: [event], timeout: 2)
+    #expect(await fulfillment(of: [event], timeout: 2))
     stream.stop()
   }
 
-  func testRelaunchAfterExitFiresEvent() {
-    let event = expectation(description: "resync after relaunch")
-    event.assertForOverFulfill = false
+  @Test func testRelaunchAfterExitFiresEvent() async {
+    let event = Expectation()
     let stream = EventStreamProcess(
       command: { ["/bin/sh", "-c", "exit 1"] }
     ) { event.fulfill() }
     stream.start()
-    wait(for: [event], timeout: 3)
+    #expect(await fulfillment(of: [event], timeout: 3))
     stream.stop()
   }
 
-  func testLaunchesOnceCommandBecomesAvailable() {
-    let event = expectation(description: "event once available")
-    event.assertForOverFulfill = false
+  @Test func testLaunchesOnceCommandBecomesAvailable() async {
+    let event = Expectation()
     let available = OSAllocatedUnfairLock(initialState: false)
     let stream = EventStreamProcess(
       command: {
@@ -1975,60 +2030,57 @@ final class EventStreamProcessTests: XCTestCase {
       }
     ) { event.fulfill() }
     stream.start()
-    wait(for: [event], timeout: 3)
+    #expect(await fulfillment(of: [event], timeout: 3))
     stream.stop()
   }
 
-  func testAcceptsFiltersLines() {
-    let event = expectation(description: "accepted line")
-    event.assertForOverFulfill = false
+  @Test func testAcceptsFiltersLines() async {
+    let event = Expectation()
     let stream = EventStreamProcess(
       command: { ["/bin/sh", "-c", "echo skip; printf 'ke'; sleep 0.1; echo ep; sleep 5"] },
       accepts: { $0 == Data("keep".utf8) }
     ) { event.fulfill() }
     stream.start()
-    wait(for: [event], timeout: 2)
+    #expect(await fulfillment(of: [event], timeout: 2))
     stream.stop()
   }
 
-  func testRejectedLinesFireNoEvent() {
-    let event = expectation(description: "no event for rejected lines")
-    event.isInverted = true
+  @Test func testRejectedLinesFireNoEvent() async {
+    let event = Expectation()
     let stream = EventStreamProcess(
       command: { ["/bin/sh", "-c", "echo skip; echo skip; sleep 5"] },
       accepts: { $0 == Data("keep".utf8) }
     ) { event.fulfill() }
     stream.start()
-    wait(for: [event], timeout: 1)
+    #expect(await !fulfillment(of: [event], timeout: 1))
     stream.stop()
   }
 
-  func testCoalescingFiresOncePerBurst() {
+  @Test func testCoalescingFiresOncePerBurst() async {
     let events = OSAllocatedUnfairLock(initialState: 0)
     let stream = EventStreamProcess(
       command: { ["/bin/sh", "-c", "for i in 1 2 3 4 5; do echo $i; done; sleep 5"] },
       coalescing: 0.2
     ) { events.withLock { $0 += 1 } }
     stream.start()
-    let burst = expectation(description: "burst delivered")
+    let burst = Expectation()
     DispatchQueue.global().asyncAfter(deadline: .now() + 0.8) { burst.fulfill() }
-    wait(for: [burst], timeout: 2)
+    #expect(await fulfillment(of: [burst], timeout: 2))
     stream.stop()
-    XCTAssertEqual(events.withLock { $0 }, 1)
+    #expect((events.withLock { $0 }) == 1)
   }
 
-  func testStopSilencesStream() {
-    let event = expectation(description: "no event after stop")
-    event.isInverted = true
+  @Test func testStopSilencesStream() async {
+    let event = Expectation()
     let stream = EventStreamProcess(
       command: { ["/bin/sh", "-c", "sleep 0.3; echo late"] }
     ) { event.fulfill() }
     stream.start()
     stream.stop()
-    wait(for: [event], timeout: 1.5)
+    #expect(await !fulfillment(of: [event], timeout: 1.5))
   }
 
-  func testStopKillsCommand() throws {
+  @Test func testStopKillsCommand() throws {
     let pidFile = FileManager.default.temporaryDirectory
       .appendingPathComponent("kantan-stream-\(UUID().uuidString)")
     defer { try? FileManager.default.removeItem(at: pidFile) }
@@ -2044,50 +2096,50 @@ final class EventStreamProcessTests: XCTestCase {
         .flatMap { pid_t($0.trimmingCharacters(in: .whitespacesAndNewlines)) }
       usleep(20_000)
     }
-    let command = try XCTUnwrap(pid)
-    XCTAssertEqual(kill(command, 0), 0)
+    let command = try #require(pid)
+    #expect(kill(command, 0) == 0)
 
     stream.stop()
     let stopped = Date()
     while kill(command, 0) == 0, Date().timeIntervalSince(stopped) < 2 { usleep(20_000) }
-    XCTAssertNotEqual(kill(command, 0), 0)
+    #expect(kill(command, 0) != 0)
   }
 }
 
 // MARK: - Command toggle
 
-final class CommandToggleTests: XCTestCase {
-  override func setUp() {
-    super.setUp()
+@MainActor
+final class CommandToggleTests {
+  init() {
     // handleToggle reads NSApp's appearance for KANTAN_APPEARANCE.
-    MainActor.assumeIsolated { _ = NSApplication.shared }
+    _ = NSApplication.shared
   }
 
   private func config(_ yaml: String) throws -> CommandConfig {
     try CommandConfig(yaml: try Yaml.load(yaml))
   }
 
-  func testToggleReturnsBeforeCommandExits() throws {
+  @Test func testToggleReturnsBeforeCommandExits() async throws {
     let toggle = try config("command: 'true'\ntoggle: sleep 0.5\n")
-    let exited = expectation(description: "toggle exited")
+    let exited = Expectation()
     let started = Date()
     toggle.handleToggle { exited.fulfill() }
-    XCTAssertLessThan(Date().timeIntervalSince(started), 0.2)
-    wait(for: [exited], timeout: 3)
-    XCTAssertGreaterThanOrEqual(Date().timeIntervalSince(started), 0.4)
+    #expect(Date().timeIntervalSince(started) < 0.2)
+    #expect(await fulfillment(of: [exited], timeout: 3))
+    #expect(Date().timeIntervalSince(started) >= 0.4)
   }
 
-  func testMissingToggleCompletesImmediately() throws {
+  @Test func testMissingToggleCompletesImmediately() async throws {
     let toggle = try config("command: 'true'\n")
-    let done = expectation(description: "completed")
+    let done = Expectation()
     toggle.handleToggle { done.fulfill() }
-    wait(for: [done], timeout: 0.1)
+    #expect(await fulfillment(of: [done], timeout: 0.1))
   }
 
-  func testCommandsAndTogglesAreGivenTheirModuleName() throws {
+  @Test func testCommandsAndTogglesAreGivenTheirModuleName() async throws {
     let file = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
     defer { try? FileManager.default.removeItem(at: file) }
-    let module = try XCTUnwrap(
+    let module = try #require(
       parseModuleConfig(
         from: try Yaml.load(
           """
@@ -2098,54 +2150,53 @@ final class CommandToggleTests: XCTestCase {
             command: 'printf %s "$KANTAN_MODULE_NAME"'
             toggle: 'printf %s "$KANTAN_MODULE_NAME" > \(file.path)'
           """)))
-    let command = try XCTUnwrap(module.config as? CommandConfig)
+    let command = try #require(module.config as? CommandConfig)
 
-    let ran = expectation(description: "command ran")
+    let ran = Expectation()
     let value = OSAllocatedUnfairLock<String?>(initialState: nil)
     command.getValue { output in
       value.withLock { $0 = output }
       ran.fulfill()
     }
-    let toggled = expectation(description: "toggle ran")
+    let toggled = Expectation()
     command.handleToggle { toggled.fulfill() }
-    wait(for: [ran, toggled], timeout: 5)
-    XCTAssertEqual(value.withLock { $0 }, "todo")
-    XCTAssertEqual(try String(contentsOf: file, encoding: .utf8), "todo")
+    #expect(await fulfillment(of: [ran, toggled], timeout: 5))
+    #expect((value.withLock { $0 }) == "todo")
+    #expect((try String(contentsOf: file, encoding: .utf8)) == "todo")
   }
 
-  func testUnlaunchableToggleStillCompletes() throws {
+  @Test func testUnlaunchableToggleStillCompletes() async throws {
     let toggle = try config(
       "command: 'true'\ntoggle: x\nlauncher:\n  path: /nonexistent/sh\n")
-    let done = expectation(description: "completed")
+    let done = Expectation()
     toggle.handleToggle { done.fulfill() }
-    wait(for: [done], timeout: 1)
+    #expect(await fulfillment(of: [done], timeout: 1))
   }
 }
 
 // MARK: - Command module icons
 
-/// Runs the main run loop until `condition` holds or `timeout` passes.
+/// Runs the main run loop and main actor until `condition` holds or `timeout` passes.
 @MainActor
 func waitUntil(
-  _ condition: () -> Bool, timeout: TimeInterval = 5, file: StaticString = #filePath,
-  line: UInt = #line
-) {
+  _ condition: () -> Bool, timeout: TimeInterval = 5,
+  sourceLocation: SourceLocation = #_sourceLocation
+) async {
   let deadline = Date().addingTimeInterval(timeout)
   while !condition() && Date() < deadline {
-    RunLoop.main.run(until: Date().addingTimeInterval(0.01))
+    await runMainLoop(for: 0.01)
   }
-  XCTAssertTrue(condition(), file: file, line: line)
+  #expect(condition(), sourceLocation: sourceLocation)
 }
 
 @MainActor
-final class CommandIconTests: XCTestCase {
-  override func setUp() {
-    super.setUp()
+final class CommandIconTests {
+  init() {
     // getValue reads NSApp's appearance for KANTAN_APPEARANCE.
     _ = NSApplication.shared
   }
 
-  func testIconComesFromTheRunThatProducedTheValue() throws {
+  @Test func testIconComesFromTheRunThatProducedTheValue() async throws {
     let dir = FileManager.default.temporaryDirectory
       .appendingPathComponent(UUID().uuidString)
     try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
@@ -2168,62 +2219,62 @@ final class CommandIconTests: XCTestCase {
 
     try "arrow-up".write(to: iconFile, atomically: true, encoding: .utf8)
     vm.update()
-    waitUntil { vm.displayValue == "arrow-up" }
-    XCTAssertEqual(vm.displayIcon, resolveIconName("arrow-up").glyph)
+    await waitUntil { vm.displayValue == "arrow-up" }
+    #expect(vm.displayIcon == resolveIconName("arrow-up").glyph)
 
     try "arrow-down".write(to: iconFile, atomically: true, encoding: .utf8)
     vm.update()
-    waitUntil { vm.displayValue == "arrow-down" }
-    XCTAssertEqual(vm.displayIcon, resolveIconName("arrow-down").glyph)
+    await waitUntil { vm.displayValue == "arrow-down" }
+    #expect(vm.displayIcon == resolveIconName("arrow-down").glyph)
   }
 }
 
 // MARK: - Watch process restart backoff
 
-final class WatchRestartDelayTests: XCTestCase {
-  func testDoublesEachAttempt() {
-    XCTAssertEqual(ModuleViewModel.watchRestartDelay(forAttempt: 2), 2.0)
-    XCTAssertEqual(ModuleViewModel.watchRestartDelay(forAttempt: 3), 4.0)
-    XCTAssertEqual(ModuleViewModel.watchRestartDelay(forAttempt: 4), 8.0)
-    XCTAssertEqual(ModuleViewModel.watchRestartDelay(forAttempt: 5), 16.0)
+final class WatchRestartDelayTests {
+  @Test func testDoublesEachAttempt() {
+    #expect(ModuleViewModel.watchRestartDelay(forAttempt: 2) == 2.0)
+    #expect(ModuleViewModel.watchRestartDelay(forAttempt: 3) == 4.0)
+    #expect(ModuleViewModel.watchRestartDelay(forAttempt: 4) == 8.0)
+    #expect(ModuleViewModel.watchRestartDelay(forAttempt: 5) == 16.0)
   }
 
-  func testCapsAtSixteenSeconds() {
-    XCTAssertEqual(ModuleViewModel.watchRestartDelay(forAttempt: 6), 16.0)
-    XCTAssertEqual(ModuleViewModel.watchRestartDelay(forAttempt: 10), 16.0)
+  @Test func testCapsAtSixteenSeconds() {
+    #expect(ModuleViewModel.watchRestartDelay(forAttempt: 6) == 16.0)
+    #expect(ModuleViewModel.watchRestartDelay(forAttempt: 10) == 16.0)
   }
 
-  func testReturnsNilOnceMaxRestartsExceeded() {
-    XCTAssertNil(
-      ModuleViewModel.watchRestartDelay(forAttempt: ModuleViewModel.maxWatchRestarts + 1))
-    XCTAssertNil(ModuleViewModel.watchRestartDelay(forAttempt: 999))
+  @Test func testReturnsNilOnceMaxRestartsExceeded() {
+    #expect(
+      ModuleViewModel.watchRestartDelay(forAttempt: ModuleViewModel.maxWatchRestarts + 1) == nil)
+    #expect(ModuleViewModel.watchRestartDelay(forAttempt: 999) == nil)
   }
 
-  func testAStableRunStartsTheCountAfresh() {
-    XCTAssertEqual(
-      ModuleViewModel.watchRestartAttempt(after: 9, ranFor: ModuleViewModel.stableWatchRun), 1)
-    XCTAssertEqual(
-      ModuleViewModel.watchRestartAttempt(after: 9, ranFor: ModuleViewModel.stableWatchRun - 1),
-      10)
+  @Test func testAStableRunStartsTheCountAfresh() {
+    #expect(
+      ModuleViewModel.watchRestartAttempt(after: 9, ranFor: ModuleViewModel.stableWatchRun) == 1)
+    #expect(
+      ModuleViewModel.watchRestartAttempt(after: 9, ranFor: ModuleViewModel.stableWatchRun - 1)
+        == 10)
   }
 }
 
 // MARK: - Watch process output
 
-final class LineBufferTests: XCTestCase {
-  func testTakesCompleteLinesAndHoldsBackTheRest() {
+final class LineBufferTests {
+  @Test func testTakesCompleteLinesAndHoldsBackTheRest() {
     var buffer = LineBuffer()
-    XCTAssertEqual(buffer.append(Data("one\ntw".utf8)), [Data("one".utf8)])
-    XCTAssertEqual(buffer.append(Data("o\n\nthree".utf8)), [Data("two".utf8), Data()])
-    XCTAssertEqual(buffer.append(Data("\n".utf8)), [Data("three".utf8)])
-    XCTAssertEqual(buffer.append(Data()), [])
+    #expect(buffer.append(Data("one\ntw".utf8)) == [Data("one".utf8)])
+    #expect(buffer.append(Data("o\n\nthree".utf8)) == [Data("two".utf8), Data()])
+    #expect(buffer.append(Data("\n".utf8)) == [Data("three".utf8)])
+    #expect(buffer.append(Data()) == [])
   }
 }
 
 @MainActor
-final class DSLToggleTests: XCTestCase {
+final class DSLToggleTests {
   /// Shows `json` in a window and returns whether its command touched a file.
-  private func ranCommandOnShow(_ on: String) throws -> Bool {
+  private func ranCommandOnShow(_ on: String) async throws -> Bool {
     let file = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
     defer { try? FileManager.default.removeItem(at: file) }
     let json = #"{"type":"toggle","label":"Focus","on":"\#(on)","command":"touch '\#(file.path)'"}"#
@@ -2238,19 +2289,19 @@ final class DSLToggleTests: XCTestCase {
     window.contentView = NSHostingView(rootView: view)
     window.orderFront(nil)
     defer { window.orderOut(nil) }
-    RunLoop.main.run(until: Date().addingTimeInterval(0.5))
+    await runMainLoop(for: 0.5)
     return dismissed || FileManager.default.fileExists(atPath: file.path)
   }
 
-  func testAToggleThatStartsOnDoesNotRunItsCommandWhenShown() throws {
-    XCTAssertFalse(try ranCommandOnShow("true"))
-    XCTAssertFalse(try ranCommandOnShow("false"))
+  @Test func testAToggleThatStartsOnDoesNotRunItsCommandWhenShown() async throws {
+    #expect(!(try await ranCommandOnShow("true")))
+    #expect(!(try await ranCommandOnShow("false")))
   }
 }
 
 @MainActor
-final class ViewCommandEnvironmentTests: XCTestCase {
-  func testAModulesViewsRunCommandsWithItsSettings() throws {
+final class ViewCommandEnvironmentTests {
+  @Test func testAModulesViewsRunCommandsWithItsSettings() throws {
     let yaml = try Yaml.load(
       """
       name: pomo
@@ -2261,81 +2312,90 @@ final class ViewCommandEnvironmentTests: XCTestCase {
         settings:
           work: 50
       """)
-    let vm = ModuleViewModel(moduleConfig: try XCTUnwrap(parseModuleConfig(from: yaml)))
+    let vm = ModuleViewModel(moduleConfig: try #require(parseModuleConfig(from: yaml)))
     let env = PopupManager().makeResolver(for: LiveContentProvider(viewModel: vm))
       .commandEnvironment
-    XCTAssertEqual(env["KANTAN_SETTINGS"], #"{"work":50}"#)
-    XCTAssertEqual(env["KANTAN_MODULE_NAME"], "pomo")
-    XCTAssertNotNil(env["KANTAN_APPEARANCE"])
+    #expect(env["KANTAN_SETTINGS"] == #"{"work":50}"#)
+    #expect(env["KANTAN_MODULE_NAME"] == "pomo")
+    #expect(env["KANTAN_APPEARANCE"] != nil)
   }
 
-  func testRunCommandAddsTheEnvironment() throws {
+  @Test func testRunCommandAddsTheEnvironment() async throws {
     let file = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
     defer { try? FileManager.default.removeItem(at: file) }
     runCommand(
       #"printf %s "$KANTAN_SETTINGS" > '\#(file.path)'"#,
       environment: ["KANTAN_SETTINGS": #"{"work":50}"#])
-    waitUntil { (try? String(contentsOf: file, encoding: .utf8)) == #"{"work":50}"# }
+    await waitUntil { (try? String(contentsOf: file, encoding: .utf8)) == #"{"work":50}"# }
   }
 }
 
-final class CommandWatchOutputTests: XCTestCase {
+final class CommandWatchOutputTests {
   private func config(_ yaml: String) throws -> CommandConfig {
     try CommandConfig(yaml: try Yaml.load(yaml))
   }
 
-  func testModulesRunningTheSameCommandKeepTheirOwnOutput() throws {
+  @Test func testModulesRunningTheSameCommandKeepTheirOwnOutput() throws {
     var work = try config("command: shared-command\noutput: json\n")
     var home = work
     work.moduleName = "work"
     home.moduleName = "home"
-    XCTAssertEqual(work.cacheWatchOutput(Data(#"{"value":"1","icon":"briefcase"}"#.utf8)), "1")
-    XCTAssertEqual(home.cacheWatchOutput(Data(#"{"value":"2","icon":"home"}"#.utf8)), "2")
-    XCTAssertEqual(work.getIcon(), "briefcase")
-    XCTAssertEqual(home.getIcon(), "home")
+    #expect(work.cacheWatchOutput(Data(#"{"value":"1","icon":"briefcase"}"#.utf8)) == "1")
+    #expect(home.cacheWatchOutput(Data(#"{"value":"2","icon":"home"}"#.utf8)) == "2")
+    #expect(work.getIcon() == "briefcase")
+    #expect(home.getIcon() == "home")
   }
 
-  func testJSONObjectLinesBecomeTheCommandsOutput() throws {
+  @Test func testJSONObjectLinesBecomeTheCommandsOutput() throws {
     let command = try config("command: watch-output-object\noutput: json\n")
     let line = #"{"value":"3","icon":"bell","variables":{"count":"3"}}"#
-    XCTAssertEqual(command.cacheWatchOutput(Data(line.utf8)), "3")
-    XCTAssertEqual(command.getIcon(), "bell")
-    XCTAssertEqual(command.getTemplateVariables(), ["count": "3"])
+    #expect(command.cacheWatchOutput(Data(line.utf8)) == "3")
+    #expect(command.getIcon() == "bell")
+    #expect(command.getTemplateVariables() == ["count": "3"])
   }
 
-  func testSegmentsColourTheValue() throws {
+  @Test func testSegmentsColourTheValue() throws {
     let command = try config("command: output-segments\noutput: json\n")
     let segments =
       ##"[{"text":"Review","fg":"#89b4fa"},{"text":" in "},{"fg":"#f38ba8"},"##
       + ##"{"text":"5m","fg":"{theme(red)}"}]"##
     let line = ##"{"value":"Review in 5m","segments":"## + segments + "}"
-    XCTAssertEqual(command.cacheWatchOutput(Data(line.utf8)), "Review in 5m")
-    XCTAssertEqual(
-      command.getSegments(),
-      [
+    #expect(command.cacheWatchOutput(Data(line.utf8)) == "Review in 5m")
+    #expect(
+      command.getSegments() == [
         ValueSegment(text: "Review", fg: "#89b4fa"), ValueSegment(text: " in ", fg: nil),
         ValueSegment(text: "5m", fg: "{theme(red)}"),
       ])
-    XCTAssertEqual(command.cacheWatchOutput(Data(#"{"value":"plain"}"#.utf8)), "plain")
-    XCTAssertEqual(command.getSegments(), [])
+    #expect(command.cacheWatchOutput(Data(#"{"value":"plain"}"#.utf8)) == "plain")
+    #expect(command.getSegments() == [])
   }
 
-  func testOtherLinesAreIgnored() throws {
+  @Test func testOtherLinesAreIgnored() throws {
     let command = try config("command: watch-output-other\noutput: json\n")
     for line in ["starting up", "[1, 2]", "", #"{"value":"#] {
-      XCTAssertNil(command.cacheWatchOutput(Data(line.utf8)), line)
+      #expect(command.cacheWatchOutput(Data(line.utf8)) == nil, "\(line)")
     }
     let text = try config("command: watch-output-text\n")
-    XCTAssertNil(text.cacheWatchOutput(Data(#"{"value":"x"}"#.utf8)))
+    #expect(text.cacheWatchOutput(Data(#"{"value":"x"}"#.utf8)) == nil)
   }
 }
 
 @MainActor
-final class WatchOutputTests: XCTestCase {
-  override func setUp() {
-    super.setUp()
+final class WatchOutputTests {
+  private var teardowns: [@MainActor () -> Void] = []
+
+  init() {
     // Watch processes are given NSApp's appearance.
     _ = NSApplication.shared
+  }
+
+  /// Runs `block` as the test ends, after any added later.
+  private func addTeardownBlock(_ block: @escaping @MainActor () -> Void) {
+    teardowns.append(block)
+  }
+
+  private func tearDown() {
+    teardowns.reversed().forEach { $0() }
   }
 
   /// A module running `command` with a watch process running `watch`.
@@ -2359,7 +2419,8 @@ final class WatchOutputTests: XCTestCase {
     return vm
   }
 
-  func testAStoppedWatchFinishesOnStdinEOFBeforeBeingTerminated() throws {
+  @Test func testAStoppedWatchFinishesOnStdinEOFBeforeBeingTerminated() async throws {
+    defer { tearDown() }
     let done = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
     addTeardownBlock { try? FileManager.default.removeItem(at: done) }
     let vm = try module(
@@ -2370,12 +2431,13 @@ final class WatchOutputTests: XCTestCase {
         sleep 0.2
         echo cleaned > '\(done.path)'
         """)
-    waitUntil { vm.displayValue == "up" }
+    await waitUntil { vm.displayValue == "up" }
     vm.pause()
-    waitUntil { FileManager.default.fileExists(atPath: done.path) }
+    await waitUntil { FileManager.default.fileExists(atPath: done.path) }
   }
 
-  func testAStoppedWatchThatIgnoresEOFIsTerminated() throws {
+  @Test func testAStoppedWatchThatIgnoresEOFIsTerminated() async throws {
+    defer { tearDown() }
     let pidFile = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
     addTeardownBlock { try? FileManager.default.removeItem(at: pidFile) }
     let vm = try module(
@@ -2385,16 +2447,17 @@ final class WatchOutputTests: XCTestCase {
         echo '{"value":"up"}'
         while :; do sleep 0.1; done
         """)
-    waitUntil { vm.displayValue == "up" }
-    let pid = try XCTUnwrap(
+    await waitUntil { vm.displayValue == "up" }
+    let pid = try #require(
       Int32(
         try String(contentsOf: pidFile, encoding: .utf8).trimmingCharacters(
           in: .whitespacesAndNewlines)))
     vm.pause()
-    waitUntil({ kill(pid, 0) != 0 }, timeout: ModuleViewModel.watchStopGrace + 3)
+    await waitUntil({ kill(pid, 0) != 0 }, timeout: ModuleViewModel.watchStopGrace + 3)
   }
 
-  func testEachLineTheWatchPrintsUpdatesTheModule() throws {
+  @Test func testEachLineTheWatchPrintsUpdatesTheModule() async throws {
+    defer { tearDown() }
     let vm = try module(
       "watch-lines",
       watch: """
@@ -2405,30 +2468,32 @@ final class WatchOutputTests: XCTestCase {
         echo '{"value":"second"}'
         cat
         """)
-    waitUntil { vm.displayValue == "first" }
-    XCTAssertEqual(vm.displayIcon, resolveIconName("bell").glyph)
-    XCTAssertEqual(vm.segments, [ValueSegment(text: "first", fg: "#ff0000")])
-    waitUntil { vm.displayValue == "second" }
-    XCTAssertEqual(vm.segments, [])
+    await waitUntil { vm.displayValue == "first" }
+    #expect(vm.displayIcon == resolveIconName("bell").glyph)
+    #expect(vm.segments == [ValueSegment(text: "first", fg: "#ff0000")])
+    await waitUntil { vm.displayValue == "second" }
+    #expect(vm.segments == [])
   }
 
-  func testWatchOutputOutlivesACommandRunStillInFlight() throws {
+  @Test func testWatchOutputOutlivesACommandRunStillInFlight() async throws {
+    defer { tearDown() }
     let vm = try module(
       "watch-in-flight", command: #"sleep 0.5; echo '{"value":"command"}'"#,
       watch: #"echo '{"value":"watch"}'; cat"#)
-    waitUntil { vm.displayValue == "watch" }
-    RunLoop.main.run(until: Date().addingTimeInterval(1))
-    XCTAssertEqual(vm.displayValue, "watch")
+    await waitUntil { vm.displayValue == "watch" }
+    await runMainLoop(for: 1)
+    #expect(vm.displayValue == "watch")
   }
 
-  func testTheWatchRelaunchesWithTheNewAppearance() throws {
+  @Test func testTheWatchRelaunchesWithTheNewAppearance() async throws {
+    defer { tearDown() }
     NSApp.appearance = NSAppearance(named: .aqua)
     addTeardownBlock { @MainActor in NSApp.appearance = nil }
     let vm = try module(
       "watch-appearance", watch: #"echo "{\"value\":\"$KANTAN_APPEARANCE\"}"; cat"#)
-    waitUntil { vm.displayValue == "light" }
+    await waitUntil { vm.displayValue == "light" }
     NSApp.appearance = NSAppearance(named: .darkAqua)
-    waitUntil { vm.displayValue == "dark" }
+    await waitUntil { vm.displayValue == "dark" }
   }
 }
 
@@ -2442,18 +2507,18 @@ private final class RepositionTriggerSource: ObservableObject {
 }
 
 @MainActor
-final class RepositionTriggerMergeTests: XCTestCase {
-  private func wait(milliseconds: Int) {
-    let exp = expectation(description: "wait\(milliseconds)")
+final class RepositionTriggerMergeTests {
+  private func wait(milliseconds: Int) async {
+    let exp = Expectation()
     DispatchQueue.main.asyncAfter(deadline: .now() + .milliseconds(milliseconds)) {
       exp.fulfill()
     }
-    wait(for: [exp], timeout: 2.0)
+    #expect(await fulfillment(of: [exp], timeout: 2.0))
   }
 
   /// Burst changes across all three signals within one debounce window
   /// must fan out to exactly one downstream layout trigger — not three.
-  func testMergedPublishersCoalesceBurstIntoSingleTrigger() {
+  @Test func testMergedPublishersCoalesceBurstIntoSingleTrigger() async {
     let src = RepositionTriggerSource()
     var triggers = 0
     var cancellables: [AnyCancellable] = []
@@ -2467,16 +2532,16 @@ final class RepositionTriggerMergeTests: XCTestCase {
       .store(in: &cancellables)
 
     // Drain the initial values emitted on subscription.
-    wait(milliseconds: 120)
+    await wait(milliseconds: 120)
     let baseline = triggers
 
     src.shouldDisplay = false
     src.displayValue = "v"
     src.displayIcon = "i"
 
-    wait(milliseconds: 120)
-    XCTAssertEqual(
-      triggers - baseline, 1,
+    await wait(milliseconds: 120)
+    #expect(
+      (triggers - baseline) == 1,
       "three property changes within one debounce window must produce a single layout pass")
   }
 }
@@ -2484,11 +2549,10 @@ final class RepositionTriggerMergeTests: XCTestCase {
 // MARK: - ThemeProvider.elementFgColor precedence
 
 @MainActor
-final class ThemeProviderElementFgPrecedenceTests: XCTestCase {
-  override func setUp() {
-    super.setUp()
+final class ThemeProviderElementFgPrecedenceTests {
+  init() {
     // Force NSApp to exist so ThemeProvider.init can query effectiveAppearance.
-    MainActor.assumeIsolated { _ = NSApplication.shared }
+    _ = NSApplication.shared
   }
 
   private func makeConfig(
@@ -2517,22 +2581,22 @@ final class ThemeProviderElementFgPrecedenceTests: XCTestCase {
   private func assertColor(_ color: Color, equalsHex hex: String) {
     let actual = NSColor(color).usingColorSpace(.deviceRGB)!
     let expected = NSColor(hex: hex).usingColorSpace(.deviceRGB)!
-    XCTAssertEqual(actual.redComponent, expected.redComponent, accuracy: 0.01)
-    XCTAssertEqual(actual.greenComponent, expected.greenComponent, accuracy: 0.01)
-    XCTAssertEqual(actual.blueComponent, expected.blueComponent, accuracy: 0.01)
+    #expect(abs(actual.redComponent - expected.redComponent) <= 0.01)
+    #expect(abs(actual.greenComponent - expected.greenComponent) <= 0.01)
+    #expect(abs(actual.blueComponent - expected.blueComponent) <= 0.01)
   }
 
-  func testColorResolvesHexAndThemeTemplatesButNotUnknownOnes() throws {
+  @Test func testColorResolvesHexAndThemeTemplatesButNotUnknownOnes() throws {
     let palette = ThemePalette(fg: "FFFFFF", bg: "000000", shape: nil, colors: ["red": "F38BA8"])
     let theme = ThemeProvider(
       config: makeConfig(theme: ThemeConfig(lightPalette: palette, darkPalette: palette)))
-    assertColor(try XCTUnwrap(theme.color("{theme(red)}")), equalsHex: "F38BA8")
-    assertColor(try XCTUnwrap(theme.color("#89B4FA")), equalsHex: "89B4FA")
-    XCTAssertNil(theme.color("{theme(absent)}"))
-    XCTAssertNil(ThemeProvider(config: makeConfig()).color("{theme(red)}"))
+    assertColor(try #require(theme.color("{theme(red)}")), equalsHex: "F38BA8")
+    assertColor(try #require(theme.color("#89B4FA")), equalsHex: "89B4FA")
+    #expect(theme.color("{theme(absent)}") == nil)
+    #expect(ThemeProvider(config: makeConfig()).color("{theme(red)}") == nil)
   }
 
-  func testFgOverrideBypassesAllOtherSources() {
+  @Test func testFgOverrideBypassesAllOtherSources() {
     let theme = ThemeProvider(config: makeConfig())
     theme.isDarkMode = true
     let vm = makeVM(
@@ -2545,7 +2609,7 @@ final class ThemeProviderElementFgPrecedenceTests: XCTestCase {
     assertColor(theme.textFgColor(for: vm), equalsHex: "FF0000")
   }
 
-  func testDynamicElementFgPrecedesDynamicGenericFg() {
+  @Test func testDynamicElementFgPrecedesDynamicGenericFg() {
     let theme = ThemeProvider(config: makeConfig())
     theme.isDarkMode = true
     let vm = makeVM()
@@ -2555,7 +2619,7 @@ final class ThemeProviderElementFgPrecedenceTests: XCTestCase {
     assertColor(theme.iconFgColor(for: vm), equalsHex: "0000FF")
   }
 
-  func testModuleGenericFgPrecedesGlobalElementFg() {
+  @Test func testModuleGenericFgPrecedesGlobalElementFg() {
     let config = makeConfig(
       dark: StyleModeConfig(
         fg: "111111", bg: "000000",
@@ -2569,7 +2633,7 @@ final class ThemeProviderElementFgPrecedenceTests: XCTestCase {
     assertColor(theme.textFgColor(for: vm), equalsHex: "FF0000")
   }
 
-  func testUnresolvableDynamicTemplateFallsThroughToStatic() {
+  @Test func testUnresolvableDynamicTemplateFallsThroughToStatic() {
     // No theme palette set; `{theme(accent)}` cannot resolve.
     let theme = ThemeProvider(config: makeConfig())
     theme.isDarkMode = true
@@ -2582,19 +2646,19 @@ final class ThemeProviderElementFgPrecedenceTests: XCTestCase {
 
 // MARK: - BluetoothConfig status reads
 
-final class BluetoothStatusReadTests: XCTestCase {
-  func testIconRendersWithoutReadingStatus() {
+final class BluetoothStatusReadTests {
+  @Test func testIconRendersWithoutReadingStatus() {
     let reads = OSAllocatedUnfairLock(initialState: 0)
     let config = BluetoothConfig(icon: "bluetooth", disabledIcon: "bluetooth-off") {
       reads.withLock { $0 += 1 }
       return .unavailable
     }
-    XCTAssertEqual(config.getIcon(), "bluetooth")
-    XCTAssertFalse(config.isActive())
-    XCTAssertEqual(reads.withLock { $0 }, 0)
+    #expect(config.getIcon() == "bluetooth")
+    #expect(!config.isActive())
+    #expect((reads.withLock { $0 }) == 0)
   }
 
-  func testRefreshReadsOffMainThreadThenRendersResult() {
+  @Test func testRefreshReadsOffMainThreadThenRendersResult() async {
     let readOnMain = OSAllocatedUnfairLock<Bool?>(initialState: nil)
     let config = BluetoothConfig(icon: "bluetooth", disabledIcon: "bluetooth-off") {
       readOnMain.withLock { $0 = Thread.isMainThread }
@@ -2602,43 +2666,43 @@ final class BluetoothStatusReadTests: XCTestCase {
         isPoweredOn: true,
         pairedDevices: [BluetoothDeviceInfo(name: "Buds", address: "aa", isConnected: true)])
     }
-    let done = expectation(description: "refreshed")
+    let done = Expectation()
     config.refresh {
-      XCTAssertTrue(Thread.isMainThread)
+      #expect(Thread.isMainThread)
       done.fulfill()
     }
-    wait(for: [done], timeout: 2)
-    XCTAssertEqual(readOnMain.withLock { $0 }, false)
-    XCTAssertEqual(config.getIcon(), "bluetooth")
-    XCTAssertTrue(config.isActive())
+    #expect(await fulfillment(of: [done], timeout: 2))
+    #expect((readOnMain.withLock { $0 }) == false)
+    #expect(config.getIcon() == "bluetooth")
+    #expect(config.isActive())
   }
 
-  func testBlockedReadDoesNotBlockCaller() {
+  @Test func testBlockedReadDoesNotBlockCaller() async {
     let prompt = DispatchSemaphore(value: 0)
     let config = BluetoothConfig(icon: "bluetooth", disabledIcon: "bluetooth-off") {
       prompt.wait()
       return BluetoothStatus(isPoweredOn: false, pairedDevices: [])
     }
-    let done = expectation(description: "refreshed after prompt")
+    let done = Expectation()
     let started = Date()
     config.refresh { done.fulfill() }
-    XCTAssertEqual(config.getIcon(), "bluetooth")
-    XCTAssertLessThan(Date().timeIntervalSince(started), 0.5)
+    #expect(config.getIcon() == "bluetooth")
+    #expect(Date().timeIntervalSince(started) < 0.5)
 
     prompt.signal()
-    wait(for: [done], timeout: 2)
-    XCTAssertEqual(config.getIcon(), "bluetooth-off")
+    #expect(await fulfillment(of: [done], timeout: 2))
+    #expect(config.getIcon() == "bluetooth-off")
   }
 }
 
 // MARK: - BluetoothConfig.parseSPBluetoothData
 
-final class BluetoothSystemProfilerParserTests: XCTestCase {
+final class BluetoothSystemProfilerParserTests {
   private func parse(_ json: String) -> BluetoothStatus? {
     BluetoothConfig.parseSPBluetoothData(Data(json.utf8))
   }
 
-  func testReportsConnectedDevicesWhenPresent() throws {
+  @Test func testReportsConnectedDevicesWhenPresent() throws {
     let json = """
       {
         "SPBluetoothDataType": [{
@@ -2652,13 +2716,13 @@ final class BluetoothSystemProfilerParserTests: XCTestCase {
         }]
       }
       """
-    let status = try XCTUnwrap(parse(json))
-    XCTAssertTrue(status.isPoweredOn)
-    XCTAssertEqual(status.pairedDevices.count, 2)
-    XCTAssertEqual(status.connectedDevices.map(\.name), ["Magic Trackpad"])
+    let status = try #require(parse(json))
+    #expect(status.isPoweredOn)
+    #expect(status.pairedDevices.count == 2)
+    #expect(status.connectedDevices.map(\.name) == ["Magic Trackpad"])
   }
 
-  func testReportsPoweredOffWhenControllerStateIsOff() throws {
+  @Test func testReportsPoweredOffWhenControllerStateIsOff() throws {
     let json = """
       {
         "SPBluetoothDataType": [{
@@ -2666,28 +2730,28 @@ final class BluetoothSystemProfilerParserTests: XCTestCase {
         }]
       }
       """
-    let status = try XCTUnwrap(parse(json))
-    XCTAssertFalse(status.isPoweredOn)
-    XCTAssertTrue(status.pairedDevices.isEmpty)
+    let status = try #require(parse(json))
+    #expect(!status.isPoweredOn)
+    #expect(status.pairedDevices.isEmpty)
   }
 
-  func testReturnsNilForMalformedRoot() {
-    XCTAssertNil(parse("{}"))
-    XCTAssertNil(parse(#"{"SPBluetoothDataType": []}"#))
-    XCTAssertNil(parse("not json"))
+  @Test func testReturnsNilForMalformedRoot() {
+    #expect(parse("{}") == nil)
+    #expect(parse(#"{"SPBluetoothDataType": []}"#) == nil)
+    #expect(parse("not json") == nil)
   }
 }
 
 // MARK: - Tooltip dismissal
 
 @MainActor
-final class TooltipClickTests: XCTestCase {
-  func testHidingTheTooltipStopsWatchingClicks() {
+final class TooltipClickTests {
+  @Test func testHidingTheTooltipStopsWatchingClicks() {
     _ = NSApplication.shared
     let manager = PopupManager()
     manager.hideTooltipOnClickElsewhere()
-    XCTAssertTrue(manager.isWatchingClicksForTooltip)
+    #expect(manager.isWatchingClicksForTooltip)
     manager.hideTooltip()
-    XCTAssertFalse(manager.isWatchingClicksForTooltip)
+    #expect(!manager.isWatchingClicksForTooltip)
   }
 }

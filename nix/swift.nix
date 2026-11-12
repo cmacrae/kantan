@@ -27,7 +27,8 @@ let
   swiftCheckPhase = ''
     runHook preCheck
     if [ -d Tests ]; then
-      swift test --disable-sandbox --scratch-path .build
+      # Serially, as each test may change process-wide state.
+      swift test --disable-sandbox --scratch-path .build --no-parallel
     fi
     runHook postCheck
   '';
