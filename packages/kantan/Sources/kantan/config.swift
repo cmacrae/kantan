@@ -262,31 +262,32 @@ struct FontConfig: Codable {
 /// in the symlinkJoin output), falls back to Bundle.main.executableURL (works for
 /// PATH-based invocation like Homebrew where argv[0] is just the command name).
 func bundledPrefix() -> URL? {
-  let fm = FileManager.default
-
-  func resolve(from url: URL) -> URL {
-    // Try the unresolved path first — Nix symlinkJoin combines packages
-    // (binary, fonts, themes) under one prefix via symlinks. Resolving
-    // would follow those symlinks into the bare binary package which
-    // doesn't contain share/fonts or share/themes.
-    let unresolved = url.deletingLastPathComponent().deletingLastPathComponent()
-    if fm.fileExists(atPath: unresolved.appendingPathComponent("share").path) {
-      return unresolved
-    }
-    // Fall back to resolved for installs where the binary is symlinked
-    // into a different prefix (e.g. Homebrew /opt/homebrew/bin → Cellar).
-    return url.resolvingSymlinksInPath()
-      .deletingLastPathComponent().deletingLastPathComponent()
-  }
-
   let arg0 = CommandLine.arguments[0]
   if arg0.contains("/") {
-    return resolve(from: URL(fileURLWithPath: arg0))
+    return installPrefix(of: URL(fileURLWithPath: arg0))
   }
   if let execURL = Bundle.main.executableURL {
-    return resolve(from: execURL)
+    return installPrefix(of: execURL)
   }
   return nil
+}
+
+/// The prefix holding the bundled assets of the kantan binary at `executable`.
+/// The unresolved path's prefix wins when it holds kantan's fonts or themes,
+/// as a Nix symlinkJoin combines the binary, fonts and themes under one prefix
+/// through symlinks into separate packages. Otherwise it's the prefix of the
+/// resolved path, for a binary symlinked into a shared prefix such as
+/// /opt/homebrew/bin or ~/.local/bin.
+func installPrefix(of executable: URL) -> URL {
+  let unresolved = executable.deletingLastPathComponent().deletingLastPathComponent()
+  let holdsAssets = ["share/fonts", "share/themes"].contains {
+    FileManager.default.fileExists(atPath: unresolved.appendingPathComponent($0).path)
+  }
+  if holdsAssets {
+    return unresolved
+  }
+  return executable.resolvingSymlinksInPath()
+    .deletingLastPathComponent().deletingLastPathComponent()
 }
 
 // MARK: - Bundled Font Registration

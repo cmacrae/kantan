@@ -1,6 +1,6 @@
 # Installation
 
-kantan targets aarch64-darwin only (Apple Silicon Macs). It can be installed via Nix or Homebrew.
+kantan targets aarch64-darwin only (Apple Silicon Macs). It can be installed with Homebrew, Nix or an install script.
 
 ## Prerequisites
 
@@ -52,6 +52,27 @@ brew install cmacrae/tap/kantan-without-plugins
 ```
 
 Both formulae install the bundled icon fonts and themes alongside the binary.
+
+### Install Script
+
+```bash
+curl -fsSL https://kantan.bar/install.sh | sh
+```
+
+The script installs the latest release into `~/.local/lib/kantan` and links its binaries into `~/.local/bin`. It tells you if that isn't on your `PATH`. Pass options after `sh -s --`:
+
+```bash
+curl -fsSL https://kantan.bar/install.sh | sh -s -- --version 0.1.0
+```
+
+| Option | Description |
+|--------|-------------|
+| `--prefix <dir>` | Install under `<dir>` instead of `~/.local` |
+| `--version <version>` | Install `<version>` instead of the latest release |
+| `--without-plugins` | Install kantan without its bundled plugins |
+| `--uninstall` | Remove kantan from the prefix |
+
+Running the script again replaces the installed release. It never overwrites a file in `bin` that isn't one of its links.
 
 ### Nix Flake
 

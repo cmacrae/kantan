@@ -2755,3 +2755,35 @@ final class TooltipClickTests {
     #expect(!manager.isWatchingClicksForTooltip)
   }
 }
+
+// MARK: - Bundled assets
+
+final class InstallPrefixTests {
+  @Test func testAPrefixWithAssetsIsUsedUnresolved() throws {
+    let root = try makeExecutables(["store/kantan/bin/kantan"])
+    let prefix = root.appendingPathComponent("profile")
+    try FileManager.default.createDirectory(
+      at: prefix.appendingPathComponent("share/fonts"), withIntermediateDirectories: true)
+    try FileManager.default.createDirectory(
+      at: prefix.appendingPathComponent("bin"), withIntermediateDirectories: true)
+    let link = prefix.appendingPathComponent("bin/kantan")
+    try FileManager.default.createSymbolicLink(
+      at: link, withDestinationURL: root.appendingPathComponent("store/kantan/bin/kantan"))
+    #expect(installPrefix(of: link).path == prefix.path)
+  }
+
+  @Test func testAPrefixWithAnotherShareResolvesTheSymlink() throws {
+    let root = try makeExecutables(["local/lib/kantan/bin/kantan"])
+    let local = root.appendingPathComponent("local")
+    try FileManager.default.createDirectory(
+      at: local.appendingPathComponent("share/fish"), withIntermediateDirectories: true)
+    try FileManager.default.createDirectory(
+      at: local.appendingPathComponent("bin"), withIntermediateDirectories: true)
+    let link = local.appendingPathComponent("bin/kantan")
+    try FileManager.default.createSymbolicLink(
+      at: link, withDestinationURL: local.appendingPathComponent("lib/kantan/bin/kantan"))
+    #expect(
+      installPrefix(of: link).path
+        == local.appendingPathComponent("lib/kantan").resolvingSymlinksInPath().path)
+  }
+}

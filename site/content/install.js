@@ -21,7 +21,10 @@ brew services start kantan`,
   },
   {
     label: "Script",
-    content: `curl -fsSL https://kantan.dev/install.sh | sh`,
-    note: { text: "Coming soon" },
+    content: `curl -fsSL https://kantan.bar/install.sh | sh`,
+    note: {
+      text: "Installs to ~/.local; see the docs for options",
+      href: "/docs/getting-started/installation.html#install-script",
+    },
   },
 ];

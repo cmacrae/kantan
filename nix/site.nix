@@ -19,7 +19,7 @@ let
     '';
     installPhase = ''
       mkdir -p $out
-      cp index.html main.js favicon.svg $out/
+      cp index.html main.js favicon.svg install.sh $out/
     '';
   };
 
@@ -36,7 +36,7 @@ let
 
     echo "Building landing page..."
     mkdir -p "$TMPDIR"
-    cp ${siteDir}/index.html ${siteDir}/favicon.svg "$TMPDIR/"
+    cp ${siteDir}/index.html ${siteDir}/favicon.svg ${siteDir}/install.sh "$TMPDIR/"
     ${pkgs.esbuild}/bin/esbuild ${siteDir}/main.jsx --bundle --format=esm --jsx=automatic \
       --external:react --external:"react-dom/client" --external:"react/jsx-runtime" \
       --loader:.yaml=text \
