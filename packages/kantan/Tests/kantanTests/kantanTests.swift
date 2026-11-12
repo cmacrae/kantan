@@ -197,6 +197,30 @@ final class CommandLineTests: XCTestCase {
     XCTAssertEqual(parseCommand(["trigger"]), .usageError("trigger needs a module and an action"))
   }
 
+  func testFlagsSetOptionsAnywhereAndExpandTilde() {
+    let parsed = parseArguments([
+      "trigger", "--config", "~/k.yaml", "clock", "--themes-dir", "/t", "refresh",
+    ])
+    XCTAssertEqual(
+      parsed.options,
+      KantanOptions(configPath: NSHomeDirectory() + "/k.yaml", themesDirPath: "/t"))
+    XCTAssertEqual(parsed.command, .trigger(["module": "clock", "action": "refresh"]))
+  }
+
+  func testHelpAndVersionWinOverEverythingElse() {
+    XCTAssertEqual(parseArguments(["--help"]).command, .help)
+    XCTAssertEqual(parseArguments(["-h", "--confg"]).command, .help)
+    XCTAssertEqual(parseArguments(["trigger", "x", "-V"]).command, .version)
+    XCTAssertEqual(parseArguments(["--version"]).command, .version)
+  }
+
+  func testUnknownFlagsAndMissingPathsAreErrors() {
+    XCTAssertEqual(
+      parseArguments(["--confg", "x"]).command, .usageError("unknown option '--confg'"))
+    XCTAssertEqual(parseArguments(["--config"]).command, .usageError("--config needs a path"))
+    XCTAssertEqual(parseArguments(["-psn_0_1"]).command, .run)
+  }
+
   func testAnUnknownCommandIsAnError() {
     XCTAssertEqual(
       parseCommand(["trgger", "clock", "refresh"]), .usageError("unknown command 'trgger'"))

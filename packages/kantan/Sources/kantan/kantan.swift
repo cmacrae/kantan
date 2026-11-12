@@ -106,6 +106,10 @@ class DrawerClickView: NSView {
 enum KantanCommand: Equatable {
   /// Run the bar.
   case run
+  /// Print the usage.
+  case help
+  /// Print kantan's version.
+  case version
   /// Post a trigger event with these fields to the running bar.
   case trigger([String: String])
   /// The arguments aren't a command kantan knows.
@@ -115,7 +119,58 @@ enum KantanCommand: Equatable {
 let kantanUsage = """
   usage: kantan [--config <path>] [--modules-dir <path>] [--fonts-dir <path>] [--themes-dir <path>]
          kantan trigger <module> <action> [key=value ...]
+         kantan --help | --version
+
+    --config <path>       config file to load
+    --modules-dir <path>  modules.d directory to load
+    --fonts-dir <path>    bundled fonts directory
+    --themes-dir <path>   bundled themes directory
+    -h, --help            show this help
+    -V, --version         show kantan's version
+
+    trigger <module> <action> [key=value ...]
+                          send an action (refresh, set, ...) to a running bar;
+                          <module> is a module's name, or '*' for all
   """
+
+/// The paths kantan's flags set, with `~` expanded.
+struct KantanOptions: Equatable {
+  var configPath: String?
+  var modulesDirPath: String?
+  var fontsDirPath: String?
+  var themesDirPath: String?
+}
+
+/// kantan's command-line arguments, after the program name: the options
+/// its flags set and the command they ask for. An unknown `--` flag, or a
+/// path flag without its path, is a usage error; other arguments starting
+/// with `-` are ignored, as macOS may pass its own.
+func parseArguments(_ args: some Collection<String>) -> (
+  options: KantanOptions, command: KantanCommand
+) {
+  let paths: [String: WritableKeyPath<KantanOptions, String?>] = [
+    "--config": \.configPath, "--modules-dir": \.modulesDirPath,
+    "--fonts-dir": \.fontsDirPath, "--themes-dir": \.themesDirPath,
+  ]
+  var options = KantanOptions()
+  var words: [String] = []
+  var remaining = Array(args)[...]
+  while let arg = remaining.popFirst() {
+    if arg == "-h" || arg == "--help" { return (options, .help) }
+    if arg == "-V" || arg == "--version" { return (options, .version) }
+    if let path = paths[arg] {
+      guard let value = remaining.popFirst() else {
+        return (options, .usageError("\(arg) needs a path"))
+      }
+      options[keyPath: path] = (value as NSString).expandingTildeInPath
+    } else if arg.hasPrefix("--") {
+      return (options, .usageError("unknown option '\(arg)'"))
+    } else {
+      words.append(arg)
+    }
+  }
+  return (options, parseCommand(words))
+}
 
 /// The command for the positional arguments that follow the program name.
 /// Arguments starting with `-` are ignored, as macOS may pass its own.
@@ -1559,53 +1614,21 @@ struct Kantan {
   nonisolated(unsafe) static var themesDirPath: String?
 
   static func main() {
-    let args = CommandLine.arguments
+    let arguments = parseArguments(CommandLine.arguments.dropFirst())
+    configPath = arguments.options.configPath
+    modulesDirPath = arguments.options.modulesDirPath
+    fontsDirPath = arguments.options.fontsDirPath
+    themesDirPath = arguments.options.themesDirPath
 
-    var positionalArgs: [String] = [args[0]]
-    var i = 1
-    while i < args.count {
-      switch args[i] {
-      case "--config":
-        if i + 1 < args.count {
-          configPath = (args[i + 1] as NSString).expandingTildeInPath
-          i += 2
-        } else {
-          print("--config requires a path argument")
-          i += 1
-        }
-      case "--modules-dir":
-        if i + 1 < args.count {
-          modulesDirPath = (args[i + 1] as NSString).expandingTildeInPath
-          i += 2
-        } else {
-          print("--modules-dir requires a path argument")
-          i += 1
-        }
-      case "--fonts-dir":
-        if i + 1 < args.count {
-          fontsDirPath = (args[i + 1] as NSString).expandingTildeInPath
-          i += 2
-        } else {
-          print("--fonts-dir requires a path argument")
-          i += 1
-        }
-      case "--themes-dir":
-        if i + 1 < args.count {
-          themesDirPath = (args[i + 1] as NSString).expandingTildeInPath
-          i += 2
-        } else {
-          print("--themes-dir requires a path argument")
-          i += 1
-        }
-      default:
-        positionalArgs.append(args[i])
-        i += 1
-      }
-    }
-
-    switch parseCommand(positionalArgs.dropFirst()) {
+    switch arguments.command {
     case .run:
       break
+    case .help:
+      print(kantanUsage)
+      return
+    case .version:
+      print("kantan \(kantanVersion)")
+      return
     case .trigger(let userInfo):
       DistributedNotificationCenter.default().postNotificationName(
         NSNotification.Name("com.kantan.event"),

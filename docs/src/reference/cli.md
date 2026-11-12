@@ -6,6 +6,7 @@ kantan has a minimal command-line interface.
 ```
 kantan [--config <path>] [--modules-dir <path>] [--fonts-dir <path>] [--themes-dir <path>]
 kantan trigger <module-name> <action> [key=value ...]
+kantan --help | --version
 ```
 
 **Flags:**
@@ -16,8 +17,12 @@ kantan trigger <module-name> <action> [key=value ...]
 | `--modules-dir <path>` | Path to modules.d directory |
 | `--fonts-dir <path>` | Path to the bundled fonts directory |
 | `--themes-dir <path>` | Path to the bundled themes directory |
+| `-h`, `--help` | Print usage and exit |
+| `-V`, `--version` | Print `kantan <version>` and exit |
 
-Each flag takes the next argument as its path, with a leading `~` expanded, and may appear anywhere on the command line. Other arguments are ignored, apart from `trigger`.
+Each path flag takes the next argument as its path, with a leading `~` expanded, and may appear anywhere on the command line. An unknown `--` flag, or a path flag without its path, is a usage error. Arguments starting with a single `-` are ignored. macOS may pass its own.
+
+A release build reports its release number (`kantan 0.1.0`). Any other build adds the commit it was built from (`kantan 0.1.0-dev+3d0ea26`, with `-dirty` for uncommitted changes).
 
 **Config file resolution (in order):**
 1. `--config` flag (explicit path)
@@ -76,7 +81,8 @@ kantan trigger '*' refresh
 | Subcommand | Exit code | Meaning |
 |------------|-----------|---------|
 | `kantan trigger …` | `0` | Notification posted (delivery not guaranteed — see above) |
-| `kantan trigger` without a module and action, or an unknown command | `2` | Usage printed to stderr; no bar is started |
+| `kantan --help`, `kantan --version` | `0` | Usage or version printed to stdout |
+| `kantan trigger` without a module and action, an unknown command or `--` flag, or a path flag without its path | `2` | Usage printed to stderr. No bar is started |
 
 **Signals:** kantan installs no signal handlers. SIGTERM and SIGINT end it with the default signal behaviour. When kantan's process ends, its end of each watch process's stdin pipe closes. The watch process then reads EOF. Watch plugins should treat stdin EOF as the shutdown signal. See [Plugins — Handling stdin EOF](/docs/plugins/building-a-plugin#handling-stdin-eof).
 
