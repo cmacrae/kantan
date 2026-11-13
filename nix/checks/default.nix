@@ -180,13 +180,13 @@ in
     name = "darwin";
     module = import ../module/darwin.nix kantan;
     stubModule = darwinStubs;
-    extract = cfg: builtins.head cfg.launchd.user.agents.kantan.serviceConfig.ProgramArguments;
+    extract = cfg: lib.last cfg.launchd.user.agents.kantan.serviceConfig.ProgramArguments;
   };
   module-home-manager = mkModuleCheck {
     name = "home-manager";
     module = import ../module/home-manager.nix kantan;
     stubModule = homeManagerStubs;
-    extract = cfg: builtins.head cfg.launchd.agents.kantan.config.ProgramArguments;
+    extract = cfg: lib.last cfg.launchd.agents.kantan.config.ProgramArguments;
   };
 }
 // prefixAttrs "plugin" pluginPackages
