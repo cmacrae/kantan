@@ -1642,6 +1642,9 @@ struct Kantan {
       exit(2)
     }
 
+    // Writes each log line as it's printed, also when stdout is a log file.
+    setvbuf(stdout, nil, _IOLBF, 0)
+
     let app = NSApplication.shared
     let delegate = AppDelegate()
     app.delegate = delegate
