@@ -3,10 +3,7 @@ type: command
 placement: right
 icon: "coffee"
 style:
-  light:
-    fg: "#e5c890"
-  dark:
-    fg: "#f9e2af"
+  fg: "{theme(yellow)}"
 config:
   command: kantan-plugin-caffeine
   output: json

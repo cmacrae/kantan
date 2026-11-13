@@ -3,18 +3,11 @@ type: command
 placement: right
 icon: list-check
 style:
-  light:
-    icon:
-      fg: "#ca9ee6"
-    fg: "#c6d0f5"
-    shape: box
-    bg: "#414559"
-  dark:
-    icon:
-      fg: "#cba6f7"
-    fg: "#cdd6f4"
-    shape: box
-    bg: "#313244"
+  fg: "{theme(text)}"
+  bg: "{theme(surface0)}"
+  shape: box
+  icon:
+    fg: "{theme(mauve)}"
 config:
   command: kantan-plugin-reminders
   output: json

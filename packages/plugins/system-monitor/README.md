@@ -61,34 +61,21 @@ type: command
 placement: right
 icon: activity
 style:
-  light:
-    fg: "#a6d189"
-  dark:
-    fg: "#a6e3a1"
+  fg: "{theme(green)}"
 config:
   command: kantan-plugin-system-monitor
   output: json
   interval: 3
   settings:
     style:
-      light:
-        cpu_low: "#34c759"
-        cpu_medium: "#f0a500"
-        cpu_high: "#e8590c"
-        cpu_critical: "#e03131"
-        thermal_nominal: "#34c759"
-        thermal_fair: "#f0a500"
-        thermal_serious: "#e8590c"
-        thermal_critical: "#e03131"
-      dark:
-        cpu_low: "#30d158"
-        cpu_medium: "#ffcc00"
-        cpu_high: "#ff9500"
-        cpu_critical: "#ff3b30"
-        thermal_nominal: "#30d158"
-        thermal_fair: "#ffcc00"
-        thermal_serious: "#ff9500"
-        thermal_critical: "#ff3b30"
+      cpu_low: "{theme(green)}"
+      cpu_medium: "{theme(yellow)}"
+      cpu_high: "{theme(peach)}"
+      cpu_critical: "{theme(red)}"
+      thermal_nominal: "{theme(green)}"
+      thermal_fair: "{theme(yellow)}"
+      thermal_serious: "{theme(peach)}"
+      thermal_critical: "{theme(red)}"
     process_count: 5
     show_cores: false
 interaction:
@@ -103,9 +90,8 @@ interaction:
 
 Settings are passed to the plugin via the `config.settings` block. All settings are optional; the plugin uses sensible defaults when omitted.
 
-Colors are defined under `style.light` and `style.dark` to match the system appearance, following kantan's convention.
-Alternatively, colors can be specified flat (without `light`/`dark` nesting) to use the same values for both modes.
-Colour values can be hex or `{theme(name)}` templates.
+Colour values are `{theme(name)}` templates or hex colours. Templates resolve against the palette for the current appearance, so one set of colours suits both modes.
+To give a mode colours of its own, nest them under `style.light` and `style.dark`, following kantan's convention.
 The CPU colour for the current usage is applied to the module as a style override, to the part `color_target` names; thermal colours colour the Thermal row in the menu and set `{thermal_color}`.
 When a color is not configured, it is omitted from the output and kantan inherits its own default styling.
 This is respected per-setting, so if you only want to set colours for specific threshold conditions, you only need to set those.

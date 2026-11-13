@@ -2,10 +2,7 @@ name: calendar
 type: command
 placement: right
 style:
-  light:
-    fg: "#8caaee"
-  dark:
-    fg: "#89b4fa"
+  fg: "{theme(blue)}"
 config:
   command: kantan-plugin-calendar
   output: json
