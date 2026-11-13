@@ -80,6 +80,9 @@ let
 
         service do
           run [opt_bin/"kantan"]
+          environment_variables PATH: std_service_path_env
+          log_path var/"log/kantan.log"
+          error_log_path var/"log/kantan.log"
           keep_alive true
           process_type :interactive
         end
