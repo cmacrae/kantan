@@ -78,6 +78,8 @@
           postInstall = ''
             install -D -m 644 ${./LICENSE} $out/share/doc/kantan/LICENSE
             install -D -m 644 ${./THIRD_PARTY_NOTICES} $out/share/doc/kantan/THIRD_PARTY_NOTICES
+            mkdir -p $out/share/examples
+            cp -r --no-preserve=mode ${./examples} $out/share/examples/reference
           '';
           meta = {
             description = "A beautifully simple status bar for macOS";

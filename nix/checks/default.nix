@@ -114,7 +114,8 @@ in
     for plugin in bin/kantan-plugin-*; do test -x "$plugin"; done
     touch $out
   '';
-  # Both tarballs carry kantan's licence and the third-party notices.
+  # Both tarballs carry kantan's licence, the third-party notices and the
+  # reference config.
   release-notices = pkgs.runCommand "kantan-release-notices" { } ''
     for tarball in ${release.full} ${release.core}; do
       mkdir staging
@@ -122,6 +123,7 @@ in
       cmp staging/share/doc/kantan/LICENSE ${../../LICENSE}
       cmp staging/share/doc/kantan/THIRD_PARTY_NOTICES ${../../THIRD_PARTY_NOTICES}
       test -f staging/share/doc/tabler-icons/LICENSE
+      diff -r staging/share/examples/reference ${../../examples}
       rm -rf staging
     done
     touch $out
