@@ -25,7 +25,7 @@ A view is shown in one of three places, chosen by the module's `interaction` con
 |---------|--------|-----------|
 | Tooltip | `interaction.hover.type: tooltip` with `hover.view` | SwiftUI panel; it doesn't take clicks, so interactive nodes can't be used |
 | Popup | `interaction.click.type: popup` | SwiftUI panel; closes when it loses focus |
-| Menu | `interaction.click.type: menu` | Native `NSMenu`; see [Native Menu Rendering](/docs/view-dsl/nodes#native-menu-rendering) for what it supports |
+| Menu | `interaction.click.type: menu` | Native `NSMenu`; see [Native Menu Rendering](nodes.md#native-menu-rendering) for what it supports |
 
 For `popup` and `menu`, a `click.view` in YAML takes priority over a `view` from plugin output. A tooltip only shows `hover.view`. Views are rendered with the values the module has when they open.
 
@@ -60,10 +60,10 @@ interaction:
 
 ## Documentation Sections
 
-- **[Node Types](/docs/view-dsl/nodes)**: Complete reference of all available node types, organized by category
-- **[Styling](/docs/view-dsl/styling)**: Common styling properties available on all nodes
-- **[Templates & Data](/docs/view-dsl/templates)**: Variable substitution, data collections, and control flow
-- **[Examples](/docs/view-dsl/examples)**: Annotated real-world examples
+- **[Node Types](nodes.md)**: Complete reference of all available node types, organized by category
+- **[Styling](styling.md)**: Common styling properties available on all nodes
+- **[Templates & Data](templates.md)**: Variable substitution, data collections, and control flow
+- **[Examples](examples.md)**: Annotated real-world examples
 
 ## Basic Structure
 
@@ -102,4 +102,4 @@ In tooltips and popups, nodes nested deeper than 32 levels are not rendered.
 
 ## Getting Started
 
-For a complete overview of available nodes, see [Node Types](/docs/view-dsl/nodes). For styling and layout options, see [Styling](/docs/view-dsl/styling). To learn about dynamic content and templates, see [Templates & Data](/docs/view-dsl/templates). For practical examples, see [Examples](/docs/view-dsl/examples).
+For a complete overview of available nodes, see [Node Types](nodes.md). For styling and layout options, see [Styling](styling.md). To learn about dynamic content and templates, see [Templates & Data](templates.md). For practical examples, see [Examples](examples.md).

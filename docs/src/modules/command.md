@@ -2,7 +2,7 @@
 
 Type: `command`
 
-The command module executes shell commands or plugin binaries and displays their output in the status bar. It is the foundation of kantan's [plugin system](/docs/plugins).
+The command module executes shell commands or plugin binaries and displays their output in the status bar. It is the foundation of kantan's [plugin system](../plugins/index.md).
 
 ## Configuration
 
@@ -37,7 +37,7 @@ The command's stdout, with surrounding newlines trimmed, is used directly as the
 
 ### JSON Mode (`output: json`)
 
-The command's stdout is parsed as JSON conforming to the [plugin output schema](/docs/plugins/api-reference#output-specification). This enables dynamic icons, styling, visibility control, View DSL content, template variables, data collections for `foreach` iteration, and `segments` that colour parts of the value. Output that isn't a JSON object is shown as plain text. So is the whole output when the object has no string `value`.
+The command's stdout is parsed as JSON conforming to the [plugin output schema](../plugins/api-reference.md#output-specification). This enables dynamic icons, styling, visibility control, View DSL content, template variables, data collections for `foreach` iteration, and `segments` that colour parts of the value. Output that isn't a JSON object is shown as plain text. So is the whole output when the object has no string `value`.
 
 ```yaml
 - name: weather
@@ -73,7 +73,7 @@ A configured watch process turns polling off, whatever the `interval`. `command`
 - **Lifetime**: the process's stdin is a pipe that reaches EOF when kantan exits. To stop the process itself, kantan closes stdin and sends `SIGTERM` if the process is still running a second later. The process is stopped on sleep and started again on wake. It's relaunched when the system appearance changes, with `KANTAN_APPEARANCE` and theme templates in `KANTAN_SETTINGS` matching the new appearance.
 - **Restarts**: when the process exits, kantan relaunches it after 1s, doubling to 16s, and gives up after 10 consecutive restarts. A process that ran for at least 30 seconds before exiting starts the count afresh. So does launching kantan or waking from sleep.
 
-See the [Watch Mode Protocol](/docs/plugins/api-reference#watch-mode-protocol) for details.
+See the [Watch Mode Protocol](../plugins/api-reference.md#watch-mode-protocol) for details.
 
 ## Toggle Command
 

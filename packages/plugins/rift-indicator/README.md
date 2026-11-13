@@ -87,7 +87,7 @@ Both settings are keyed by layout mode identifier (e.g. `master_stack`) or name 
 | `icons` | See [Layouts](#layouts) | Layout → icon |
 | `style` | -- | Layout → style override. Layouts without an entry use the module's `style` |
 
-Like the [focus module's mode styles](/docs/modules/focus#mode-styles), each `style` value is either a colour string (sets `fg`) or an object with `fg`, `bg`, `icon.fg` and `text.fg`; colours can be hex or `{theme(name)}` templates.
+Like the [focus module's mode styles](../modules/focus.md#mode-styles), each `style` value is either a colour string (sets `fg`) or an object with `fg`, `bg`, `icon.fg` and `text.fg`; colours can be hex or `{theme(name)}` templates.
 
 ### Module Options
 
@@ -100,6 +100,6 @@ Like the [focus module's mode styles](/docs/modules/focus#mode-styles), each `st
 
 ## Covering Rift's Menu Bar Icon
 
-The example config masks Rift's own menu bar icon with `mask: {name: rift}`, and `click: passthrough` opens Rift's menu. Masking a third-party item needs [Accessibility permission](/docs/configuration/masking#granting-accessibility), which kantan asks for when it starts; until it's granted, a masked module stays hidden. Without a mask, the module is placed like any other right-hand module.
+The example config masks Rift's own menu bar icon with `mask: {name: rift}`, and `click: passthrough` opens Rift's menu. Masking a third-party item needs [Accessibility permission](../configuration/masking.md#granting-accessibility), which kantan asks for when it starts; until it's granted, a masked module stays hidden. Without a mask, the module is placed like any other right-hand module.
 
 By default Rift's icon draws one cell for each workspace with windows plus the active one. It widens when you switch to an empty workspace. The mask moves with it. Setting `mode = "active"` under `[settings.ui.menu_bar]` in Rift's config draws only the active workspace, which keeps the icon, and the module over it, in one place.

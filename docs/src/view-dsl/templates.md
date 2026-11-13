@@ -262,7 +262,7 @@ The `condition` is a bare variable name, looked up as if written `{variable_name
 
 Comparisons are case-insensitive. The same rules decide `check`'s `checked` and `toggle`'s `on`, which take a template such as `"{done}"` (or a literal boolean).
 
-> The `visible` property on nodes uses the same truthiness rules, including for unresolved variables. An unresolved template resolves to `""`, which is falsy. The node is **hidden**. See [Styling — Visibility](/docs/view-dsl/styling#visibility).
+> The `visible` property on nodes uses the same truthiness rules, including for unresolved variables. An unresolved template resolves to `""`, which is falsy. The node is **hidden**. See [Styling — Visibility](styling.md#visibility).
 
 **Example:**
 ```json
@@ -324,7 +324,7 @@ Comparisons are case-insensitive. The same rules decide `check`'s `checked` and 
 
 ## Theme Colour Templates
 
-When a [theme](/docs/configuration/themes) is configured, colours from the theme palette can be referenced using `{theme(name)}` syntax in any colour property:
+When a [theme](../configuration/themes.md) is configured, colours from the theme palette can be referenced using `{theme(name)}` syntax in any colour property:
 
 ```json
 {
@@ -357,7 +357,7 @@ All modules automatically expose these variables for use in view templates:
 - `{value}`: The module's current display value (e.g., the formatted time for a clock module, the battery percentage for a power module)
 - `{icon}`: The module's current icon, as the resolved glyph character rather than its name
 
-**Command module** plugins (with `output: json`) can add variables through the `variables` object in their JSON output, and collections through `data`. These are merged into the template scope alongside the built-in variables. Some built-in modules also set variables of their own; see each [module's](/docs/modules) page.
+**Command module** plugins (with `output: json`) can add variables through the `variables` object in their JSON output, and collections through `data`. These are merged into the template scope alongside the built-in variables. Some built-in modules also set variables of their own; see each [module's](../modules/index.md) page.
 
 ## Best Practices
 

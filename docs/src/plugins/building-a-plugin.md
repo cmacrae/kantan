@@ -314,7 +314,7 @@ The watch process:
 1. **Runs as a background daemon**: Started when kantan launches or reloads its config, stopped when kantan quits or reloads
 2. **Receives environment variables**: `KANTAN_MODULE_NAME`, `KANTAN_SETTINGS`, `KANTAN_APPEARANCE`, `KANTAN_PID`
 3. **Receives stdin pipe**: EOF signals kantan is shutting down (clean exit expected — see [Handling stdin EOF](#handling-stdin-eof))
-4. **Sends updates**: Prints the module's new output as a line of JSON when events occur (read only with `output: json`), or calls `kantan trigger <module-name> refresh` for kantan to run the command again (see [Printing Output](/docs/plugins/api-reference#printing-output))
+4. **Sends updates**: Prints the module's new output as a line of JSON when events occur (read only with `output: json`), or calls `kantan trigger <module-name> refresh` for kantan to run the command again (see [Printing Output](api-reference.md#printing-output))
 5. **Auto-restarts on exit**: Exponential backoff (1s → 16s cap). kantan gives up after 10 restarts of a process that keeps exiting within 30 seconds of launch. A watch process with nothing to watch should wait for stdin to close instead of exiting
 6. **Lifecycle integration**: Stopped on system sleep and while no display shows the module, restarted on wake, and restarted with the new appearance when it changes
 7. **One process per module**: kantan launches exactly one watch process per module, no matter how many displays are configured. Module view-models are shared across `DisplayInstance`s. Plugin authors do not need to deduplicate work or coordinate across multiple invocations.
@@ -552,7 +552,7 @@ For rich interactive UIs, return a `view` field with a View DSL tree. kantan sho
 }
 ```
 
-This is a vertical stack with a header and a list of items. A `menu` is a native macOS menu and shows only some node types. A `popup` renders them all. See the [View DSL documentation](/docs/view-dsl) for building views.
+This is a vertical stack with a header and a list of items. A `menu` is a native macOS menu and shows only some node types. A `popup` renders them all. See the [View DSL documentation](../view-dsl/index.md) for building views.
 
 ## Testing Your Plugin
 
@@ -612,7 +612,7 @@ The polling interval is ignored whenever `watch:` is configured. Set `interval: 
 
 ### Assuming `kantan trigger` returned a result
 
-`kantan trigger` posts a distributed notification and returns immediately — see [the CLI reference](/docs/reference/cli#trigger-command).
+`kantan trigger` posts a distributed notification and returns immediately — see [the CLI reference](../reference/cli.md#trigger-command).
 It neither waits for kantan to act on the notification nor reports whether kantan picked it up. Watch processes should treat trigger calls as fire-and-forget.
 
 ## Performance Considerations
@@ -625,7 +625,7 @@ It neither waits for kantan to act on the notification nor reports whether kanta
 
 ## Next Steps
 
-- Read the [API Reference](/docs/plugins/api-reference) for the full protocol
-- Explore [View DSL](/docs/view-dsl) for building interactive UIs
+- Read the [API Reference](api-reference.md) for the full protocol
+- Explore [View DSL](../view-dsl/index.md) for building interactive UIs
 - Study the built-in plugins for real-world examples
 - Join the kantan community to share your plugins

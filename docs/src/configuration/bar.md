@@ -17,7 +17,7 @@ Top-level configuration options control the status bar's appearance and behavior
 | `autohide` | object | no | enabled, 0s delay | Hover-to-hide behavior (see below). Enabled even when this key is omitted: the bar hides while the cursor rests at the very top of the screen, over the native macOS menu bar |
 | `displays` | string/array | no | `main` | Which displays to show the bar on |
 | `theme` | string/object | no | — | Theme configuration (see below) |
-| `modules` | array | no | — | Module definitions (see [Modules](/docs/configuration/modules)). When no modules are defined here or in `modules.d/`, kantan shows its welcome bar |
+| `modules` | array | no | — | Module definitions (see [Modules](modules.md)). When no modules are defined here or in `modules.d/`, kantan shows its welcome bar |
 
 ## Font Configuration
 
@@ -31,7 +31,7 @@ fonts:
 
 The font descriptor format is `Name:Weight:Size`, `Name:Size` (weight defaults to regular), or just `Name` (weight defaults to regular, size defaults to 14). Fonts are looked up by name among the fonts installed on the system and those bundled with kantan.
 
-Prefix a descriptor with `system:` to mark it as a system-installed font. kantan loads its bundled icon fonts for an icon font without the prefix. A global icon font with the prefix stops kantan loading them unless a module's icon font needs them (see [Icons](/docs/configuration/icons#custom-icon-fonts)).
+Prefix a descriptor with `system:` to mark it as a system-installed font. kantan loads its bundled icon fonts for an icon font without the prefix. A global icon font with the prefix stops kantan loading them unless a module's icon font needs them (see [Icons](icons.md#custom-icon-fonts)).
 
 Recognised weight names: `ultralight`, `thin`, `light`, `regular`, `medium`, `semibold` (or `demi-bold`), `bold`, `heavy` (or `extrabold`), `black`. A weight other than `regular` picks the nearest face in the named font's family: `Helvetica Neue:medium:13` renders Helvetica Neue Medium. When the family has no faces to choose from, the named font renders as is. Naming a face directly (e.g. `SFPro-Medium`) always works.
 
@@ -70,7 +70,7 @@ style:
 | `text.fg` | Text-specific foreground colour (hex) |
 | `icon.fg` | Icon-specific foreground colour (hex) |
 
-Colours are hex strings, `#rrggbb` or `#rrggbbaa` with alpha, with or without the `#`; quote them so YAML reads them as strings. Other lengths aren't read as colours. Module shapes (`shape`) are set per module, not in the global style (see [Per-Module Style](/docs/configuration/modules#per-module-style)).
+Colours are hex strings, `#rrggbb` or `#rrggbbaa` with alpha, with or without the `#`; quote them so YAML reads them as strings. Other lengths aren't read as colours. Module shapes (`shape`) are set per module, not in the global style (see [Per-Module Style](modules.md#per-module-style)).
 
 When no theme is set and a `style` block is provided, both `light` and `dark` blocks are required and must each contain `fg` and `bg`. If `style` is omitted entirely (and no theme is set), kantan uses its native macOS appearance instead (see below).
 
@@ -96,7 +96,7 @@ In native appearance, kantan ignores per-module `style` colours but applies the 
 
 ## Theme Configuration
 
-The `theme` key loads a colour palette from a theme file. See [Themes](/docs/configuration/themes) for full details on theme file formats, template syntax, and creating custom themes.
+The `theme` key loads a colour palette from a theme file. See [Themes](themes.md) for full details on theme file formats, template syntax, and creating custom themes.
 
 **Single theme (same for both modes):**
 ```yaml
@@ -184,7 +184,7 @@ Display names must match exactly as reported by macOS. Use the system Display pr
 
 ### Per-Module Display Filtering
 
-Modules can also specify a `displays` key to restrict which displays they appear on (using the same format). See the [Modules](/docs/configuration/modules) documentation.
+Modules can also specify a `displays` key to restrict which displays they appear on (using the same format). See the [Modules](modules.md) documentation.
 
 ### Screen Change Detection
 

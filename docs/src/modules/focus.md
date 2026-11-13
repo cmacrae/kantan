@@ -27,7 +27,7 @@ icons:
 
 ### Mode Styles
 
-The `style` field maps Focus modes to style overrides, keyed the same way as `icons`. Modes without an entry use the module's `style`. Like the [power module's state styles](/docs/modules/power#style-overrides), each value is either a colour string (sets `fg`) or an object with `fg`, `bg`, `icon.fg` and `text.fg`. Colours can be hex or `{theme(name)}` templates.
+The `style` field maps Focus modes to style overrides, keyed the same way as `icons`. Modes without an entry use the module's `style`. Like the [power module's state styles](power.md#style-overrides), each value is either a colour string (sets `fg`) or an object with `fg`, `bg`, `icon.fg` and `text.fg`. Colours can be hex or `{theme(name)}` templates.
 
 ```yaml
 style:
@@ -71,7 +71,7 @@ macOS ties the grant to that path. A Nix rebuild that changes the store path nee
 
 ### Without Full Disk Access
 
-The module detects the system Focus indicator in the menu bar instead. The indicator shows whether Focus is on but not which mode. `icons`, `style` and `{mode}` have no effect. kantan asks for [Accessibility permission](/docs/configuration/masking#granting-accessibility) in this case. With it, the indicator is detected live. Without it:
+The module detects the system Focus indicator in the menu bar instead. The indicator shows whether Focus is on but not which mode. `icons`, `style` and `{mode}` have no effect. kantan asks for [Accessibility permission](../configuration/masking.md#granting-accessibility) in this case. With it, the indicator is detected live. Without it:
 
 - **macOS 15 and 26** detect the indicator's window, which isn't reliable on macOS 15.
 - **macOS 27 and later** can only see the indicator's slot in the saved menu bar layout, not whether it's shown. The module shows whenever that slot exists.

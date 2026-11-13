@@ -8,8 +8,8 @@ kantan targets aarch64-darwin only (Apple Silicon Macs). It can be installed wit
 
 A few features depend on the macOS release and on permissions:
 
-- **`focus` module** — reads the Do Not Disturb database when kantan has Full Disk Access, otherwise detects the menu bar's Focus indicator. Without Accessibility permission, that detection is unreliable on Sequoia and can't see whether the indicator is shown on macOS 27. See [Focus — Behavior](/docs/modules/focus#behavior).
-- **`mask` configuration** — with Accessibility permission, any menu bar item can be masked on every release. Without it, only system items can. On macOS 27 their positions come from saved defaults that don't follow rearrangement. See [Item Detection](/docs/configuration/masking#item-detection).
+- **`focus` module** — reads the Do Not Disturb database when kantan has Full Disk Access, otherwise detects the menu bar's Focus indicator. Without Accessibility permission, that detection is unreliable on Sequoia and can't see whether the indicator is shown on macOS 27. See [Focus — Behavior](../modules/focus.md#behavior).
+- **`mask` configuration** — with Accessibility permission, any menu bar item can be masked on every release. Without it, only system items can. On macOS 27 their positions come from saved defaults that don't follow rearrangement. See [Item Detection](../configuration/masking.md#item-detection).
 
 Everything else (clock, power, wifi, bluetooth, volume, workspace switching, plugins) works the same on every supported release.
 
@@ -17,9 +17,9 @@ Everything else (clock, power, wifi, bluetooth, volume, workspace switching, plu
 
 kantan only asks for a permission when your config uses something that needs it:
 
-- **Accessibility** — requested when kantan loads a config in which a module has a `mask`, or a `focus` module can't read the Focus database. kantan uses it only to read menu bar items. See [Granting Accessibility](/docs/configuration/masking#granting-accessibility).
+- **Accessibility** — requested when kantan loads a config in which a module has a `mask`, or a `focus` module can't read the Focus database. kantan uses it only to read menu bar items. See [Granting Accessibility](../configuration/masking.md#granting-accessibility).
 - **Bluetooth** — requested by the `bluetooth` module the first time it reads Bluetooth state.
-- **Optional Full Disk Access** — only lets the `focus` module name the active Focus mode. kantan never asks: macOS has no prompt for it. See [Granting Full Disk Access](/docs/modules/focus#granting-full-disk-access).
+- **Optional Full Disk Access** — only lets the `focus` module name the active Focus mode. kantan never asks: macOS has no prompt for it. See [Granting Full Disk Access](../modules/focus.md#granting-full-disk-access).
 - **No Screen Recording or Location prompt.** Menu bar item detection without Accessibility uses window geometry and Control Centre's defaults. The `wifi` module reads the network name from IORegistry.
 - **No Automation prompt.** kantan does not send AppleEvents to other applications.
 
@@ -109,7 +109,7 @@ After installing via Homebrew, you can run kantan as a background service, which
 brew services start kantan
 ```
 
-The service reads its config from the default location (see [Config File Locations](/docs/configuration#config-file-locations)).
+The service reads its config from the default location (see [Config File Locations](../configuration/index.md#config-file-locations)).
 
 ### Nix Modules
 
@@ -173,7 +173,7 @@ Both modules create a launchd agent that starts kantan at login and restarts it 
 - **nix-darwin** passes `settings` with the `--config` flag, pointing at a generated file in the Nix store. That file has no `modules.d/` beside it. To use one, pass its path with `extraArgs = [ "--modules-dir" "/path/to/modules.d" ];`. `themes` are combined with the package's bundled themes into a directory passed with `--themes-dir`.
 - **home-manager** writes `settings` to `~/.config/kantan/config.yaml` and each of `themes` to `~/.config/kantan/themes/<name>.yaml`. A `modules.d/` in `~/.config/kantan` is picked up as usual.
 
-When `settings` is left empty, neither module writes a config. kantan then looks for one in the [default locations](/docs/configuration#config-file-locations).
+When `settings` is left empty, neither module writes a config. kantan then looks for one in the [default locations](../configuration/index.md#config-file-locations).
 
 ## Plugin Customization
 

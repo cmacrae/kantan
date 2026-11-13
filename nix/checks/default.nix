@@ -102,6 +102,12 @@ in
         zizmor --offline .
         touch $out
       '';
+
+  docs-links = pkgs.runCommand "kantan-docs-links" { nativeBuildInputs = [ pkgs.python3 ]; } ''
+    python3 ${./check-links.py} ${docs.package}
+    touch $out
+  '';
+
   release-smoke = pkgs.runCommand "kantan-release-smoke" { } ''
     tar -xzf ${release.full}
     test "$(bin/kantan --version)" = "kantan ${version.release}"

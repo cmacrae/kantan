@@ -43,7 +43,7 @@ An explicit `--config` path that doesn't exist is not followed by the other loca
 1. `--themes-dir` flag (explicit path)
 2. `<prefix>/share/themes/` relative to the kantan binary
 
-Themes in `<config-dir>/themes/` and `$XDG_CONFIG_HOME/kantan/themes/` are found before those in the bundled themes directory. See [Themes](/docs/configuration/themes).
+Themes in `<config-dir>/themes/` and `$XDG_CONFIG_HOME/kantan/themes/` are found before those in the bundled themes directory. See [Themes](../configuration/themes.md).
 
 ## Trigger command
 ```
@@ -65,7 +65,7 @@ Both `<module-name>` and `<action>` are required. With fewer, kantan prints its 
 | `refresh` | Re-run the module's data source (a command module's `command`) and update its display |
 | `set` | Directly set display properties via key-value pairs: `value=`, `icon=`, `fg=`, `bg=` (hex colours), `duration=` (after N seconds, clear the `fg`/`bg` overrides and refresh the module) |
 
-Any other action does nothing. See [the plugin API reference](/docs/plugins/api-reference#set) for how long `set` overrides last.
+Any other action does nothing. See [the plugin API reference](../plugins/api-reference.md#set) for how long `set` overrides last.
 
 **Examples:**
 ```bash
@@ -84,14 +84,14 @@ kantan trigger '*' refresh
 | `kantan --help`, `kantan --version` | `0` | Usage or version printed to stdout |
 | `kantan trigger` without a module and action, an unknown command or `--` flag, or a path flag without its path | `2` | Usage printed to stderr. No bar is started |
 
-**Signals:** kantan installs no signal handlers. SIGTERM and SIGINT end it with the default signal behaviour. When kantan's process ends, its end of each watch process's stdin pipe closes. The watch process then reads EOF. Watch plugins should treat stdin EOF as the shutdown signal. See [Plugins — Handling stdin EOF](/docs/plugins/building-a-plugin#handling-stdin-eof).
+**Signals:** kantan installs no signal handlers. SIGTERM and SIGINT end it with the default signal behaviour. When kantan's process ends, its end of each watch process's stdin pipe closes. The watch process then reads EOF. Watch plugins should treat stdin EOF as the shutdown signal. See [Plugins — Handling stdin EOF](../plugins/building-a-plugin.md#handling-stdin-eof).
 
 **Watch process signalling:** When kantan stops a watch process itself (on sleep, config reload, appearance change, or when no display shows its module), it closes the process's stdin pipe and sends SIGTERM via `Process.terminate()` if the process is still running a second later.
 
 ## Environment variables passed to plugins
 
 When kantan invokes a command-module plugin (one-shot, watch, toggle, or a command from one of its views), it sets a small number of environment variables on the child process, on top of kantan's own environment.
-[The plugin API reference](/docs/plugins/api-reference#environment-variables) documents them in full. In short:
+[The plugin API reference](../plugins/api-reference.md#environment-variables) documents them in full. In short:
 
 | Variable | Set when |
 |----------|----------|
@@ -100,5 +100,5 @@ When kantan invokes a command-module plugin (one-shot, watch, toggle, or a comma
 | `KANTAN_PID` | Always (kantan's PID, useful for `caffeinate -w $KANTAN_PID` style lifetime ties) |
 | `KANTAN_MODULE_NAME` | Always (the module's `name:`) |
 
-The command module's configuration is described by [`docs/schemas/module-config.schema.json`](/docs/reference/schemas).
+The command module's configuration is described by [`docs/schemas/module-config.schema.json`](schemas.md).
 A plugin should give each variable a default for when it is absent.

@@ -4,7 +4,7 @@ All nodes in the View DSL support common styling properties that control their a
 
 ## Common Properties
 
-These properties can be applied to any node type. They apply in tooltips and popups; [native menus](/docs/view-dsl/nodes#native-menu-rendering) ignore them, including `visible`.
+These properties can be applied to any node type. They apply in tooltips and popups; [native menus](nodes.md#native-menu-rendering) ignore them, including `visible`.
 
 | Property | Type | Description |
 |----------|------|-------------|
@@ -38,7 +38,7 @@ Colour properties can contain templates (e.g. `"{status_color}"`). A value that 
 
 **Theme colours:**
 
-When a [theme](/docs/configuration/themes) is configured, you can reference palette colours with `{theme(name)}` syntax:
+When a [theme](../configuration/themes.md) is configured, you can reference palette colours with `{theme(name)}` syntax:
 
 ```json
 {
@@ -48,7 +48,7 @@ When a [theme](/docs/configuration/themes) is configured, you can reference pale
 }
 ```
 
-See [Templates & Data](/docs/view-dsl/templates#theme-colour-templates) for details.
+See [Templates & Data](templates.md#theme-colour-templates) for details.
 
 **Example:**
 ```json
@@ -196,7 +196,7 @@ Control whether a node is rendered. The `visible` property takes a variable name
 
 The variable is looked up as if written `{show_details}` and evaluated as a boolean. Values `"true"`, `"1"`, `"yes"`, and other non-empty strings are truthy (case-insensitive).
 Values `"false"`, `"0"`, `"no"`, and empty strings are falsy. A variable that doesn't exist resolves to an empty string and is therefore **falsy** — the node is hidden.
-This matches the behaviour of the [`if`](/docs/view-dsl/nodes#data-nodes) node.
+This matches the behaviour of the [`if`](nodes.md#data-nodes) node.
 
 Don't wrap the name in braces: `"visible": "{show_details}"` is always truthy. `visible` has no effect in native menus; use an `if` node there.
 

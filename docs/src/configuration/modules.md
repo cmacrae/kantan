@@ -50,7 +50,7 @@ The `placement` field controls where the module appears in the bar. It is a requ
 | `notchleft` | Left of the notch, grows leftward (notched displays only) |
 | `notchright` | Right of the notch, grows rightward (notched displays only) |
 
-Within each placement, modules appear left to right in the order they are listed: the first `left` module sits at the left edge and the last `right` module at the right edge. Masked modules sit over their native items instead. Unmasked modules are laid out inward of them (see [Menu Bar Masking](/docs/configuration/masking)).
+Within each placement, modules appear left to right in the order they are listed: the first `left` module sits at the left edge and the last `right` module at the right edge. Masked modules sit over their native items instead. Unmasked modules are laid out inward of them (see [Menu Bar Masking](masking.md)).
 
 ### Or-Wise Placement
 
@@ -75,7 +75,7 @@ fonts:
   icon: "system:Font Awesome 6 Free:Solid:14"
 ```
 
-The format is the same as the global `fonts` key (see [Bar Settings](/docs/configuration/bar)).
+The format is the same as the global `fonts` key (see [Bar Settings](bar.md)).
 
 ## Per-Module Style
 
@@ -115,7 +115,7 @@ A flat style block (no `light`/`dark` nesting) is also supported and applies to 
 
 A module without a `shape` has no background of its own. A shape without a `bg` takes the theme's `shape` colour, or the global `bg` when no theme is set. `pill` and `box` add 6pt of horizontal and 3pt of vertical padding around the module's content. `underline` and `overline` draw a 2pt line along the bottom or top of the bar.
 
-Foreground colours resolve in this order: a state style (e.g. the power module's `config.style`) or the colour a plugin's output sets, the module's `text.fg`/`icon.fg`, the module's `fg`, the global `text.fg`/`icon.fg`, then the global `fg`. Module colours are ignored in [native appearance](/docs/configuration/bar#native-appearance).
+Foreground colours resolve in this order: a state style (e.g. the power module's `config.style`) or the colour a plugin's output sets, the module's `text.fg`/`icon.fg`, the module's `fg`, the global `text.fg`/`icon.fg`, then the global `fg`. Module colours are ignored in [native appearance](bar.md#native-appearance).
 
 ## Per-Module Display Filtering
 
@@ -213,11 +213,11 @@ interaction:
     type: passthrough
 ```
 
-A passthrough module takes no clicks. They reach whatever is underneath. Its `hover` tooltip still shows until a click hides it. Masked modules are passthrough unless they set a click type (see [Menu Bar Masking](/docs/configuration/masking#default-click-behavior)). Drawer modules get a `drawer` click that toggles the drawer.
+A passthrough module takes no clicks. They reach whatever is underneath. Its `hover` tooltip still shows until a click hides it. Masked modules are passthrough unless they set a click type (see [Menu Bar Masking](masking.md#default-click-behavior)). Drawer modules get a `drawer` click that toggles the drawer.
 
 ### View DSL
 
-The `view` field uses a declarative DSL to build UI hierarchies. See the [View DSL documentation](/docs/view-dsl) for complete reference.
+The `view` field uses a declarative DSL to build UI hierarchies. See the [View DSL documentation](../view-dsl/index.md) for complete reference.
 
 ## Module Configuration Examples
 
@@ -437,7 +437,7 @@ Focus module config options:
 | `icons` | object | — | Focus mode name or identifier mapped to an icon. Unlisted modes use the module-level `icon` |
 | `style` | object | — | Focus mode name or identifier mapped to a style override (hex string for `fg`, or an object with `fg`, `bg`, `icon.fg`, `text.fg`) |
 
-The module-level `icon` defaults to `brain`. State is checked every 2 seconds. With Full Disk Access, kantan reads the active mode from the Do Not Disturb database for `icons`, `style` and the `{mode}` variable to follow. Without it, kantan only detects whether the menu bar's Focus indicator is shown. See [Focus](/docs/modules/focus).
+The module-level `icon` defaults to `brain`. State is checked every 2 seconds. With Full Disk Access, kantan reads the active mode from the Do Not Disturb database for `icons`, `style` and the `{mode}` variable to follow. Without it, kantan only detects whether the menu bar's Focus indicator is shown. See [Focus](../modules/focus.md).
 
 **Text module:**
 ```yaml
@@ -487,7 +487,7 @@ Workspace module config options:
 | `icons` | array | `[]` | Icon names for each workspace (by index). Workspaces beyond this list use the module-level `icon` as fallback, then the workspace label (number). To use the same icon for every workspace, set the top level `icon` value and leave `config.icons` undefined/empty |
 | `overflow` | object | disabled | Overflow/windowed view config (see below) |
 | `rainbow` | object | disabled | Per-workspace colour assignment (see below) |
-| `scrolling` | object | disabled | Show the windows of a Rift scrolling layout in place of the workspaces (see [Workspace](/docs/modules/workspace)) |
+| `scrolling` | object | disabled | Show the windows of a Rift scrolling layout in place of the workspaces (see [Workspace](../modules/workspace.md)) |
 
 **Overflow configuration** (nested under `config.overflow`):
 

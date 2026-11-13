@@ -1,8 +1,8 @@
 # Node Types
 
-This page documents all available node types in the View DSL, organized by category. Every node also accepts the [common styling properties](/docs/view-dsl/styling) (`padding`, `frame`, `opacity`, `background`, `cornerRadius`, `visible`).
+This page documents all available node types in the View DSL, organized by category. Every node also accepts the [common styling properties](styling.md) (`padding`, `frame`, `opacity`, `background`, `cornerRadius`, `visible`).
 
-Properties marked **required** must be present in plugin JSON, or the whole view is discarded (see [Validation](/docs/view-dsl#validation)). Any string property can contain [templates](/docs/view-dsl/templates) such as `{name}`, except the enumerated ones (`weight`, `style`, `alignment`, `axis`, `align`). Number and boolean properties take literal values. Only `progress`/`gauge` `value`, `check` `checked`, and `toggle` `on` also accept a template string.
+Properties marked **required** must be present in plugin JSON, or the whole view is discarded (see [Validation](index.md#validation)). Any string property can contain [templates](templates.md) such as `{name}`, except the enumerated ones (`weight`, `style`, `alignment`, `axis`, `align`). Number and boolean properties take literal values. Only `progress`/`gauge` `value`, `check` `checked`, and `toggle` `on` also accept a template string.
 
 ## Layout Nodes
 
@@ -210,7 +210,7 @@ Data nodes control rendering based on data and conditions.
 
 > **Note:** Unlike layout nodes, `foreach` uses `items` (not `collection`) and `child` (a single node, not an array). Similarly, `if` uses `then` and `else` as single nodes, not arrays. Wrap multiple children in a `vstack` or `group` if needed.
 
-A `foreach` whose collection doesn't exist renders nothing. See [Templates & Data](/docs/view-dsl/templates) for scoping and truthiness rules.
+A `foreach` whose collection doesn't exist renders nothing. See [Templates & Data](templates.md) for scoping and truthiness rules.
 
 **foreach Example:**
 ```json

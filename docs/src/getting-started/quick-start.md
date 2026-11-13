@@ -78,7 +78,7 @@ modules:
     placement: right
 ```
 
-Modules with the same placement appear left to right in the order they're listed. Here the battery sits at the far right with the clock beside it. See the [Configuration](/docs/configuration) and [Built-in Modules](/docs/modules) sections for every module and its options.
+Modules with the same placement appear left to right in the order they're listed. Here the battery sits at the far right with the clock beside it. See the [Configuration](../configuration/index.md) and [Built-in Modules](../modules/index.md) sections for every module and its options.
 
 ## Reference Configuration
 

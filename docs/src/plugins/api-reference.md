@@ -313,7 +313,7 @@ When both `fg` and `icon.fg`/`text.fg` are set, the specific overrides take prec
 **Type:** `ViewNode` (View DSL tree)  
 **Description:** Rich UI definition using kantan's View DSL, shown when the module is clicked with `click.type: menu` or `popup`. A `view:` in the module's `click` config takes precedence. Hover tooltips only show a `view:` from the config. A `view` that fails to decode (an unknown node type, a missing required field) is dropped. The rest of the output still applies.
 
-**Node categories** (full reference in [View DSL nodes](/docs/view-dsl/nodes)):
+**Node categories** (full reference in [View DSL nodes](../view-dsl/nodes.md)):
 
 | Category | Nodes |
 |----------|-------|
@@ -356,7 +356,7 @@ The data nodes (`foreach`, `if`) and advanced nodes (`progress`, `gauge`, `grid`
 
 A `menu` is a native macOS menu. It shows text, headers, dividers, `action`, `check` and `toggle` rows, and each `hstack` as one row of its text and icons. It skips `button`, shapes, images, `progress`, `gauge` and `badge` elsewhere. A `popup` renders every node. Commands in a view run with `/bin/sh -c`. A URL such as `https://…` is opened instead. kantan doesn't refresh the module afterwards. End a command with `&& kantan trigger <module-name> refresh` when it changes the module's state.
 
-See the [View DSL documentation](/docs/view-dsl) for complete specification.
+See the [View DSL documentation](../view-dsl/index.md) for complete specification.
 
 ## Exit Codes
 
@@ -429,7 +429,7 @@ A `value` or `icon` set without `duration` lasts until the module next updates. 
 
 **Delivery semantics:** `kantan trigger` posts a distributed notification and returns immediately with no exit-code variation
 if the module name is unknown or if no kantan instance is running. Treat it as fire-and-forget — watch processes should not assume
-delivery and should not block waiting for kantan to act. See [the CLI reference](/docs/reference/cli#trigger-command) for the full semantics.
+delivery and should not block waiting for kantan to act. See [the CLI reference](../reference/cli.md#trigger-command) for the full semantics.
 
 **Typical use case in watch process:**
 ```swift

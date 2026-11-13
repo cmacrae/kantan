@@ -16,7 +16,7 @@ kantan includes a variety of built-in modules for displaying system information 
 | `text` | Static text display |
 | `icon` | Static icon display |
 | `drawer` | Expandable module group |
-| `command` | [Shell command / plugin output](/docs/modules/command) |
+| `command` | [Shell command / plugin output](command.md) |
 
 ## Common Configuration
 
@@ -30,7 +30,7 @@ All modules share common configuration fields documented in the Configuration se
 - `style` - Visual styling overrides
 - `interaction` - Click/hover behavior
 - `mask` - Hide native menu bar items
-- `displays` - Restrict module to specific displays (see [Bar Configuration](/docs/configuration/bar))
+- `displays` - Restrict module to specific displays (see [Bar Configuration](../configuration/bar.md))
 - `fonts.text` / `fonts.icon` - Per-module font overrides
 
 Each module type has additional type-specific configuration options documented on its individual page.
