@@ -18,7 +18,7 @@ kantan checks for a config file every couple of seconds and loads it as soon as 
 mkdir -p ~/.config/kantan
 ```
 
-kantan looks for `~/.config/kantan/config.yaml` (or `$XDG_CONFIG_HOME/kantan/config.yaml` if that is set) by default, after a `config.yaml` in the current directory. You can also pass an explicit path via `kantan --config <path>`.
+kantan loads `config.yaml` from the directory you run it in, if there is one there. Otherwise it loads `~/.config/kantan/config.yaml`, or `$XDG_CONFIG_HOME/kantan/config.yaml` when `XDG_CONFIG_HOME` is set. `kantan --config <path>` loads a config from anywhere else. See [Config File Locations](../configuration/index.md#config-file-locations).
 
 ## Step 2: Create a Minimal Config
 
@@ -78,8 +78,16 @@ modules:
     placement: right
 ```
 
-Modules with the same placement appear left to right in the order they're listed. Here the battery sits at the far right with the clock beside it. See the [Configuration](../configuration/index.md) and [Built-in Modules](../modules/index.md) sections for every module and its options.
+Modules with the same placement appear left to right in the order they're listed. Here the battery sits at the far right with the clock to its left. See the [Configuration](../configuration/index.md) and [Built-in Modules](../modules/index.md) sections for every module and its options.
 
 ## Reference Configuration
 
-The `examples/` directory in the kantan repository contains a reference configuration with a `config.yaml` and `modules.d/` files demonstrating several modules and plugins.
+kantan installs example configs you can copy from, under `share/examples/` in its install prefix:
+
+| Install | Examples |
+|---------|----------|
+| Homebrew | `$(brew --prefix kantan)/share/examples/` |
+| Install script | `~/.local/lib/kantan/share/examples/` |
+| Nix | `share/examples/` in the kantan package |
+
+`reference/` holds a full reference configuration: a `config.yaml` and a `modules.d/` using several modules and plugins. Each bundled plugin also has a module file, such as `00-calendar.yaml`, to drop into your `modules.d/`. The same files are in the kantan repository, in `examples/` and in each plugin's `examples/`.
