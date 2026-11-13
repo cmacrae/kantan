@@ -307,9 +307,9 @@ Key points:
 - The main `command` still runs when the module starts, on wake, when the active Space changes, after a `toggle`, and when a refresh is triggered
 - The watch command runs with `/bin/sh -c`, whatever `launcher:` says
 
-### Watch Process Requirements
+### Watch Process Behaviour
 
-The watch process:
+Watch processes are launched by kantan with the following behaviours:
 
 1. **Runs as a background daemon**: Started when kantan launches or reloads its config, stopped when kantan quits or reloads
 2. **Receives environment variables**: `KANTAN_MODULE_NAME`, `KANTAN_SETTINGS`, `KANTAN_APPEARANCE`, `KANTAN_PID`

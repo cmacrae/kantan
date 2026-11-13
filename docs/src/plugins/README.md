@@ -1,18 +1,14 @@
 # Plugins
 
-kantan plugins are standalone executables, written in any language, that extend kantan. They talk to kantan through environment variables and JSON output.
+kantan plugins are programs, written in any language, that kantan runs as commands to extend the bar. They talk to kantan through environment variables and JSON output.
 
-## Overview
+## Key Characteristics
 
-Plugins are executable programs that integrate with kantan modules through the `command` module type. They can be written in any language that can read environment variables and output JSON to stdout.
-
-**Key characteristics:**
-
-- **Language-agnostic**: Write plugins in Swift, Go, Python, shell scripts, or any language that produces executables
+- **Language-agnostic**: Write plugins in Swift, Go, Python, shell or any other language, as long as kantan can run the plugin as a command
 - **Simple protocol**: Input via environment variables, output via JSON on stdout
 - **Flexible invocation**: Polling-based (periodic execution) or event-driven (via watch mode)
 - **Rich UI support**: Use the View DSL to create interactive menus, tooltips, and popups
-- **Standalone executables**: Run by a module's `command:`. Bundled plugins are named `kantan-plugin-<name>`
+- **Standalone programs**: Run by a module's `command:`. Bundled plugins are named `kantan-plugin-<name>`
 
 ## Communication Model
 
