@@ -6,6 +6,8 @@ Icon-only Bluetooth status indicator. Shows whether Bluetooth is powered on or o
 
 ## Configuration
 
+These keys go under the module's `config` key:
+
 | Key | Type | Default | Description |
 |-----|------|---------|-------------|
 | `icon` | string | `"bluetooth"` | Icon when Bluetooth is on |

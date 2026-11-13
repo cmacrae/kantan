@@ -47,7 +47,7 @@ Custom styled icon:
   placement: right
   icon: bell
   style:
-    fg: "#FF9500"
+    fg: "{theme(peach)}"
 ```
 
 Multiple icons as visual separators:

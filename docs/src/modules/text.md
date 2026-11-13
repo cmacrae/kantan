@@ -6,6 +6,8 @@ Displays static text content. Useful for labels, separators, or custom status me
 
 ## Configuration
 
+These keys go under the module's `config` key:
+
 | Key | Type | Default | Description |
 |-----|------|---------|-------------|
 | `value` | string | *(required)* | The text to display. Quote values YAML would otherwise read as a number or boolean (e.g. `"42"`), or the module is skipped |
@@ -47,7 +49,7 @@ Custom styled text:
   config:
     value: "Status"
   style:
-    fg: "#FF9500"
+    fg: "{theme(peach)}"
 ```
 
 Multiple text modules:

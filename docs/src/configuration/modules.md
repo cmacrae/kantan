@@ -63,7 +63,7 @@ placement: "notchleft|left"      # left notch, with left side fallback
 
 The notch-side value (`notchleft` / `notchright`) is used on notched displays. The non-notch value (`left` / `right`) is used on non-notched displays. Order is irrelevant — `"right|notchright"` behaves identically to `"notchright|right"`.
 
-Only notch-with-non-notch pairs are meaningful. A bare notch-only placement (e.g. `notchleft` without a fallback) hides the module on non-notched displays. Combinations like `left|right` or `notchleft|notchright` are accepted but not useful. kantan uses whichever is listed first. `notchleft|notchright` hides the module on non-notched displays.
+A placement of just `notchleft` or `notchright` hides the module on displays without a notch. Pairing a notch value with a non-notch value is the only useful combination. A pair of two non-notch values, such as `left|right`, uses the first on every display. A pair of two notch values, such as `notchleft|notchright`, uses the first on notched displays and hides the module on the others.
 
 ## Per-Module Fonts
 
@@ -79,29 +79,34 @@ The format is the same as the global `fonts` key (see [Bar Settings](bar.md)).
 
 ## Per-Module Style
 
-Modules can override the global style configuration:
+Modules can override the global style configuration. Colours are [theme templates](themes.md#using-theme-colours) or hex values:
+
+```yaml
+style:
+  fg: "{theme(text)}"
+  bg: "{theme(surface0)}"
+  shape: pill
+  text:
+    fg: "{theme(subtext1)}"
+  icon:
+    fg: "{theme(blue)}"
+```
+
+Theme templates resolve against the palette of the current appearance, so one block suits both light and dark mode. To give a mode values of its own, nest them under `light` and `dark` (see [Per-Mode Styles](themes.md#per-mode-styles)):
 
 ```yaml
 style:
   light:
-    fg: "#000000"
-    bg: "#ffffff"
     shape: pill
-    text:
-      fg: "#333333"
     icon:
-      fg: "#0000ff"
+      fg: "{theme(blue)}"
   dark:
-    fg: "#ffffff"
-    bg: "#1a1a1a"
     shape: pill
-    text:
-      fg: "#e0e0e0"
     icon:
-      fg: "#4d9fff"
+      fg: "{theme(sapphire)}"
 ```
 
-A flat style block (no `light`/`dark` nesting) is also supported and applies to both modes. This is useful with theme templates. A nested block with only one mode leaves the other mode on the global style.
+A nested block takes every property from its modes: keys beside `light` and `dark` are ignored. A nested block with only one mode leaves the other mode on the global style.
 
 ### Style Properties
 
@@ -233,7 +238,7 @@ The `config` object contains type-specific settings. Each module type has differ
     timezone: "America/New_York"  # optional
 ```
 
-Clock module config options:
+These keys go under a clock module's `config` key:
 
 | Key | Type | Default | Description |
 |-----|------|---------|-------------|
@@ -274,7 +279,7 @@ Clock module config options:
     watch: kantan-plugin-reminders --watch   # long-lived watcher process
 ```
 
-Command module config options:
+These keys go under a command module's `config` key:
 
 | Key | Type | Default | Description |
 |-----|------|---------|-------------|
@@ -306,14 +311,14 @@ Command module config options:
         - "battery-3-filled"
         - "battery-4-filled"
     style:
-      charging: "#00ff00"          # shorthand: string sets fg color
+      charging: "{theme(green)}"   # shorthand: a colour sets fg
       low:
-        fg: "#ff0000"
+        fg: "{theme(red)}"
         icon:
-          fg: "#ff3333"
+          fg: "{theme(maroon)}"
 ```
 
-Power module config options:
+These keys go under a power module's `config` key:
 
 | Key | Type | Default | Description |
 |-----|------|---------|-------------|
@@ -327,7 +332,7 @@ Power module config options:
 | `style.lowPowerMode` | string/object | — | Style override when Low Power Mode is active |
 | `style.low` | string/object | — | Style override when battery is below `lowThreshold` |
 
-Per-state style overrides accept either a hex string (sets `fg`) or an object with `fg`, `bg`, `icon.fg`, and `text.fg` properties. Priority: charging > plugged > lowPowerMode > low. `lowPowerMode` and `low` styles only activate when the device is **not** plugged in.
+Each per-state style override is either a colour, which sets `fg`, or an object with `fg`, `bg`, `icon.fg`, and `text.fg` properties. Colours are theme templates or hex values. Priority: charging > plugged > lowPowerMode > low. `lowPowerMode` and `low` styles only activate when the device is **not** plugged in.
 
 **Drawer module:**
 ```yaml
@@ -340,7 +345,7 @@ Per-state style overrides accept either a hex string (sets `fg`) or an object wi
       hide: "chevron-right"
 ```
 
-Drawer module config options:
+These keys go under a drawer module's `config` key:
 
 | Key | Type | Default | Description |
 |-----|------|---------|-------------|
@@ -366,13 +371,13 @@ The drawer hides the modules in its own placement that sit inward of it: the mod
         Headphones: "headphones"
 ```
 
-Volume module config options:
+These keys go under a volume module's `config` key:
 
 | Key | Type | Default | Description |
 |-----|------|---------|-------------|
 | `icons.level` | array | `["volume-4", "volume-2", "volume"]` | Icons for volume levels (low to high) |
 | `icons.muted` | string | `"volume-off"` | Icon when muted |
-| `icons.device` | object | `{AirPods: device-airpods, Headphones: headphones}` | Output device name substrings (case-insensitive) mapped to icons. Setting it replaces the defaults. `{}` disables device icons |
+| `icons.device` | object | `{AirPods: device-airpods, Headphones: headphones}` | Output device name substrings (case-insensitive) mapped to icons, shown in place of the level icons while that device is the audio output. Setting it replaces the defaults. `{}` disables device icons |
 
 **WiFi module** (icon-only, no text):
 ```yaml
@@ -391,7 +396,7 @@ Volume module config options:
         iPhone: "circles-relation"
 ```
 
-WiFi module config options:
+These keys go under a WiFi module's `config` key:
 
 | Key | Type | Default | Description |
 |-----|------|---------|-------------|
@@ -409,7 +414,7 @@ WiFi module config options:
     disabledIcon: "bluetooth-off"
 ```
 
-Bluetooth module config options:
+These keys go under a Bluetooth module's `config` key:
 
 | Key | Type | Default | Description |
 |-----|------|---------|-------------|
@@ -430,12 +435,12 @@ When Bluetooth is on but no devices are connected, the icon appears dimmed (inac
       Sleep: "{theme(lavender)}"
 ```
 
-Focus module config options:
+These keys go under a focus module's `config` key:
 
 | Key | Type | Default | Description |
 |-----|------|---------|-------------|
 | `icons` | object | — | Focus mode name or identifier mapped to an icon. Unlisted modes use the module-level `icon` |
-| `style` | object | — | Focus mode name or identifier mapped to a style override (hex string for `fg`, or an object with `fg`, `bg`, `icon.fg`, `text.fg`) |
+| `style` | object | — | Focus mode name or identifier mapped to a style override (a colour for `fg`, or an object with `fg`, `bg`, `icon.fg`, `text.fg`) |
 
 The module-level `icon` defaults to `brain`. State is checked every 2 seconds. With Full Disk Access, kantan reads the active mode from the Do Not Disturb database for `icons`, `style` and the `{mode}` variable to follow. Without it, kantan only detects whether the menu bar's Focus indicator is shown. See [Focus](../modules/focus.md).
 
@@ -449,7 +454,7 @@ The module-level `icon` defaults to `brain`. State is checked every 2 seconds. W
     value: "Hello, world!"
 ```
 
-Text module config options:
+These keys go under a text module's `config` key:
 
 | Key | Type | Default | Description |
 |-----|------|---------|-------------|
@@ -479,7 +484,7 @@ The icon module has no configuration options. It displays only the module-level 
       - "circle-number-3"
 ```
 
-Workspace module config options:
+These keys go under a workspace module's `config` key:
 
 | Key | Type | Default | Description |
 |-----|------|---------|-------------|
@@ -539,10 +544,6 @@ See individual module type documentation for complete configuration options.
           - type: text
             content: "Memory: {mem}"
   style:
-    light:
-      icon:
-        fg: "#007AFF"
-    dark:
-      icon:
-        fg: "#0A84FF"
+    icon:
+      fg: "{theme(blue)}"
 ```

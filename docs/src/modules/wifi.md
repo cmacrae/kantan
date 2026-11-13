@@ -6,6 +6,8 @@ Icon-only WiFi connection status indicator. Uses CoreWLAN with event-driven upda
 
 ## Configuration
 
+These keys go under the module's `config` key:
+
 | Key | Type | Default | Description |
 |-----|------|---------|-------------|
 | `icons.strength` | array | `["wifi-1", "wifi-2", "wifi"]` | Icons for signal strength levels (weak to strong). Must not be empty |

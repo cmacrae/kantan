@@ -6,6 +6,8 @@ The command module executes shell commands or plugin binaries and displays their
 
 ## Configuration
 
+These keys go under the module's `config` key:
+
 | Field | Type | Required | Default | Description |
 |-------|------|----------|---------|-------------|
 | `command` | string | **yes** | — | Shell command or executable to run |

@@ -6,6 +6,8 @@ Displays battery level and charging state. Uses IOKit to monitor battery informa
 
 ## Configuration
 
+These keys go under the module's `config` key:
+
 | Key | Type | Default | Description |
 |-----|------|---------|-------------|
 | `showLevel` | bool | `false` | Show battery percentage text (e.g. `85%`) |
@@ -34,20 +36,20 @@ icons:
 
 ### Style Overrides
 
-Power state styles go under `config.style` and take priority over the module's own `style` while their state applies. Each can be a string (sets the foreground colour) or an expanded object. Colours can be hex or `{theme(name)}` templates:
+Power state styles go under `config.style` and take priority over the module's own `style` while their state applies. Each is either a colour, which sets the foreground colour, or an expanded object. Colours are `{theme(name)}` templates or hex values:
 
 ```yaml
 config:
   style:
-    charging: "#00FF00"     # Shorthand: sets fg colour
+    charging: "{theme(green)}"   # Shorthand: sets fg colour
 
-    low:                    # Expanded form
-      fg: "#FF0000"
-      bg: "#330000"
+    low:                         # Expanded form
+      fg: "{theme(red)}"
+      bg: "{theme(surface0)}"
       icon:
-        fg: "#FF3333"
+        fg: "{theme(maroon)}"
       text:
-        fg: "#FF6666"
+        fg: "{theme(red)}"
 ```
 
 Style priority (highest to lowest): charging, plugged, lowPowerMode, low. Only the first configured style whose state applies is used.
@@ -100,8 +102,8 @@ Custom icons and low battery styling:
         - battery-3-filled
         - battery-4-filled
     style:
-      charging: "#34C759"
-      low: "#FF3B30"
+      charging: "{theme(green)}"
+      low: "{theme(red)}"
 ```
 
 With menu bar item masking:

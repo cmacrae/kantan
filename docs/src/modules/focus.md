@@ -6,6 +6,8 @@ Displays a Focus mode indicator that appears when a macOS Focus mode is active, 
 
 ## Configuration
 
+These keys go under the module's `config` key:
+
 | Key | Type | Default | Description |
 |-----|------|---------|-------------|
 | `icons` | object | -- | Focus mode → icon overrides |

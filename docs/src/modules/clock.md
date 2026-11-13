@@ -6,6 +6,8 @@ Displays the current date and time using a configurable format string.
 
 ## Configuration
 
+These keys go under the module's `config` key:
+
 | Key | Type | Default | Description |
 |-----|------|---------|-------------|
 | `format` | string | *(required)* | Date format string (DateFormatter syntax) |

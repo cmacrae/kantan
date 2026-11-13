@@ -6,6 +6,8 @@ Displays window manager workspace indicators. Supports native macOS spaces and t
 
 ## Configuration
 
+These keys go under the module's `config` key:
+
 | Key | Type | Default | Description |
 |-----|------|---------|-------------|
 | `type` | string | `"native"` | Workspace provider: `"native"`, `"aerospace"` or `"rift"` |
@@ -72,11 +74,11 @@ config:
     enabled: true
     random: true          # Deterministic shuffle avoiding adjacent repeats
     colors:
-      - "#FF0000"
-      - "#FF7F00"
-      - "#FFFF00"
-      - "#00FF00"
-      - "#0000FF"
+      - "{theme(red)}"
+      - "{theme(peach)}"
+      - "{theme(yellow)}"
+      - "{theme(green)}"
+      - "{theme(blue)}"
 ```
 
 Rainbow mode needs both `enabled: true` and a non-empty `colors` list. When `random` is true (default), colours are shuffled deterministically based on the workspace count. No two adjacent workspaces share the same colour. With `random: false`, workspaces take the colours in order, cycling through the list. Inactive workspaces show their colour dimmed. With the native appearance, rainbow colours aren't applied.
@@ -211,9 +213,9 @@ With overflow and rainbow:
     rainbow:
       enabled: true
       colors:
-        - "#FF6B6B"
-        - "#4ECDC4"
-        - "#45B7D1"
-        - "#96CEB4"
-        - "#FFEAA7"
+        - "{theme(red)}"
+        - "{theme(teal)}"
+        - "{theme(sapphire)}"
+        - "{theme(green)}"
+        - "{theme(yellow)}"
 ```

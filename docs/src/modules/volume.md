@@ -6,6 +6,8 @@ Icon-only system audio volume indicator. Uses CoreAudio with real-time callbacks
 
 ## Configuration
 
+These keys go under the module's `config` key:
+
 | Key | Type | Default | Description |
 |-----|------|---------|-------------|
 | `icons.level` | array | `["volume-4", "volume-2", "volume"]` | Icons for volume levels (low to high), split evenly across 0–100%. Must not be empty |
@@ -14,7 +16,7 @@ Icon-only system audio volume indicator. Uses CoreAudio with real-time callbacks
 
 ### Device Icons
 
-The `icons.device` field maps audio device name substrings (case-insensitive) to icon names. When the current output device name contains a matching key, that icon is used instead of the level-based icons. The `muted` icon takes precedence over device icons.
+The `icons.device` field maps audio device name substrings (case-insensitive) to icon names. While the audio output is a device whose name contains a key, the module shows that key's icon in place of the volume level icons. For example, put your AirPods in and macOS switches the output to them. Their name (such as "AirPods Pro") contains `AirPods`. The module then shows `device-airpods`. Take them out and it goes back to the level icons. The `muted` icon takes precedence over device icons.
 
 Default device icons:
 

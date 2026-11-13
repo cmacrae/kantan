@@ -6,6 +6,8 @@ An expandable module group that can show/hide adjacent modules. Drawers allow yo
 
 ## Configuration
 
+These keys go under the module's `config` key:
+
 | Key | Type | Default | Description |
 |-----|------|---------|-------------|
 | `icons.show` | string | `"〈"` | Icon/text shown when drawer is collapsed (click to expand) |
@@ -116,5 +118,5 @@ Custom styled drawer icons:
       show: chevron-left
       hide: chevron-right
   style:
-    fg: "#007AFF"
+    fg: "{theme(blue)}"
 ```
