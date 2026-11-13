@@ -21,6 +21,15 @@ test "$("$local/bin/kantan" --version)" = "kantan $version"
 test -x "$local/bin/kantan-plugin-calendar"
 test -f "$local/lib/kantan/share/fonts/tabler-icons.ttf"
 test -f "$local/lib/kantan/share/doc/kantan/THIRD_PARTY_NOTICES"
+python3 - "$local/lib/kantan/share/examples/bar.kantan.plist" <<EOF
+import os, plistlib, sys
+agent = plistlib.load(open(sys.argv[1], "rb"))
+bin = os.environ["HOME"] + "/.local/bin"
+assert agent["ProgramArguments"] == [bin + "/kantan"], agent
+assert agent["EnvironmentVariables"]["PATH"].split(":")[0] == bin, agent
+log = os.environ["HOME"] + "/Library/Logs/kantan.log"
+assert agent["StandardOutPath"] == agent["StandardErrorPath"] == log, agent
+EOF
 
 install --without-plugins
 test "$("$local/bin/kantan" --version)" = "kantan $version"

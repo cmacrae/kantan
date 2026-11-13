@@ -136,6 +136,39 @@ for exe in "$keg"/bin/*; do
   ln -s "$exe" "$bin/${exe##*/}"
 done
 
+# A launchd agent that runs this install at login, for copying into
+# ~/Library/LaunchAgents.
+mkdir -p "$keg/share/examples"
+cat >"$keg/share/examples/bar.kantan.plist" <<EOF
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>bar.kantan</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>$bin/kantan</string>
+  </array>
+  <key>EnvironmentVariables</key>
+  <dict>
+    <key>PATH</key>
+    <string>$bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
+  </dict>
+  <key>RunAtLoad</key>
+  <true/>
+  <key>KeepAlive</key>
+  <true/>
+  <key>ProcessType</key>
+  <string>Interactive</string>
+  <key>StandardOutPath</key>
+  <string>$HOME/Library/Logs/kantan.log</string>
+  <key>StandardErrorPath</key>
+  <string>$HOME/Library/Logs/kantan.log</string>
+</dict>
+</plist>
+EOF
+
 say "Installed $("$keg/bin/kantan" --version) in $prefix"
 case :$PATH: in
 *:"$bin":*) ;;

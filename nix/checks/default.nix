@@ -167,6 +167,7 @@ in
         nativeBuildInputs = [
           pkgs.curl
           pkgs.perl
+          pkgs.python3
           pkgs.shellcheck
           (pkgs.writeShellScriptBin "sw_vers" "echo 15.0")
         ];
