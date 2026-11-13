@@ -51,7 +51,7 @@ interaction:
 
 ## Loading Order
 
-Files are loaded in **alphabetical order**. Use numeric prefixes to control the order:
+Files are loaded in **alphanumeric order**. Use numeric prefixes to control the order:
 
 - `00-caffeine.yaml` - Loaded first
 - `10-sysmon.yaml` - Loaded second
@@ -91,7 +91,7 @@ placement: right
 
 ## Hot-Reload
 
-Adding, editing, or removing files in `modules.d/` triggers automatic reloading. Changes are detected and applied in real-time with a 0.2-second debounce.
+Adding, editing or removing a file in `modules.d/` reloads the bar, as an edit to `config.yaml` does (see [Reloading](index.md#reloading)).
 
 ## File Types
 
@@ -104,7 +104,6 @@ The modules.d/ approach is ideal for:
 - **Per-feature organization** - One file per logical feature (system monitoring, notifications, network, etc.)
 - **Environment-specific modules** - Enable/disable modules by adding/removing files
 - **Shared configurations** - Maintain a base `config.yaml` with global settings, customize modules per-machine
-- **Version control** - Track individual module changes in separate commits
 
 ## Example: Complete Setup
 
@@ -118,13 +117,11 @@ blur: 3
 fonts:
   text: "SF Pro:Regular:13"
 
+theme: catppuccin
+
 style:
-  light:
-    bg: "ffffff"
-    fg: "000000"
-  dark:
-    bg: "000000"
-    fg: "ffffff"
+  fg: "{theme(text)}"
+  bg: "{theme(base)}"
 ```
 
 **`modules.d/00-caffeine.yaml`**:
