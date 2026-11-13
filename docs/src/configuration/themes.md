@@ -23,23 +23,23 @@ The `theme` key in your config accepts either a string or an object.
 
 ### Single Theme
 
-Use a plain string to apply the same theme to both light and dark modes:
+Name a theme with a plain string:
 
 ```yaml
-theme: nordic
+theme: catppuccin
 ```
 
-For themes with multiple flavours, select one with bracket syntax:
+kantan follows the system's light and dark appearance by itself. A theme with light and dark palettes, such as a [mode-aware](#mode-aware) or [flavoured](#flavoured) theme, switches between them as the system does. `catppuccin` uses its `latte` flavour in light mode and `mocha` in dark mode, the flavours its `defaults` name. A theme with a single palette uses it in both modes.
+
+To use one flavour of a flavoured theme in both modes, select it with bracket syntax:
 
 ```yaml
 theme: catppuccin[mocha]
 ```
 
-When no flavour is specified on a flavoured theme, kantan picks each appearance mode's flavour from the theme's `defaults` mapping.
-
 ### Per-Mode Themes
 
-To use different themes (or flavours) for light and dark mode, use an object:
+To choose the theme (or flavour) for each mode yourself, use an object:
 
 ```yaml
 theme:
@@ -169,14 +169,14 @@ Once a theme is loaded, its named colours are available throughout your config v
 Reference theme colours by name in any colour field:
 
 ```yaml
-theme: catppuccin[mocha]
+theme: catppuccin
 
 style:
   fg: "{theme(text)}"
   bg: "{theme(base)}"
 ```
 
-A template must be the whole value of a colour field. A name missing from the palette leaves the colour unresolved and transparent.
+A template resolves against the palette of the current appearance. Here `{theme(text)}` is latte's text colour in light mode and mocha's in dark mode, so one `style` block suits both modes. A template must be the whole value of a colour field. A name missing from the palette leaves the colour unresolved and transparent.
 
 The special names `fg`, `bg`, and `shape` resolve to the palette's top-level values:
 
@@ -188,7 +188,7 @@ style:
 
 ### In Module Styles
 
-Per-module style overrides also support theme templates:
+Per-module style overrides take theme templates too:
 
 ```yaml
 modules:
@@ -196,31 +196,24 @@ modules:
     type: clock
     placement: right
     style:
-      light:
-        fg: "{theme(blue)}"
-        bg: "{theme(surface0)}"
-        shape: pill
-      dark:
-        fg: "{theme(blue)}"
-        bg: "{theme(surface0)}"
-        shape: pill
+      fg: "{theme(blue)}"
+      bg: "{theme(surface0)}"
+      shape: pill
 ```
 
-### Flat Style Shorthand
+### Per-Mode Styles
 
-With a theme, a flat `style` block (without `light`/`dark` nesting) applies the same values to both modes. Theme templates resolve against each mode's active palette, which gives each mode its own colours:
+A style block applies to both modes. To give a mode values of its own, nest them under `light` and `dark`:
 
 ```yaml
-theme:
-  light: catppuccin[latte]
-  dark: catppuccin[mocha]
-
 style:
-  fg: "{theme(text)}"
-  bg: "{theme(base)}"
+  light:
+    fg: "{theme(blue)}"
+  dark:
+    fg: "{theme(lavender)}"
 ```
 
-`{theme(text)}` resolves to mocha's text colour in dark mode and to latte's in light mode.
+Keys beside `light` and `dark` are ignored, and a nested block with only one mode leaves the other on the global style. Without a theme, a top-level `style` block must give hex `fg` and `bg` colours for both modes, flat or nested.
 
 ### In Plugin Settings
 

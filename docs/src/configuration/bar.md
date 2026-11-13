@@ -41,52 +41,52 @@ When no icon font is specified, kantan uses the bundled [tabler-icons](https://t
 
 ## Style Configuration
 
-The `style` section defines colours for light and dark appearance modes:
+The `style` section sets the bar's colours. With a [theme](themes.md), colours are theme templates, which resolve against the palette for the current appearance:
 
 ```yaml
+theme: catppuccin
+
 style:
-  light:
-    fg: "#f0f0f0"
-    bg: "#333333"
-    text:
-      fg: "#222222"
-    icon:
-      fg: "#0000ff"
-  dark:
-    fg: "#e0e0e0"
-    bg: "#1a1a1a"
-    text:
-      fg: "#cccccc"
-    icon:
-      fg: "#4d9fff"
+  fg: "{theme(text)}"
+  bg: "{theme(base)}"
+  text:
+    fg: "{theme(subtext1)}"
+  icon:
+    fg: "{theme(blue)}"
 ```
 
 ### Style Mode Properties
 
 | Property | Description |
 |----------|-------------|
-| `fg` | Foreground colour (hex, applies to both text and icon unless overridden) |
-| `bg` | Bar background colour (hex), also used as the background of module shapes that set no `bg` of their own |
-| `text.fg` | Text-specific foreground colour (hex) |
-| `icon.fg` | Icon-specific foreground colour (hex) |
+| `fg` | Foreground colour (applies to both text and icon unless overridden) |
+| `bg` | Bar background colour, also used as the background of module shapes that set no `bg` of their own |
+| `text.fg` | Text-specific foreground colour |
+| `icon.fg` | Icon-specific foreground colour |
 
-Colours are hex strings, `#rrggbb` or `#rrggbbaa` with alpha, with or without the `#`; quote them so YAML reads them as strings. Other lengths aren't read as colours. Module shapes (`shape`) are set per module, not in the global style (see [Per-Module Style](modules.md#per-module-style)).
-
-When no theme is set and a `style` block is provided, both `light` and `dark` blocks are required and must each contain `fg` and `bg`. If `style` is omitted entirely (and no theme is set), kantan uses its native macOS appearance instead (see below).
+Colours are `{theme(name)}` templates or hex strings. A hex string is `#rrggbb`, or `#rrggbbaa` with alpha, with or without the `#`. Quote colours so YAML reads them as strings. Other lengths aren't read as colours. Module shapes (`shape`) are set per module, not in the global style (see [Per-Module Style](modules.md#per-module-style)).
 
 When a theme is set, a `style` block replaces the theme's default `fg` and `bg` as a pair. Set both: a missing `fg` falls back to white and a missing `bg` to black.
 
-### Flat Style
+### Per-Mode Style
 
-A flat style block (without `light`/`dark` nesting) applies the same values to both modes. It suits theme templates, whose `{theme(...)}` values resolve against the active palette for each mode:
+A style block applies to both appearance modes. To give each mode its own values, nest them under `light` and `dark`. Without a theme, this is how the bar gets light and dark colours:
 
 ```yaml
 style:
-  fg: "{theme(text)}"
-  bg: "{theme(surface)}"
+  light:
+    fg: "#1a1a1a"
+    bg: "#f5f5f5"
+    icon:
+      fg: "#1e66f5"
+  dark:
+    fg: "#e0e0e0"
+    bg: "#1a1a1a"
+    icon:
+      fg: "#4d9fff"
 ```
 
-A flat style block can also be used without a theme using plain hex colours (both `fg` and `bg` are still required).
+When no theme is set, a `style` block must give `fg` and `bg` for both modes. A flat block of hex colours uses the same colours in both. If `style` is omitted entirely (and no theme is set), kantan uses its native macOS appearance instead (see below).
 
 ### Native Appearance
 
@@ -213,13 +213,11 @@ autohide:
   enabled: true
   delay: 0.5
 
+theme: catppuccin
+
 style:
-  light:
-    bg: "#ffffff"
-    fg: "#000000"
-  dark:
-    bg: "#000000"
-    fg: "#ffffff"
+  fg: "{theme(text)}"
+  bg: "{theme(base)}"
 
 modules:
   # Module configurations...
