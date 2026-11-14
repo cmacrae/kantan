@@ -23,3 +23,17 @@ scopes = [
 # does. Packaging, the docs, the site and CI use types that don't bump.
 [commit_types]
 site = { changelog_title = "Site", omit_from_changelog = true }
+
+# `cog install-hook pre-push` installs this, and the dev shell does too. It
+# checks the commits being pushed, then runs Git LFS's own step when Git LFS
+# is installed, as the hook Git LFS installs does.
+[git_hooks.pre-push]
+script = """#!/bin/sh
+# kantan: checks the commits being pushed
+set -e
+refs=$(cat)
+printf '%s\\n' "$refs" | nix run .#check-commits -- --pre-push
+if command -v git-lfs >/dev/null 2>&1; then
+  printf '%s\\n' "$refs" | git lfs pre-push "$@"
+fi
+"""

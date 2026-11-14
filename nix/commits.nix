@@ -9,6 +9,9 @@ let
   # bundled plugins and themes, and its icon font, or kantan's sources from
   # before they moved under packages/. Their tests and the plugins' READMEs
   # don't count. A single revision checks every commit before it.
+  #
+  # With --pre-push it reads the refs being pushed from standard input, as a
+  # pre-push hook gets them, and checks the commits each one adds.
   check = pkgs.writeShellApplication {
     name = "kantan-check-commits";
     runtimeInputs = [
@@ -51,11 +54,38 @@ let
       }
 
       if [ $# -ne 1 ]; then
-        echo "usage: kantan-check-commits <revision range>" >&2
+        echo "usage: kantan-check-commits <revision range> | --pre-push" >&2
         exit 2
       fi
 
-      check "$1"
+      if [ "$1" != --pre-push ]; then
+        check "$1"
+        exit
+      fi
+
+      zero=0000000000000000000000000000000000000000
+      while read -r _ local _ remote; do
+        # A deleted ref adds no commits.
+        if [ "$local" = "$zero" ]; then
+          continue
+        fi
+        if [ "$remote" != "$zero" ] && git cat-file -e "$remote^{commit}" 2>/dev/null; then
+          range="$remote..$local"
+        else
+          # A new ref, or one whose remote head isn't here: the commits no
+          # remote has yet.
+          first=$(git rev-list --reverse "$local" --not --remotes | head -1)
+          if [ -z "$first" ]; then
+            continue
+          fi
+          if git rev-parse -q --verify "$first^" >/dev/null; then
+            range="$first^..$local"
+          else
+            range="$local"
+          fi
+        fi
+        check "$range"
+      done
     '';
   };
 
@@ -74,7 +104,11 @@ in
     program = lib.getExe check;
   };
 
-  # Runs the check over commits that should pass and commits that should fail.
+  # The pre-push hook in cog.toml, for the dev shell to install
+  prePushHook = pkgs.writeScript "pre-push" cog.git_hooks.pre-push.script;
+
+  # Runs the check over commits that should pass and commits that should fail,
+  # by range and as a pre-push hook.
   test =
     pkgs.runCommand "kantan-check-commits-test"
       {
@@ -134,6 +168,20 @@ in
         expect fail
         commit "nonsense: unknown type" packages/kantan/Sources/kantan/bar.swift
         expect fail
+
+        # As a pre-push hook, for a ref the remote has and for a new one
+        zero=0000000000000000000000000000000000000000
+        commit "feat(bar): pushed" packages/kantan/Sources/kantan/bar.swift
+        echo "refs/heads/main $(git rev-parse HEAD) refs/heads/main $base" | kantan-check-commits --pre-push
+        commit "feat: a landing page" site/index.html
+        if echo "refs/heads/main $(git rev-parse HEAD) refs/heads/main $base" | kantan-check-commits --pre-push 2>/dev/null; then
+          echo "the pre-push check passed a mislabelled commit" >&2
+          exit 1
+        fi
+        if echo "refs/heads/new $(git rev-parse HEAD) refs/heads/new $zero" | kantan-check-commits --pre-push 2>/dev/null; then
+          echo "the pre-push check passed a mislabelled commit on a new ref" >&2
+          exit 1
+        fi
 
         touch $out
       '';

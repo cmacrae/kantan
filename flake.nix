@@ -190,6 +190,18 @@
           pkgs.zizmor
         ];
         inherit (swift.shell) buildInputs;
+        shellHook = ''
+          if hook=$(git rev-parse --git-path hooks/pre-push 2>/dev/null); then
+            if [ ! -e "$hook" ] || grep -q '^# kantan: ' "$hook" \
+              || { grep -q 'git lfs pre-push' "$hook" && [ "$(wc -l < "$hook")" -le 3 ]; }; then
+              if ! cmp -s ${commits.prePushHook} "$hook"; then
+                install -m 755 ${commits.prePushHook} "$hook"
+              fi
+            else
+              echo "kantan: $hook isn't kantan's, so commits aren't checked before pushing. cog install-hook --overwrite pre-push replaces it." >&2
+            fi
+          fi
+        '';
       };
 
       formatter.${system} = treefmtEval.config.build.wrapper;
