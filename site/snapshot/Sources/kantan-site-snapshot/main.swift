@@ -2,6 +2,7 @@
 //
 //   kantan-site-snapshot <page> <width> <height> <scale> <out.png>
 //
+// The page is a file path or an http(s) URL, either with a query string.
 // The page is drawn at `width` by `height` points, `scale` pixels to the point.
 // Its transparent areas stay transparent.
 import AppKit
@@ -24,11 +25,16 @@ struct Options {
     else {
       fail("usage: kantan-site-snapshot <page> <width> <height> <scale> <out.png>")
     }
-    // A file path with an optional query string
-    let parts = args[1].split(separator: "?", maxSplits: 1).map(String.init)
-    var page = URLComponents(url: URL(fileURLWithPath: parts[0]), resolvingAgainstBaseURL: false)!
-    page.percentEncodedQuery = parts.count > 1 ? parts[1] : nil
-    self.page = page.url!
+    if args[1].hasPrefix("http://") || args[1].hasPrefix("https://"), let url = URL(string: args[1])
+    {
+      self.page = url
+    } else {
+      // A file path with an optional query string
+      let parts = args[1].split(separator: "?", maxSplits: 1).map(String.init)
+      var page = URLComponents(url: URL(fileURLWithPath: parts[0]), resolvingAgainstBaseURL: false)!
+      page.percentEncodedQuery = parts.count > 1 ? parts[1] : nil
+      self.page = page.url!
+    }
     self.size = NSSize(width: width, height: height)
     self.scale = scale
     self.output = URL(fileURLWithPath: args[5])
@@ -59,8 +65,12 @@ final class Snapshotter: NSObject, WKNavigationDelegate {
 
   func load() {
     window.orderFrontRegardless()
-    // Pages link files in the folders above them, as the docs do.
-    webView.loadFileURL(options.page, allowingReadAccessTo: URL(fileURLWithPath: "/"))
+    if options.page.isFileURL {
+      // Pages link files in the folders above them, as the docs do.
+      webView.loadFileURL(options.page, allowingReadAccessTo: URL(fileURLWithPath: "/"))
+    } else {
+      webView.load(URLRequest(url: options.page))
+    }
   }
 
   func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
