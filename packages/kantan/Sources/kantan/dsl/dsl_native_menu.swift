@@ -19,6 +19,43 @@ func buildNativeMenu(
   return menu
 }
 
+/// Update `menu`'s items from `rootNode`, so an open menu shows the values
+/// `resolver` holds now. When the rows line up with the existing ones, each
+/// existing item takes its new content in place, keeping its highlight;
+/// otherwise the items are replaced.
+@MainActor
+func refreshNativeMenu(
+  _ menu: NSMenu, from rootNode: ViewNode, resolver: TemplateResolver, textColor: Color? = nil
+) {
+  let fresh = buildNativeMenu(from: rootNode, resolver: resolver, textColor: textColor)
+  let updates = fresh.items
+  fresh.removeAllItems()
+
+  guard updates.count == menu.items.count,
+    zip(menu.items, updates).allSatisfy({ $0.isSeparatorItem == $1.isSeparatorItem })
+  else {
+    menu.removeAllItems()
+    updates.forEach(menu.addItem)
+    return
+  }
+
+  for (item, update) in zip(menu.items, updates) where !item.isSeparatorItem {
+    let view = update.view
+    update.view = nil
+    if let shown = item.view as? NativeMenuCheckItemView,
+      let fresh = view as? NativeMenuCheckItemView, shown.shows(fresh)
+    {
+      continue
+    }
+    item.view = view
+    item.attributedTitle = update.attributedTitle
+    item.target = update.target
+    item.action = update.action
+    item.representedObject = update.representedObject
+    item.isEnabled = update.isEnabled
+  }
+}
+
 // MARK: - HStack Composition
 
 /// Styling metadata extracted from text/icon children when composing hstack items.
@@ -540,6 +577,8 @@ struct NativeMenuTextView: View {
 /// reliably receive events inside NSMenuItem custom views).
 class NativeMenuCheckItemView: NSView {
   private var isChecked: Bool
+  /// The checked value the item was built with.
+  private let reported: Bool
   private let label: String
   private let checkedCommand: String?
   private let uncheckedCommand: String?
@@ -552,6 +591,7 @@ class NativeMenuCheckItemView: NSView {
     environment: [String: String] = [:], textColor: Color? = nil
   ) {
     self.isChecked = isChecked
+    self.reported = isChecked
     self.label = label
     self.checkedCommand = command
     self.uncheckedCommand = uncheckedCommand
@@ -567,6 +607,13 @@ class NativeMenuCheckItemView: NSView {
   }
 
   required init?(coder: NSCoder) { fatalError() }
+
+  /// Whether `other` was built from the same item and checked value, so this
+  /// view, and any click on it, still stands for it.
+  func shows(_ other: NativeMenuCheckItemView) -> Bool {
+    label == other.label && checkedCommand == other.checkedCommand
+      && uncheckedCommand == other.uncheckedCommand && reported == other.reported
+  }
 
   override func mouseUp(with event: NSEvent) {
     // Pick the right command BEFORE toggling the visual state:

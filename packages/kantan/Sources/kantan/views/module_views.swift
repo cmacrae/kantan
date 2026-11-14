@@ -321,20 +321,16 @@ struct ModuleContainerView: View {
     case "menu":
       let liveContent = LiveContentProvider(viewModel: viewModel)
       // Priority: click.viewTree (YAML-defined) > module's live viewTree (plugin JSON)
-      if let viewTree = click.viewTree ?? viewModel.viewTree {
-        popupManager.showMenu(
-          viewTree: viewTree, moduleName: viewModel.id, anchorPoint: anchorPoint,
-          moduleMinX: moduleScreenMinX, liveContent: liveContent)
-      }
+      popupManager.showMenu(
+        configViewTree: click.viewTree, moduleName: viewModel.id, anchorPoint: anchorPoint,
+        moduleMinX: moduleScreenMinX, liveContent: liveContent)
     case "complete":
       toggle()
     case "popup":
       let liveContent = LiveContentProvider(viewModel: viewModel)
-      if let viewTree = click.viewTree ?? viewModel.viewTree {
-        popupManager.showDSLView(
-          viewTree: viewTree, moduleName: viewModel.id, anchorPoint: anchorPoint,
-          liveContent: liveContent)
-      }
+      popupManager.showDSLView(
+        configViewTree: click.viewTree, moduleName: viewModel.id, anchorPoint: anchorPoint,
+        liveContent: liveContent)
     case "drawer":
       viewModel.toggleAction?()
     case "toggle":

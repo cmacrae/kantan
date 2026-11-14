@@ -189,7 +189,7 @@
           "type": "string",
           "enum": ["menu", "popup", "toggle", "complete", "passthrough", "drawer"],
           "default": "menu",
-          "description": "'menu' shows a dropdown menu (native or themed). 'popup' shows a themed SwiftUI panel. 'toggle' runs the module's toggle command and triggers a refresh. 'complete' runs the module's toggle command and triggers a refresh (identical to 'toggle'). 'passthrough' and 'drawer' are set internally for masked and drawer modules respectively. Defaults to 'menu' when omitted."
+          "description": "'menu' shows a dropdown menu (native or themed). 'popup' shows a themed SwiftUI panel. Both update while open, each time the module does. 'toggle' runs the module's toggle command and triggers a refresh. 'complete' runs the module's toggle command and triggers a refresh (identical to 'toggle'). 'passthrough' and 'drawer' are set internally for masked and drawer modules respectively. Defaults to 'menu' when omitted."
         },
         "view": {
           "description": "View DSL tree for menu/popup content. See plugin-output.schema.json for the ViewNode schema. When omitted, the module's runtime view tree (from plugin JSON output) is used.",

@@ -27,7 +27,7 @@ A view is shown in one of three places, chosen by the module's `interaction` con
 | Popup | `interaction.click.type: popup` | SwiftUI panel; closes when it loses focus |
 | Menu | `interaction.click.type: menu` | Native `NSMenu`; see [Native Menu Rendering](nodes.md#native-menu-rendering) for what it supports |
 
-For `popup` and `menu`, a `click.view` in YAML takes priority over a `view` from plugin output. A tooltip only shows `hover.view`. Views are rendered with the values the module has when they open.
+For `popup` and `menu`, a `click.view` in YAML takes priority over a `view` from plugin output. A tooltip only shows `hover.view`. A popup or menu follows the module's values while it's open, updating each time the module does. A tooltip shows the values the module had when it appeared.
 
 **In Plugin Output:**
 ```json

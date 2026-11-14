@@ -311,7 +311,7 @@ When both `fg` and `icon.fg`/`text.fg` are set, the specific overrides take prec
 #### view (optional)
 
 **Type:** `ViewNode` (View DSL tree)  
-**Description:** Rich UI definition using kantan's View DSL, shown when the module is clicked with `click.type: menu` or `popup`. A `view:` in the module's `click` config takes precedence. Hover tooltips only show a `view:` from the config. A `view` that fails to decode (an unknown node type, a missing required field) is dropped. The rest of the output still applies.
+**Description:** Rich UI definition using kantan's View DSL, shown when the module is clicked with `click.type: menu` or `popup`. While it's open, the menu or popup updates with each new output. A `view:` in the module's `click` config takes precedence. Hover tooltips only show a `view:` from the config. A `view` that fails to decode (an unknown node type, a missing required field) is dropped. The rest of the output still applies.
 
 **Node categories** (full reference in [View DSL nodes](../view-dsl/nodes.md)):
 

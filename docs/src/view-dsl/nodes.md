@@ -19,7 +19,7 @@ Layout nodes arrange their children in specific patterns. All layout nodes excep
 
 `vstack` and `hstack` also accept any of the nine `zstack` alignments, using the part that applies to their axis (e.g. `topLeading` aligns a `vstack` to `leading` and an `hstack` to `top`).
 
-A popup or tooltip sizes itself to fit its content. A `scroll` scrolls only when `frame` gives it a height (e.g. `"frame": { "maxH": 300 }`).
+A popup or tooltip sizes itself to fit its content. A popup resizes as its content changes while it's open. A `scroll` scrolls only when `frame` gives it a height (e.g. `"frame": { "maxH": 300 }`).
 
 An `hstack` with a `command` highlights on hover; clicking it closes the popup and runs the command.
 
@@ -156,7 +156,7 @@ A bare placeholder whose value is empty leaves nothing. A command that is a sing
 
 `checked` and `on` are evaluated as booleans: `true`, `1`, `yes`, and any other non-empty value are on; `false`, `0`, `no`, and empty are off.
 
-Clicking an `action`, `button`, or `toggle` closes the popup. Clicking a `check` flips its checkmark (the label is struck through while checked) and keeps the popup or menu open, so several items can be checked in turn. In a menu, an `action` without a `command` is shown disabled.
+Clicking an `action`, `button`, or `toggle` closes the popup. Clicking a `check` flips its checkmark (the label is struck through while checked) and keeps the popup or menu open, so several items can be checked in turn. The item shows the click until the module reports a new `checked` value for it, or the row shows another item. In a menu, an `action` without a `command` is shown disabled.
 
 **Action Example:**
 ```json
@@ -307,7 +307,7 @@ A `progress` or `gauge` value that isn't a number is treated as 0. The `bar` sty
 
 ## Native Menu Rendering
 
-A view opened by `click.type: menu` is always rendered as a native `NSMenu`, in both native and themed appearance. In themed appearance, menu text uses the theme's foreground colour. An `NSMenu` is a flat list of items. The tree is converted as follows:
+A view opened by `click.type: menu` is always rendered as a native `NSMenu`, in both native and themed appearance. In themed appearance, menu text uses the theme's foreground colour. While the menu is open, its items update each time the module does. An item keeps its highlight unless the update adds or removes items. An `NSMenu` is a flat list of items. The tree is converted as follows:
 
 | Node | In a native menu |
 |------|------------------|

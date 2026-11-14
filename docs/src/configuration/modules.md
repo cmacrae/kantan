@@ -200,7 +200,7 @@ interaction:
           content: "Popup content"
 ```
 
-A `click` block without a `type` is a menu. For `menu` and `popup`, a `view` in the config takes priority. Without one, the view from the plugin's output is shown.
+A `click` block without a `type` is a menu. For `menu` and `popup`, a `view` in the config takes priority. Without one, the view from the plugin's output is shown. Either updates while it's open, each time the module does.
 
 **Toggle (run command):**
 ```yaml

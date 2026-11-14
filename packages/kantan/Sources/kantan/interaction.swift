@@ -29,31 +29,58 @@ class LiveContentProvider: ObservableObject {
     self.data = viewModel.data
 
     viewModel.$templateVariables
-      .receive(on: RunLoop.main)
+      .receive(on: DispatchQueue.main)
       .sink { [weak self] vars in
         self?.templateVariables = vars
       }
       .store(in: &cancellables)
 
     viewModel.$displayValue
-      .receive(on: RunLoop.main)
+      .receive(on: DispatchQueue.main)
       .sink { [weak self] val in self?.displayValue = val }
       .store(in: &cancellables)
 
     viewModel.$displayIcon
-      .receive(on: RunLoop.main)
+      .receive(on: DispatchQueue.main)
       .sink { [weak self] icon in self?.displayIcon = icon }
       .store(in: &cancellables)
 
     viewModel.$viewTree
-      .receive(on: RunLoop.main)
+      .receive(on: DispatchQueue.main)
       .sink { [weak self] tree in self?.viewTree = tree }
       .store(in: &cancellables)
 
     viewModel.$data
-      .receive(on: RunLoop.main)
+      .receive(on: DispatchQueue.main)
       .sink { [weak self] d in self?.data = d }
       .store(in: &cancellables)
+  }
+
+  /// Fires once after each burst of changes, with the new values in place.
+  var changes: AnyPublisher<Void, Never> {
+    objectWillChange
+      .debounce(for: .milliseconds(50), scheduler: DispatchQueue.main)
+      .eraseToAnyPublisher()
+  }
+}
+
+// MARK: - Live DSL View
+
+/// Renders a module's view tree with its latest variables and data.
+struct LiveDSLView: View {
+  @ObservedObject var liveContent: LiveContentProvider
+  /// The view tree from the module's config, used in place of the module's own.
+  let configViewTree: ViewNode?
+  let makeResolver: (LiveContentProvider) -> TemplateResolver
+  let isNative: Bool
+  let dismissHandler: () -> Void
+
+  var body: some View {
+    if let tree = configViewTree ?? liveContent.viewTree {
+      DSLRendererView(
+        node: tree, resolver: makeResolver(liveContent), isNative: isNative,
+        dismissHandler: dismissHandler, depth: 0)
+    }
   }
 }
 
@@ -103,6 +130,7 @@ class PopupManager {
   private var activePanel: NSPanel?
   private var activePopupId: String?
   private var activeLiveContent: LiveContentProvider?
+  private var activeRefresh: AnyCancellable?
   private var tooltipPanel: NSPanel?
   private var tooltipLabel: NSTextField?
   private var tooltipRefreshTimer: Timer?
@@ -354,62 +382,91 @@ class PopupManager {
 
   /// Show a menu from a ViewNode tree. Always uses native NSMenu for
   /// consistent appearance; theme colors are threaded through when active.
+  /// The menu's items are rebuilt as the module's content changes, using
+  /// `configViewTree` when given and the module's own view tree otherwise.
   func showMenu(
-    viewTree: ViewNode, moduleName: String, anchorPoint: NSPoint,
+    configViewTree: ViewNode?, moduleName: String, anchorPoint: NSPoint,
     moduleMinX: CGFloat? = nil, liveContent: LiveContentProvider
   ) {
     let menuId = "\(moduleName):menu"
 
     if dismissIfActive(menuId) { return }
 
-    let resolver = makeResolver(for: liveContent)
+    guard let viewTree = configViewTree ?? liveContent.viewTree else { return }
 
     var nativeAnchor = anchorPoint
     if let minX = moduleMinX {
       nativeAnchor.x = minX
     }
     let textColor: Color? = isNative ? nil : Color(nsColor: effectiveFgColor)
-    let menu = buildNativeMenu(from: viewTree, resolver: resolver, textColor: textColor)
-    menu.popUp(positioning: nil, at: nativeAnchor, in: nil)
+    let menu = buildNativeMenu(
+      from: viewTree, resolver: makeResolver(for: liveContent), textColor: textColor)
+    let refresh = liveContent.changes.sink { [weak self, weak menu, weak liveContent] in
+      guard let self, let menu, let liveContent,
+        let tree = configViewTree ?? liveContent.viewTree
+      else { return }
+      refreshNativeMenu(
+        menu, from: tree, resolver: self.makeResolver(for: liveContent), textColor: textColor)
+    }
+    withExtendedLifetime(refresh) {
+      _ = menu.popUp(positioning: nil, at: nativeAnchor, in: nil)
+    }
   }
 
   // MARK: - DSL View (PopupPanel + SwiftUI)
 
-  /// Show a DSL ViewNode tree in a themed popup panel.
+  /// Show a DSL ViewNode tree in a themed popup panel. The panel's content
+  /// and size follow the module's content as it changes, using
+  /// `configViewTree` when given and the module's own view tree otherwise.
   func showDSLView(
-    viewTree: ViewNode, moduleName: String, anchorPoint: NSPoint,
-    popupId: String? = nil, liveContent: LiveContentProvider,
-    resolver: TemplateResolver? = nil
+    configViewTree: ViewNode?, moduleName: String, anchorPoint: NSPoint,
+    popupId: String? = nil, liveContent: LiveContentProvider
   ) {
     let effectiveId = popupId ?? "\(moduleName):dsl"
 
     if dismissIfActive(effectiveId) { return }
 
-    let effectiveResolver = resolver ?? makeResolver(for: liveContent)
+    guard configViewTree ?? liveContent.viewTree != nil else { return }
 
     let themeFg = defaultTextColor
-    let dslView = DSLRendererView(
-      node: viewTree, resolver: effectiveResolver, isNative: isNative,
-      dismissHandler: { [weak self] in self?.dismissPopup() }, depth: 0
+    let dslView = LiveDSLView(
+      liveContent: liveContent, configViewTree: configViewTree,
+      makeResolver: { [weak self] in
+        self?.makeResolver(for: $0) ?? TemplateResolver(variables: [:], data: [:])
+      },
+      isNative: isNative,
+      dismissHandler: { [weak self] in self?.dismissPopup() }
     )
     .environment(\.defaultTextColor, themeFg)
     .padding(.vertical, 8)
 
     let hostingView = NSHostingView(rootView: dslView)
+
+    presentPopupPanel(
+      hostingView: hostingView,
+      panelRect: popupRect(fitting: hostingView, anchorPoint: anchorPoint),
+      popupId: effectiveId, liveContent: liveContent)
+
+    activeRefresh = liveContent.changes.sink { [weak self, weak hostingView] in
+      guard let self, let hostingView, let panel = self.activePanel else { return }
+      let anchor = NSPoint(x: panel.frame.midX, y: panel.frame.maxY + 4)
+      panel.setFrame(
+        self.clampToScreen(self.popupRect(fitting: hostingView, anchorPoint: anchor)),
+        display: true)
+    }
+  }
+
+  /// A frame for a popup showing `hostingView`, centred below `anchorPoint`.
+  private func popupRect(fitting hostingView: NSView, anchorPoint: NSPoint) -> NSRect {
     let fittingSize = hostingView.fittingSize
     let panelWidth = max(fittingSize.width, 160)
     let panelHeight = max(fittingSize.height, 20)
-
-    let panelRect = NSRect(
+    return NSRect(
       x: anchorPoint.x - panelWidth / 2,
       y: anchorPoint.y - panelHeight - 4,
       width: panelWidth,
       height: panelHeight
     )
-
-    presentPopupPanel(
-      hostingView: hostingView, panelRect: panelRect, popupId: effectiveId,
-      liveContent: liveContent)
   }
 
   // MARK: - Popup
@@ -429,6 +486,7 @@ class PopupManager {
     activePanel = nil
     activePopupId = nil
     activeLiveContent = nil
+    activeRefresh = nil
   }
 
   // MARK: - Panel Factories

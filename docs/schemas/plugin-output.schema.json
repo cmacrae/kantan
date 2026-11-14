@@ -65,7 +65,7 @@
     },
     "view": {
       "$ref": "#/$defs/ViewNode",
-      "description": "A structured view tree shown when the module is clicked, for a click interaction of type 'menu' (a native menu, showing a subset of nodes) or 'popup' (rendered as SwiftUI views). A 'view' in the module's click config takes precedence; hover tooltips only show a view from the config. A view that fails to decode is dropped."
+      "description": "A structured view tree shown when the module is clicked, for a click interaction of type 'menu' (a native menu, showing a subset of nodes) or 'popup' (rendered as SwiftUI views), updating with each new output while open. A 'view' in the module's click config takes precedence; hover tooltips only show a view from the config. A view that fails to decode is dropped."
     }
   },
   "$defs": {

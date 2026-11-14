@@ -818,6 +818,21 @@ private struct DSLActionView: View {
   }
 }
 
+/// A click on a check row. The row shows the opposite of the value it was
+/// clicked at, until it shows another item or the value changes.
+struct CheckFlip: Equatable {
+  /// The row's resolved label and commands.
+  let row: [String?]
+  /// The checked value the row had when it was clicked.
+  let reported: Bool
+
+  /// Whether a row showing `row`, with the checked value `reported`, is
+  /// shown checked after the click `flip`.
+  static func isChecked(row: [String?], reported: Bool, flip: CheckFlip?) -> Bool {
+    flip == CheckFlip(row: row, reported: reported) ? !reported : reported
+  }
+}
+
 /// Check item: circle/checkmark.circle.fill + label (strikethrough when checked).
 private struct DSLCheckView: View {
   let label: String?
@@ -827,13 +842,16 @@ private struct DSLCheckView: View {
   let resolver: TemplateResolver
   let isNative: Bool
   let dismissHandler: () -> Void
-  @State private var isToggled = false
+  @State private var flip: CheckFlip?
   @Environment(\.defaultTextColor) private var defaultTextColor
 
   var body: some View {
     let resolvedLabel = resolver.resolve(label ?? "")
-    let initialChecked = checked.map { resolver.resolveBool($0) } ?? false
-    let isChecked = isToggled != initialChecked
+    let resolvedCommand = command.map { resolver.resolveCommand($0) }
+    let resolvedUncheckedCommand = uncheckedCommand.map { resolver.resolveCommand($0) }
+    let row = [resolvedLabel, resolvedCommand, resolvedUncheckedCommand]
+    let reported = checked.map { resolver.resolveBool($0) } ?? false
+    let isChecked = CheckFlip.isChecked(row: row, reported: reported, flip: flip)
     let fgColor = defaultTextColor
 
     HStack(spacing: 8) {
@@ -853,11 +871,11 @@ private struct DSLCheckView: View {
       // Pick the right command based on current visual state:
       // If currently unchecked → checking → use command
       // If currently checked → unchecking → use uncheckedCommand (fall back to command)
-      let cmd = isChecked ? (uncheckedCommand ?? command) : command
-      isToggled.toggle()
-      guard let cmd = cmd, !cmd.isEmpty else { return }
-      let resolved = resolver.resolveCommand(cmd)
-      runCommand(resolved, environment: resolver.commandEnvironment)
+      let cmd = isChecked ? (resolvedUncheckedCommand ?? resolvedCommand) : resolvedCommand
+      let click = CheckFlip(row: row, reported: reported)
+      flip = flip == click ? nil : click
+      guard let cmd, !cmd.isEmpty else { return }
+      runCommand(cmd, environment: resolver.commandEnvironment)
     }
   }
 }

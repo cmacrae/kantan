@@ -552,7 +552,7 @@ For rich interactive UIs, return a `view` field with a View DSL tree. kantan sho
 }
 ```
 
-This is a vertical stack with a header and a list of items. A `menu` is a native macOS menu and shows only some node types. A `popup` renders them all. See the [View DSL documentation](../view-dsl/index.md) for building views.
+This is a vertical stack with a header and a list of items. A `menu` is a native macOS menu and shows only some node types. A `popup` renders them all. Both update with each new output while they're open. See the [View DSL documentation](../view-dsl/index.md) for building views.
 
 ## Testing Your Plugin
 

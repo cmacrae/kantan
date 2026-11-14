@@ -155,7 +155,7 @@ The plugin outputs these data collections for use with the `foreach` view DSL no
 
 ### Built-in View
 
-The plugin outputs a complete view tree via the `view` field in its JSON output. This includes an overview section (CPU, memory, disk, thermal, uptime, load), conditional per-core CPU breakdown (when `show_cores` is enabled), conditional top processes list, and an Activity Monitor launch action. The built-in view uses the configured icon overrides and thermal colors automatically.
+The plugin outputs a complete view tree via the `view` field in its JSON output. This includes an overview section (CPU, memory, disk, thermal, uptime, load), conditional per-core CPU breakdown (when `show_cores` is enabled), conditional top processes list, and an Activity Monitor launch action. The built-in view uses the configured icon overrides and thermal colors automatically. While it's open, its figures update at each `interval`, as the bar does.
 
 The example config shows it as a native menu with `click: {type: menu}`. To show it in a panel instead, set the click interaction to `popup`:
 

@@ -2370,6 +2370,127 @@ final class ViewCommandEnvironmentTests {
   }
 }
 
+@MainActor
+final class LiveModuleViewTests {
+  /// A module that runs nothing, showing `cpu` as its `{cpu}` variable.
+  private func viewModel(cpu: String) async throws -> ModuleViewModel {
+    let yaml = try Yaml.load(
+      """
+      name: system-monitor
+      type: command
+      placement: right
+      config:
+        command: kantan-plugin-system-monitor
+      """)
+    let vm = ModuleViewModel(moduleConfig: try #require(parseModuleConfig(from: yaml)))
+    vm.suspend()
+    await runMainLoop(for: 0.2)
+    vm.templateVariables = ["cpu": cpu]
+    return vm
+  }
+
+  private func node(_ json: String) throws -> ViewNode {
+    try JSONDecoder().decode(ViewNode.self, from: Data(json.utf8))
+  }
+
+  @Test func testAnOpenMenuShowsTheModulesLatestValues() async throws {
+    let vm = try await viewModel(cpu: "5%")
+    let live = LiveContentProvider(viewModel: vm)
+    let manager = PopupManager()
+    let tree = try node(#"{"type":"vstack","children":[{"type":"action","label":"CPU {cpu}"}]}"#)
+    let menu = buildNativeMenu(from: tree, resolver: manager.makeResolver(for: live))
+    #expect(menu.items.map { $0.attributedTitle?.string } == ["CPU 5%"])
+    let item = try #require(menu.items.first)
+
+    var refreshes = 0
+    let refresh = live.changes.sink {
+      refreshes += 1
+      refreshNativeMenu(menu, from: tree, resolver: manager.makeResolver(for: live))
+    }
+    vm.templateVariables = ["cpu": "42%"]
+    vm.displayValue = "42%"
+    await waitUntil { menu.items.first?.attributedTitle?.string == "CPU 42%" }
+    await runMainLoop(for: 0.2)
+    #expect(menu.items.count == 1)
+    #expect(menu.items.first === item)
+    #expect(refreshes == 1)
+    withExtendedLifetime(refresh) {}
+  }
+
+  @Test func testAnOpenMenuGainsRowsWhenTheModuleDoes() async throws {
+    let vm = try await viewModel(cpu: "5%")
+    vm.data = ["processes": [["name": "kernel_task"]]]
+    let live = LiveContentProvider(viewModel: vm)
+    let manager = PopupManager()
+    let tree = try node(
+      #"{"type":"foreach","items":"processes","child":{"type":"action","label":"{name}"}}"#)
+    let menu = buildNativeMenu(from: tree, resolver: manager.makeResolver(for: live))
+    #expect(menu.items.map { $0.attributedTitle?.string } == ["kernel_task"])
+
+    let refresh = live.changes.sink {
+      refreshNativeMenu(menu, from: tree, resolver: manager.makeResolver(for: live))
+    }
+    vm.data = ["processes": [["name": "kernel_task"], ["name": "WindowServer"]]]
+    await waitUntil {
+      menu.items.map { $0.attributedTitle?.string } == ["kernel_task", "WindowServer"]
+    }
+    withExtendedLifetime(refresh) {}
+  }
+
+  @Test func testAClickedMenuCheckHoldsUntilTheModuleReportsAChange() async throws {
+    let vm = try await viewModel(cpu: "5%")
+    vm.templateVariables = ["done": "false"]
+    let live = LiveContentProvider(viewModel: vm)
+    let manager = PopupManager()
+    let tree = try node(#"{"type":"check","label":"Buy milk","checked":"{done}"}"#)
+    let menu = buildNativeMenu(from: tree, resolver: manager.makeResolver(for: live))
+    let clicked = try #require(menu.items.first?.view as? NativeMenuCheckItemView)
+    let event = try #require(
+      NSEvent.mouseEvent(
+        with: .leftMouseUp, location: .zero, modifierFlags: [], timestamp: 0, windowNumber: 0,
+        context: nil, eventNumber: 0, clickCount: 1, pressure: 0))
+    clicked.mouseUp(with: event)
+
+    refreshNativeMenu(menu, from: tree, resolver: manager.makeResolver(for: live))
+    #expect(menu.items.first?.view === clicked)
+
+    vm.templateVariables = ["done": "true"]
+    await waitUntil { live.templateVariables["done"] == "true" }
+    refreshNativeMenu(menu, from: tree, resolver: manager.makeResolver(for: live))
+    #expect(menu.items.first?.view !== clicked)
+  }
+
+  @Test func testAClickedPopupCheckHoldsUntilTheRowOrItsValueChanges() {
+    let row = ["Buy milk", "reminders --complete 1", nil]
+    let click = CheckFlip(row: row, reported: false)
+    #expect(CheckFlip.isChecked(row: row, reported: false, flip: click))
+    #expect(CheckFlip.isChecked(row: row, reported: true, flip: click))
+    #expect(
+      !CheckFlip.isChecked(
+        row: ["Walk dog", "reminders --complete 2", nil], reported: false, flip: click))
+    #expect(!CheckFlip.isChecked(row: row, reported: false, flip: nil))
+  }
+
+  @Test func testAPopupRendersTheModulesLatestValues() async throws {
+    let vm = try await viewModel(cpu: "5%")
+    let live = LiveContentProvider(viewModel: vm)
+    let manager = PopupManager()
+    let view = LiveDSLView(
+      liveContent: live, configViewTree: try node(#"{"type":"text","content":"CPU {cpu}"}"#),
+      makeResolver: { manager.makeResolver(for: $0) }, isNative: false, dismissHandler: {})
+    let hosting = NSHostingView(rootView: view)
+    let window = NSWindow(
+      contentRect: NSRect(x: 0, y: 0, width: 400, height: 40), styleMask: [.borderless],
+      backing: .buffered, defer: false)
+    window.contentView = hosting
+    await runMainLoop(for: 0.1)
+    let before = hosting.fittingSize.width
+
+    vm.templateVariables = ["cpu": "42% across every core of this machine"]
+    await waitUntil { hosting.fittingSize.width > before }
+  }
+}
+
 final class CommandWatchOutputTests {
   private func config(_ yaml: String) throws -> CommandConfig {
     try CommandConfig(yaml: try Yaml.load(yaml))
