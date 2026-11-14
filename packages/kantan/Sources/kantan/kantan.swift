@@ -254,6 +254,16 @@ class DisplayInstance {
     return !isDrawerOpen(side: drawerSide(for: group.placement))
   }
 
+  /// Whether a group is a masked module with nothing to cover: the module
+  /// is hidden, or the item it masks isn't in the menu bar.
+  static func isUncoveredMask(_ group: ModuleGroup, nativeItems: [NativeMenuBarItem]) -> Bool {
+    guard group.modules.count == 1, let mask = group.modules[0].moduleConfig.mask else {
+      return false
+    }
+    return !group.modules[0].shouldDisplay
+      || MenuBarItemDetector.resolveItem(for: mask, from: nativeItems) == nil
+  }
+
   /// Groups that become empty after filtering are removed entirely.
   private func filterGroups(_ groups: [ModuleGroup], for screen: NSScreen) -> [ModuleGroup] {
     groups.compactMap { group in
@@ -912,10 +922,19 @@ class DisplayInstance {
 
   // MARK: - Slide Animation
 
-  /// All panels that should be visible (excludes drawer-content panels when their side is closed).
+  /// All panels that should be visible: excludes drawer-content panels when
+  /// their side is closed, and masked panels with nothing to cover.
   var visiblePanels: [NSPanel] {
+    let nativeItems = resolveScreen().map { MenuBarItemDetector.detectItems(for: $0) } ?? []
+    return visiblePanels(nativeItems: nativeItems)
+  }
+
+  func visiblePanels(nativeItems: [NativeMenuBarItem]) -> [NSPanel] {
     [bgPanel].compactMap { $0 }
-      + groupPanels.filter { !isDrawerContentHidden($0.group) }.map { $0.panel }
+      + groupPanels.filter {
+        !isDrawerContentHidden($0.group)
+          && !Self.isUncoveredMask($0.group, nativeItems: nativeItems)
+      }.map { $0.panel }
       + drawerClickPanels
   }
 

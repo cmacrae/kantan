@@ -437,6 +437,46 @@ final class MaskedModuleInteractionTests {
     #expect((groups.map { $0.modules.map(\.moduleConfig.name) }) == [["masked"], ["menu"]])
     #expect(groups.map(\.isPassthrough) == [true, false])
   }
+
+  @Test func testShowingTheBarLeavesOutMasksWithNothingToCover() throws {
+    let config = try #require(loadConfig(from: try Yaml.load("modules: []")))
+    let display = DisplayInstance(screenName: "test", barHeight: 24, config: config)
+    let theme = ThemeProvider(config: config)
+    let configs = [
+      try module("tailscale", "mask:\n  name: tailscale\n"),
+      try module("battery", "mask:\n  name: battery\n"),
+      try module("hidden", "mask:\n  name: wifi\n"),
+      try module("text"),
+    ]
+    for moduleConfig in configs {
+      let vm = ModuleViewModel(moduleConfig: moduleConfig)
+      vm.shouldDisplay = moduleConfig.name != "hidden"
+      let group = ModuleGroup(
+        id: moduleConfig.name, modules: [vm], isPassthrough: true, placement: "right",
+        isDrawerContent: false)
+      let hostingView = NSHostingView(
+        rootView: ModuleGroupView(
+          modules: [vm], placement: "right", popupManager: PopupManager(), themeProvider: theme))
+      let panel = NSPanel(
+        contentRect: .zero, styleMask: [.borderless, .nonactivatingPanel], backing: .buffered,
+        defer: true)
+      display.groupPanels.append((panel: panel, hostingView: hostingView, group: group))
+    }
+    func shown(_ items: [NativeMenuBarItem]) -> [String] {
+      let panels = display.visiblePanels(nativeItems: items)
+      return display.groupPanels.filter { entry in panels.contains { $0 === entry.panel } }
+        .map(\.group.id)
+    }
+    func item(_ identifier: String) -> NativeMenuBarItem {
+      NativeMenuBarItem(
+        index: 0, cgRect: .zero, owner: "MenuBarAgent", identifier: identifier)
+    }
+
+    #expect(shown([item("Battery"), item("WiFi")]) == ["battery", "text"])
+    #expect(
+      shown([item("Battery"), item("Tailscale"), item("WiFi")]) == ["tailscale", "battery", "text"])
+    #expect(shown([]) == ["text"])
+  }
 }
 
 final class LoadConfigFileTests {
