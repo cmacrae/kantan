@@ -16,8 +16,18 @@ programs.kantan.enable = true;`,
   },
   {
     label: "Homebrew",
-    content: `brew install cmacrae/tap/kantan
-brew services start kantan`,
+    content: `# Install
+brew install cmacrae/tap/kantan
+
+# Run at login as a service
+brew services start kantan
+
+# Or without the bundled plugins
+brew install cmacrae/tap/kantan-without-plugins`,
+    note: {
+      text: "See the docs for the formulae and the service",
+      href: "/docs/getting-started/installation.html#homebrew",
+    },
   },
   {
     label: "Script",

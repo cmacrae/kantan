@@ -11,8 +11,6 @@ export default function InstallTabs({ siteDark }) {
   const commentColor = siteDark ? "#6c6c60" : "#9c9c90";
   const accent = "#d97757";
 
-  const current = INSTALL_TABS[tab];
-
   function highlightShell(code) {
     return code.split('\n').map((line, i, arr) => {
       const nl = i < arr.length - 1 ? '\n' : '';
@@ -43,26 +41,37 @@ export default function InstallTabs({ siteDark }) {
           </button>
         ))}
       </div>
-      <pre style={{
-        margin: 0, padding: "16px 20px",
-        background: codeBg, borderRadius: "0 8px 8px 8px",
-        fontSize: 12.5, lineHeight: 1.6,
-        fontFamily: "'SF Mono', Menlo, Monaco, monospace",
-        overflowX: "auto",
-      }}>
-        <code>{highlightShell(current.content)}</code>
-      </pre>
-      {current.note && (
-        <p style={{ margin: "8px 0 0", fontSize: 12, color: fgMuted }}>
-          {current.note.href ? (
-            <a href={current.note.href} style={{ color: fgSub, textDecoration: "none", borderBottom: `1px solid ${fgMuted}` }}>
-              {current.note.text} &rarr;
-            </a>
-          ) : (
-            current.note.text
-          )}
-        </p>
-      )}
+      {/* Every tab shares one grid cell, so the panel keeps the tallest tab's
+          height and the page doesn't move when switching tabs. */}
+      <div style={{ display: "grid" }}>
+        {INSTALL_TABS.map((t, i) => (
+          <div key={t.label} aria-hidden={i !== tab} style={{
+            gridArea: "1 / 1", display: "flex", flexDirection: "column",
+            visibility: i === tab ? "visible" : "hidden",
+          }}>
+            <pre style={{
+              flex: 1, margin: 0, padding: "16px 20px",
+              background: codeBg, borderRadius: "0 8px 8px 8px",
+              fontSize: 12.5, lineHeight: 1.6,
+              fontFamily: "'SF Mono', Menlo, Monaco, monospace",
+              overflowX: "auto",
+            }}>
+              <code>{highlightShell(t.content)}</code>
+            </pre>
+            {t.note && (
+              <p style={{ margin: "8px 0 0", fontSize: 12, color: fgMuted }}>
+                {t.note.href ? (
+                  <a href={t.note.href} style={{ color: fgSub, textDecoration: "none", borderBottom: `1px solid ${fgMuted}` }}>
+                    {t.note.text} &rarr;
+                  </a>
+                ) : (
+                  t.note.text
+                )}
+              </p>
+            )}
+          </div>
+        ))}
+      </div>
     </div>
   );
 }
