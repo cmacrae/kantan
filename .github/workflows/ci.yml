@@ -33,12 +33,18 @@ jobs:
         env:
           BASE: ${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha || github.event.before }}
           HEAD: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
+          GH_TOKEN: ${{ github.token }}
         run: |
           # Only the commits this push or pull request adds; the earliest
           # history predates conventional commits.
           if [ "$BASE" = "0000000000000000000000000000000000000000" ]; then
             echo "No earlier commit to check from"
             exit 0
+          fi
+          # A force push leaves the old head out of the checkout. The
+          # rewritten commits start after its merge base with the new head.
+          if ! git cat-file -e "$BASE^{commit}" 2>/dev/null; then
+            BASE=$(gh api "repos/$GITHUB_REPOSITORY/compare/$BASE...$HEAD" --jq .merge_base_commit.sha)
           fi
           nix develop --command cog check --ignore-merge-commits "$BASE..$HEAD"
 
