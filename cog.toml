@@ -6,3 +6,20 @@ disable_changelog = true
 pre_bump_hooks = ["printf '%s\n' {{version}} > VERSION"]
 # cog doesn't sign tags; replace its tag with a signed, annotated one.
 post_bump_hooks = ["git tag -f -s -m v{{version}} v{{version}}"]
+
+# The parts of kantan, then the tooling around it.
+scopes = [
+  # The app
+  "bar", "config", "cli", "display", "events", "interaction", "masking", "dsl", "theme", "icons",
+  # Built-in modules
+  "bluetooth", "clock", "command", "drawer", "focus", "icon", "power", "text", "volume", "wifi", "workspace", "modules",
+  # Bundled plugins
+  "plugins", "caffeine", "calendar", "pomodoro", "reminders", "rift-indicator", "system-monitor", "tailscale",
+  # Packaging and tooling, for types that don't bump
+  "nix", "homebrew", "release", "install",
+]
+
+# Only feat and fix bump the version, and only for changes to what kantan
+# does. Packaging, the docs, the site and CI use types that don't bump.
+[commit_types]
+site = { changelog_title = "Site", omit_from_changelog = true }

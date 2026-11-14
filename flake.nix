@@ -53,6 +53,11 @@
 
       tabler-icons = pkgs.callPackage ./packages/tabler-icons { };
 
+      commits = import ./nix/commits.nix {
+        inherit pkgs;
+        cogConfig = ./cog.toml;
+      };
+
       treefmtEval = treefmt.lib.evalModule pkgs {
         projectRootFile = "flake.nix";
         programs.nixfmt.enable = true;
@@ -170,6 +175,7 @@
         render-site-images = site.renderImagesApp;
         assemble-site = site.assembleApp;
         generate-homebrew-formulae = homebrew.generateApp;
+        check-commits = commits.app;
       };
 
       darwinModules.default = import ./nix/module/darwin.nix kantan;
@@ -198,6 +204,7 @@
           pluginPackages
           themePackages
           tabler-icons
+          commits
           treefmtEval
           _kantan
           kantan

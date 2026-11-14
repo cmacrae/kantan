@@ -8,6 +8,7 @@
   pluginPackages,
   themePackages,
   tabler-icons,
+  commits,
   treefmtEval,
   _kantan,
   kantan,
@@ -145,6 +146,8 @@ in
       '';
   docs = docs.package;
   site = site.package;
+  commits = commits.test;
+  commit-scopes = commits.scopes;
   homebrew-formula = homebrew.kantan;
 
   homebrew-bottles = pkgs.runCommand "kantan-homebrew-bottles" { nativeBuildInputs = [ pkgs.jq ]; } ''

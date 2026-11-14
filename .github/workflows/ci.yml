@@ -35,18 +35,22 @@ jobs:
           HEAD: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
           GH_TOKEN: ${{ github.token }}
         run: |
-          # Only the commits this push or pull request adds; the earliest
-          # history predates conventional commits.
+          # The commits this push or pull request adds. A force push leaves
+          # the old head out of the checkout, so the rewritten commits start
+          # after its merge base with the new head. A new branch, or a history
+          # rewritten from its first commit, has no earlier commit to start
+          # from, so every commit is checked.
+          RANGE="$BASE..$HEAD"
           if [ "$BASE" = "0000000000000000000000000000000000000000" ]; then
-            echo "No earlier commit to check from"
-            exit 0
+            RANGE="$HEAD"
+          elif ! git cat-file -e "$BASE^{commit}" 2>/dev/null; then
+            if BASE=$(gh api "repos/$GITHUB_REPOSITORY/compare/$BASE...$HEAD" --jq .merge_base_commit.sha); then
+              RANGE="$BASE..$HEAD"
+            else
+              RANGE="$HEAD"
+            fi
           fi
-          # A force push leaves the old head out of the checkout. The
-          # rewritten commits start after its merge base with the new head.
-          if ! git cat-file -e "$BASE^{commit}" 2>/dev/null; then
-            BASE=$(gh api "repos/$GITHUB_REPOSITORY/compare/$BASE...$HEAD" --jq .merge_base_commit.sha)
-          fi
-          nix develop --command cog check --ignore-merge-commits "$BASE..$HEAD"
+          nix run .#check-commits -- "$RANGE"
 
       - name: Smoke test
         run: nix run . -- --version
