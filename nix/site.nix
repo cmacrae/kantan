@@ -108,35 +108,78 @@ let
     '';
     installPhase = ''
       mkdir -p $out/fonts
-      cp index.html main.js preview.html preview.js favicon.svg install.sh $out/
+      cp index.html 404.html main.js preview.html preview.js favicon.svg install.sh docs-versions.js $out/
       cp ${fonts}/* $out/fonts/
     '';
   };
 
+  # Assembles the site in a directory from the landing page and the docs of
+  # each release, given as <version>=<docs> pairs with the latest first. The
+  # latest docs sit at /docs/ and the others at /docs/v<version>/, where
+  # search engines are asked not to index them. Every docs page gets the
+  # version picker.
+  assemble = pkgs.writeShellApplication {
+    name = "kantan-site-assemble";
+    runtimeInputs = [
+      pkgs.coreutils
+      pkgs.findutils
+      pkgs.gnused
+    ];
+    text = ''
+      if [ $# -lt 2 ]; then
+        echo "usage: kantan-site-assemble <out> <version>=<docs>..." >&2
+        exit 2
+      fi
+      out=$1
+      shift
+
+      mkdir -p "$out/docs" "$out/images"
+      cp -r ${pages}/{index.html,404.html,main.js,favicon.svg,install.sh,fonts} "$out/"
+      cp ${pages}/docs-versions.js "$out/docs/versions.js"
+      cp ${../site/images/og.png} "$out/images/og.png"
+      chmod -R u+w "$out"
+
+      latest=true
+      versions=""
+      for pair in "$@"; do
+        version=''${pair%%=*}
+        if $latest; then path=/docs/; else path=/docs/v$version/; fi
+
+        mkdir -p "$out$path"
+        cp -r "''${pair#*=}"/. "$out$path"
+        chmod -R u+w "$out$path"
+
+        # The latest docs are copied first, so no older release is in /docs/ yet.
+        head='<script src="/docs/versions.js" defer></script>'
+        $latest || head="<meta name=\"robots\" content=\"noindex\">$head"
+        find "$out$path" -name '*.html' -exec sed -i "s|</head>|$head</head>|" {} +
+
+        versions+="''${versions:+,}{\"version\":\"$version\",\"path\":\"$path\",\"latest\":$latest}"
+        latest=false
+      done
+      echo "[$versions]" > "$out/docs/versions.json"
+
+      # The landing page and the latest docs, but not their print, 404 and
+      # sidebar pages
+      {
+        echo '<?xml version="1.0" encoding="UTF-8"?>'
+        echo '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">'
+        echo "  <url><loc>${url}/</loc></url>"
+        (cd "$out" && find docs -path 'docs/v[0-9]*' -prune -o -name '*.html' \
+          ! -name print.html ! -name 404.html ! -name toc.html -print) \
+          | sort | while read -r page; do
+            echo "  <url><loc>${url}/$page</loc></url>"
+          done
+        echo '</urlset>'
+      } > "$out/sitemap.xml"
+
+      printf 'User-agent: *\nAllow: /\n\nSitemap: %s/sitemap.xml\n' ${url} > "$out/robots.txt"
+    '';
+  };
+
+  # The site with this checkout's docs as the only release
   site = pkgs.runCommand "kantan-site" { } ''
-    mkdir -p $out/docs $out/images
-    cp -r ${pages}/{index.html,main.js,favicon.svg,install.sh,fonts} $out/
-    cp ${../site/images/og.png} $out/images/og.png
-    cp -r ${docs.package}/* $out/docs/
-
-    # Every page but the docs' print, 404 and sidebar pages
-    {
-      echo '<?xml version="1.0" encoding="UTF-8"?>'
-      echo '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">'
-      echo "  <url><loc>${url}/</loc></url>"
-      (cd $out && find docs -name '*.html' ! -name print.html ! -name 404.html ! -name toc.html) \
-        | sort | while read -r page; do
-          echo "  <url><loc>${url}/$page</loc></url>"
-        done
-      echo '</urlset>'
-    } > $out/sitemap.xml
-
-    cat > $out/robots.txt <<EOF
-    User-agent: *
-    Allow: /
-
-    Sitemap: ${url}/sitemap.xml
-    EOF
+    ${lib.getExe assemble} $out ${lib.versions.majorMinor version}=${docs.package}
   '';
 
   serve = pkgs.writeShellScriptBin "kantan-site-serve" ''
@@ -178,6 +221,11 @@ in
   app = {
     type = "app";
     program = "${serve}/bin/kantan-site-serve";
+  };
+
+  assembleApp = {
+    type = "app";
+    program = lib.getExe assemble;
   };
 
   renderImagesApp = {

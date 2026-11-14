@@ -168,6 +168,7 @@
         docs = docs.app;
         site = site.app;
         render-site-images = site.renderImagesApp;
+        assemble-site = site.assembleApp;
         generate-homebrew-formulae = homebrew.generateApp;
       };
 

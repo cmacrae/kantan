@@ -66,6 +66,17 @@ jobs:
           path: tap/Formula
           if-no-files-found: error
 
+  # Publishes the site with the new release's docs. A release published with
+  # the workflow's token starts no other workflow, so this calls the site's.
+  site:
+    needs: release
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
+    # actionlint reads only the ./ form of a call to this repository.
+    uses: ./.github/workflows/site.yml # zizmor: ignore[self-repository]
+
   # Commits the release's formulae to the Homebrew tap.
   homebrew:
     needs: release
