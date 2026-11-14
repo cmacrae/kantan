@@ -491,8 +491,10 @@ class DisplayInstance {
       )
       let hostingView = NSHostingView(rootView: groupView)
 
-      // Skip drawer content in positioning when its side's drawer is closed
-      let skipPositioning = isDrawerContentHidden(group)
+      // Skip positioning drawer content while its side's drawer is closed,
+      // and masks with nothing to cover
+      let skipPositioning =
+        isDrawerContentHidden(group) || Self.isUncoveredMask(group, nativeItems: nativeItems)
 
       let panelRect: NSRect
       if group.modules.count == 1,
@@ -503,7 +505,7 @@ class DisplayInstance {
         panelRect = NSRect(
           x: nativeRect.origin.x, y: statusBarY, width: nativeRect.width, height: barHeight)
       } else if skipPositioning {
-        // Place off-screen; will be positioned correctly when drawer opens
+        // Positioned once the drawer opens or the masked item appears
         panelRect = NSRect(x: bounds.rightX, y: statusBarY, width: 0, height: barHeight)
       } else {
         let fittingWidth = hostingView.fittingSize.width
