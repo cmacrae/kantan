@@ -30,7 +30,7 @@
         version = version.release;
       };
       site = import ./nix/site.nix {
-        inherit pkgs docs;
+        inherit pkgs docs buildSwiftPackage;
         version = version.release;
       };
 
@@ -167,6 +167,7 @@
       apps.${system} = {
         docs = docs.app;
         site = site.app;
+        render-site-images = site.renderImagesApp;
         generate-homebrew-formulae = homebrew.generateApp;
       };
 

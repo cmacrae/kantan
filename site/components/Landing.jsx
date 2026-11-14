@@ -3,6 +3,7 @@ import { I } from "./Icons.jsx";
 import KantanBarMock from "./MockBar.jsx";
 import { ConfigToggle, ConfigCode } from "./ConfigPreview.jsx";
 import InstallTabs from "./InstallTabs.jsx";
+import Wordmark from "./Wordmark.jsx";
 import features from "../content/features.json";
 
 function Toggle({ icon, label, onClick, siteDark }) {
@@ -53,16 +54,6 @@ export default function KantanLanding() {
     return () => mq.removeEventListener("change", handler);
   }, []);
 
-  useEffect(() => {
-    let s = document.querySelector('style[data-jpfont]');
-    if (!s) {
-      s = document.createElement("style");
-      s.setAttribute("data-jpfont", "1");
-      document.head.appendChild(s);
-    }
-    s.textContent = `@import url('https://fonts.googleapis.com/css2?family=Darumadrop+One&family=Single+Day&display=swap');`;
-  }, []);
-
   const bg = siteDark ? "#141413" : "#faf9f5";
   const fg = siteDark ? "#e8e6dc" : "#191918";
   const fgMuted = siteDark ? "rgba(232,230,220,0.45)" : "rgba(25,25,24,0.4)";
@@ -88,19 +79,7 @@ export default function KantanLanding() {
         textAlign: "center", padding: "60px 24px 0",
         maxWidth: 800, margin: "0 auto",
       }}>
-        <h1 style={{
-          fontSize: 56, fontFamily: "'Single Day', cursive", fontWeight: 400, letterSpacing: "-0.03em",
-          margin: 0, lineHeight: 1.1, color: fg,
-        }}>
-          kantan
-        </h1>
-        <p style={{
-          fontSize: 18, color: fgMuted, margin: "6px 0 0",
-          fontFamily: "'Darumadrop One', cursive",
-          fontWeight: 400, letterSpacing: "0.08em",
-        }}>
-          &#12363;&#12435;&#12383;&#12435;
-        </p>
+        <Wordmark color={fg} subColor={fgMuted} />
         <p style={{
           fontSize: 19, color: fgSub, margin: "28px 0 0",
           fontWeight: 400, lineHeight: 1.5, letterSpacing: "-0.01em",
@@ -177,6 +156,15 @@ export default function KantanLanding() {
         </h2>
         <InstallTabs siteDark={siteDark} />
       </div>
+
+      <footer style={{
+        textAlign: "center", padding: "0 24px 48px",
+        fontSize: 12, color: fgMuted,
+      }}>
+        © 2023–2026 Calum MacRae · Released under the{" "}
+        <a href="https://github.com/cmacrae/kantan/blob/main/LICENSE"
+          style={{ color: "inherit" }}>MIT License</a>
+      </footer>
     </div>
   );
 }

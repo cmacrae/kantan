@@ -46,7 +46,9 @@ function WiFi({ color, size = 15 }) {
   );
 }
 
-export default function KantanBarMock({ themed, dark }) {
+// `children` replace the terminals on the desktop below the bar, and `clock`
+// stops the clock at a fixed time.
+export default function KantanBarMock({ themed, dark, children, clock, desktopHeight = 200, maxWidth = "60vw" }) {
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [caffeineActive, setCaffeineActive] = useState(false);
   const [remindersOpen, setRemindersOpen] = useState(false);
@@ -59,16 +61,17 @@ export default function KantanBarMock({ themed, dark }) {
   const pending = reminders.filter(r => !r.done);
   const remindersRef = useRef(null);
   const sysmonRef = useRef(null);
-  const [time, setTime] = useState(() => fmt(new Date()));
+  const [time, setTime] = useState(() => clock ?? fmt(new Date()));
 
   function fmt(d) {
     return `${String(d.getHours()).padStart(2,"0")}:${String(d.getMinutes()).padStart(2,"0")}`;
   }
 
   useEffect(() => {
+    if (clock) return;
     const id = setInterval(() => setTime(fmt(new Date())), 5000);
     return () => clearInterval(id);
-  }, []);
+  }, [clock]);
 
   useEffect(() => {
     if (!remindersOpen) return;
@@ -118,7 +121,7 @@ export default function KantanBarMock({ themed, dark }) {
       {/* Desktop frame */}
       <div style={{
         // Grows past 60vw rather than letting the bar spill out of it.
-        width: "100%", maxWidth: "60vw", minWidth: "max-content", borderRadius: 10,
+        width: "100%", maxWidth, minWidth: "max-content", borderRadius: 10,
         boxShadow: dark
           ? "0 16px 64px rgba(0,0,0,0.55), 0 2px 6px rgba(0,0,0,0.3)"
           : "0 8px 40px rgba(0,0,0,0.12), 0 2px 6px rgba(0,0,0,0.06)",
@@ -384,8 +387,8 @@ export default function KantanBarMock({ themed, dark }) {
         </div>
 
         {/* Desktop peek */}
-        <div style={{ height: 200, position: "relative", zIndex: 0, borderRadius: "0 0 10px 10px", overflow: "hidden", background: wallpaper }}>
-          <WorkspaceTerminals dark={dark} themed={isTheme} activeSpace={activeSpace} />
+        <div style={{ height: desktopHeight, position: "relative", zIndex: 0, borderRadius: "0 0 10px 10px", overflow: "hidden", background: wallpaper }}>
+          {children ?? <WorkspaceTerminals dark={dark} themed={isTheme} activeSpace={activeSpace} />}
         </div>
       </div>
     </>

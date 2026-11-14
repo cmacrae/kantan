@@ -1,6 +1,11 @@
-# kantan · かんたん
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="site/images/readme-dark.png">
+    <img src="site/images/readme-light.png" alt="kantan · かんたん: the kantan bar across the top of a macOS desktop" width="960">
+  </picture>
+</p>
 
-A beautifully simple status bar for macOS
+<p align="center">A beautifully simple status bar for macOS</p>
 
 ## About
 
