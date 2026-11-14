@@ -52,10 +52,11 @@ export default function KantanBarMock({ themed, dark }) {
   const [remindersOpen, setRemindersOpen] = useState(false);
   const [sysmonOpen, setSysmonOpen] = useState(false);
   const [reminders, setReminders] = useState([
-    { id: 0, text: "Hello!", done: false },
-    { id: 1, text: "Meep", done: false },
-    { id: 2, text: "Bleh", done: false },
+    { id: 0, text: "Dentist", done: false },
+    { id: 1, text: "Haircut", done: false },
+    { id: 2, text: "Run 5k", done: false },
   ]);
+  const pending = reminders.filter(r => !r.done);
   const remindersRef = useRef(null);
   const sysmonRef = useRef(null);
   const [time, setTime] = useState(() => fmt(new Date()));
@@ -117,7 +118,8 @@ export default function KantanBarMock({ themed, dark }) {
     <>
       {/* Desktop frame */}
       <div style={{
-        width: "100%", maxWidth: "60vw", borderRadius: 10,
+        // Grows past 60vw rather than letting the bar spill out of it.
+        width: "100%", maxWidth: "60vw", minWidth: "max-content", borderRadius: 10,
         boxShadow: dark
           ? "0 16px 64px rgba(0,0,0,0.55), 0 2px 6px rgba(0,0,0,0.3)"
           : "0 8px 40px rgba(0,0,0,0.12), 0 2px 6px rgba(0,0,0,0.06)",
@@ -250,8 +252,9 @@ export default function KantanBarMock({ themed, dark }) {
               )}
             </div>
 
-            {/* Reminders */}
-            <div ref={remindersRef} style={{ position: "relative", margin: "0 10px" }}>
+            {/* Reminders, hidden like the plugin once nothing is incomplete */}
+            {pending.length > 0 && (
+            <div ref={remindersRef} style={{ position: "relative", margin: "0 10px", flexShrink: 0 }}>
               <div
                 onClick={() => { setRemindersOpen(o => !o); setSysmonOpen(false); }}
                 style={{
@@ -261,11 +264,7 @@ export default function KantanBarMock({ themed, dark }) {
                 }}
               >
                 <I name="bell-filled" size={14} color={c("maroon")} />
-                <span style={{ color: fg }}>
-                  {reminders.filter(r => !r.done).length > 0
-                    ? reminders.filter(r => !r.done)[0].text
-                    : "Done"}
-                </span>
+                <span style={{ color: fg, whiteSpace: "nowrap" }}>{pending[0].text}</span>
               </div>
 
               {remindersOpen && (
@@ -283,7 +282,7 @@ export default function KantanBarMock({ themed, dark }) {
                   fontSize: 13,
                   fontFamily: "'Helvetica Neue', Helvetica, sans-serif",
                 }}>
-                  {reminders.filter(r => !r.done).map(r => (
+                  {pending.map(r => (
                     <div
                       key={r.id}
                       onClick={() => setReminders(rs => rs.map(x => x.id === r.id ? { ...x, done: !x.done } : x))}
@@ -334,6 +333,7 @@ export default function KantanBarMock({ themed, dark }) {
                 </div>
               )}
             </div>
+            )}
           </div>
 
           {/* Drawer toggle */}
