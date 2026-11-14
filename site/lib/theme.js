@@ -14,7 +14,38 @@ export const mocha = {
   blue:"#89b4fa",lavender:"#b4befe",subtext1:"#bac2de",overlay0:"#6c7086",
 };
 
-export const RAINBOW = [
-  "rosewater","flamingo","pink","mauve","red","maroon","peach",
-  "yellow","green","teal","sky","sapphire","blue","lavender"
-];
+// The workspace module's rainbow colours, as config-example.yaml lists them.
+export const RAINBOW = ["red", "peach", "green", "sky", "mauve", "pink"];
+
+export const SPACES = 6;
+
+const U64 = (1n << 64n) - 1n;
+
+// kantan's `WorkspaceConfig.shuffledRainbow`: a Fisher-Yates shuffle seeded
+// by the workspace count, cycled to one colour per workspace with no two
+// neighbours alike.
+export function shuffledRainbow(colors, spaceCount) {
+  if (colors.length <= 1) return colors.slice();
+  const shuffled = colors.slice();
+  let rng = BigInt(spaceCount);
+  for (let i = shuffled.length - 1; i >= 1; i--) {
+    rng = (rng * 6364136223846793005n + 1442695040888963407n) & U64;
+    const j = Number((rng >> 33n) % BigInt(i + 1));
+    [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+  }
+  if (spaceCount <= shuffled.length) return shuffled;
+  const result = shuffled.slice();
+  while (result.length < spaceCount) {
+    const last = result[result.length - 1];
+    const start = result.length % shuffled.length;
+    let next = shuffled[start];
+    for (let offset = 1; next === last && offset < shuffled.length; offset++) {
+      next = shuffled[(start + offset) % shuffled.length];
+    }
+    result.push(next);
+  }
+  return result;
+}
+
+// Each workspace's colour, indexed as kantan indexes them.
+export const WORKSPACE_COLORS = shuffledRainbow(RAINBOW, SPACES);

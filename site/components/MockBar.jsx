@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from "react";
-import { latte, mocha, RAINBOW } from "../lib/theme.js";
+import { latte, mocha, SPACES, WORKSPACE_COLORS } from "../lib/theme.js";
 import { I, ICON_SCALE } from "./Icons.jsx";
 import { WorkspaceTerminals } from "./Terminal.jsx";
 
@@ -111,7 +111,6 @@ export default function KantanBarMock({ themed, dark }) {
 
   const cssVars = { "--fg": fg, "--tip-bg": tipBg };
 
-  const SPACES = 6;
   const [activeSpace, setActiveSpace] = useState(0);
 
   return (
@@ -143,7 +142,7 @@ export default function KantanBarMock({ themed, dark }) {
           <M padOuter>
             <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
               {Array.from({ length: SPACES }).map((_, i) => {
-                const dotColor = isTheme ? p[RAINBOW[i % RAINBOW.length]] : fg;
+                const dotColor = isTheme ? p[WORKSPACE_COLORS[i % WORKSPACE_COLORS.length]] : fg;
                 return (
                   <div key={i} onClick={() => setActiveSpace(i)}
                     style={{ cursor: "pointer", display: "flex", alignItems: "center" }}>

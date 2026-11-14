@@ -12,11 +12,12 @@ modules:
       rainbow:
         enabled: true
         colors:
-          - "{theme(pink)}"
+          - "{theme(red)}"
           - "{theme(peach)}"
           - "{theme(green)}"
           - "{theme(sky)}"
           - "{theme(mauve)}"
+          - "{theme(pink)}"
 
   # Drawer contents
   - name: system-monitor

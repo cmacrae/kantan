@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { latte, mocha } from "../lib/theme.js";
+import { latte, mocha, WORKSPACE_COLORS } from "../lib/theme.js";
 import { I } from "./Icons.jsx";
 
 function tokenize(...parts) {
@@ -31,7 +31,7 @@ const WORKSPACE_SCRIPTS = [
     { action: "pause", ms: 400 },
     { action: "type", tokens: tokenize(
       "Let's explore! Click around... I wonder what's on the other workspaces ",
-      IC("point-filled", "rosewater"), " ", IC("point-filled", "flamingo", 0.4), " ", IC("point-filled", "pink", 0.4),
+      IC("point-filled", WORKSPACE_COLORS[0]), " ", IC("point-filled", WORKSPACE_COLORS[1], 0.4), " ", IC("point-filled", WORKSPACE_COLORS[2], 0.4),
     ), speed: 60 },
   ],
   /* 2 */ [
