@@ -1,0 +1,212 @@
+/* Recolours mdBook's Light and Coal themes with the landing page's palette.
+   book.toml makes them the light and dark defaults, so Auto follows the
+   system appearance between the two. */
+
+:root {
+    --mono-font: "SF Mono", Menlo, Monaco, monospace;
+}
+
+html {
+    font-family: -apple-system, BlinkMacSystemFont, "Helvetica Neue", Helvetica, sans-serif;
+}
+
+.light, html:not(.js) {
+    --bg: #faf9f5;
+    --fg: #191918;
+
+    --sidebar-bg: #f3f2ec;
+    --sidebar-fg: #5f5e59;
+    --sidebar-non-existant: #9c9c90;
+    --sidebar-active: #b5502f;
+    --sidebar-spacer: #e6e5de;
+
+    --scrollbar: #c9c8c0;
+
+    --icons: #8f8e8a;
+    --icons-hover: #191918;
+
+    --links: #b5502f;
+
+    --inline-code-color: #4a4a44;
+
+    --theme-popup-bg: #faf9f5;
+    --theme-popup-border: #e6e5de;
+    --theme-hover: #eeeee8;
+
+    --quote-bg: #f3f2ec;
+    --quote-border: #e6e5de;
+
+    --table-border-color: #e6e5de;
+    --table-header-bg: #e6e5de;
+    --table-alternate-bg: #f3f2ec;
+
+    --searchbar-border-color: #d9d8d0;
+    --searchbar-bg: #ffffff;
+    --searchbar-fg: #191918;
+    --searchbar-shadow-color: #d9d8d0;
+    --searchresults-header-fg: #807f78;
+    --searchresults-border-color: #d9d8d0;
+    --searchresults-li-bg: #eeeee8;
+    --search-mark-bg: rgba(217, 119, 87, 0.3);
+
+    /* --icons and --sidebar-active as filters on the black copy icon */
+    --copy-button-filter: invert(60%) sepia(1%) saturate(821%) hue-rotate(11deg) brightness(93%) contrast(90%);
+    --copy-button-filter-hover: invert(38%) sepia(21%) saturate(1643%) hue-rotate(328deg) brightness(98%) contrast(98%);
+
+    --footnote-highlight: #d97757;
+
+    --overlay-bg: rgba(25, 25, 24, 0.2);
+
+    --sidebar-header-border-color: #d97757;
+
+    --code-bg: #eeeee8;
+    --code-fg: #191918;
+    --code-comment: #9c9c90;
+    --code-key: #c4593a;
+    --code-string: #40a02b;
+    --code-number: #d76a00;
+    --code-punct: #9c9c90;
+}
+
+.coal {
+    --bg: #141413;
+    --fg: #e8e6dc;
+
+    --sidebar-bg: #1a1a19;
+    --sidebar-fg: #bab8ae;
+    --sidebar-non-existant: #6c6c60;
+    --sidebar-active: #d97757;
+    --sidebar-spacer: #2a2a28;
+
+    --scrollbar: #3a3a37;
+
+    --icons: #74736e;
+    --icons-hover: #e8e6dc;
+
+    --links: #d97757;
+
+    --inline-code-color: #bab8ae;
+
+    --theme-popup-bg: #1c1c1b;
+    --theme-popup-border: #2a2a28;
+    --theme-hover: #262624;
+
+    --quote-bg: #1a1a19;
+    --quote-border: #2a2a28;
+
+    --table-border-color: #2a2a28;
+    --table-header-bg: #2a2a28;
+    --table-alternate-bg: #1a1a19;
+
+    --searchbar-border-color: #3a3a37;
+    --searchbar-bg: #1c1c1b;
+    --searchbar-fg: #e8e6dc;
+    --searchbar-shadow-color: #000000;
+    --searchresults-header-fg: #8c8a82;
+    --searchresults-border-color: #3a3a37;
+    --searchresults-li-bg: #1c1c1b;
+    --search-mark-bg: rgba(217, 119, 87, 0.35);
+
+    /* --icons and --sidebar-active as filters on the black copy icon */
+    --copy-button-filter: invert(45%) sepia(3%) saturate(476%) hue-rotate(18deg) brightness(98%) contrast(93%);
+    --copy-button-filter-hover: invert(52%) sepia(10%) saturate(2561%) hue-rotate(328deg) brightness(102%) contrast(91%);
+
+    --footnote-highlight: #d97757;
+
+    --overlay-bg: rgba(0, 0, 0, 0.4);
+
+    --sidebar-header-border-color: #d97757;
+
+    --code-bg: #1c1c1b;
+    --code-fg: #e8e6dc;
+    --code-comment: #6c6c60;
+    --code-key: #d97757;
+    --code-string: #a6e3a1;
+    --code-number: #fab387;
+    --code-punct: #6c6c60;
+}
+
+/* Without JavaScript the page stays on Light, so the system appearance picks
+   the dark palette. */
+@media (prefers-color-scheme: dark) {
+    html:not(.js) {
+        --bg: #141413;
+        --fg: #e8e6dc;
+        --sidebar-bg: #1a1a19;
+        --sidebar-fg: #bab8ae;
+        --sidebar-active: #d97757;
+        --sidebar-spacer: #2a2a28;
+        --links: #d97757;
+        --inline-code-color: #bab8ae;
+        --quote-bg: #1a1a19;
+        --quote-border: #2a2a28;
+        --table-border-color: #2a2a28;
+        --table-header-bg: #2a2a28;
+        --table-alternate-bg: #1a1a19;
+        --code-bg: #1c1c1b;
+        --code-fg: #e8e6dc;
+        --code-comment: #6c6c60;
+        --code-key: #d97757;
+        --code-string: #a6e3a1;
+        --code-number: #fab387;
+        --code-punct: #6c6c60;
+    }
+}
+
+/* Code colours, as the landing page's config preview draws them */
+
+.light .hljs, .coal .hljs {
+    background: var(--code-bg);
+    color: var(--code-fg);
+}
+
+.light pre > .hljs, .coal pre > .hljs {
+    border-radius: 8px;
+}
+
+.light .hljs-comment, .coal .hljs-comment,
+.light .hljs-quote, .coal .hljs-quote {
+    color: var(--code-comment);
+    font-style: normal;
+}
+
+.light .hljs-attr, .coal .hljs-attr,
+.light .hljs-attribute, .coal .hljs-attribute,
+.light .hljs-keyword, .coal .hljs-keyword,
+.light .hljs-selector-tag, .coal .hljs-selector-tag,
+.light .hljs-name, .coal .hljs-name,
+.light .hljs-tag, .coal .hljs-tag,
+.light .hljs-section, .coal .hljs-section {
+    color: var(--code-key);
+}
+
+.light .hljs-string, .coal .hljs-string,
+.light .hljs-symbol, .coal .hljs-symbol,
+.light .hljs-bullet, .coal .hljs-bullet,
+.light .hljs-regexp, .coal .hljs-regexp,
+.light .hljs-addition, .coal .hljs-addition {
+    color: var(--code-string);
+}
+
+.light .hljs-number, .coal .hljs-number,
+.light .hljs-literal, .coal .hljs-literal,
+.light .hljs-built_in, .coal .hljs-built_in,
+.light .hljs-type, .coal .hljs-type,
+.light .hljs-meta, .coal .hljs-meta,
+.light .hljs-deletion, .coal .hljs-deletion {
+    color: var(--code-number);
+}
+
+.light .hljs-title, .coal .hljs-title,
+.light .hljs-variable, .coal .hljs-variable,
+.light .hljs-template-variable, .coal .hljs-template-variable,
+.light .hljs-params, .coal .hljs-params,
+.light .hljs-link, .coal .hljs-link,
+.light .hljs-selector-id, .coal .hljs-selector-id,
+.light .hljs-selector-class, .coal .hljs-selector-class {
+    color: var(--code-fg);
+}
+
+.light .hljs-punctuation, .coal .hljs-punctuation {
+    color: var(--code-punct);
+}

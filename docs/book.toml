@@ -1,11 +1,15 @@
 [book]
-title = "kantan"
+title = "kantan · Documentation"
 authors = ["Calum MacRae"]
-description = "A beautifully simple status bar for macOS"
+description = "Documentation for kantan, a beautifully simple status bar for macOS: installation, configuration, modules, plugins and themes"
 language = "en"
 src = "src"
 
 [output.html]
+default-theme = "light"
+preferred-dark-theme = "coal"
+additional-css = ["theme/kantan.css"]
+site-url = "/docs/"
 git-repository-url = "https://github.com/cmacrae/kantan"
 git-repository-icon = "fab-github"
 no-section-label = true

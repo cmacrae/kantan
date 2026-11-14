@@ -13,6 +13,8 @@ let
   assembledSrc = pkgs.runCommand "kantan-docs-src" { } ''
     mkdir -p $out/src/plugins
     cp -r ${docsDir}/* $out/
+    chmod u+w $out/theme
+    cp ${../site/favicon.svg} $out/theme/favicon.svg
     ${builtins.concatStringsSep "\n" (
       map (name: "cp ${pluginsDir}/${name}/README.md $out/src/plugins/${name}.md") pluginNames
     )}
