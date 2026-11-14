@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="robots" content="noindex">
+  <title>Page not found · kantan</title>
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="/fonts/fonts.css">
+  <style>
+    :root {
+      --bg: #faf9f5;
+      --fg: #191918;
+      --muted: rgba(25, 25, 24, 0.4);
+      --sub: rgba(25, 25, 24, 0.55);
+      --link: #b5502f;
+    }
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg: #141413;
+        --fg: #e8e6dc;
+        --muted: rgba(232, 230, 220, 0.45);
+        --sub: rgba(232, 230, 220, 0.65);
+        --link: #d97757;
+      }
+    }
+    *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      min-height: 100vh; display: flex; flex-direction: column;
+      align-items: center; justify-content: center; text-align: center;
+      padding: 24px; background: var(--bg); color: var(--fg);
+      font-family: -apple-system, BlinkMacSystemFont, "Helvetica Neue", Helvetica, sans-serif;
+    }
+    h1 {
+      font-family: "Single Day", cursive; font-weight: 400; font-size: 56px;
+      letter-spacing: -0.03em; line-height: 1.1;
+    }
+    .kana {
+      font-family: "Darumadrop One", cursive; font-size: 18px;
+      letter-spacing: 0.08em; color: var(--muted); margin-top: 6px;
+    }
+    .message { font-size: 19px; color: var(--sub); margin-top: 28px; line-height: 1.5; }
+    nav { display: flex; gap: 24px; margin-top: 20px; font-size: 15px; font-weight: 500; }
+    a { color: var(--link); text-decoration: none; }
+    a:hover { text-decoration: underline; }
+  </style>
+</head>
+<body>
+  <h1>kantan</h1>
+  <p class="kana">かんたん</p>
+  <p class="message">There's nothing at this address.</p>
+  <nav>
+    <a href="/">Home</a>
+    <a href="/docs/">Documentation</a>
+  </nav>
+</body>
+</html>

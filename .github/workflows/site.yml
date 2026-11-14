@@ -1,0 +1,70 @@
+name: Site
+
+# The release workflow runs this once it publishes a release. It can also be
+# run by hand, to publish the site again.
+on:
+  workflow_call:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  # Builds the site from the latest release, with the docs of the newest
+  # release of each major.minor version.
+  build:
+    runs-on: macos-26
+    steps:
+      - uses: actions/checkout@v7.0.1
+        with:
+          # Every release's tag
+          fetch-depth: 0
+          persist-credentials: false
+
+      - uses: cachix/install-nix-action@v31.11.5
+
+      - name: List the releases
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release list --exclude-drafts --exclude-pre-releases --limit 1000 \
+              --json tagName --jq '.[].tagName' \
+            | sort -rV | awk -F. '!seen[$1 "." $2]++' > releases
+          if [ ! -s releases ]; then
+            echo "No releases to publish"
+            exit 1
+          fi
+          cat releases
+
+      - name: Build
+        run: |
+          latest=$(head -1 releases)
+          git checkout --quiet "$latest"
+          set --
+          while read -r tag; do
+            version=${tag#v}
+            minor=${version%.*}
+            nix build --print-build-logs --out-link "docs-$minor" \
+              "git+file://$PWD?ref=refs/tags/$tag#docs"
+            set -- "$@" "$minor=docs-$minor"
+          done < releases
+          nix run .#assemble-site -- _site "$@"
+
+      - uses: actions/upload-pages-artifact@v5.0.0
+        with:
+          path: _site
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-slim
+    permissions:
+      pages: write
+      id-token: write
+    concurrency:
+      group: pages
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v5.0.1

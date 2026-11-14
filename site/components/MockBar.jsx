@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useLayoutEffect, useCallback, useRef } from "react";
 import { latte, mocha, SPACES, WORKSPACE_COLORS } from "../lib/theme.js";
 import { I, ICON_SCALE } from "./Icons.jsx";
 import { WorkspaceTerminals } from "./Terminal.jsx";
@@ -48,7 +48,39 @@ function WiFi({ color, size = 15 }) {
 
 // `children` replace the terminals on the desktop below the bar, and `clock`
 // stops the clock at a fixed time.
-export default function KantanBarMock({ themed, dark, children, clock, desktopHeight = 200, maxWidth = "60vw" }) {
+// The mock's width on the landing page: 60% of the window, or the whole
+// column on narrow screens.
+export const MOCK_WIDTH = "max(60vw, min(100%, 640px))";
+
+// Shrinks `ref`'s element to fit its parent when its content is wider, as
+// the bar is on a phone.
+function useFitZoom(ref) {
+  const [zoom, setZoom] = useState(1);
+  const current = useRef(1);
+  useLayoutEffect(() => {
+    const frame = ref.current;
+    const parent = frame.parentElement;
+    function fit() {
+      // Both widths as drawn, so a zoom further out cancels out.
+      const style = getComputedStyle(parent);
+      const drawn = parent.getBoundingClientRect().width / parent.clientWidth;
+      const room = (parent.clientWidth - parseFloat(style.paddingLeft) - parseFloat(style.paddingRight)) * drawn;
+      const natural = frame.getBoundingClientRect().width / current.current;
+      const next = Math.min(1, room / natural);
+      if (Math.abs(next - current.current) > 0.001) {
+        current.current = next;
+        setZoom(next);
+      }
+    }
+    const observer = new ResizeObserver(fit);
+    observer.observe(parent);
+    observer.observe(frame);
+    return () => observer.disconnect();
+  }, [ref]);
+  return zoom;
+}
+
+export default function KantanBarMock({ themed, dark, children, clock, desktopHeight = 200, maxWidth = MOCK_WIDTH }) {
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [caffeineActive, setCaffeineActive] = useState(false);
   const [remindersOpen, setRemindersOpen] = useState(false);
@@ -116,12 +148,16 @@ export default function KantanBarMock({ themed, dark, children, clock, desktopHe
 
   const [activeSpace, setActiveSpace] = useState(0);
 
+  const frameRef = useRef(null);
+  const zoom = useFitZoom(frameRef);
+
   return (
     <>
       {/* Desktop frame */}
-      <div style={{
-        // Grows past 60vw rather than letting the bar spill out of it.
-        width: "100%", maxWidth, minWidth: "max-content", borderRadius: 10,
+      <div ref={frameRef} style={{
+        // Grows to fit the bar, then shrinks as a whole when that's wider
+        // than the page.
+        width: "100%", maxWidth, minWidth: "max-content", borderRadius: 10, zoom,
         boxShadow: dark
           ? "0 16px 64px rgba(0,0,0,0.55), 0 2px 6px rgba(0,0,0,0.3)"
           : "0 8px 40px rgba(0,0,0,0.12), 0 2px 6px rgba(0,0,0,0.06)",

@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { I } from "./Icons.jsx";
-import KantanBarMock from "./MockBar.jsx";
+import KantanBarMock, { MOCK_WIDTH } from "./MockBar.jsx";
 import { ConfigToggle, ConfigCode } from "./ConfigPreview.jsx";
 import InstallTabs from "./InstallTabs.jsx";
 import Wordmark from "./Wordmark.jsx";
@@ -98,8 +98,9 @@ export default function KantanLanding() {
 
         {/* Controls */}
         <div style={{
-          marginTop: 24, display: "flex", justifyContent: "space-between",
-          alignItems: "center", width: "100%", maxWidth: "60vw",
+          marginTop: 24, display: "flex", flexWrap: "wrap", gap: "12px 24px",
+          justifyContent: "space-between", alignItems: "center",
+          width: "100%", maxWidth: MOCK_WIDTH,
         }}>
           <ConfigToggle siteDark={siteDark} open={configOpen} onToggle={() => setConfigOpen(o => !o)} />
           <div style={{ display: "flex", gap: 16, alignItems: "center" }}>

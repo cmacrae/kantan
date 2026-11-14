@@ -1,4 +1,5 @@
 import { I } from "./Icons.jsx";
+import { MOCK_WIDTH } from "./MockBar.jsx";
 import { highlightYaml } from "../lib/yaml-highlight.jsx";
 import CONFIG_YAML from "../content/config-example.yaml";
 
@@ -11,7 +12,7 @@ export function ConfigToggle({ siteDark, open, onToggle }) {
         display: "flex", alignItems: "center", gap: 6,
         background: "none", border: "none", cursor: "pointer",
         color: fgMuted, fontSize: 13, fontWeight: 500,
-        padding: "4px 0", fontFamily: "inherit",
+        padding: "4px 0", fontFamily: "inherit", textAlign: "left",
       }}
     >
       <I name="chevron-down" size={12} color={fgMuted}
@@ -35,7 +36,7 @@ export function ConfigCode({ siteDark }) {
       fontSize: 12.5, lineHeight: 1.6,
       fontFamily: "'SF Mono', Menlo, Monaco, monospace",
       overflowX: "auto", overflowY: "auto",
-      maxHeight: 420, color: fg, width: "100%", maxWidth: "60vw",
+      maxHeight: 420, color: fg, width: "100%", maxWidth: MOCK_WIDTH,
     }}>
       <code>{highlightYaml(CONFIG_YAML, colors)}</code>
     </pre>
