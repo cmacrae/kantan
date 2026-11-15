@@ -338,6 +338,26 @@ struct CommandConfig: ModuleConfiguration {
     return value
   }
 
+  /// How deeply a command's `view` may nest objects. Decoding one nested
+  /// much deeper overflows the stack of the thread it's decoded on.
+  static let maxViewNesting = 64
+
+  /// How many objects deep `value`, parsed JSON, nests, found without
+  /// recursion.
+  static func nesting(of value: Any) -> Int {
+    var deepest = 0
+    var pending: [(Any, Int)] = [(value, 0)]
+    while let (item, depth) = pending.popLast() {
+      if let object = item as? [String: Any] {
+        deepest = max(deepest, depth + 1)
+        pending += object.values.map { ($0, depth + 1) }
+      } else if let array = item as? [Any] {
+        pending += array.map { ($0, depth) }
+      }
+    }
+    return deepest
+  }
+
   /// What's wrong with a `view` that failed to decode with `error`, naming
   /// where in the view.
   static func viewProblem(_ error: Error) -> String {
@@ -379,7 +399,9 @@ struct CommandConfig: ModuleConfiguration {
 
     // Extract view tree (DSL)
     if let viewObj = json["view"] {
-      if let viewData = try? JSONSerialization.data(withJSONObject: viewObj) {
+      if Self.nesting(of: viewObj) > Self.maxViewNesting {
+        print("Ignoring a command's view: nested deeper than \(Self.maxViewNesting) objects")
+      } else if let viewData = try? JSONSerialization.data(withJSONObject: viewObj) {
         do {
           data.viewTree = try JSONDecoder().decode(ViewNode.self, from: viewData)
         } catch {

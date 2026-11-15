@@ -2869,6 +2869,31 @@ final class CommandOutputDataTests {
     #expect(output.withLock { $0 } == "ok \u{FFFD}")
   }
 
+  @Test func testAViewNestedTooDeepIsIgnoredSafely() async throws {
+    /// Whether output with a view `depth` stacks deep decodes, on a thread
+    /// with a GCD worker's stack.
+    func decodes(depth: Int) async throws -> Bool {
+      var view = #"{"type":"text","content":"x"}"#
+      for _ in 0..<depth { view = #"{"type":"vstack","children":["# + view + "]}" }
+      let raw = #"{"value":"v","view":"# + view + "}"
+      let json = try #require(
+        try JSONSerialization.jsonObject(with: Data(raw.utf8)) as? [String: Any])
+      let decoded = OSAllocatedUnfairLock(initialState: false)
+      let done = Expectation()
+      let thread = Thread {
+        let (data, _) = CommandConfig.parseOutput(json, raw: raw)
+        decoded.withLock { $0 = data.viewTree != nil }
+        done.fulfill()
+      }
+      thread.stackSize = 512 * 1024
+      thread.start()
+      #expect(await fulfillment(of: [done], timeout: 10))
+      return decoded.withLock { $0 }
+    }
+    #expect(try await decodes(depth: 8))
+    #expect(!(try await decodes(depth: 220)))
+  }
+
   @Test func testANullDataFieldReadsAsMissing() throws {
     let raw = #"{"value":"v","data":{"items":[{"name":"a","due":null}]}}"#
     let json = try #require(

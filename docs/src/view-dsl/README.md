@@ -98,7 +98,7 @@ Plugin JSON is decoded strictly. If any node in the tree has an unknown `type`, 
 
 YAML views are parsed leniently: a node with an unknown `type` is dropped, an invalid enumerated value is ignored (the default applies), and a missing required string becomes empty. A `foreach` without `child` or an `if` without `then` is dropped.
 
-In tooltips and popups, nodes nested deeper than 32 levels are not rendered.
+In tooltips and popups, nodes nested deeper than 32 levels are not rendered. A plugin's `view` that nests objects more than 64 deep is ignored, and kantan logs why.
 
 ## Getting Started
 
