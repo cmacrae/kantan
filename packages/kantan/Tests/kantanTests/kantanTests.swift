@@ -2517,6 +2517,35 @@ final class DSLToggleTests {
     await waitUntil { FileManager.default.fileExists(atPath: file) }
   }
 
+  @Test func testAPopupToggleFollowsItsRowsOn() async throws {
+    let node = try JSONDecoder().decode(
+      ViewNode.self, from: Data(#"{"type":"toggle","label":"Wi-Fi","on":"{on}"}"#.utf8))
+    func view(on: String) -> DSLRendererView {
+      DSLRendererView(
+        node: node, resolver: TemplateResolver(variables: ["on": on], data: [:]),
+        isNative: false, dismissHandler: {}, depth: 0)
+    }
+    let hosting = NSHostingView(rootView: view(on: "false"))
+    let window = NSWindow(
+      contentRect: NSRect(x: 0, y: 0, width: 200, height: 40), styleMask: [.borderless],
+      backing: .buffered, defer: false)
+    window.contentView = hosting
+    window.orderFront(nil)
+    defer { window.orderOut(nil) }
+    func switchState() -> NSControl.StateValue? {
+      func find(_ view: NSView) -> NSSwitch? {
+        (view as? NSSwitch) ?? view.subviews.lazy.compactMap(find).first
+      }
+      return find(hosting)?.state
+    }
+    await runMainLoop(for: 0.3)
+    try #require(switchState() != nil)
+    #expect(switchState() == .off)
+    hosting.rootView = view(on: "true")
+    await runMainLoop(for: 0.3)
+    #expect(switchState() == .on)
+  }
+
   @Test func testAToggleThatStartsOnDoesNotRunItsCommandWhenShown() async throws {
     #expect(!(try await ranCommandOnShow("true")))
     #expect(!(try await ranCommandOnShow("false")))

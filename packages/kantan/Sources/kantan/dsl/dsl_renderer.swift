@@ -888,28 +888,14 @@ private struct DSLToggleView: View {
   let resolver: TemplateResolver
   let isNative: Bool
   let dismissHandler: () -> Void
-  @State private var isOn: Bool
   @Environment(\.defaultTextColor) private var defaultTextColor
 
-  init(
-    label: String?, on: String?, command: String?, resolver: TemplateResolver,
-    isNative: Bool, dismissHandler: @escaping () -> Void
-  ) {
-    self.label = label
-    self.on = on
-    self.command = command
-    self.resolver = resolver
-    self.isNative = isNative
-    self.dismissHandler = dismissHandler
-    _isOn = State(initialValue: on.map { resolver.resolveBool($0) } ?? false)
-  }
-
-  /// The switch's state, running the command only when it's flipped.
+  /// The switch's state, the row's current `on`, running the command only
+  /// when it's flipped. Flipping it closes the popup.
   private var switchState: Binding<Bool> {
     Binding(
-      get: { isOn },
-      set: { newValue in
-        isOn = newValue
+      get: { on.map { resolver.resolveBool($0) } ?? false },
+      set: { _ in
         dismissHandler()
         guard let command, !command.isEmpty else { return }
         runCommand(resolver.resolveCommand(command), environment: resolver.commandEnvironment)
