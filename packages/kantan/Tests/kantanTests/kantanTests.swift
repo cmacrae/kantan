@@ -619,6 +619,29 @@ final class LoadConfigFileTests {
 
   private var modulesDir: String { dir.appendingPathComponent("modules.d").path }
 
+  @Test func testAModuleNamedLikeAnEarlierOneIsSkipped() throws {
+    let path = try write(
+      """
+      modules:
+        - {name: a, type: text, placement: left, config: {value: one}}
+        - {name: a, type: text, placement: left, config: {value: two}}
+        - {name: b, type: text, placement: right, config: {value: three}}
+      """, to: "config.yaml")
+    _ = try write(
+      "{name: b, type: text, placement: left, config: {value: four}}\n",
+      to: "modules.d/00-b.yaml")
+    _ = try write(
+      "{name: c, type: text, placement: left, config: {value: five}}\n",
+      to: "modules.d/01-c.yaml")
+    guard case .success(let config) = loadConfigFile(at: path, modulesDir: modulesDir) else {
+      Issue.record("the config didn't load")
+      return
+    }
+    let values = config.modules.map { ($0.config as? TextConfig)?.value }
+    #expect(config.modules.map(\.name) == ["a", "c", "b"])
+    #expect(values == ["one", "five", "three"])
+  }
+
   @Test func testAnEmptyOrRelativeXDGConfigHomeIsIgnored() {
     let home = ("~/.config" as NSString).expandingTildeInPath
     #expect(xdgConfigHome([:]) == home)

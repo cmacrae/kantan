@@ -19,7 +19,7 @@ All modules support these configuration fields:
 | `mask` | object | no | Menu bar masking configuration |
 | `displays` | string/array | no | Restrict module to specific displays |
 
-A module missing `name`, `type` or `placement`, with an unknown `type`, or whose `config` fails to parse is skipped and the error logged. The rest of the config still loads. The `text`, `clock` and `command` types require a `config` block.
+A module missing `name`, `type` or `placement`, with an unknown `type`, or whose `config` fails to parse is skipped and the error logged. The rest of the config still loads. So is a module named like one before it, in `config.yaml` and then `modules.d/` in filename order. The `text`, `clock` and `command` types require a `config` block.
 
 ## Module Types
 

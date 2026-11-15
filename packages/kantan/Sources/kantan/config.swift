@@ -930,6 +930,7 @@ func loadConfig(from yaml: Yaml, configDir: String? = nil) -> Config? {
       }
     }
   }
+  modules = withUniqueNames(modules)
 
   return Config(
     theme: theme,
@@ -1143,6 +1144,20 @@ func loadModulesFromDirectory(path: String, theme: ThemeConfig? = nil) -> [Modul
   return modules
 }
 
+/// `modules` without those named like one before them, which are logged.
+/// A module's name identifies it to triggers, to its views and to its
+/// cached output, so two can't share one.
+func withUniqueNames(_ modules: [ModuleConfig]) -> [ModuleConfig] {
+  var names = Set<String>()
+  return modules.filter { module in
+    guard names.insert(module.name).inserted else {
+      print("Skipping module '\(module.name)': an earlier module has that name")
+      return false
+    }
+    return true
+  }
+}
+
 /// Merge modules.d modules into the base config modules list with correct
 /// visual ordering. Config.yaml modules occupy the screen edges; modules.d
 /// modules are placed inward (toward center), ordered by filename prefix.
@@ -1192,8 +1207,10 @@ func loadConfigFile(at path: String, modulesDir: String?) -> Result<Config, Conf
     return .failure(.invalidConfig)
   }
   if let modulesDir {
-    let extraModules = loadModulesFromDirectory(path: modulesDir, theme: config.theme)
-    config.modules = mergeModules(base: config.modules, extra: extraModules)
+    let extraModules = withUniqueNames(
+      config.modules + loadModulesFromDirectory(path: modulesDir, theme: config.theme)
+    ).dropFirst(config.modules.count)
+    config.modules = mergeModules(base: config.modules, extra: Array(extraModules))
   }
   if config.modules.isEmpty {
     config.modules = Config.welcome.modules
