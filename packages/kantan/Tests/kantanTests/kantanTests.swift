@@ -456,6 +456,26 @@ final class DrawerIconTests {
 }
 
 @MainActor
+final class PopupClampTests {
+  private let screens = [
+    (
+      frame: NSRect(x: 0, y: 0, width: 1000, height: 800),
+      visible: NSRect(x: 0, y: 0, width: 1000, height: 776)
+    ),
+    (
+      frame: NSRect(x: 1000, y: 0, width: 1000, height: 800),
+      visible: NSRect(x: 1000, y: 0, width: 1000, height: 776)
+    ),
+  ]
+
+  @Test func testAPopupPastADisplaysRightEdgeMovesBackOntoIt() {
+    let rect = NSRect(x: 980 - 80, y: 600, width: 160, height: 100)
+    let clamped = PopupManager.clamp(rect, screens: screens, fallback: nil)
+    #expect(clamped.maxX == 1000)
+  }
+}
+
+@MainActor
 final class MaskedModuleInteractionTests {
   init() {
     // ThemeProvider reads NSApp's appearance.

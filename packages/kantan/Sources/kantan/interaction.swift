@@ -202,11 +202,21 @@ class PopupManager {
   // MARK: - Screen Clamping
 
   /// Clamp a rect to the visible area of the screen that contains the
-  /// rect's origin. Falls back to the main screen if no match.
+  /// rect's top centre, just below what it's anchored to. Falls back to the
+  /// main screen if no match.
   private func clampToScreen(_ rect: NSRect) -> NSRect {
-    let screen =
-      NSScreen.screens.first(where: { $0.frame.contains(rect.origin) })?.visibleFrame
-      ?? NSScreen.main?.visibleFrame
+    Self.clamp(
+      rect, screens: NSScreen.screens.map { ($0.frame, $0.visibleFrame) },
+      fallback: NSScreen.main?.visibleFrame)
+  }
+
+  /// `rect` moved into the visible frame of the first of `screens` whose
+  /// frame contains its top centre, or into `fallback`.
+  static func clamp(
+    _ rect: NSRect, screens: [(frame: NSRect, visible: NSRect)], fallback: NSRect?
+  ) -> NSRect {
+    let anchor = NSPoint(x: rect.midX, y: rect.maxY)
+    let screen = screens.first(where: { $0.frame.contains(anchor) })?.visible ?? fallback
     guard let screen = screen else { return rect }
     var clamped = rect
     if clamped.maxX > screen.maxX {
