@@ -188,6 +188,43 @@ in
     stubModule = darwinStubs;
     extract = cfg: lib.last cfg.launchd.user.agents.kantan.serviceConfig.ProgramArguments;
   };
+
+  module-extra-args =
+    let
+      stub = pkgs.writeShellScriptBin "kantan" ''printf '[%s]\n' "$@"'';
+      args = [
+        "--modules-dir"
+        "/a b/modules.d"
+        "it's"
+      ];
+      program =
+        module: stubModule: packages:
+        let
+          eval = lib.evalModules {
+            specialArgs = { inherit pkgs; };
+            modules = [
+              module
+              stubModule
+              {
+                programs.kantan.enable = true;
+                programs.kantan.package = stub;
+                programs.kantan.extraArgs = args;
+              }
+            ];
+          };
+        in
+        "${lib.head (packages eval.config)}/bin/kantan";
+    in
+    pkgs.runCommand "kantan-module-extra-args" { } ''
+      expected=$(printf '[%s]\n' ${lib.escapeShellArgs args})
+      test "$(${
+        program (import ../module/home-manager.nix kantan) homeManagerStubs (cfg: cfg.home.packages)
+      })" = "$expected"
+      test "$(${
+        program (import ../module/darwin.nix kantan) darwinStubs (cfg: cfg.environment.systemPackages)
+      })" = "$expected"
+      touch $out
+    '';
   module-home-manager = mkModuleCheck {
     name = "home-manager";
     module = import ../module/home-manager.nix kantan;

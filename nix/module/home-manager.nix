@@ -12,7 +12,7 @@ let
   package = import ./wrap.nix {
     inherit pkgs lib;
     package = cfg.package;
-    addFlags = lib.optional (cfg.extraArgs != [ ]) (lib.escapeShellArgs cfg.extraArgs);
+    addFlags = cfg.extraArgs;
     pathPackages = cfg.extraPackages;
   };
 in

@@ -32,9 +32,15 @@ let
     inherit pkgs lib;
     package = cfg.package;
     addFlags =
-      lib.optional hasConfig "--config ${configFile}"
-      ++ lib.optional hasThemes "--themes-dir ${themesDir}"
-      ++ lib.optional hasExtraArgs (lib.escapeShellArgs cfg.extraArgs);
+      lib.optionals hasConfig [
+        "--config"
+        "${configFile}"
+      ]
+      ++ lib.optionals hasThemes [
+        "--themes-dir"
+        "${themesDir}"
+      ]
+      ++ cfg.extraArgs;
     pathPackages = cfg.extraPackages;
   };
 in
