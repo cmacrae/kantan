@@ -2436,6 +2436,24 @@ final class DSLToggleTests {
     return dismissed || FileManager.default.fileExists(atPath: file.path)
   }
 
+  @Test func testAMenuToggleInAForeachRunsWithItsItem() async throws {
+    let dir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+    try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+    defer { try? FileManager.default.removeItem(at: dir) }
+    let json = #"""
+      {"type":"foreach","items":"devices","child":
+        {"type":"toggle","label":"{name}","command":"touch '\#(dir.path)'/{address}"}}
+      """#
+    let node = try JSONDecoder().decode(ViewNode.self, from: Data(json.utf8))
+    let resolver = TemplateResolver(
+      variables: [:], data: ["devices": [["name": "Headphones", "address": "aa-bb"]]])
+    let menu = buildNativeMenu(from: node, resolver: resolver)
+    let view = try #require(menu.items.first?.view as? NSHostingView<NativeMenuToggleView>)
+    view.rootView.action()
+    let file = dir.appendingPathComponent("aa-bb").path
+    await waitUntil { FileManager.default.fileExists(atPath: file) }
+  }
+
   @Test func testAToggleThatStartsOnDoesNotRunItsCommandWhenShown() async throws {
     #expect(!(try await ranCommandOnShow("true")))
     #expect(!(try await ranCommandOnShow("false")))

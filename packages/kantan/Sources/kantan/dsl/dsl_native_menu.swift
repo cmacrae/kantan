@@ -358,10 +358,12 @@ private func addItems(
 
     let item = NSMenuItem(title: "", action: nil, keyEquivalent: "")
 
+    // Resolved now, while any foreach item is still in scope.
+    let resolvedCommand = command.map { resolver.resolveCommand($0) }
+    let environment = resolver.commandEnvironment
     let toggleView = NativeMenuToggleView(label: resolvedLabel, isOn: isOn, textColor: textColor) {
-      if let command = command {
-        let resolvedCommand = resolver.resolveCommand(command)
-        runCommand(resolvedCommand, environment: resolver.commandEnvironment)
+      if let resolvedCommand {
+        runCommand(resolvedCommand, environment: environment)
       }
     }
     let hostingView = NSHostingView(rootView: toggleView)
