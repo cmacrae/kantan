@@ -13,7 +13,7 @@ If no config file is found, kantan shows a welcome bar and checks for one every 
 
 ## Reloading
 
-kantan watches the config file and the `modules.d/` directory, and rebuilds the bar 0.2 seconds after the last change. When the config file is a symlink (as with Home Manager), repointing the link counts as a change too.
+kantan watches the config file and the `modules.d/` directory, and rebuilds the bar 0.2 seconds after the last change. When the config file is a symlink (as with Home Manager), repointing the link counts as a change too. While the config file or `modules.d/` is missing, such as between an editor deleting and rewriting the file, kantan looks for it every second and reloads once it's back.
 
 A config that fails to load (invalid YAML, an unknown theme, or, without a theme, a `style` block missing colours) is logged. At startup, kantan shows a bar naming the file and what's wrong with it. On a reload, it keeps the current bar. Either way, kantan loads the config again once a fix is saved. A module that fails to parse is skipped and logged, and the rest of the config still loads. See [Logs](../getting-started/installation.md#logs) for where to read them.
 

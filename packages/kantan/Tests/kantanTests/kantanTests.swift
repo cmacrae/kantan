@@ -2705,6 +2705,33 @@ final class CommandWatchOutputTests {
 }
 
 @MainActor
+final class HotReloadWatchTests {
+  @Test func testWatchingResumesOnceAMissingConfigAndModulesDirAppear() async throws {
+    let dir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+    try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+    defer { try? FileManager.default.removeItem(at: dir) }
+    let config = dir.appendingPathComponent("config.yaml")
+    let modules = dir.appendingPathComponent("modules.d")
+    let app = AppDelegate()
+    app.configFilePath = config.path
+    app.modulesDirPath = modules.path
+    app.startWatchingConfig(path: config.path)
+    app.startWatchingModulesDir(path: modules.path)
+    #expect(app.configFileSource == nil)
+    #expect(app.modulesDirSource == nil)
+
+    // Not a valid config, so the reload this starts keeps the current bar.
+    try "[".write(to: config, atomically: true, encoding: .utf8)
+    try FileManager.default.createDirectory(at: modules, withIntermediateDirectories: true)
+    await waitUntil { app.configFileSource != nil && app.modulesDirSource != nil }
+    app.configFilePath = nil
+    app.modulesDirPath = nil
+    app.configFileSource?.cancel()
+    app.modulesDirSource?.cancel()
+  }
+}
+
+@MainActor
 final class CommandPollingTests {
   /// A polling module running `command` every `interval` seconds.
   private func module(_ name: String, command: String, interval: Double) throws

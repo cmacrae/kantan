@@ -1031,6 +1031,10 @@ class AppDelegate: NSObject, NSApplicationDelegate {
   nonisolated(unsafe) var moduleFileSources: [DispatchSourceFileSystemObject] = []
   nonisolated(unsafe) var reloadDebounceTimer: Timer?
   nonisolated(unsafe) var configPollTimer: Timer?
+  /// Pending retries of watching a config file or modules directory that
+  /// was missing.
+  var configWatchRetry: DispatchWorkItem?
+  var modulesDirWatchRetry: DispatchWorkItem?
 
   func applicationDidFinishLaunching(_ aNotification: Notification) {
     NSApp.setActivationPolicy(.accessory)
@@ -1358,11 +1362,22 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
   // MARK: - Config Hot-Reload
 
-  func startWatchingConfig(path: String) {
+  /// How often a config file or modules directory that's missing is looked
+  /// for again, so hot reload resumes once it's back.
+  static let watchRetryInterval: TimeInterval = 1
+
+  func startWatchingConfig(path: String, retrying: Bool = false) {
+    configWatchRetry?.cancel()
     configFileSource?.cancel()
+    configFileSource = nil
     let fd = open(path, O_EVTONLY)
     guard fd >= 0 else {
-      print("Unable to open config file for watching: \(path)")
+      if !retrying { print("Unable to open config file for watching: \(path)") }
+      configWatchRetry = retryWatch { [weak self] in
+        guard let self, self.configFilePath == path else { return }
+        self.startWatchingConfig(path: path, retrying: true)
+        if self.configFileSource != nil { self.scheduleReload() }
+      }
       return
     }
 
@@ -1469,9 +1484,18 @@ class AppDelegate: NSObject, NSApplicationDelegate {
   }
 
   func startWatchingModulesDir(path: String) {
+    modulesDirWatchRetry?.cancel()
     modulesDirSource?.cancel()
+    modulesDirSource = nil
     cancelModuleFileWatchers()
-    guard FileManager.default.fileExists(atPath: path) else { return }
+    guard FileManager.default.fileExists(atPath: path) else {
+      modulesDirWatchRetry = retryWatch { [weak self] in
+        guard let self, self.modulesDirPath == path else { return }
+        self.startWatchingModulesDir(path: path)
+        if self.modulesDirSource != nil { self.scheduleReload() }
+      }
+      return
+    }
 
     let fd = open(path, O_EVTONLY)
     guard fd >= 0 else {
@@ -1560,6 +1584,14 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     }
   }
 
+  /// Runs `start` after `watchRetryInterval`, unless the returned work item
+  /// is cancelled first.
+  private func retryWatch(_ start: @escaping @MainActor () -> Void) -> DispatchWorkItem {
+    let work = DispatchWorkItem { MainActor.assumeIsolated { start() } }
+    DispatchQueue.main.asyncAfter(deadline: .now() + Self.watchRetryInterval, execute: work)
+    return work
+  }
+
   private func scheduleReload() {
     reloadDebounceTimer?.invalidate()
     reloadDebounceTimer = Timer.scheduledTimer(withTimeInterval: 0.2, repeats: false) {
@@ -1615,6 +1647,8 @@ class AppDelegate: NSObject, NSApplicationDelegate {
   /// AppDelegate but tied to the bar lifecycle so they are re-created on
   /// hot-reload alongside teardownBar()/buildBar().
   private func cancelFileWatchers() {
+    configWatchRetry?.cancel()
+    modulesDirWatchRetry?.cancel()
     configFileSource?.cancel()
     configFileSource = nil
     configSymlinkDirSource?.cancel()
