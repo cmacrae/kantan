@@ -2750,6 +2750,15 @@ final class CommandPollingTests {
     await waitUntil({ vm.displayValue == "done" }, timeout: 3)
   }
 
+  @Test func testASetWithADurationOutlastsARunInFlight() async throws {
+    let vm = try module("set-in-flight", command: "sleep 0.3; echo command", interval: 0)
+    defer { vm.pause() }
+    vm.displayValue = "set"
+    vm.scheduleDurationReset(5)
+    await runMainLoop(for: 0.6)
+    #expect(vm.displayValue == "set")
+  }
+
   @Test func testPollsNeverOverlapARunStillInFlight() async throws {
     let dir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
     try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)

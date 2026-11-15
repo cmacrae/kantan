@@ -162,7 +162,8 @@ class ModuleViewModel: ObservableObject, Identifiable {
       DispatchQueue.main.async {
         guard let self else { return }
         self.updatesInFlight -= 1
-        guard self.updateGeneration == gen else { return }
+        // Superseded by a later update, or by a `set` trigger's duration.
+        guard self.updateGeneration == gen, self.durationTimer == nil else { return }
         // A command's icon comes from the output getValue just produced.
         let currentIcon = config is CommandConfig ? config.getIcon() : icon
         self.show(newValue, icon: currentIcon, backgroundIcon: resolvedBgGlyph, of: config)
