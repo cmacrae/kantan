@@ -123,17 +123,9 @@ final class VolumeConfig: ModuleConfiguration, EventDrivenModule {
     )
     guard defaultStatus == noErr else { return }
 
-    // Listen for volume and mute on the current default device.
-    // If per-device registration fails, roll the default-device listener
-    // back so we don't leak it.
-    if !addDeviceListeners() {
-      AudioObjectRemovePropertyListener(
-        AudioObjectID(kAudioObjectSystemObject),
-        &defaultDeviceAddr,
-        audioPropertyListener,
-        selfPtr
-      )
-    }
+    // Listen for volume and mute on the current default device. Without
+    // one, the default-device listener adds them once a device appears.
+    addDeviceListeners()
   }
 
   func stopObserving() {
