@@ -845,8 +845,11 @@ class DisplayInstance {
         completionHandler: { [weak self] in
           DispatchQueue.main.async {
             MainActor.assumeIsolated {
-              for entry in drawerContentPanels {
-                entry.panel.orderOut(nil)
+              // Unless the drawer opened again while it was closing.
+              if self?.isDrawerOpen(side: side) == false {
+                for entry in drawerContentPanels {
+                  entry.panel.orderOut(nil)
+                }
               }
               self?.updateDrawerClickPanels()
             }

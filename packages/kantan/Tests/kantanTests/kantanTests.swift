@@ -525,6 +525,38 @@ final class MaskedModuleInteractionTests {
     withExtendedLifetime(bar) {}
   }
 
+  @Test func testADrawerOpenedAgainWhileClosingKeepsItsContent() async throws {
+    let config = try #require(
+      loadConfig(
+        from: try Yaml.load(
+          """
+          modules:
+            - name: inside
+              type: text
+              placement: right
+              config:
+                value: x
+            - name: drawer
+              type: drawer
+              placement: right
+          """)))
+    let screen = try #require(NSScreen.screens.first)
+    let display = DisplayInstance(screenName: screen.localizedName, barHeight: 24, config: config)
+    defer { display.teardown() }
+    let bar = BarViewModel(config: config)
+    display.createPanels(for: screen, bar: bar, theme: ThemeProvider(config: config))
+    let content = display.groupPanels.filter(\.group.isDrawerContent).map(\.panel)
+    #expect(!content.isEmpty)
+
+    display.animateDrawerToggle(side: "right", open: true)
+    await runMainLoop(for: 0.4)
+    display.animateDrawerToggle(side: "right", open: false)
+    display.animateDrawerToggle(side: "right", open: true)
+    await runMainLoop(for: 0.6)
+    #expect(content.allSatisfy { $0.isVisible })
+    withExtendedLifetime(bar) {}
+  }
+
   @Test func testShowingTheBarLeavesOutMasksWithNothingToCover() throws {
     let config = try #require(loadConfig(from: try Yaml.load("modules: []")))
     let display = DisplayInstance(screenName: "test", barHeight: 24, config: config)
