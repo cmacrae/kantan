@@ -1811,6 +1811,36 @@ final class WorkspaceProviderSelectionTests {
 
 // MARK: - Workspace scrolling
 
+/// A provider whose first read is slow and reports workspace 1, and whose
+/// later reads report workspace 2.
+private final class SlowFirstReadWorkspaces: WorkspaceProvider, @unchecked Sendable {
+  private let reads = OSAllocatedUnfairLock(initialState: 0)
+
+  func workspaces() -> [Workspace] {
+    let read = reads.withLock {
+      $0 += 1
+      return $0
+    }
+    if read == 1 { Thread.sleep(forTimeInterval: 0.3) }
+    return [
+      Workspace(index: 0, label: "1", isActive: read == 1),
+      Workspace(index: 1, label: "2", isActive: read != 1),
+    ]
+  }
+}
+
+final class WorkspaceReadOrderTests {
+  @Test func testASlowEarlierReadDoesntReplaceALaterOne() async {
+    let config = WorkspaceConfig(yaml: nil, provider: SlowFirstReadWorkspaces())
+    let done = [Expectation(), Expectation()]
+    config.getValue { _ in done[0].fulfill() }
+    try? await Task.sleep(for: .milliseconds(50))
+    config.getValue { _ in done[1].fulfill() }
+    #expect(await fulfillment(of: done, timeout: 2))
+    #expect(config.display.segments.map(\.isActive) == [false, true])
+  }
+}
+
 final class WorkspaceScrollingTests {
   private let scroll = [
     ScrollWindow(

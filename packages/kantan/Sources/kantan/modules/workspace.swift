@@ -242,6 +242,9 @@ final class WorkspaceConfig: ModuleConfiguration, EventDrivenModule {
 
   private let displayLock = NSLock()
   nonisolated(unsafe) private var currentDisplay = WorkspaceDisplay()
+  /// The last `getValue` started, so a slower earlier one finishing after
+  /// it doesn't replace what it read.
+  nonisolated(unsafe) private var latestRead: UInt64 = 0
 
   var redrawInterval: TimeInterval { noPoll }
 
@@ -361,10 +364,16 @@ final class WorkspaceConfig: ModuleConfiguration, EventDrivenModule {
 
   func getValue(completion: @escaping @Sendable (String) -> Void) {
     let provider = self.provider
+    let read = displayLock.withLock {
+      latestRead &+= 1
+      return latestRead
+    }
 
     DispatchQueue.global(qos: .userInitiated).async {
       let display = self.display(of: provider.workspaces())
-      self.displayLock.withLock { self.currentDisplay = display }
+      self.displayLock.withLock {
+        if read == self.latestRead { self.currentDisplay = display }
+      }
       // A value that changes with the display, so the module redraws and
       // its panel resizes.
       completion(display.summary)
