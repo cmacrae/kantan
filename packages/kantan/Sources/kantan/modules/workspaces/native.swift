@@ -5,15 +5,18 @@ import Foundation
 struct NativeWorkspaces: WorkspaceProvider {
   func workspaces() -> [Workspace] {
     let cid = CGSMainConnectionID()
-    let activeSpace = CGSGetActiveSpace(cid)
-
     guard
       let displaySpaces = CGSCopyManagedDisplaySpaces(cid)
         as? [[String: Any]]
     else {
       return []
     }
+    return Self.workspaces(of: displaySpaces, activeSpace: Int(CGSGetActiveSpace(cid)))
+  }
 
+  /// The workspaces in `CGSCopyManagedDisplaySpaces` output. Each display's
+  /// current space is active, or `activeSpace` for a display that names none.
+  static func workspaces(of displaySpaces: [[String: Any]], activeSpace: Int) -> [Workspace] {
     var result: [Workspace] = []
     var globalIndex = 0
 
@@ -23,6 +26,8 @@ struct NativeWorkspaces: WorkspaceProvider {
       else {
         continue
       }
+      let currentSpace =
+        (display["Current Space"] as? [String: Any])?["id64"] as? Int ?? activeSpace
 
       for space in spaces {
         guard let spaceID = space["id64"] as? Int else {
@@ -38,7 +43,7 @@ struct NativeWorkspaces: WorkspaceProvider {
 
         result.append(
           Workspace(
-            index: globalIndex, label: String(globalIndex + 1), isActive: spaceID == activeSpace))
+            index: globalIndex, label: String(globalIndex + 1), isActive: spaceID == currentSpace))
         globalIndex += 1
       }
     }

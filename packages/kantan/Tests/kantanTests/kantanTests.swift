@@ -1850,6 +1850,29 @@ private final class SlowFirstReadWorkspaces: WorkspaceProvider, @unchecked Senda
   }
 }
 
+final class NativeWorkspacesTests {
+  private func display(current: Int?, spaces: [(id: Int, type: Int)]) -> [String: Any] {
+    var display: [String: Any] = ["Spaces": spaces.map { ["id64": $0.id, "type": $0.type] }]
+    if let current { display["Current Space"] = ["id64": current] }
+    return display
+  }
+
+  @Test func testEachDisplaysCurrentSpaceIsActive() {
+    let workspaces = NativeWorkspaces.workspaces(
+      of: [
+        display(current: 2, spaces: [(1, 0), (2, 0)]),
+        display(current: 3, spaces: [(3, 0), (4, 0)]),
+      ], activeSpace: 2)
+    #expect(workspaces.map(\.isActive) == [false, true, true, false])
+  }
+
+  @Test func testADisplayNamingNoCurrentSpaceUsesTheActiveOne() {
+    let workspaces = NativeWorkspaces.workspaces(
+      of: [display(current: nil, spaces: [(1, 0), (2, 0)])], activeSpace: 2)
+    #expect(workspaces.map(\.isActive) == [false, true])
+  }
+}
+
 final class RunCommandSyncTests {
   @Test func testAHungCommandIsStoppedAtItsTimeout() {
     let start = Date()
