@@ -434,7 +434,8 @@ class ModuleViewModel: ObservableObject, Identifiable {
 
     DispatchQueue.main.asyncAfter(deadline: .now() + delay) { [weak self] in
       MainActor.assumeIsolated {
-        guard let self, !self.watchStopped else { return }
+        // Not if the watch was stopped, or launched again meanwhile.
+        guard let self, !self.watchStopped, self.watchLaunch == launch else { return }
         guard let watchCmd = self.moduleConfig.config?.getWatchCommand(), !watchCmd.isEmpty else {
           return
         }

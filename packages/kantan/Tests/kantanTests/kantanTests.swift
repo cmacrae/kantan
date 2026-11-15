@@ -2767,7 +2767,9 @@ final class CommandPollingTests {
   }
 }
 
-@MainActor
+// Serialized, as one test changes the appearance, which relaunches every
+// watch process.
+@MainActor @Suite(.serialized)
 final class WatchOutputTests {
   private var teardowns: [@MainActor () -> Void] = []
 
@@ -2893,6 +2895,31 @@ final class WatchOutputTests {
     #expect(!process.isRunning)
     #expect(!FileManager.default.fileExists(atPath: marker))
     if process.isRunning { process.terminate() }
+  }
+
+  @Test func testAWatchStartedDuringARestartsBackoffRunsOnce() async throws {
+    defer { tearDown() }
+    let dir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+    try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+    addTeardownBlock { try? FileManager.default.removeItem(at: dir) }
+    let log = dir.appendingPathComponent("runs").path
+    let marker = dir.appendingPathComponent("ran").path
+    // Exits the first time, starting a restart's backoff, then stays up.
+    let vm = try module(
+      "watch-backoff",
+      watch: """
+        echo run >> \(log)
+        [ -e \(marker) ] && exec cat
+        touch \(marker)
+        """)
+    await waitUntil { FileManager.default.fileExists(atPath: marker) }
+    await runMainLoop(for: 0.2)
+    // As on sleep and wake, inside the 1 s backoff.
+    vm.pause()
+    vm.resume()
+    await runMainLoop(for: 1.5)
+    let runs = try String(contentsOfFile: log, encoding: .utf8).split(separator: "\n")
+    #expect(runs.count == 2)
   }
 
   @Test func testTheWatchRelaunchesWithTheNewAppearance() async throws {
