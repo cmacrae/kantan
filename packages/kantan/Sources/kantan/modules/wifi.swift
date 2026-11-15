@@ -275,16 +275,16 @@ final class WiFiConfig: NSObject, ModuleConfiguration, EventDrivenModule, CWEven
     }
 
     // Read SSID and BSSID from IOKit in one pass.
-    // BSSID presence is the definitive association indicator — it's only set
-    // when the radio is associated with an access point. This is more reliable
-    // than RSSI (which can return stale values during transitions).
+    // A BSSID is only set when the radio is associated with an access point,
+    // which is more reliable than RSSI (which can return stale values during
+    // transitions) unless macOS withholds the BSSID.
     let ioInfo = readIORegistryWiFiInfo()
 
-    guard ioInfo.hasBSSID else {
+    let rssi = interface.rssiValue()
+    guard isAssociated(bssid: ioInfo.bssid, rssi: rssi) else {
       return .disconnected
     }
 
-    let rssi = interface.rssiValue()
     let ssid = knownSSID(interface.ssid()) ?? knownSSID(ioInfo.ssid)
     return WiFiStatus(ssid: ssid, rssi: rssi, isConnected: true)
   }
@@ -295,9 +295,18 @@ final class WiFiConfig: NSObject, ModuleConfiguration, EventDrivenModule, CWEven
     ssid == "<SSID Redacted>" ? nil : ssid
   }
 
+  /// Whether the radio is associated with an access point: it has a BSSID.
+  /// An all-zero BSSID is the placeholder macOS reports when it withholds
+  /// the BSSID, so association then depends on a signal reading, which is 0
+  /// while unassociated.
+  static func isAssociated(bssid: Data?, rssi: Int) -> Bool {
+    guard let bssid, !bssid.isEmpty else { return false }
+    return bssid.contains { $0 != 0 } || rssi != 0
+  }
+
   private struct IORegistryWiFiInfo {
     let ssid: String?
-    let hasBSSID: Bool
+    let bssid: Data?
   }
 
   /// Reads WiFi SSID and BSSID from IOKit's IORegistry in a single pass.
@@ -307,7 +316,7 @@ final class WiFiConfig: NSObject, ModuleConfiguration, EventDrivenModule, CWEven
     var iterator: io_iterator_t = 0
     let kr = IOServiceGetMatchingServices(
       kIOMainPortDefault, IOServiceMatching("IOUserNetworkWLAN"), &iterator)
-    guard kr == KERN_SUCCESS else { return IORegistryWiFiInfo(ssid: nil, hasBSSID: false) }
+    guard kr == KERN_SUCCESS else { return IORegistryWiFiInfo(ssid: nil, bssid: nil) }
     defer { IOObjectRelease(iterator) }
 
     while true {
@@ -316,16 +325,11 @@ final class WiFiConfig: NSObject, ModuleConfiguration, EventDrivenModule, CWEven
       defer { IOObjectRelease(service) }
 
       // Check for BSSID — its presence means the radio is associated
-      let hasBSSID: Bool
+      let bssid: Data?
       if let bssidProp = IORegistryEntryCreateCFProperty(
         service, "IO80211BSSID" as CFString, kCFAllocatorDefault, 0)
       {
-        let val = bssidProp.takeRetainedValue()
-        if let data = val as? Data, !data.isEmpty {
-          hasBSSID = true
-        } else {
-          hasBSSID = false
-        }
+        bssid = bssidProp.takeRetainedValue() as? Data
       } else {
         continue  // Not the infrastructure interface
       }
@@ -345,9 +349,9 @@ final class WiFiConfig: NSObject, ModuleConfiguration, EventDrivenModule, CWEven
         }
       }
 
-      return IORegistryWiFiInfo(ssid: ssid, hasBSSID: hasBSSID)
+      return IORegistryWiFiInfo(ssid: ssid, bssid: bssid)
     }
 
-    return IORegistryWiFiInfo(ssid: nil, hasBSSID: false)
+    return IORegistryWiFiInfo(ssid: nil, bssid: nil)
   }
 }

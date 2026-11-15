@@ -285,6 +285,17 @@ final class TriggerFieldsTests {
   }
 }
 
+final class WiFiStatusTests {
+  @Test func testAnAllZeroBSSIDNeedsASignalToCountAsAssociated() {
+    let zero = Data(count: 6)
+    #expect(!WiFiConfig.isAssociated(bssid: zero, rssi: 0))
+    #expect(WiFiConfig.isAssociated(bssid: zero, rssi: -60))
+    #expect(WiFiConfig.isAssociated(bssid: Data([0, 1, 2, 3, 4, 5]), rssi: 0))
+    #expect(!WiFiConfig.isAssociated(bssid: Data(), rssi: -60))
+    #expect(!WiFiConfig.isAssociated(bssid: nil, rssi: -60))
+  }
+}
+
 final class TemplateResolverTests {
   @Test func testScopeStackOverridesVariables() {
     let r = TemplateResolver(variables: ["v": "outer"], data: [:])
