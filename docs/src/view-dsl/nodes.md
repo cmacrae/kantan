@@ -137,13 +137,15 @@ Shapes have no fill unless `color` is set. The stroke is drawn inside the shape'
 
 ## Interactive Nodes
 
-Interactive nodes respond to user input and can trigger commands. A command is run with `/bin/sh -c` (its output is discarded), unless it is a URL with a letters-only scheme and no spaces (such as `https://...` or `raycast://...`), which is opened. Templates in commands are resolved first: `"my-plugin --complete {id}"` works. Each value is quoted for where its placeholder sits. It stays one argument and can't run anything, whatever it contains:
+Interactive nodes respond to user input and can trigger commands. A command is run with `/bin/sh -c` (its output is discarded), unless it is a URL with a letters-only scheme and no spaces (such as `https://...` or `raycast://...`), which is opened. Templates in commands are resolved first: `"my-plugin --complete {id}"` works. Each value is quoted for where its placeholder sits: bare, inside single quotes, or inside double quotes. There, it stays one argument and can't run anything, whatever it contains:
 
 | Command | Value of `title` | Runs |
 |---------|------------------|------|
 | `open-note {title}` | `a; rm x` | `open-note 'a; rm x'` |
 | `open-note '{title}'` | `it's` | `open-note 'it'\''s'` |
 | `open-note "{title}"` | `$HOME` | `open-note "\$HOME"` |
+
+Only those three positions are covered. Don't put a placeholder for outside text inside `$'…'`, or inside a command substitution (`$(…)` or backticks), where its value can run commands. A value can also start with `-`, which the command may read as an option. Put `--` before it where the command accepts that.
 
 A bare placeholder whose value is empty leaves nothing. A command that is a single placeholder, such as `"command": "{complete_cmd}"`, runs as the value, exactly as written: placeholders within it aren't resolved. The plugin builds that command itself and quotes what it puts in it. In a URL command, values are percent-encoded instead.
 

@@ -83,10 +83,11 @@ class TemplateResolver {
     return result + rest
   }
 
-  /// Resolve a view command's placeholders so that no value can change what
-  /// the command does. Each value is quoted for where its placeholder sits:
-  /// bare, inside single quotes, or inside double quotes; an empty bare
-  /// value leaves nothing, as it always has. In a URL command
+  /// Resolve a view command's placeholders, each value quoted for where its
+  /// placeholder sits: bare, inside single quotes, or inside double quotes.
+  /// There, no value can change what the command does. `$'…'` quotes and
+  /// command substitutions aren't tracked. An empty bare value leaves
+  /// nothing, as it always has. In a URL command
   /// values are percent-encoded. A command that is a single placeholder
   /// is a command the plugin built, and runs as the value, exactly as
   /// written.
