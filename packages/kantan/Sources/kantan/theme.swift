@@ -200,8 +200,10 @@ private func loadPaletteForMode(ref: ThemeRef, mode: String, configDir: String?)
     print("Flavoured theme \(ref.name) requires flavour selection")
     return nil
   } else if yaml["light"].dictionary != nil || yaml["dark"].dictionary != nil {
-    // Mode-aware: return the palette for the requested mode
+    // Mode-aware: the palette for the requested mode, or the other's if
+    // it has none
     return parsePalette(from: yaml[.string(mode)])
+      ?? parsePalette(from: yaml[.string(mode == "light" ? "dark" : "light")])
   } else {
     // Single palette: same for both modes
     return parsePalette(from: yaml)

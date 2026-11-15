@@ -619,6 +619,17 @@ final class LoadConfigFileTests {
 
   private var modulesDir: String { dir.appendingPathComponent("modules.d").path }
 
+  @Test func testAPerModeThemeTakesAMissingModeFromTheOther() throws {
+    try FileManager.default.createDirectory(
+      at: dir.appendingPathComponent("themes"), withIntermediateDirectories: true)
+    _ = try write(
+      "dark:\n  fg: \"#eeeeee\"\n  bg: \"#111111\"\n", to: "themes/night.yaml")
+    let theme = loadThemeConfig(
+      from: try Yaml.load("light: night\ndark: night\n"), configDir: dir.path)
+    #expect(theme?.lightPalette.bg == "#111111")
+    #expect(theme?.darkPalette.bg == "#111111")
+  }
+
   @Test func testAModuleNamedLikeAnEarlierOneIsSkipped() throws {
     let path = try write(
       """
