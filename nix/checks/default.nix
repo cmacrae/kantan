@@ -101,6 +101,14 @@ in
         cp -r ${../../.github} .github
         git init --quiet
         zizmor --offline .
+        # The release checks its tag is on main and runs the checks
+        # before it publishes anything.
+        steps=$(grep -nE 'is-ancestor "\$GITHUB_SHA" origin/main|run: nix flake check|gh release create' \
+          .github/workflows/release.yml | cut -d: -f2-)
+        if [ "$(grep -c . <<<"$steps")" -ne 3 ] || ! grep -q 'gh release create' <<<"$(tail -1 <<<"$steps")"; then
+          echo "release.yml must check the tag is on main and run the checks before publishing" >&2
+          exit 1
+        fi
         touch $out
       '';
 

@@ -38,6 +38,17 @@ jobs:
             exit 1
           fi
 
+      - name: Check the tag is on main
+        run: |
+          if ! git merge-base --is-ancestor "$GITHUB_SHA" origin/main; then
+            echo "Tag $GITHUB_REF_NAME isn't on main"
+            exit 1
+          fi
+
+      # The tests, the plugins' tests and the install script's checks.
+      - name: Run the checks
+        run: nix flake check --print-build-logs
+
       - name: Build
         run: |
           nix build --print-build-logs \
