@@ -338,6 +338,23 @@ struct CommandConfig: ModuleConfiguration {
     return value
   }
 
+  /// What's wrong with a `view` that failed to decode with `error`, naming
+  /// where in the view.
+  static func viewProblem(_ error: Error) -> String {
+    let context: DecodingError.Context
+    switch error {
+    case DecodingError.dataCorrupted(let c), DecodingError.keyNotFound(_, let c),
+      DecodingError.typeMismatch(_, let c), DecodingError.valueNotFound(_, let c):
+      context = c
+    default:
+      return "\(error)"
+    }
+    let path = context.codingPath.reduce("view") { path, key in
+      key.intValue.map { "\(path)[\($0)]" } ?? "\(path).\(key.stringValue)"
+    }
+    return "\(path): \(context.debugDescription)"
+  }
+
   /// The data and value a JSON output object carries, the value falling
   /// back to the `raw` output.
   static func parseOutput(_ json: [String: Any], raw: String) -> (CommandOutputData, String) {
@@ -362,10 +379,12 @@ struct CommandConfig: ModuleConfiguration {
 
     // Extract view tree (DSL)
     if let viewObj = json["view"] {
-      if let viewData = try? JSONSerialization.data(withJSONObject: viewObj),
-        let viewNode = try? JSONDecoder().decode(ViewNode.self, from: viewData)
-      {
-        data.viewTree = viewNode
+      if let viewData = try? JSONSerialization.data(withJSONObject: viewObj) {
+        do {
+          data.viewTree = try JSONDecoder().decode(ViewNode.self, from: viewData)
+        } catch {
+          print("Ignoring a command's view: \(viewProblem(error))")
+        }
       }
     }
 

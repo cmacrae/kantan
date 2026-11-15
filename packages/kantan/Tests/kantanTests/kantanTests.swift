@@ -2806,6 +2806,18 @@ final class HotReloadWatchTests {
   }
 }
 
+final class CommandViewProblemTests {
+  @Test func testABadViewNamesWhereItsWrong() throws {
+    let json = #"{"type":"vstack","children":[{"type":"text","content":"x","weight":"extrabold"}]}"#
+    do {
+      _ = try JSONDecoder().decode(ViewNode.self, from: Data(json.utf8))
+      Issue.record("the view decoded")
+    } catch {
+      #expect(CommandConfig.viewProblem(error).hasPrefix("view.children[0].weight: "))
+    }
+  }
+}
+
 @MainActor
 final class CommandPollingTests {
   /// A polling module running `command` every `interval` seconds.
