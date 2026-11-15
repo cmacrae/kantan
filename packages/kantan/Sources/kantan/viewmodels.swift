@@ -267,6 +267,8 @@ class ModuleViewModel: ObservableObject, Identifiable {
     }
     let interval = moduleConfig.config?.redrawInterval ?? 1.0
     guard interval > 0 else { return }
+    // Replaces any timer already running, so resuming twice polls once.
+    timer?.invalidate()
     // A tick while the last one's value is still being read is skipped.
     let t = Timer(timeInterval: interval, repeats: true) { [weak self] _ in
       MainActor.assumeIsolated {

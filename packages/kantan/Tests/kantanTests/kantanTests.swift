@@ -2783,6 +2783,23 @@ final class CommandPollingTests {
     await waitUntil({ vm.displayValue == "done" }, timeout: 3)
   }
 
+  @Test func testResumingTwicePollsAtTheConfiguredRate() async throws {
+    let dir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+    try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+    defer { try? FileManager.default.removeItem(at: dir) }
+    let log = dir.appendingPathComponent("runs").path
+    let vm = try module("resume-twice", command: "echo run >> \(log)", interval: 0.2)
+    vm.resume()
+    await runMainLoop(for: 0.05)
+    vm.resume()
+    try? FileManager.default.removeItem(atPath: log)
+    await runMainLoop(for: 1.05)
+    vm.pause()
+    let runs = (try? String(contentsOfFile: log, encoding: .utf8))?.split(separator: "\n") ?? []
+    // About 5 polls a second; two timers would make about 10.
+    #expect(runs.count <= 7)
+  }
+
   @Test func testASetWithADurationOutlastsARunInFlight() async throws {
     let vm = try module("set-in-flight", command: "sleep 0.3; echo command", interval: 0)
     defer { vm.pause() }
