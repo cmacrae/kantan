@@ -2487,7 +2487,9 @@ final class LiveModuleViewTests {
       """)
     let vm = ModuleViewModel(moduleConfig: try #require(parseModuleConfig(from: yaml)))
     vm.suspend()
-    await runMainLoop(for: 0.2)
+    // The command's first run, which would otherwise overwrite what the test
+    // sets when it finishes.
+    await waitUntil { vm.displayValue != nil }
     vm.templateVariables = ["cpu": cpu]
     return vm
   }
