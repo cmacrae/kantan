@@ -2807,6 +2807,18 @@ final class HotReloadWatchTests {
 }
 
 final class CommandOutputDataTests {
+  @Test func testABadByteDoesntBlankTheOutput() async throws {
+    let config = try CommandConfig(yaml: try Yaml.load(#"command: "printf 'ok \\377'""#))
+    let output = OSAllocatedUnfairLock(initialState: "")
+    let done = Expectation()
+    config.getValue { value in
+      output.withLock { $0 = value }
+      done.fulfill()
+    }
+    #expect(await fulfillment(of: [done], timeout: 5))
+    #expect(output.withLock { $0 } == "ok \u{FFFD}")
+  }
+
   @Test func testANullDataFieldReadsAsMissing() throws {
     let raw = #"{"value":"v","data":{"items":[{"name":"a","due":null}]}}"#
     let json = try #require(

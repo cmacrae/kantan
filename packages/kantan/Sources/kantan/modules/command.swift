@@ -483,6 +483,7 @@ struct CommandConfig: ModuleConfiguration {
       return ""
     }
 
-    return String(data: outdata, encoding: .utf8)?.trimmingCharacters(in: .newlines) ?? ""
+    // Bytes that aren't UTF-8 become U+FFFD, as for a watch's output.
+    return String(decoding: outdata, as: UTF8.self).trimmingCharacters(in: .newlines)
   }
 }
