@@ -394,7 +394,8 @@ struct CommandConfig: ModuleConfiguration {
       for (key, array) in dataObj {
         result[key] = array.map { dict in
           var stringDict: [String: String] = [:]
-          for (k, v) in dict {
+          // A null field is left out, so it reads as missing.
+          for (k, v) in dict where !(v is NSNull) {
             stringDict[k] = "\(v)"
           }
           return stringDict

@@ -98,7 +98,7 @@ Plugins can output structured data collections in the `data` field. These collec
 }
 ```
 
-The `data` object can contain multiple named arrays. Each array holds flat objects with arbitrary fields. Field values that aren't strings are converted to text: numbers keep their value (`3` becomes `"3"`), and booleans become `"1"` and `"0"`, which still evaluate as true and false.
+The `data` object can contain multiple named arrays. Each array holds flat objects with arbitrary fields. Field values that aren't strings are converted to text: numbers keep their value (`3` becomes `"3"`), and booleans become `"1"` and `"0"`, which still evaluate as true and false. A `null` field is left out, so it reads as missing.
 
 Every value in `variables` must be a string. Every entry in `data` must be an array of objects. Otherwise that whole field is ignored.
 

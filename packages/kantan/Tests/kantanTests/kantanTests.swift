@@ -2806,6 +2806,16 @@ final class HotReloadWatchTests {
   }
 }
 
+final class CommandOutputDataTests {
+  @Test func testANullDataFieldReadsAsMissing() throws {
+    let raw = #"{"value":"v","data":{"items":[{"name":"a","due":null}]}}"#
+    let json = try #require(
+      try JSONSerialization.jsonObject(with: Data(raw.utf8)) as? [String: Any])
+    let (data, _) = CommandConfig.parseOutput(json, raw: raw)
+    #expect(data.data["items"] == [["name": "a"]])
+  }
+}
+
 final class CommandViewProblemTests {
   @Test func testABadViewNamesWhereItsWrong() throws {
     let json = #"{"type":"vstack","children":[{"type":"text","content":"x","weight":"extrabold"}]}"#
