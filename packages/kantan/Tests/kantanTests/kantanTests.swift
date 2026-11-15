@@ -2708,6 +2708,25 @@ final class CommandWatchOutputTests {
 final class BarTeardownTests {
   private final class Module {}
 
+  @Test func testADisplayAddedLaterShowsTheDrawersAsTheBarHasThem() throws {
+    _ = NSApplication.shared
+    let config = try #require(
+      loadConfig(
+        from: try Yaml.load(
+          "modules:\n  - name: drawer\n    type: drawer\n    placement: right\n")))
+    let bar = BarViewModel(config: config)
+    let app = AppDelegate()
+    app.config = config
+    app.barViewModel = bar
+    app.themeProvider = ThemeProvider(config: config)
+    bar.toggleDrawer(side: "right")
+    app.screenDidChange(Notification(name: NSApplication.didChangeScreenParametersNotification))
+    defer { app.teardownBar() }
+    let display = try #require(app.displayInstances.first)
+    #expect(display.rightDrawerOpen)
+    #expect(!display.leftDrawerOpen)
+  }
+
   @Test func testTearingDownTheBarClosesItsPopupsAndTooltips() throws {
     _ = NSApplication.shared
     let config = try #require(loadConfig(from: try Yaml.load("modules: []")))

@@ -1229,6 +1229,9 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     for screen in targetScreens where diff.toAdd.contains(screen.localizedName) {
       let instance = DisplayInstance(
         screenName: screen.localizedName, barHeight: barHeight, config: config)
+      // A display added later shows the drawers as the others do.
+      instance.leftDrawerOpen = bar.leftDrawerOpen
+      instance.rightDrawerOpen = bar.rightDrawerOpen
       instance.createPanels(for: screen, bar: bar, theme: theme)
       displayInstances.append(instance)
     }
