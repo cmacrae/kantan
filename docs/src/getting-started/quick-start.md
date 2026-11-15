@@ -18,7 +18,7 @@ kantan checks for a config file every couple of seconds and loads it as soon as 
 mkdir -p ~/.config/kantan
 ```
 
-kantan loads `config.yaml` from the directory you run it in, if there is one there. Otherwise it loads `~/.config/kantan/config.yaml`, or `$XDG_CONFIG_HOME/kantan/config.yaml` when `XDG_CONFIG_HOME` is set. `kantan --config <path>` loads a config from anywhere else. See [Config File Locations](../configuration/index.md#config-file-locations).
+kantan loads `~/.config/kantan/config.yaml`, or `$XDG_CONFIG_HOME/kantan/config.yaml` when `XDG_CONFIG_HOME` is set. `kantan --config <path>` loads a config from anywhere else. See [Config File Locations](../configuration/index.md#config-file-locations).
 
 ## Step 2: Create a Minimal Config
 
