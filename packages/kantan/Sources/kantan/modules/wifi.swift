@@ -62,6 +62,82 @@ struct WiFiStatus: Sendable {
   }
 }
 
+/// CoreWLAN's events for every WiFi module observing them, as the shared
+/// `CWWiFiClient` has a single delegate. Monitoring runs while at least one
+/// module observes.
+final class WiFiEvents: NSObject, CWEventDelegate, @unchecked Sendable {
+  static let shared = WiFiEvents()
+
+  private struct Observer {
+    weak var module: WiFiConfig?
+  }
+
+  private let lock = NSLock()
+  private var observers: [ObjectIdentifier: Observer] = [:]
+
+  private static let events: [CWEventType] = [
+    .ssidDidChange, .bssidDidChange, .linkDidChange, .linkQualityDidChange, .powerDidChange,
+  ]
+
+  private var modules: [WiFiConfig] {
+    lock.withLock { observers.values.compactMap(\.module) }
+  }
+
+  func add(_ module: WiFiConfig) {
+    let isFirst = lock.withLock {
+      let isFirst = observers.isEmpty
+      observers[ObjectIdentifier(module)] = Observer(module: module)
+      return isFirst
+    }
+    guard isFirst else { return }
+    let client = CWWiFiClient.shared()
+    client.delegate = self
+    for event in Self.events {
+      do {
+        try client.startMonitoringEvent(with: event)
+      } catch {
+        print("WiFi: couldn't monitor event \(event.rawValue): \(error)")
+      }
+    }
+  }
+
+  func remove(_ module: WiFiConfig) {
+    let isLast = lock.withLock {
+      guard observers.removeValue(forKey: ObjectIdentifier(module)) != nil else { return false }
+      return observers.isEmpty
+    }
+    guard isLast else { return }
+    let client = CWWiFiClient.shared()
+    try? client.stopMonitoringAllEvents()
+    client.delegate = nil
+  }
+
+  func ssidDidChangeForWiFiInterface(withName interfaceName: String) {
+    modules.forEach { $0.ssidDidChangeForWiFiInterface(withName: interfaceName) }
+  }
+
+  func bssidDidChangeForWiFiInterface(withName interfaceName: String) {
+    modules.forEach { $0.bssidDidChangeForWiFiInterface(withName: interfaceName) }
+  }
+
+  func linkDidChangeForWiFiInterface(withName interfaceName: String) {
+    modules.forEach { $0.linkDidChangeForWiFiInterface(withName: interfaceName) }
+  }
+
+  func linkQualityDidChangeForWiFiInterface(
+    withName interfaceName: String, rssi: Int, transmitRate: Double
+  ) {
+    modules.forEach {
+      $0.linkQualityDidChangeForWiFiInterface(
+        withName: interfaceName, rssi: rssi, transmitRate: transmitRate)
+    }
+  }
+
+  func powerStateDidChangeForWiFiInterface(withName interfaceName: String) {
+    modules.forEach { $0.powerStateDidChangeForWiFiInterface(withName: interfaceName) }
+  }
+}
+
 /// Fully event-driven WiFi module using CoreWLAN event monitoring.
 /// Listens for SSID, BSSID, link state, link quality (RSSI), and power state
 /// changes via CWWiFiClient delegate. No polling — all updates are event-driven.
@@ -81,7 +157,6 @@ final class WiFiConfig: NSObject, ModuleConfiguration, EventDrivenModule, CWEven
   var redrawInterval: TimeInterval { noPoll }
 
   nonisolated(unsafe) private var onChange: (@Sendable () -> Void)?
-  nonisolated(unsafe) private var wifiClient: CWWiFiClient?
   private let cache = CachedStatus<WiFiStatus>(fallback: .disconnected)
   /// Only touched inside `cache.mutate { ... }` so it shares the cache lock.
   /// Set by `linkQualityDidChange` (RSSI delivered directly), consumed by
@@ -105,18 +180,7 @@ final class WiFiConfig: NSObject, ModuleConfiguration, EventDrivenModule, CWEven
 
   func startObserving(onChange: @escaping @Sendable () -> Void) {
     self.onChange = onChange
-
-    let client = CWWiFiClient.shared()
-    client.delegate = self
-    do {
-      try client.startMonitoringEvent(with: .ssidDidChange)
-      try client.startMonitoringEvent(with: .bssidDidChange)
-      try client.startMonitoringEvent(with: .linkDidChange)
-      try client.startMonitoringEvent(with: .linkQualityDidChange)
-      try client.startMonitoringEvent(with: .powerDidChange)
-    } catch {}
-
-    self.wifiClient = client
+    WiFiEvents.shared.add(self)
   }
 
   func stopObserving() {
@@ -126,13 +190,7 @@ final class WiFiConfig: NSObject, ModuleConfiguration, EventDrivenModule, CWEven
       self?.coalesceWorkItem = nil
     }
 
-    if let client = wifiClient {
-      do {
-        try client.stopMonitoringAllEvents()
-      } catch {}
-      client.delegate = nil
-    }
-    wifiClient = nil
+    WiFiEvents.shared.remove(self)
     onChange = nil
   }
 

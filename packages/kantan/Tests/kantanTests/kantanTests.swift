@@ -285,6 +285,27 @@ final class TriggerFieldsTests {
   }
 }
 
+final class WiFiEventsTests {
+  private func module() -> WiFiConfig {
+    WiFiConfig(strengthIcons: ["wifi"], disconnectedIcon: "wifi-off", ssidIcons: [:])
+  }
+
+  @Test func testEveryWiFiModuleHearsTheEventsUntilItStops() async {
+    let first = module()
+    let second = module()
+    let heard = OSAllocatedUnfairLock(initialState: [0, 0])
+    first.startObserving { heard.withLock { $0[0] += 1 } }
+    second.startObserving { heard.withLock { $0[1] += 1 } }
+    WiFiEvents.shared.ssidDidChangeForWiFiInterface(withName: "en0")
+    #expect(heard.withLock { $0 } == [1, 1])
+
+    first.stopObserving()
+    WiFiEvents.shared.ssidDidChangeForWiFiInterface(withName: "en0")
+    #expect(heard.withLock { $0 } == [1, 2])
+    second.stopObserving()
+  }
+}
+
 final class WiFiStatusTests {
   @Test func testAnAllZeroBSSIDNeedsASignalToCountAsAssociated() {
     let zero = Data(count: 6)
