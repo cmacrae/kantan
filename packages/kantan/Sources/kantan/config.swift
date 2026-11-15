@@ -1054,6 +1054,15 @@ func parseModuleConfig(from moduleYaml: Yaml, configDir: String? = nil, theme: T
 
 // MARK: - Config Path Resolution
 
+/// `$XDG_CONFIG_HOME`, or `~/.config` when it's unset, empty or relative,
+/// as the XDG Base Directory specification has it.
+func xdgConfigHome(
+  _ environment: [String: String] = ProcessInfo.processInfo.environment
+) -> String {
+  if let xdg = environment["XDG_CONFIG_HOME"], xdg.hasPrefix("/") { return xdg }
+  return ("~/.config" as NSString).expandingTildeInPath
+}
+
 /// Resolve the config file path using the priority chain:
 /// 1. Explicit path (from --config flag)
 /// 2. $XDG_CONFIG_HOME/kantan/config.yaml (default ~/.config/kantan/config.yaml)
@@ -1072,13 +1081,7 @@ func resolveConfigPath(
     return nil
   }
 
-  let xdgBase: String
-  if let xdg = environment["XDG_CONFIG_HOME"] {
-    xdgBase = xdg
-  } else {
-    xdgBase = ("~/.config" as NSString).expandingTildeInPath
-  }
-  let xdgPath = URL(fileURLWithPath: xdgBase)
+  let xdgPath = URL(fileURLWithPath: xdgConfigHome(environment))
     .appendingPathComponent("kantan/config.yaml").standardizedFileURL.path
   if fm.fileExists(atPath: xdgPath) {
     return xdgPath

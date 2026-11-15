@@ -587,6 +587,14 @@ final class LoadConfigFileTests {
 
   private var modulesDir: String { dir.appendingPathComponent("modules.d").path }
 
+  @Test func testAnEmptyOrRelativeXDGConfigHomeIsIgnored() {
+    let home = ("~/.config" as NSString).expandingTildeInPath
+    #expect(xdgConfigHome([:]) == home)
+    #expect(xdgConfigHome(["XDG_CONFIG_HOME": ""]) == home)
+    #expect(xdgConfigHome(["XDG_CONFIG_HOME": "conf"]) == home)
+    #expect(xdgConfigHome(["XDG_CONFIG_HOME": "/etc/xdg"]) == "/etc/xdg")
+  }
+
   @Test func testAConfigInTheWorkingDirectoryIsNotDiscovered() throws {
     let cwdConfig = URL(fileURLWithPath: "config.yaml").standardizedFileURL
     try #require(!FileManager.default.fileExists(atPath: cwdConfig.path))

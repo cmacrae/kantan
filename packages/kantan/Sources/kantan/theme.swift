@@ -100,10 +100,7 @@ private func findThemeLocation(name: String, configDir: String?) -> URL? {
     addPaths(base: URL(fileURLWithPath: configDir).appendingPathComponent("themes"))
   }
 
-  let xdgBase =
-    ProcessInfo.processInfo.environment["XDG_CONFIG_HOME"]
-    ?? ("~/.config" as NSString).expandingTildeInPath
-  addPaths(base: URL(fileURLWithPath: xdgBase).appendingPathComponent("kantan/themes"))
+  addPaths(base: URL(fileURLWithPath: xdgConfigHome()).appendingPathComponent("kantan/themes"))
 
   if let bundled = bundledThemesDirectory() {
     addPaths(base: bundled)

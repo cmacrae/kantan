@@ -26,7 +26,7 @@ A release build reports its release number (`kantan 0.1.0`). Any other build add
 
 **Config file resolution (in order):**
 1. `--config` flag (explicit path)
-2. `$XDG_CONFIG_HOME/kantan/config.yaml` (defaults to `~/.config/kantan/config.yaml`)
+2. `$XDG_CONFIG_HOME/kantan/config.yaml`, or `~/.config/kantan/config.yaml` when `XDG_CONFIG_HOME` is unset or isn't an absolute path
 
 An explicit `--config` path that doesn't exist is not followed by the other locations. If no config file is found, kantan shows a default welcome bar with a setup hint and checks every 2 seconds for a config file to appear. kantan watches the config file and the modules directory and reloads when either changes. If the config file can't be read or parsed at launch, kantan prints the error to its stdout and shows a bar saying so until the file is fixed.
 
