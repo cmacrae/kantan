@@ -457,6 +457,11 @@ final class DrawerIconTests {
 
 @MainActor
 final class MaskedModuleInteractionTests {
+  init() {
+    // ThemeProvider reads NSApp's appearance.
+    _ = NSApplication.shared
+  }
+
   private func module(_ name: String, _ extra: String = "") throws -> ModuleConfig {
     let yaml = try Yaml.load(
       "name: \(name)\ntype: text\nplacement: right\nconfig:\n  value: x\n" + extra)
@@ -474,6 +479,30 @@ final class MaskedModuleInteractionTests {
       from: [masked, menu].map { ModuleViewModel(moduleConfig: $0) }, placement: "right")
     #expect((groups.map { $0.modules.map(\.moduleConfig.name) }) == [["masked"], ["menu"]])
     #expect(groups.map(\.isPassthrough) == [true, false])
+  }
+
+  @Test func testNoDrawerClickPanelCoversTheNativeMenuBar() throws {
+    let config = try #require(
+      loadConfig(
+        from: try Yaml.load(
+          """
+          modules:
+            - name: drawer
+              type: drawer
+              placement: right
+          """)))
+    let screen = try #require(NSScreen.screens.first)
+    let display = DisplayInstance(screenName: screen.localizedName, barHeight: 24, config: config)
+    defer { display.teardown() }
+    let bar = BarViewModel(config: config)
+    display.createPanels(for: screen, bar: bar, theme: ThemeProvider(config: config))
+    display.updateDrawerClickPanels()
+    #expect(!display.drawerClickPanels.isEmpty)
+
+    display.isMenuBarShowing = true
+    display.updateDrawerClickPanels()
+    #expect(display.drawerClickPanels.isEmpty)
+    withExtendedLifetime(bar) {}
   }
 
   @Test func testShowingTheBarLeavesOutMasksWithNothingToCover() throws {

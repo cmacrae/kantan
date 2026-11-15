@@ -648,9 +648,12 @@ class DisplayInstance {
   /// Creates transparent panels in the horizontal gaps between group panels.
   /// These catch clicks for the "click empty space to toggle drawer" feature
   /// while keeping the bgPanel fully `ignoresMouseEvents` for passthrough.
+  /// None are made while the bar is slid out for the native menu bar, which
+  /// they would cover.
   func updateDrawerClickPanels() {
     for panel in drawerClickPanels { panel.orderOut(nil) }
     drawerClickPanels.removeAll()
+    guard !isMenuBarShowing else { return }
 
     guard let bgPanel = bgPanel, let bar = barViewModel, bar.hasDrawer else { return }
 
