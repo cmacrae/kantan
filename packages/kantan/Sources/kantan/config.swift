@@ -827,7 +827,8 @@ private func parseCommonNodeProperties(from dict: [Yaml: Yaml]) -> CommonNodePro
     opacity: yamlDouble(dict["opacity"]),
     background: dict["background"]?.string,
     cornerRadius: yamlDouble(dict["cornerRadius"]),
-    visible: dict["visible"]?.string
+    visible: dict["visible"]?.bool.map(CommonNodeProperties.visible(literal:))
+      ?? dict["visible"]?.string
   )
 }
 

@@ -184,7 +184,7 @@ On `text`, `style: secondary` is applied as an extra 50% opacity. It combines wi
 
 ## Visibility
 
-Control whether a node is rendered. The `visible` property takes a variable name (without braces) that is looked up and evaluated as a boolean:
+Control whether a node is rendered. The `visible` property takes a variable name (without braces) that is looked up and evaluated as a boolean, or a literal `true` or `false`:
 
 ```json
 {

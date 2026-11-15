@@ -39,7 +39,18 @@ struct CommonNodeProperties: Sendable, Decodable {
     self.opacity = try container.decodeIfPresent(Double.self, forKey: .opacity)
     self.background = try container.decodeIfPresent(String.self, forKey: .background)
     self.cornerRadius = try container.decodeIfPresent(Double.self, forKey: .cornerRadius)
-    self.visible = try container.decodeIfPresent(String.self, forKey: .visible)
+    if let literal = try? container.decodeIfPresent(Bool.self, forKey: .visible) {
+      self.visible = Self.visible(literal: literal)
+    } else {
+      self.visible = try container.decodeIfPresent(String.self, forKey: .visible)
+    }
+  }
+
+  /// The `visible` property for a literal boolean: none for true, so the
+  /// node always shows, and an empty variable name, which is always falsy,
+  /// for false.
+  static func visible(literal: Bool) -> String? {
+    literal ? nil : ""
   }
 
   static let empty = CommonNodeProperties()

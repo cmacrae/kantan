@@ -143,8 +143,8 @@
           "description": "Corner radius for the node's background."
         },
         "visible": {
-          "type": "string",
-          "description": "Conditional visibility. Accepts a bare variable name without braces (e.g. \"has_events\", not \"{has_events}\"). The variable is resolved and the node is shown only if the value is truthy (non-empty, not \"false\", not \"0\", not \"no\"). An unresolved variable is falsy, hiding the node."
+          "type": ["string", "boolean"],
+          "description": "Conditional visibility. Accepts a literal boolean, or a bare variable name without braces (e.g. \"has_events\", not \"{has_events}\"). The variable is resolved and the node is shown only if the value is truthy (non-empty, not \"false\", not \"0\", not \"no\"). An unresolved variable is falsy, hiding the node."
         }
       }
     },
