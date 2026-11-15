@@ -2,7 +2,9 @@
 
 Type: `wifi`
 
-Icon-only WiFi connection status indicator. Uses CoreWLAN with event-driven updates and reads the SSID from IOKit (no Location Services required). The icon reflects signal strength. No text is displayed.
+Icon-only WiFi connection status indicator. Uses CoreWLAN with event-driven updates. The icon reflects signal strength. No text is displayed.
+
+SSID-specific icons need the SSID to be readable. macOS withholds it from an app without Location Services access, and kantan doesn't ask for that access, so on recent macOS releases `icons.ssid` and the hotspot icon may never apply.
 
 ## Configuration
 

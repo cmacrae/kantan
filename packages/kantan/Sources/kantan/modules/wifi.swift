@@ -65,7 +65,9 @@ struct WiFiStatus: Sendable {
 /// Fully event-driven WiFi module using CoreWLAN event monitoring.
 /// Listens for SSID, BSSID, link state, link quality (RSSI), and power state
 /// changes via CWWiFiClient delegate. No polling — all updates are event-driven.
-/// SSID is read from IOKit's IORegistry (no Location Services required).
+/// The SSID comes from CoreWLAN or IOKit's IORegistry, both of which macOS
+/// redacts for an app without Location Services access, so SSID icons apply
+/// only where the SSID can be read.
 final class WiFiConfig: NSObject, ModuleConfiguration, EventDrivenModule, CWEventDelegate,
   @unchecked Sendable
 {
@@ -283,8 +285,14 @@ final class WiFiConfig: NSObject, ModuleConfiguration, EventDrivenModule, CWEven
     }
 
     let rssi = interface.rssiValue()
-    let ssid = interface.ssid() ?? ioInfo.ssid
+    let ssid = knownSSID(interface.ssid()) ?? knownSSID(ioInfo.ssid)
     return WiFiStatus(ssid: ssid, rssi: rssi, isConnected: true)
+  }
+
+  /// `ssid`, or nil when macOS withholds it, as it does from an app without
+  /// Location Services access.
+  static func knownSSID(_ ssid: String?) -> String? {
+    ssid == "<SSID Redacted>" ? nil : ssid
   }
 
   private struct IORegistryWiFiInfo {
@@ -293,7 +301,8 @@ final class WiFiConfig: NSObject, ModuleConfiguration, EventDrivenModule, CWEven
   }
 
   /// Reads WiFi SSID and BSSID from IOKit's IORegistry in a single pass.
-  /// In-process API — no subprocess, no Location Services required.
+  /// In-process API — no subprocess. Without Location Services access, macOS
+  /// redacts the SSID.
   private static func readIORegistryWiFiInfo() -> IORegistryWiFiInfo {
     var iterator: io_iterator_t = 0
     let kr = IOServiceGetMatchingServices(
