@@ -4,8 +4,14 @@ set -e
 STATE_DIR="${XDG_CACHE_HOME:-$HOME/.cache}/kantan"
 PID_FILE="$STATE_DIR/caffeine.pid"
 
+# Whether the PID file names a running caffeinate, and not another process
+# that has since taken its PID.
 is_active() {
-  [ -f "$PID_FILE" ] && kill -0 "$(cat "$PID_FILE")" 2>/dev/null
+  [ -f "$PID_FILE" ] || return 1
+  case "$(ps -p "$(cat "$PID_FILE")" -o comm= 2>/dev/null)" in
+  caffeinate | */caffeinate) return 0 ;;
+  *) return 1 ;;
+  esac
 }
 
 activate() {
