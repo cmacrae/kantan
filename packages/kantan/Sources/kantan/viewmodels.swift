@@ -676,6 +676,16 @@ class BarViewModel: ObservableObject {
     }
   }
 
+  /// The longest a `set` trigger's `duration` lasts, in seconds.
+  nonisolated static let maxTriggerDuration: TimeInterval = 3600
+
+  /// The seconds a `set` trigger's `duration` field asks for, at most
+  /// `maxTriggerDuration`, or nil for a value that isn't a positive number.
+  nonisolated static func triggerDuration(_ field: String) -> TimeInterval? {
+    guard let duration = Double(field), duration > 0, !duration.isNaN else { return nil }
+    return min(duration, maxTriggerDuration)
+  }
+
   func handleEvent(module moduleName: String, action: String, userInfo: [String: String]) {
     let targets: [ModuleViewModel]
     if moduleName == "*" {
@@ -705,9 +715,7 @@ class BarViewModel: ObservableObject {
         if let bg = userInfo["bg"] {
           vm.bgOverride = bg.isEmpty ? nil : bg
         }
-        if let durationStr = userInfo["duration"],
-          let duration = Double(durationStr), duration > 0
-        {
+        if let duration = userInfo["duration"].flatMap(Self.triggerDuration) {
           vm.scheduleDurationReset(duration)
         }
 

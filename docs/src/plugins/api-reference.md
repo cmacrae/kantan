@@ -414,7 +414,7 @@ Directly updates module display values without re-invoking the command. Accepts 
 | `icon=` | Set the display icon (an icon name or a glyph) |
 | `fg=` | Set a foreground colour override for icon and text (hex only) |
 | `bg=` | Set a background colour override (hex only) |
-| `duration=` | After N seconds, clear the `fg`/`bg` overrides and run the module's command again |
+| `duration=` | After N seconds, at most 3600, clear the `fg`/`bg` overrides and run the module's command again |
 
 ```bash
 kantan trigger mymodule set value="Hello" icon=alert-circle fg="#ff0000" duration=5

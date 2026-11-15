@@ -62,7 +62,7 @@ Both `<module-name>` and `<action>` are required. With fewer, kantan prints its 
 | Action | Description |
 |--------|-------------|
 | `refresh` | Re-run the module's data source (a command module's `command`) and update its display |
-| `set` | Directly set display properties via key-value pairs: `value=`, `icon=`, `fg=`, `bg=` (hex colours), `duration=` (after N seconds, clear the `fg`/`bg` overrides and refresh the module) |
+| `set` | Directly set display properties via key-value pairs: `value=`, `icon=`, `fg=`, `bg=` (hex colours), `duration=` (after N seconds, at most 3600, clear the `fg`/`bg` overrides and refresh the module) |
 
 Any other action does nothing. See [the plugin API reference](../plugins/api-reference.md#set) for how long `set` overrides last.
 
@@ -72,6 +72,8 @@ kantan trigger my-plugin refresh
 kantan trigger my-module set value="Hello" icon=bell duration=5
 kantan trigger '*' refresh
 ```
+
+> **Same user, no authentication:** kantan accepts a trigger from any process the logged-in user runs. Anything running as you can set any module's text, icon and colours, or refresh it. A trigger can't run a command of its own.
 
 > **Fire-and-forget:** `kantan trigger` posts the notification and returns immediately with exit code 0. It does **not** verify that the named module exists, that a kantan process is running, or that the notification was received. A misspelled module name, a stopped kantan, and a successful delivery all look the same from the caller's perspective. Watch processes should therefore treat triggers as best-effort and avoid retry loops that assume delivery confirmation.
 
