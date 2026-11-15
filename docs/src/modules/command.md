@@ -72,7 +72,7 @@ A `watch` command launches a long-lived background process for event-driven upda
 
 A configured watch process turns polling off, whatever the `interval`. `command` still runs at startup, on wake and on space changes. One watch process runs per module, however many displays show it.
 
-- **Lifetime**: the process's stdin is a pipe that reaches EOF when kantan exits. To stop the process itself, kantan closes stdin and sends `SIGTERM` if the process is still running a second later. The process is stopped on sleep and started again on wake. It's relaunched when the system appearance changes, with `KANTAN_APPEARANCE` and theme templates in `KANTAN_SETTINGS` matching the new appearance.
+- **Lifetime**: the process's stdin is a pipe that reaches EOF when kantan exits. Once stdin reaches EOF, whether kantan stopped the process or exited, the process has a second to exit before `SIGTERM` is sent to it and everything it started, such as the rest of a pipeline. The process is stopped on sleep and started again on wake. It's relaunched when the system appearance changes, with `KANTAN_APPEARANCE` and theme templates in `KANTAN_SETTINGS` matching the new appearance.
 - **Restarts**: when the process exits, kantan relaunches it after 1s, doubling to 16s, and gives up after 10 consecutive restarts. A process that ran for at least 30 seconds before exiting starts the count afresh. So does launching kantan or waking from sleep.
 
 See the [Watch Mode Protocol](../plugins/api-reference.md#watch-mode-protocol) for details.

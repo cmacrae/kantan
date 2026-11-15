@@ -290,7 +290,7 @@ class ModuleViewModel: ObservableObject, Identifiable {
   private func launchWatch(command: String) {
     let process = Process()
     process.executableURL = URL(fileURLWithPath: "/bin/sh")
-    process.arguments = ["-c", command]
+    process.arguments = ["-c", Self.watchScript, "sh", command]
 
     var env = ProcessInfo.processInfo.environment
     env["KANTAN_MODULE_NAME"] = self.id
@@ -350,6 +350,18 @@ class ModuleViewModel: ObservableObject, Identifiable {
   /// How long a stopped watch process has to exit on stdin EOF before
   /// it's sent SIGTERM.
   nonisolated static let watchStopGrace: TimeInterval = 1
+
+  /// Runs the watch command `$1` with kantan's stdin, and once stdin reaches
+  /// EOF, however kantan stopped, gives it `watchStopGrace` to exit before
+  /// sending SIGTERM to its process group, so nothing it started outlives
+  /// kantan.
+  nonisolated static let watchScript = """
+    exec 3<&0
+    { read -r _ <&3; sleep \(Int(watchStopGrace)); kill -TERM 0; } &
+    watcher=$!
+    trap 'kill "$watcher" 2>/dev/null' EXIT
+    /bin/sh -c "$1" 3<&-
+    """
 
   nonisolated static let maxWatchRestarts = 10
   /// How long a watch process runs before exiting for its exit to start

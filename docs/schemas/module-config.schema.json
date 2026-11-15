@@ -278,7 +278,7 @@
         },
         "watch": {
           "type": "string",
-          "description": "Long-lived watcher process command, run with /bin/sh -c and given KANTAN_MODULE_NAME, KANTAN_SETTINGS, KANTAN_APPEARANCE and KANTAN_PID. Disables polling. With output: json, each stdout line that is a JSON object becomes the module's output; alternatively the watcher runs 'kantan trigger <module_name> refresh' to re-run 'command'. Its stdin is a pipe that reaches EOF when kantan exits. Stopped on sleep, started on wake, relaunched on appearance changes; when it exits it is restarted after 1s doubling to 16s, giving up after 10 consecutive restarts (a run of 30s or more resets the count)."
+          "description": "Long-lived watcher process command, run with /bin/sh -c and given KANTAN_MODULE_NAME, KANTAN_SETTINGS, KANTAN_APPEARANCE and KANTAN_PID. Disables polling. With output: json, each stdout line that is a JSON object becomes the module's output; alternatively the watcher runs 'kantan trigger <module_name> refresh' to re-run 'command'. Its stdin is a pipe that reaches EOF when kantan stops it or exits; a second later, SIGTERM is sent to it and everything it started. Stopped on sleep, started on wake, relaunched on appearance changes; when it exits it is restarted after 1s doubling to 16s, giving up after 10 consecutive restarts (a run of 30s or more resets the count)."
         },
         "toggle": {
           "type": "string",

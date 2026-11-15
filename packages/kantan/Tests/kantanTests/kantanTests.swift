@@ -2712,6 +2712,29 @@ final class WatchOutputTests {
     #expect(vm.displayValue == "watch")
   }
 
+  @Test func testAWatchAndEverythingItStartedStopWhenKantanGoesAway() async throws {
+    let dir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+    try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+    defer { try? FileManager.default.removeItem(at: dir) }
+    let marker = dir.appendingPathComponent("survived").path
+    let process = Process()
+    process.executableURL = URL(fileURLWithPath: "/bin/sh")
+    process.arguments = [
+      "-c", ModuleViewModel.watchScript, "sh", "(sleep 2.5; touch \(marker)) & sleep 30 | cat",
+    ]
+    let stdin = Pipe()
+    process.standardInput = stdin
+    process.standardOutput = FileHandle.nullDevice
+    try process.run()
+    try await Task.sleep(for: .milliseconds(200))
+    // kantan's end of stdin closes however kantan exits, signals included.
+    try stdin.fileHandleForWriting.close()
+    try await Task.sleep(for: .seconds(3.3))
+    #expect(!process.isRunning)
+    #expect(!FileManager.default.fileExists(atPath: marker))
+    if process.isRunning { process.terminate() }
+  }
+
   @Test func testTheWatchRelaunchesWithTheNewAppearance() async throws {
     defer { tearDown() }
     NSApp.appearance = NSAppearance(named: .aqua)
