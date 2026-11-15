@@ -179,6 +179,21 @@ class TemplateResolver {
   }
 }
 
+// MARK: - Sizes
+
+/// How many columns a grid with `columns` has: 2 by default, and at least 1.
+func dslGridColumnCount(_ columns: Int?) -> Int {
+  max(1, columns ?? 2)
+}
+
+/// The point size of an icon `size` points tall scaled by `scale`, rounded,
+/// between 1 and 1000.
+func dslScaledFontSize(_ size: Double, scale: Double) -> Int {
+  let scaled = size * scale
+  guard scaled.isFinite else { return 13 }
+  return Int(round(min(max(scaled, 1), 1000)))
+}
+
 // MARK: - Gauge Range
 
 /// The range a gauge spans: `min` (default 0) to `max` (default 1), in

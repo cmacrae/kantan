@@ -175,6 +175,19 @@ final class YamlTests {
     #expect(yaml["modules"][0]["name"].string == "clock")
     #expect(yaml["modules"][0]["enabled"].bool == true)
   }
+
+  @Test func testIntRejectsNumbersNoIntHolds() throws {
+    for value in [Double.infinity, -.infinity, .nan, 1.0e30] {
+      #expect(Yaml.double(value).int == nil)
+    }
+    #expect(try Yaml.load("height: .inf\n")["height"].int == nil)
+  }
+
+  @Test func testSettingsJSONCannotHoldIsDropped() throws {
+    let config = try CommandConfig(
+      yaml: try Yaml.load("command: echo\nsettings:\n  limit: .inf\n"))
+    #expect(config.resolvedSettings(isDark: true) == nil)
+  }
 }
 
 final class ConfigShapeTests {

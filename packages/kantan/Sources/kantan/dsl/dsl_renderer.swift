@@ -398,7 +398,7 @@ struct DSLRendererView: View {
       let resolved = resolveIconName(resolvedName)
       if let fontOverride = resolved.fontNameOverride {
         // Bundled icon font glyph — render with the correct font family and scale.
-        let scaledSize = Int(round(fontSize * resolved.scaleFactor))
+        let scaledSize = dslScaledFontSize(fontSize, scale: resolved.scaleFactor)
         Text(resolved.glyph)
           .font(
             FontConfig(descriptor: "\(fontOverride):\(scaledSize)", source: .bundled).swiftUIFont
@@ -661,7 +661,7 @@ struct DSLRendererView: View {
 
   @ViewBuilder
   private func renderGrid(columns: Int?, spacing: Double?, children: [ViewNode]) -> some View {
-    let columnCount = columns ?? 2
+    let columnCount = dslGridColumnCount(columns)
     let gap = spacing ?? 8.0
     let gridColumns = Array(
       repeating: GridItem(.flexible(), spacing: CGFloat(gap)),

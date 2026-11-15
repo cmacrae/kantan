@@ -128,8 +128,7 @@ enum Yaml: Hashable, Sendable {
     switch self {
     case .int(let i): return i
     case .double(let f):
-      if Double(Int(f)) == f { return Int(f) }
-      return nil
+      return Int(exactly: f)
     default: return nil
     }
   }

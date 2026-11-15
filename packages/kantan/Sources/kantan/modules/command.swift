@@ -127,6 +127,7 @@ struct CommandConfig: ModuleConfiguration {
     // Serialize the optional "settings" block to JSON for passing to plugins.
     if let settingsYaml = yaml["settings"].dictionary, !settingsYaml.isEmpty,
       let native = yamlToNative(.dictionary(settingsYaml)),
+      JSONSerialization.isValidJSONObject(native),
       let jsonData = try? JSONSerialization.data(withJSONObject: native),
       let jsonString = String(data: jsonData, encoding: .utf8)
     {

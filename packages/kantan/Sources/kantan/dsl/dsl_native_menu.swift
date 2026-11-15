@@ -119,7 +119,7 @@ private func addHStackItem(
           let resolved = resolveIconName(templateResolved)
           if let fontOverride = resolved.fontNameOverride {
             let fontSize = size ?? Double(NSFont.menuFont(ofSize: 0).pointSize)
-            let scaledSize = Int(round(fontSize * resolved.scaleFactor))
+            let scaledSize = dslScaledFontSize(fontSize, scale: resolved.scaleFactor)
             let font = FontConfig(
               descriptor: "\(fontOverride):\(scaledSize)", source: .bundled
             ).swiftUIFont
@@ -213,7 +213,7 @@ private func extractStyledParts(from node: ViewNode, resolver: TemplateResolver)
       let resolved = resolveIconName(templateResolved)
       if let fontOverride = resolved.fontNameOverride {
         let fontSize = size ?? Double(NSFont.menuFont(ofSize: 0).pointSize)
-        let scaledSize = Int(round(fontSize * resolved.scaleFactor))
+        let scaledSize = dslScaledFontSize(fontSize, scale: resolved.scaleFactor)
         let font = FontConfig(
           descriptor: "\(fontOverride):\(scaledSize)", source: .bundled
         ).swiftUIFont
