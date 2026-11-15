@@ -7,8 +7,7 @@ kantan is configured with YAML, in a single file or split across a `modules.d/` 
 kantan searches for configuration files in the following order (first found wins):
 
 1. Path specified via `--config` flag
-2. `./config.yaml` (current working directory)
-3. `$XDG_CONFIG_HOME/kantan/config.yaml` (defaults to `~/.config/kantan/config.yaml`)
+2. `$XDG_CONFIG_HOME/kantan/config.yaml` (defaults to `~/.config/kantan/config.yaml`)
 
 If no config file is found, kantan shows a welcome bar and checks for one every 2 seconds.
 

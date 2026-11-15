@@ -1056,9 +1056,11 @@ func parseModuleConfig(from moduleYaml: Yaml, configDir: String? = nil, theme: T
 
 /// Resolve the config file path using the priority chain:
 /// 1. Explicit path (from --config flag)
-/// 2. config.yaml in CWD
-/// 3. $XDG_CONFIG_HOME/kantan/config.yaml (default ~/.config/kantan/config.yaml)
-func resolveConfigPath(explicit: String?, silent: Bool = false) -> String? {
+/// 2. $XDG_CONFIG_HOME/kantan/config.yaml (default ~/.config/kantan/config.yaml)
+func resolveConfigPath(
+  explicit: String?, silent: Bool = false,
+  environment: [String: String] = ProcessInfo.processInfo.environment
+) -> String? {
   let fm = FileManager.default
 
   if let explicit = explicit {
@@ -1070,13 +1072,8 @@ func resolveConfigPath(explicit: String?, silent: Bool = false) -> String? {
     return nil
   }
 
-  let cwdPath = URL(fileURLWithPath: "config.yaml").standardizedFileURL.path
-  if fm.fileExists(atPath: cwdPath) {
-    return cwdPath
-  }
-
   let xdgBase: String
-  if let xdg = ProcessInfo.processInfo.environment["XDG_CONFIG_HOME"] {
+  if let xdg = environment["XDG_CONFIG_HOME"] {
     xdgBase = xdg
   } else {
     xdgBase = ("~/.config" as NSString).expandingTildeInPath
@@ -1087,7 +1084,7 @@ func resolveConfigPath(explicit: String?, silent: Bool = false) -> String? {
     return xdgPath
   }
 
-  if !silent { print("No config file found (tried CWD and \(xdgPath))") }
+  if !silent { print("No config file found at \(xdgPath)") }
   return nil
 }
 

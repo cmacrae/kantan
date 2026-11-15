@@ -514,6 +514,22 @@ final class LoadConfigFileTests {
 
   private var modulesDir: String { dir.appendingPathComponent("modules.d").path }
 
+  @Test func testAConfigInTheWorkingDirectoryIsNotDiscovered() throws {
+    let cwdConfig = URL(fileURLWithPath: "config.yaml").standardizedFileURL
+    try #require(!FileManager.default.fileExists(atPath: cwdConfig.path))
+    try "height: 30\n".write(to: cwdConfig, atomically: true, encoding: .utf8)
+    defer { try? FileManager.default.removeItem(at: cwdConfig) }
+    let environment = ["XDG_CONFIG_HOME": dir.path]
+    #expect(resolveConfigPath(explicit: nil, silent: true, environment: environment) == nil)
+
+    try FileManager.default.createDirectory(
+      at: dir.appendingPathComponent("kantan"), withIntermediateDirectories: true)
+    let xdgConfig = try write("height: 30\n", to: "kantan/config.yaml")
+    #expect(
+      resolveConfigPath(explicit: nil, silent: true, environment: environment)
+        == URL(fileURLWithPath: xdgConfig).standardizedFileURL.path)
+  }
+
   private func error(loading path: String) -> ConfigLoadError? {
     if case .failure(let error) = loadConfigFile(at: path, modulesDir: nil) { return error }
     return nil
