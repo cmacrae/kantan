@@ -2705,6 +2705,39 @@ final class CommandWatchOutputTests {
 }
 
 @MainActor
+final class BarTeardownTests {
+  private final class Module {}
+
+  @Test func testTearingDownTheBarClosesItsPopupsAndTooltips() throws {
+    _ = NSApplication.shared
+    let config = try #require(loadConfig(from: try Yaml.load("modules: []")))
+    let bar = BarViewModel(config: config)
+    let app = AppDelegate()
+    app.barViewModel = bar
+    weak var module: Module?
+    do {
+      let held = Module()
+      module = held
+      bar.popupManager.showTooltip(
+        text: "x", anchorPoint: .zero, refreshProvider: { withExtendedLifetime(held) { "x" } })
+    }
+    let vm = ModuleViewModel(
+      moduleConfig: try #require(
+        parseModuleConfig(
+          from: try Yaml.load("name: t\ntype: text\nplacement: right\nconfig:\n  value: x\n"))))
+    bar.popupManager.showDSLView(
+      configViewTree: try JSONDecoder().decode(
+        ViewNode.self, from: Data(#"{"type":"text","content":"x"}"#.utf8)),
+      moduleName: "t", anchorPoint: .zero, liveContent: LiveContentProvider(viewModel: vm))
+    #expect(bar.popupManager.isPopupActive)
+
+    app.teardownBar()
+    #expect(!bar.popupManager.isPopupActive)
+    #expect(module == nil)
+  }
+}
+
+@MainActor
 final class HotReloadWatchTests {
   @Test func testWatchingResumesOnceAMissingConfigAndModulesDirAppear() async throws {
     let dir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)

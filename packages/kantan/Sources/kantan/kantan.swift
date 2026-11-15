@@ -1171,7 +1171,10 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     }
   }
 
-  private func teardownBar() {
+  func teardownBar() {
+    // A popup or tooltip left open would keep the old modules running.
+    barViewModel?.popupManager.dismissPopup()
+    barViewModel?.popupManager.hideTooltip()
     MenuBarAccessibility.shared.stop()
     stopMenuBarMonitoring()
     repositionTimer?.invalidate()
