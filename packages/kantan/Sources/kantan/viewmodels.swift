@@ -69,6 +69,8 @@ class ModuleViewModel: ObservableObject, Identifiable {
   }
 
   private var updateGeneration: UInt64 = 0
+  /// How many reads of the module's value are under way.
+  private var updatesInFlight = 0
   nonisolated(unsafe) private var timer: Timer?
   nonisolated(unsafe) private var durationTimer: Timer?
   nonisolated(unsafe) private var watchProcess: Process?
@@ -147,6 +149,7 @@ class ModuleViewModel: ObservableObject, Identifiable {
   func update() {
     guard durationTimer == nil else { return }
     guard let config = moduleConfig.config else { return }
+    updatesInFlight += 1
 
     updateGeneration &+= 1
     let gen = updateGeneration
@@ -158,6 +161,7 @@ class ModuleViewModel: ObservableObject, Identifiable {
     config.getValue { [weak self] newValue in
       DispatchQueue.main.async {
         guard let self else { return }
+        self.updatesInFlight -= 1
         guard self.updateGeneration == gen else { return }
         // A command's icon comes from the output getValue just produced.
         let currentIcon = config is CommandConfig ? config.getIcon() : icon
@@ -262,9 +266,11 @@ class ModuleViewModel: ObservableObject, Identifiable {
     }
     let interval = moduleConfig.config?.redrawInterval ?? 1.0
     guard interval > 0 else { return }
+    // A tick while the last one's value is still being read is skipped.
     let t = Timer(timeInterval: interval, repeats: true) { [weak self] _ in
       MainActor.assumeIsolated {
-        self?.update()
+        guard let self, self.updatesInFlight == 0 else { return }
+        self.update()
       }
     }
     RunLoop.main.add(t, forMode: .common)

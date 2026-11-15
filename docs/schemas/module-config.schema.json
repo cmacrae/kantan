@@ -268,7 +268,7 @@
           "type": "number",
           "minimum": 0,
           "default": 1,
-          "description": "Polling interval in seconds: the command is re-executed every 'interval' seconds. 0 disables the timer, so the command runs only at startup, on wake and space changes, and on 'kantan trigger <name> refresh'. Ignored when 'watch' is set."
+          "description": "Polling interval in seconds: the command is re-executed every 'interval' seconds, skipping a poll while it is still running. 0 disables the timer, so the command runs only at startup, on wake and space changes, and on 'kantan trigger <name> refresh'. Ignored when 'watch' is set."
         },
         "timeout": {
           "type": "number",

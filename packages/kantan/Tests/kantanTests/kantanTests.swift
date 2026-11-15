@@ -2572,6 +2572,42 @@ final class CommandWatchOutputTests {
 }
 
 @MainActor
+final class CommandPollingTests {
+  /// A polling module running `command` every `interval` seconds.
+  private func module(_ name: String, command: String, interval: Double) throws
+    -> ModuleViewModel
+  {
+    let config = try CommandConfig(
+      yaml: try Yaml.load("command: '\(command) # \(name)'\ninterval: \(interval)\n"))
+    return ModuleViewModel(
+      moduleConfig: ModuleConfig(
+        name: name, placement: PlacementSpec(raw: "right"), type: "command", config: config))
+  }
+
+  @Test func testACommandSlowerThanItsIntervalStillShows() async throws {
+    let vm = try module("slow-poll", command: "sleep 0.3; echo done", interval: 0.1)
+    defer { vm.pause() }
+    await waitUntil({ vm.displayValue == "done" }, timeout: 3)
+  }
+
+  @Test func testPollsNeverOverlapARunStillInFlight() async throws {
+    let dir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+    try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+    defer { try? FileManager.default.removeItem(at: dir) }
+    let log = dir.appendingPathComponent("runs").path
+    let vm = try module(
+      "no-overlap",
+      command: "echo start >> \(log); sleep 0.25; echo end >> \(log); echo ok", interval: 0.05)
+    await runMainLoop(for: 1)
+    vm.pause()
+    await runMainLoop(for: 0.4)
+    let runs = try String(contentsOfFile: log, encoding: .utf8).split(separator: "\n")
+    #expect(runs.count >= 4)
+    #expect(runs.enumerated().allSatisfy { $1 == ($0 % 2 == 0 ? "start" : "end") })
+  }
+}
+
+@MainActor
 final class WatchOutputTests {
   private var teardowns: [@MainActor () -> Void] = []
 

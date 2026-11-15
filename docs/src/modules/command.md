@@ -12,7 +12,7 @@ These keys go under the module's `config` key:
 |-------|------|----------|---------|-------------|
 | `command` | string | **yes** | — | Shell command or executable to run |
 | `output` | string | no | `"text"` | Output format: `"text"` (raw stdout) or `"json"` (structured plugin protocol) |
-| `interval` | number | no | `1` | Polling interval in seconds. Set to `0` for no timer: the command then runs at startup, on wake and space changes, and when triggered |
+| `interval` | number | no | `1` | Polling interval in seconds. A poll while the command is still running is skipped. Set to `0` for no timer: the command then runs at startup, on wake and space changes, and when triggered |
 | `timeout` | number | no | `10` | Seconds before a running command is terminated |
 | `watch` | string | no | — | Long-lived watcher process command, run with `/bin/sh -c` |
 | `toggle` | string | no | — | Command to run on toggle interaction, run with the `launcher` |
