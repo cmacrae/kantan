@@ -137,7 +137,7 @@ Shapes have no fill unless `color` is set. The stroke is drawn inside the shape'
 
 ## Interactive Nodes
 
-Interactive nodes respond to user input and can trigger commands. A command is run with `/bin/sh -c` (its output is discarded), unless it is a URL with a letters-only scheme and no spaces (such as `https://...` or `raycast://...`), which is opened. Templates in commands are resolved first: `"my-plugin --complete {id}"` works. Each value is quoted for where its placeholder sits: bare, inside single quotes, or inside double quotes. There, it stays one argument and can't run anything, whatever it contains:
+Interactive nodes respond to user input and can trigger commands. A command is run with `/bin/sh -c` (its output is discarded), unless it is a URL with no spaces (such as `https://...`, `raycast://...` or `x-apple.systempreferences:...`), which is opened. A URL's scheme is a letter followed by letters, digits, `+`, `-` or `.`. Templates in commands are resolved first: `"my-plugin --complete {id}"` works. Each value is quoted for where its placeholder sits: bare, inside single quotes, or inside double quotes. There, it stays one argument and can't run anything, whatever it contains:
 
 | Command | Value of `title` | Runs |
 |---------|------------------|------|

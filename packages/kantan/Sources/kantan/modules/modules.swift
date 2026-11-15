@@ -297,11 +297,15 @@ struct ModuleConfig {
 
 // MARK: - Command Utility
 
-/// Whether `command` is opened as a URL rather than run: a letters-only
-/// scheme followed by `:`, and no spaces.
+/// Whether `command` is opened as a URL rather than run: a scheme (a
+/// letter, then letters, digits, `+`, `-` or `.`) followed by `:`, and no
+/// spaces.
 func isURLCommand(_ command: String) -> Bool {
   guard let colon = command.firstIndex(of: ":"), colon > command.startIndex else { return false }
-  return command[..<colon].allSatisfy(\.isLetter) && !command.contains(" ")
+  let scheme = command[..<colon]
+  return scheme.first!.isASCII && scheme.first!.isLetter
+    && scheme.allSatisfy { $0.isASCII && ($0.isLetter || $0.isNumber || "+-.".contains($0)) }
+    && !command.contains(" ")
 }
 
 /// Run a command asynchronously (fire-and-forget).

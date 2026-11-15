@@ -361,6 +361,16 @@ final class CommandTemplateTests {
     #expect((try shell(r.resolveCommand("printf '[%s]' {open_cmd}"))) == "[\(openCmd)]")
   }
 
+  @Test func testSchemesWithDigitsDashesAndDotsAreURLs() {
+    for url in ["ms-teams:", "x-apple.systempreferences:com.apple.Wi-Fi", "web+app:x", "https://a"]
+    {
+      #expect(isURLCommand(url), "\(url)")
+    }
+    for command in ["open -a Mail", "1password:x", "-x:y", ":x", "/usr/bin/x:y", "a_b:c"] {
+      #expect(!isURLCommand(command), "\(command)")
+    }
+  }
+
   @Test func testURLCommandsPercentEncodeValues() {
     let r = TemplateResolver(variables: ["q": "a b&c=d"], data: [:])
     #expect(
