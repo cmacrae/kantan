@@ -101,6 +101,10 @@ in
         cp -r ${../../.github} .github
         git init --quiet
         zizmor --offline .
+        # The release attests the provenance of the assets it publishes.
+        grep -qE 'uses: actions/attest-build-provenance@v' .github/workflows/release.yml \
+          && grep -qE 'subject-path: dist/\*' .github/workflows/release.yml \
+          || { echo "release.yml must attest the release assets' provenance" >&2; exit 1; }
         # The release checks its tag is on main and runs the checks
         # before it publishes anything.
         steps=$(grep -nE 'is-ancestor "\$GITHUB_SHA" origin/main|run: nix flake check|gh release create' \

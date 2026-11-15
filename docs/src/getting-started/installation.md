@@ -23,6 +23,10 @@ Bundled plugins that read OS data sources prompt the first time they run:
 
 For EventKit plugins (`reminders`, `calendar`), macOS shows the consent dialog under the plugin's bundle identifier. If the binary changes path between invocations (e.g. running it directly vs. through the kantan wrapper), macOS may treat it as a fresh request. Approve once via the dialog or pre-grant in *System Settings → Privacy & Security*.
 
+### After Upgrading
+
+kantan and its plugins are signed ad hoc, so macOS ties each permission to the exact binary it was granted to. After an upgrade, macOS may ask again, or show the old entry in *System Settings → Privacy & Security* while it no longer applies. If a module stops working after an upgrade, remove kantan's or the plugin's entry from the list and grant it again.
+
 ## Installation Methods
 
 ### Homebrew
@@ -58,7 +62,13 @@ curl -fsSL https://kantan.bar/install.sh | sh -s -- --version 0.1.0
 | `--without-plugins` | Install kantan without its bundled plugins |
 | `--uninstall` | Remove kantan from the prefix |
 
-The script checks the download against the release's `SHA256SUMS` and stops if they don't match. Running it again replaces the installed release. It never overwrites a file in `bin` that isn't one of its links. The install also includes a launchd agent that starts kantan at login (see [Install Script Agent](#install-script-agent)).
+The script checks the download against the release's `SHA256SUMS` and stops if they don't match. That catches a corrupted download, not a tampered release. To check where a release's files were built, verify their build provenance with the [GitHub CLI](https://cli.github.com):
+
+```bash
+gh attestation verify kantan-0.1.0-aarch64-darwin.tar.gz --repo cmacrae/kantan
+```
+
+Running it again replaces the installed release. It never overwrites a file in `bin` that isn't one of its links. The install also includes a launchd agent that starts kantan at login (see [Install Script Agent](#install-script-agent)).
 
 ### Nix Flake
 

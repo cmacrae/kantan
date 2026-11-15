@@ -17,6 +17,9 @@ jobs:
     runs-on: macos-26
     permissions:
       contents: write
+      # For the build provenance attestation.
+      id-token: write
+      attestations: write
     steps:
       - uses: actions/checkout@v7.0.1
         with:
@@ -58,6 +61,12 @@ jobs:
             .#homebrew-tap
           cp -rL "$(nix path-info .#release-assets)" dist
           cp -rL "$(nix path-info .#homebrew-tap)" tap
+
+      # Records where and how each release asset was built, for
+      # `gh attestation verify`.
+      - uses: actions/attest-build-provenance@v4.2.2
+        with:
+          subject-path: dist/*
 
       - name: Write release notes
         run: nix develop --command cog changelog --at "$GITHUB_REF_NAME" > notes.md
