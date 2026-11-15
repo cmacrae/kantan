@@ -8,9 +8,12 @@ struct AerospaceWorkspaces: WorkspaceProvider {
 
   func workspaces() -> [Workspace] {
     guard let cli = Self.runningCLI(),
-      let all = runCommandSync(path: cli, arguments: ["list-workspaces", "--all", "--json"]),
+      let all = runCommandSync(
+        path: cli, arguments: ["list-workspaces", "--all", "--json"],
+        timeout: windowManagerCLITimeout),
       let focused = runCommandSync(
-        path: cli, arguments: ["list-workspaces", "--focused", "--json"])
+        path: cli, arguments: ["list-workspaces", "--focused", "--json"],
+        timeout: windowManagerCLITimeout)
     else {
       return []
     }
@@ -21,7 +24,7 @@ struct AerospaceWorkspaces: WorkspaceProvider {
 
   func activate(_ target: WorkspaceTarget) {
     guard let cli = Self.runningCLI(), let arguments = Self.arguments(for: target) else { return }
-    _ = runCommandSync(path: cli, arguments: arguments)
+    _ = runCommandSync(path: cli, arguments: arguments, timeout: windowManagerCLITimeout)
   }
 
   /// The `aerospace` arguments that switch to `target`, by workspace name.

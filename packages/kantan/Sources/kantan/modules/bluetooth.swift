@@ -280,21 +280,11 @@ final class BluetoothConfig: NSObject, ModuleConfiguration, EventDrivenModule,
   /// Invokes `system_profiler SPBluetoothDataType -json` and returns the
   /// parsed status, or nil if the call failed.
   private static func querySystemProfiler() -> BluetoothStatus? {
-    let process = Process()
-    process.executableURL = URL(fileURLWithPath: "/usr/sbin/system_profiler")
-    process.arguments = ["SPBluetoothDataType", "-json"]
-    let stdoutPipe = Pipe()
-    process.standardOutput = stdoutPipe
-    process.standardError = FileHandle.nullDevice
-    do {
-      try process.run()
-    } catch {
-      return nil
-    }
-    let data = stdoutPipe.fileHandleForReading.readDataToEndOfFile()
-    process.waitUntilExit()
-    guard process.terminationStatus == 0 else { return nil }
-    return parseSPBluetoothData(data)
+    // A system_profiler that hangs would hold up every later query.
+    runCommandSync(
+      path: "/usr/sbin/system_profiler", arguments: ["SPBluetoothDataType", "-json"],
+      timeout: 15
+    ).flatMap(parseSPBluetoothData)
   }
 
   /// Parse the JSON output of `system_profiler SPBluetoothDataType -json`

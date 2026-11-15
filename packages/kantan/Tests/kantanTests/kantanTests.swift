@@ -1850,6 +1850,14 @@ private final class SlowFirstReadWorkspaces: WorkspaceProvider, @unchecked Senda
   }
 }
 
+final class RunCommandSyncTests {
+  @Test func testAHungCommandIsStoppedAtItsTimeout() {
+    let start = Date()
+    #expect(runCommandSync(path: "/bin/sleep", arguments: ["10"], timeout: 0.3) == nil)
+    #expect(Date().timeIntervalSince(start) < 3)
+  }
+}
+
 final class WorkspaceReadOrderTests {
   @Test func testASlowEarlierReadDoesntReplaceALaterOne() async {
     let config = WorkspaceConfig(yaml: nil, provider: SlowFirstReadWorkspaces())

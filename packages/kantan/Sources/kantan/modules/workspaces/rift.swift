@@ -21,7 +21,8 @@ final class RiftWorkspaces: WorkspaceProvider {
 
   func workspaces() -> [Workspace] {
     guard let cli = Self.runningCLI(),
-      let data = runCommandSync(path: cli, arguments: ["query", "workspaces"])
+      let data = runCommandSync(
+        path: cli, arguments: ["query", "workspaces"], timeout: windowManagerCLITimeout)
     else {
       return []
     }
@@ -30,7 +31,8 @@ final class RiftWorkspaces: WorkspaceProvider {
     // or a floating window, unlike the focused window.
     if scrolling,
       let active = workspaces.firstIndex(where: { $0.isActive && $0.scroll != nil }),
-      let layout = runCommandSync(path: cli, arguments: ["query", "layout"]),
+      let layout = runCommandSync(
+        path: cli, arguments: ["query", "layout"], timeout: windowManagerCLITimeout),
       let selected = Self.selectedWindow(in: layout)
     {
       workspaces[active].selectWindow(selected)
@@ -42,7 +44,7 @@ final class RiftWorkspaces: WorkspaceProvider {
 
   func activate(_ target: WorkspaceTarget) {
     guard let cli = Self.runningCLI(), let arguments = Self.arguments(for: target) else { return }
-    _ = runCommandSync(path: cli, arguments: arguments)
+    _ = runCommandSync(path: cli, arguments: arguments, timeout: windowManagerCLITimeout)
   }
 
   /// The `rift-cli` arguments that switch to or focus `target`. Rift

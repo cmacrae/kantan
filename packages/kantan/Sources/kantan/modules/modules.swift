@@ -340,6 +340,9 @@ func iconForLevel(_ level: Int, icons: [String]) -> String {
   return icons[index]
 }
 
+/// How long a window manager's CLI has to answer before it's terminated.
+let windowManagerCLITimeout: TimeInterval = 5
+
 /// Run a command synchronously and return its stdout.
 /// Returns nil on launch failure or non-zero exit.
 func runCommandSync(path: String, arguments: [String], timeout: TimeInterval? = nil) -> Data? {
