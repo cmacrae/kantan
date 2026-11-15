@@ -145,7 +145,7 @@ Interactive nodes respond to user input and can trigger commands. A command is r
 | `open-note '{title}'` | `it's` | `open-note 'it'\''s'` |
 | `open-note "{title}"` | `$HOME` | `open-note "\$HOME"` |
 
-A bare placeholder whose value is empty leaves nothing. A command that is a single placeholder, such as `"command": "{complete_cmd}"`, runs as the value. The plugin builds that command itself and quotes what it puts in it. In a URL command, values are percent-encoded instead.
+A bare placeholder whose value is empty leaves nothing. A command that is a single placeholder, such as `"command": "{complete_cmd}"`, runs as the value, exactly as written: placeholders within it aren't resolved. The plugin builds that command itself and quotes what it puts in it. In a URL command, values are percent-encoded instead.
 
 | Type | Description | Properties |
 |------|-------------|------------|

@@ -53,29 +53,31 @@ class TemplateResolver {
   /// 2. Outer foreach scopes (walking down the stack)
   /// 3. Top-level `variables` map
   ///
-  /// Placeholders within a substituted value are resolved in turn, up to
-  /// `maxResolveDepth` levels. A value that resolves to its own placeholder,
-  /// such as an unknown `{theme(name)}`, is kept as written.
+  /// A substituted value is used as it is, except that `{theme(name)}`
+  /// templates within it resolve against the palette, so a variable can hold
+  /// one. A theme template the palette can't resolve is kept as written.
   func resolve(_ template: String) -> String {
-    resolve(template, depth: 0)
+    replacePlaceholders(in: template) { key, _ in
+      replacePlaceholders(in: lookupValue(for: key) ?? "") { inner, placeholder in
+        inner.hasPrefix("theme(") && inner.hasSuffix(")")
+          ? fallbackResolver?(inner) ?? placeholder : placeholder
+      }
+    }
   }
 
-  /// How many levels of placeholders within substituted values are resolved.
-  static let maxResolveDepth = 8
-
-  private func resolve(_ template: String, depth: Int) -> String {
+  /// `template` with each `{key}` placeholder replaced by
+  /// `replacement(key, placeholder)`.
+  private func replacePlaceholders(
+    in template: String, with replacement: (String, String) -> String
+  ) -> String {
     var result = ""
     var rest = template[...]
     while let open = rest.firstIndex(of: "{"),
       let close = rest[rest.index(after: open)...].firstIndex(of: "}")
     {
       result += rest[..<open]
-      let placeholder = rest[open...close]
-      let key = String(rest[rest.index(after: open)..<close])
-      let value = lookupValue(for: key) ?? ""
-      result +=
-        value == placeholder || depth >= Self.maxResolveDepth
-        ? value : resolve(value, depth: depth + 1)
+      result += replacement(
+        String(rest[rest.index(after: open)..<close]), String(rest[open...close]))
       rest = rest[rest.index(after: close)...]
     }
     return result + rest
@@ -86,14 +88,15 @@ class TemplateResolver {
   /// bare, inside single quotes, or inside double quotes; an empty bare
   /// value leaves nothing, as it always has. In a URL command
   /// values are percent-encoded. A command that is a single placeholder
-  /// is a command the plugin built, and runs as the value.
+  /// is a command the plugin built, and runs as the value, exactly as
+  /// written.
   func resolveCommand(_ template: String) -> String {
     let trimmed = template.trimmingCharacters(in: .whitespaces)
     if trimmed.hasPrefix("{"), trimmed.hasSuffix("}"),
       trimmed.dropFirst().firstIndex(where: { $0 == "{" || $0 == "}" })
         == trimmed.index(before: trimmed.endIndex)
     {
-      return resolve(trimmed)
+      return lookupValue(for: String(trimmed.dropFirst().dropLast())) ?? ""
     }
     if isURLCommand(trimmed) {
       return substitute(template) {

@@ -280,6 +280,12 @@ final class TemplateResolverTests {
     r.popScope()
     #expect(r.resolve("{v}") == "outer")
   }
+
+  @Test func testAValueRepeatingItsOwnPlaceholderExpandsOnce() {
+    let title = String(repeating: "{title}", count: 3)
+    let r = TemplateResolver(variables: ["title": title], data: [:])
+    #expect(r.resolve("{title} {title}") == title + " " + title)
+  }
 }
 
 final class CommandTemplateTests {
@@ -321,6 +327,14 @@ final class CommandTemplateTests {
     #expect(
       resolver.resolveCommand(" {cmd} ")
         == "kantan-plugin-reminders --complete 'x-1' && kantan trigger r refresh")
+  }
+
+  @Test func testAPluginBuiltCommandIsNotResolvedAgain() throws {
+    let title = "{title}'; echo pwned; '"
+    let openCmd = "printf '[%s]' '\(title.replacingOccurrences(of: "'", with: #"'\''"#))'"
+    let r = TemplateResolver(variables: ["title": title, "open_cmd": openCmd], data: [:])
+    #expect((try shell(r.resolveCommand("{open_cmd}"))) == "[\(title)]")
+    #expect((try shell(r.resolveCommand("printf '[%s]' {open_cmd}"))) == "[\(openCmd)]")
   }
 
   @Test func testURLCommandsPercentEncodeValues() {
