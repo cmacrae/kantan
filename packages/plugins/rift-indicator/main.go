@@ -8,6 +8,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -116,14 +117,28 @@ func activeWorkspace(data []byte) (*workspace, error) {
 	return nil, nil
 }
 
-// riftCLI returns the rift-cli installed beside the running rift, so the
-// CLI always matches the running server. Returns "" when Rift isn't running.
+// riftCLI returns the rift-cli installed beside the user's running rift, so
+// the CLI always matches the running server. Returns "" when Rift isn't
+// running.
 func riftCLI(ctx context.Context) string {
-	out, err := exec.CommandContext(ctx, "/bin/ps", "-axo", "comm=").Output()
+	out, err := exec.CommandContext(ctx, "/bin/ps", "-axo", "uid=,comm=").Output()
 	if err != nil {
 		return ""
 	}
-	return cliAmong(strings.Split(string(out), "\n"))
+	return cliAmong(executablesOf(strings.Split(string(out), "\n"), os.Getuid()))
+}
+
+// executablesOf returns the executables of uid's processes, from lines of
+// `ps -o uid=,comm=` output.
+func executablesOf(lines []string, uid int) []string {
+	var executables []string
+	for _, line := range lines {
+		owner, exe, ok := strings.Cut(strings.TrimSpace(line), " ")
+		if ok && owner == strconv.Itoa(uid) {
+			executables = append(executables, strings.TrimSpace(exe))
+		}
+	}
+	return executables
 }
 
 // cliAmong returns the rift-cli beside the first rift among executables,

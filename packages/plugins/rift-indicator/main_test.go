@@ -47,6 +47,23 @@ func TestCLIAmong_FindsCLIBesideRunningRift(t *testing.T) {
 	}
 }
 
+// TestExecutablesOf_OnlyTheUsersOwn checks that another user's processes,
+// such as a rift another account runs, are never candidates.
+func TestExecutablesOf_OnlyTheUsersOwn(t *testing.T) {
+	lines := []string{
+		"  501 /Applications/Rift.app/Contents/MacOS/rift",
+		"  502 /tmp/x/rift",
+		"    0 /usr/sbin/cfprefsd",
+		"  501 /Users/me/Application Support/bin/tool",
+		"",
+	}
+	got := executablesOf(lines, 501)
+	want := []string{"/Applications/Rift.app/Contents/MacOS/rift", "/Users/me/Application Support/bin/tool"}
+	if strings.Join(got, "\n") != strings.Join(want, "\n") {
+		t.Errorf("got %q, want %q", got, want)
+	}
+}
+
 // TestActiveWorkspace_ParsesQueryOutput decodes `rift-cli query
 // workspaces` output and picks the active workspace.
 func TestActiveWorkspace_ParsesQueryOutput(t *testing.T) {
