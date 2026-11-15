@@ -49,6 +49,17 @@ if install; then exit 1; fi
 test ! -e "$local/lib/kantan/bin/kantan-plugin-calendar"
 rm "$local/bin/kantan-plugin-calendar"
 
+# A prefix holding characters XML escapes reaches the agent intact.
+odd="$HOME/a&b<c>"
+mkdir -p "$odd"
+install --prefix "$odd"
+python3 - "$odd" <<EOF
+import plistlib, sys
+agent = plistlib.load(open(sys.argv[1] + "/lib/kantan/share/examples/bar.kantan.plist", "rb"))
+assert agent["ProgramArguments"] == [sys.argv[1] + "/bin/kantan"], agent
+EOF
+sh "$installer" --prefix "$odd" --uninstall
+
 sh "$installer" --uninstall
 test ! -e "$local/lib/kantan"
 test "$(ls "$local/bin")" = other

@@ -136,8 +136,15 @@ for exe in "$keg"/bin/*; do
   ln -s "$exe" "$bin/${exe##*/}"
 done
 
+# $1 escaped for XML text.
+xml() {
+  printf '%s' "$1" | sed -e 's/&/\&amp;/g' -e 's/</\&lt;/g' -e 's/>/\&gt;/g'
+}
+
 # A launchd agent that runs this install at login, for copying into
 # ~/Library/LaunchAgents.
+agent_bin=$(xml "$bin")
+agent_log=$(xml "$HOME/Library/Logs/kantan.log")
 mkdir -p "$keg/share/examples"
 cat >"$keg/share/examples/bar.kantan.plist" <<EOF
 <?xml version="1.0" encoding="UTF-8"?>
@@ -148,12 +155,12 @@ cat >"$keg/share/examples/bar.kantan.plist" <<EOF
   <string>bar.kantan</string>
   <key>ProgramArguments</key>
   <array>
-    <string>$bin/kantan</string>
+    <string>$agent_bin/kantan</string>
   </array>
   <key>EnvironmentVariables</key>
   <dict>
     <key>PATH</key>
-    <string>$bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
+    <string>$agent_bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
   </dict>
   <key>RunAtLoad</key>
   <true/>
@@ -162,9 +169,9 @@ cat >"$keg/share/examples/bar.kantan.plist" <<EOF
   <key>ProcessType</key>
   <string>Interactive</string>
   <key>StandardOutPath</key>
-  <string>$HOME/Library/Logs/kantan.log</string>
+  <string>$agent_log</string>
   <key>StandardErrorPath</key>
-  <string>$HOME/Library/Logs/kantan.log</string>
+  <string>$agent_log</string>
 </dict>
 </plist>
 EOF
