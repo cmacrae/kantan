@@ -202,7 +202,7 @@ The popup view displays a structured agenda:
 2. All-day events as coloured badges
 3. Past events with strikethrough styling and muted colours
 4. Active/upcoming events with calendar-coloured sidebar, title, time range, and countdown
-5. **Tomorrow** section (if events exist) with a divider, header, and tomorrow's timed events
+5. **Tomorrow** section (if events exist) with a divider, header, and tomorrow's events
 6. **Calendar** action button at the bottom to open Apple Calendar
 
 ### Data Collections
@@ -214,7 +214,7 @@ The plugin outputs these data collections for use with the `foreach` view DSL no
 | `allday_events`   | `title`, `color`, `calendar`        | Today's all-day events             |
 | `past_events`     | `title`, `time`, `color`, `calendar`| Today's events that have ended     |
 | `today_events`    | `title`, `time`, `color`, `calendar`, `countdown` | Today's active/upcoming events |
-| `tomorrow_events` | `title`, `time`, `color`, `calendar`| Tomorrow's timed events            |
+| `tomorrow_events` | `title`, `time`, `color`, `calendar`| Tomorrow's events, all-day ones first with `time` `All day` |
 
 ### Permissions
 

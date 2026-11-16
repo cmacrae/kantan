@@ -370,10 +370,11 @@ func render(events allEvents: [CalendarEvent], settings: Settings, now: Date) ->
     return dict
   }
 
-  dataCollections["tomorrow_events"] = tomorrowTimed.map { event in
+  // All-day events first, as has_tomorrow counts them too
+  dataCollections["tomorrow_events"] = (tomorrowAllDay + tomorrowTimed).map { event in
     [
       "title": event.title,
-      "time": formatTimeRange(event.startDate, event.endDate),
+      "time": event.isAllDay ? "All day" : formatTimeRange(event.startDate, event.endDate),
       "color": event.calendarColor,
       "calendar": event.calendarName,
     ]
