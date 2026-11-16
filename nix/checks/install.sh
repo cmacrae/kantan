@@ -49,6 +49,13 @@ if install; then exit 1; fi
 test ! -e "$local/lib/kantan/bin/kantan-plugin-calendar"
 rm "$local/bin/kantan-plugin-calendar"
 
+# A script cut short as it downloads, here just before the new
+# release moves into place, leaves the install as it was.
+head -n "$(($(grep -n 'mv "$tmp/keg" "$keg"' "$installer" | cut -d: -f1) - 1))" \
+  "$installer" >truncated.sh
+sh truncated.sh --version "$version" 2>/dev/null || true
+test "$("$local/bin/kantan" --version)" = "kantan $version"
+
 # A prefix holding characters XML escapes reaches the agent intact.
 odd="$HOME/a&b<c>"
 mkdir -p "$odd"
