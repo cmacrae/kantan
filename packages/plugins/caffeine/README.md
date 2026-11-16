@@ -18,7 +18,7 @@ This plugin is bundled with kantan and requires no separate installation. It is 
 
 | Variable   | Example | Description                                          |
 |------------|---------|------------------------------------------------------|
-| `{status}` | `on`    | Current state: `on` when active, `off` when inactive |
+| `{status}` | `On`    | Current state: `On` when active, `Off` when inactive |
 
 ## Configuration
 

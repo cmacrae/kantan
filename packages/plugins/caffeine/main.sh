@@ -47,9 +47,9 @@ toggle() {
 
 default_mode() {
   if is_active; then
-    printf '{"value":"","active":true,"variables":{"status":"on"}}\n'
+    printf '{"value":"","active":true,"variables":{"status":"On"}}\n'
   else
-    printf '{"value":"","active":false,"variables":{"status":"off"}}\n'
+    printf '{"value":"","active":false,"variables":{"status":"Off"}}\n'
   fi
 }
 
