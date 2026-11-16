@@ -24,13 +24,20 @@
       swift = import ./nix/swift.nix { inherit pkgs plugin; };
       shell = import ./nix/shell.nix { inherit pkgs plugin; };
       discover = import ./nix/discover.nix { inherit (pkgs) lib; };
+      siteUrl = "https://kantan.bar";
+
       docs = import ./nix/docs.nix {
-        inherit pkgs;
+        inherit pkgs siteUrl;
         pluginsDir = ./packages/plugins;
         version = version.release;
       };
       site = import ./nix/site.nix {
-        inherit pkgs docs buildSwiftPackage;
+        inherit
+          pkgs
+          docs
+          buildSwiftPackage
+          siteUrl
+          ;
         version = version.release;
       };
 

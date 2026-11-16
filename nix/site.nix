@@ -3,13 +3,12 @@
   docs,
   version,
   buildSwiftPackage,
+  siteUrl,
 }:
 let
   inherit (pkgs) lib;
 
   siteDir = ../site;
-
-  url = "https://kantan.bar";
 
   # React, from the npm registry, for esbuild to bundle.
   npmPackage = name: version: hash: {
@@ -152,7 +151,9 @@ let
         # The latest docs are copied first, so no older release is in /docs/ yet.
         head='<script src="/docs/versions.js" defer></script>'
         $latest || head="<meta name=\"robots\" content=\"noindex\">$head"
-        find "$out$path" -name '*.html' -exec sed -i "s|</head>|$head</head>|" {} +
+        find "$out$path" -name '*.html' -exec sed -i \
+          -e "s|</head>|$head</head>|" \
+          -e 's|<a href="${siteUrl}/" title="Website"|<a href="/" title="Website"|' {} +
 
         versions+="''${versions:+,}{\"version\":\"$version\",\"path\":\"$path\",\"latest\":$latest}"
         latest=false
@@ -164,16 +165,16 @@ let
       {
         echo '<?xml version="1.0" encoding="UTF-8"?>'
         echo '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">'
-        echo "  <url><loc>${url}/</loc></url>"
+        echo "  <url><loc>${siteUrl}/</loc></url>"
         (cd "$out" && find docs -path 'docs/v[0-9]*' -prune -o -name '*.html' \
           ! -name print.html ! -name 404.html ! -name toc.html -print) \
           | sort | while read -r page; do
-            echo "  <url><loc>${url}/$page</loc></url>"
+            echo "  <url><loc>${siteUrl}/$page</loc></url>"
           done
         echo '</urlset>'
       } > "$out/sitemap.xml"
 
-      printf 'User-agent: *\nAllow: /\n\nSitemap: %s/sitemap.xml\n' ${url} > "$out/robots.txt"
+      printf 'User-agent: *\nAllow: /\n\nSitemap: %s/sitemap.xml\n' ${siteUrl} > "$out/robots.txt"
     '';
   };
 
