@@ -44,6 +44,13 @@ final class CalendarRenderTests {
     #expect(output.variables["active"] == "true")
   }
 
+  @Test func testAnEventAboutToStartTakesOverFromALongOneUnderway() {
+    let events = [event("Focus", at(9), at(17)), event("Sync", at(14), at(14, 30))]
+    #expect(render(events: events, settings: Settings(), now: at(13, 55)).value == "Sync in 5m")
+    #expect(render(events: events, settings: Settings(), now: at(14, 10)).value == "Sync now")
+    #expect(render(events: events, settings: Settings(), now: at(14, 40)).value == "Focus now")
+  }
+
   @Test func testAnUpcomingWindowHidesEventsBeyondIt() {
     var settings = Settings()
     settings.upcoming = "30m"

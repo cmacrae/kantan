@@ -43,6 +43,8 @@ The format string supports conditional sections that appear only when a variable
 - `{?var:text}` — Include `text` when `var` is non-empty
 - `{?!var:text}` — Include `text` when `var` is empty
 
+The next event is the timed event not yet ended whose start is nearest now, so a long event underway gives way to one about to start. Cancelled events and invitations you've declined are left out.
+
 Example: `"{next_title}{?upcoming: in} {next_countdown}"` shows `Team sync in 42m` for an upcoming event and `Team sync now` for an ongoing one.
 
 ### Coloured Segments

@@ -150,11 +150,22 @@ func hexColor(from cgColor: CGColor) -> String {
   return String(format: "#%02X%02X%02X", r, g, b)
 }
 
+/// Whether an event with `status`, which the user answered with
+/// `participation` (nil when they aren't invited), belongs on the bar: not
+/// cancelled or declined.
+func isAttended(status: EKEventStatus, participation: EKParticipantStatus?) -> Bool {
+  status != .canceled && participation != .declined
+}
+
 func fetchEvents(store: EKEventStore, calendars: [EKCalendar], from start: Date, to end: Date)
   -> [CalendarEvent]
 {
   let predicate = store.predicateForEvents(withStart: start, end: end, calendars: calendars)
-  let events = store.events(matching: predicate)
+  let events = store.events(matching: predicate).filter { event in
+    isAttended(
+      status: event.status,
+      participation: event.attendees?.first(where: \.isCurrentUser)?.participantStatus)
+  }
 
   return events.map { event in
     CalendarEvent(
@@ -279,9 +290,12 @@ func render(events allEvents: [CalendarEvent], settings: Settings, now: Date) ->
   let pastTimed = todayTimed.filter { $0.endDate <= now }
   let activeTimed = todayTimed.filter { $0.endDate > now }
 
-  // Find next upcoming event (timed, not all-day, not already ended)
+  // The next event: of the timed ones not yet ended, the one starting
+  // nearest now, so a long event underway gives way to one about to start
   let upcomingTimed = activeTimed + tomorrowTimed
-  let nextEvent = upcomingTimed.first
+  let nextEvent = upcomingTimed.min { a, b in
+    abs(a.startDate.timeIntervalSince(now)) < abs(b.startDate.timeIntervalSince(now))
+  }
 
   // Build variables
   let todayCount = todayAllDay.count + todayTimed.count
