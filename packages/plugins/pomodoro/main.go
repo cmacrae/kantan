@@ -161,15 +161,19 @@ func saveState(s State) {
 }
 
 // mutateState performs an atomic load → mutate → save under an exclusive
-// advisory lock, so concurrent invocations can't lose updates.
+// advisory lock, so concurrent invocations can't lose updates. The state is
+// saved only when fn changes it.
 func mutateState(fn func(*State)) {
 	unlock, err := acquireStateLock()
 	if err == nil {
 		defer unlock()
 	}
 	s := loadState()
+	before := s
 	fn(&s)
-	saveState(s)
+	if s != before {
+		saveState(s)
+	}
 }
 
 // Compute seconds remaining in the current segment.
