@@ -5,59 +5,41 @@
   </picture>
 </p>
 
-<p align="center">A beautifully simple status bar for macOS</p>
+<p align="center"><strong>A beautifully simple status bar for macOS</strong></p>
 
-## About
+<p align="center">
+  <a href="https://kantan.bar">Website</a> ·
+  <a href="https://kantan.bar/docs/">Docs</a> ·
+  <a href="#install">Install</a>
+</p>
 
-kantan is a macOS status bar that replaces or overlays the native menu bar. It's built with Swift and SwiftUI, configured in YAML, and extended with plugins written in any language.
+- **Deeply native modules.** Battery, volume, WiFi, Bluetooth, Focus and workspaces, updating the instant something changes.
+- **Plugins in any language.** A plugin reads its settings from environment variables and prints JSON.
+- **Rich popups and menus.** Build them from a view DSL in your config or a plugin's output.
+- **Themes with light and dark mode.** Bring your own palettes or use the bundled Catppuccin.
+- **Menu bar masking.** Restyle native indicators. Their menus keep working underneath.
+- **Tidy by design.** Drawers, notch-aware placement and every display covered.
 
-## Features
+## Install
 
-- Declarative YAML configuration with hot-reload
-- Multi-display support with per-screen positioning
-- Built-in modules: clock, power, wifi, bluetooth, volume, workspace switching, and more
-- Plugin system using a simple JSON protocol (any language)
-- View DSL for rich popups, menus and tooltips (stacks, buttons, checkboxes, toggles, progress bars), from config or plugin output
-- Menu bar masking to overlay native system items
-- Modular configuration via `modules.d/` directory
-- Native and themed appearance modes
-- Theme system with named palettes, light/dark flavours, and bundled Catppuccin theme
-- Distributed through Nix, Homebrew and an install script
+kantan runs on Apple silicon Macs with macOS Sequoia (15) or later.
 
-## Quick Start
+```sh
+# Homebrew
+brew install cmacrae/tap/kantan
 
-```bash
-# Via Nix
+# Nix
 nix run github:cmacrae/kantan
 
-# Via Homebrew
-brew install cmacrae/tap/kantan
-kantan
+# Install script
+curl -fsSL https://kantan.bar/install.sh | sh
 ```
 
-For configuration, module setup, and plugin development, read the [documentation](https://kantan.bar/docs).
+Run `kantan` and a welcome bar appears. Check out the [quick start](https://kantan.bar/docs/getting-started/quick-start.html) guide.
 
-## Building
+## Learn more
 
-```bash
-nix build
-```
-
-The binary is built to `result/bin/kantan`.
-
-## Documentation
-
-Read the [documentation](https://kantan.bar/docs) for:
-
-- Configuration guides
-- Module reference
-- Plugin development
-- API reference
-- Examples
-
-## Philosophy
-
-kantan aims to be simple to use and to extend. Configure your bar in YAML. Build plugins as standalone executables, with no SDK or framework: a plugin reads environment variables and prints JSON.
+The [website](https://kantan.bar) shows kantan in action, and the [docs](https://kantan.bar/docs/) cover configuration, every module, themes and writing plugins.
 
 ## Contributing
 
