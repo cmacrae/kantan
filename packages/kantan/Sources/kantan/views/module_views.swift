@@ -131,14 +131,17 @@ class ScrollWheelReaderView: NSView {
 
 // MARK: - Passthrough Hover
 
-/// Whether the pointer is over a view, from where it is and whether a
-/// button was just pressed, which ends a hover.
+/// Whether the pointer is over a view, from where it is, whether the view
+/// is shown, and whether a button was just pressed, which ends a hover.
 struct PointerHover {
   private(set) var isHovering = false
 
-  /// The new hover state, or nil when it hasn't changed.
-  mutating func pointer(at point: NSPoint, in frame: NSRect, pressed: Bool) -> Bool? {
-    let hovering = !pressed && frame.contains(point)
+  /// The new hover state, or nil when it hasn't changed. A view that isn't
+  /// shown is never hovered.
+  mutating func pointer(at point: NSPoint, in frame: NSRect, shown: Bool = true, pressed: Bool)
+    -> Bool?
+  {
+    let hovering = shown && !pressed && frame.contains(point)
     guard hovering != isHovering else { return nil }
     isHovering = hovering
     return hovering
@@ -197,10 +200,19 @@ class PassthroughHoverReaderView: NSView {
     ].compactMap { $0 }
   }
 
+  /// Whether `window` is on screen and not faded out. A panel kantan hides,
+  /// such as a masked module's while its menu bar item is gone, keeps its
+  /// last frame.
+  static func isShown(_ window: NSWindow) -> Bool {
+    window.isVisible && window.alphaValue > 0
+  }
+
   private func pointerMoved(pressed: Bool) {
     guard let window else { return }
     let frame = window.convertToScreen(convert(bounds, to: nil))
-    if let hovering = hover.pointer(at: NSEvent.mouseLocation, in: frame, pressed: pressed) {
+    if let hovering = hover.pointer(
+      at: NSEvent.mouseLocation, in: frame, shown: Self.isShown(window), pressed: pressed)
+    {
       onHover?(hovering)
     }
   }
