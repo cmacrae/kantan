@@ -126,6 +126,9 @@ struct Reminder {
   let list: String
   let dueDate: Date?
   let completionDate: Date?
+  /// Whether it's due on a day rather than at a time, `dueDate` being the
+  /// start of that day.
+  var isAllDay = false
 }
 
 extension Reminder {
@@ -133,16 +136,23 @@ extension Reminder {
     self.init(
       id: reminder.calendarItemIdentifier, title: reminder.title ?? "Untitled",
       list: reminder.calendar.title, dueDate: reminder.dueDateComponents?.date,
-      completionDate: reminder.completionDate)
+      completionDate: reminder.completionDate,
+      isAllDay: reminder.dueDateComponents.map { $0.hour == nil } ?? false)
   }
 }
 
 /// Whether an incomplete reminder due at `dueDate` shows from `list` at
 /// `now`: overdue and undated ones as the list says, the rest once they
-/// fall within its lookahead.
-func isShown(dueDate: Date?, from list: ListConfig, now: Date) -> Bool {
+/// fall within its lookahead. One due `isAllDay` is overdue only once its
+/// day has ended.
+func isShown(dueDate: Date?, isAllDay: Bool = false, from list: ListConfig, now: Date) -> Bool {
   guard let dueDate else { return list.undated }
-  if dueDate < now { return list.overdue }
+  let overdueFrom =
+    isAllDay
+    ? Calendar.current.date(byAdding: .day, value: 1, to: Calendar.current.startOfDay(for: dueDate))
+      ?? dueDate
+    : dueDate
+  if overdueFrom <= now { return list.overdue }
   return dueDate <= now.addingTimeInterval(list.lookaheadInterval)
 }
 
@@ -167,7 +177,9 @@ func fetchReminders(store: EKEventStore, lists: [ListConfig], now: Date)
     store.predicateForIncompleteReminders(
       withDueDateStarting: nil, ending: nil, calendars: calendars)
   ).filter { reminder in
-    configs[reminder.list].map { isShown(dueDate: reminder.dueDate, from: $0, now: now) } ?? false
+    configs[reminder.list].map {
+      isShown(dueDate: reminder.dueDate, isAllDay: reminder.isAllDay, from: $0, now: now)
+    } ?? false
   }.sorted { a, b in
     switch (a.dueDate, b.dueDate) {
     case (let da?, let db?): return da < db
@@ -315,6 +327,14 @@ func render(
     guard let date = displayedReminder?.dueDate else { return "" }
     let formatter = RelativeDateTimeFormatter()
     formatter.unitsStyle = .abbreviated
+    // A reminder due on a day reads as that day, such as "today".
+    if displayedReminder?.isAllDay == true {
+      formatter.dateTimeStyle = .named
+      let calendar = Calendar.current
+      let days = calendar.dateComponents(
+        [.day], from: calendar.startOfDay(for: now), to: calendar.startOfDay(for: date))
+      return formatter.localizedString(from: DateComponents(day: days.day ?? 0))
+    }
     return formatter.localizedString(for: date, relativeTo: now)
   }()
 

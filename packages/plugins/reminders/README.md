@@ -31,7 +31,7 @@ This plugin is bundled with kantan and requires no separate installation. It is 
 | `{total}`      | `5`             | Total reminders (incomplete + recently completed) |
 | `{list}`       | `Shopping`      | Reminders list name of the displayed reminder     |
 | `{list_icon}`  | (icon)          | Icon configured for the displayed reminder's list (unset when the list has none) |
-| `{due}`        | `in 5 min.`     | Relative due date of the displayed reminder       |
+| `{due}`        | `in 5 min.`     | Relative due date of the displayed reminder, or its day (`today`) when it's due on a day without a time |
 
 The next incomplete reminder is the one due soonest across all configured lists; undated reminders come after dated ones.
 
@@ -104,7 +104,7 @@ Each entry in the `lists` array configures a Reminders list to monitor, matched 
 | `name`               | —       | **Required.** Name of the Reminders list                 |
 | `icon`               | —       | Icon to show in place of the module's `icon` while this list's reminder is displayed (icon name or glyph) |
 | `lookahead`          | `10m`   | Show dated reminders due within this long from now (e.g. `10m`, `1h`, `2d`) |
-| `overdue`            | `true`  | Include reminders past their due date                    |
+| `overdue`            | `true`  | Include reminders past their due date. A reminder due on a day, without a time, is past due once that day ends |
 | `undated`            | `false` | Include reminders with no due date                       |
 | `completedRetention` | `0`     | How long to keep completed reminders in the menu (e.g. `30m`, `1h`, `2d`); `0` hides them |
 | `maxChars`           | `30`    | Maximum characters for reminder titles before truncation with `...`; `0` disables truncation |
