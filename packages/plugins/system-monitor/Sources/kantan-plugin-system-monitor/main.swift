@@ -419,11 +419,13 @@ func topProcesses(count: Int = 5) -> [ProcessStats] {
   process.waitUntilExit()
 
   guard let output = String(data: data, encoding: .utf8) else { return [] }
-  return topProcesses(in: output, count: count)
+  return topProcesses(
+    in: output, count: count, excluding: ProcessInfo.processInfo.processIdentifier)
 }
 
-/// The first `count` processes in `ps -o pid,pcpu,comm` output.
-func topProcesses(in output: String, count: Int) -> [ProcessStats] {
+/// The first `count` processes in `ps -o pid,pcpu,comm` output, apart from
+/// the process `excluding`, the plugin itself.
+func topProcesses(in output: String, count: Int, excluding ownPID: Int32) -> [ProcessStats] {
   var results: [ProcessStats] = []
   for line in output.split(separator: "\n").dropFirst() {
     guard results.count < count else { break }
@@ -433,7 +435,7 @@ func topProcesses(in output: String, count: Int) -> [ProcessStats] {
       let cpu = Double(parts[1])
     else { continue }
     let name = String(parts[2])
-    if name == "kantan-plugin-system-" { continue }  // skip self
+    if pid == ownPID { continue }
     results.append(ProcessStats(pid: pid, name: name, cpuPercent: cpu))
   }
   return results

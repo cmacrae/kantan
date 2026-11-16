@@ -12,7 +12,8 @@ struct TopProcessesTests {
     """
 
   @Test func testListsAtMostCountProcesses() {
-    #expect(topProcesses(in: output, count: 2).map(\.name) == ["WindowServer", "Safari"])
-    #expect(topProcesses(in: output, count: 0).isEmpty)
+    #expect(
+      topProcesses(in: output, count: 2, excluding: 1).map(\.name) == ["WindowServer", "Safari"])
+    #expect(topProcesses(in: output, count: 0, excluding: 1).isEmpty)
   }
 }
