@@ -419,9 +419,14 @@ func topProcesses(count: Int = 5) -> [ProcessStats] {
   process.waitUntilExit()
 
   guard let output = String(data: data, encoding: .utf8) else { return [] }
+  return topProcesses(in: output, count: count)
+}
 
+/// The first `count` processes in `ps -o pid,pcpu,comm` output.
+func topProcesses(in output: String, count: Int) -> [ProcessStats] {
   var results: [ProcessStats] = []
   for line in output.split(separator: "\n").dropFirst() {
+    guard results.count < count else { break }
     let parts = line.split(separator: " ", maxSplits: 2)
     guard parts.count == 3,
       let pid = Int32(parts[0]),
@@ -430,7 +435,6 @@ func topProcesses(count: Int = 5) -> [ProcessStats] {
     let name = String(parts[2])
     if name == "kantan-plugin-system-" { continue }  // skip self
     results.append(ProcessStats(pid: pid, name: name, cpuPercent: cpu))
-    if results.count >= count { break }
   }
   return results
 }

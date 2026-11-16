@@ -10,6 +10,10 @@ let package = Package(
   targets: [
     .executableTarget(
       name: "kantan-plugin-system-monitor"
-    )
+    ),
+    .testTarget(
+      name: "kantan-plugin-system-monitorTests",
+      dependencies: ["kantan-plugin-system-monitor"]
+    ),
   ]
 )
