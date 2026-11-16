@@ -127,8 +127,28 @@ in
     for plugin in bin/kantan-plugin-*; do test -x "$plugin"; done
     touch $out
   '';
-  # Both tarballs carry kantan's licence, the third-party notices and the
-  # reference config.
+
+  release-store-paths =
+    pkgs.runCommand "kantan-release-store-paths" { nativeBuildInputs = [ pkgs.cctools ]; }
+      ''
+        for tarball in ${release.full} ${release.core}; do
+          mkdir staging
+          tar -xzf $tarball -C staging
+          checked=0
+          for binary in staging/bin/*; do
+            otool -h "$binary" >/dev/null 2>&1 || continue
+            if otool -L -l "$binary" | grep /nix/store; then
+              echo "$binary refers to the Nix store" >&2
+              exit 1
+            fi
+            checked=$((checked + 1))
+          done
+          test "$checked" -gt 0
+          rm -rf staging
+        done
+        touch $out
+      '';
+
   release-notices = pkgs.runCommand "kantan-release-notices" { } ''
     for tarball in ${release.full} ${release.core}; do
       mkdir staging
