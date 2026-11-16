@@ -3544,3 +3544,40 @@ final class InstallPrefixTests {
         == local.appendingPathComponent("lib/kantan").resolvingSymlinksInPath().path)
   }
 }
+
+// MARK: - Tooltip template variables
+
+final class ClockFormatTests {
+  /// 2026-11-16 09:05 UTC, a Monday.
+  private let date = Date(timeIntervalSince1970: 1_794_819_900)
+
+  @Test func testOrdinalSuffixesFollowEnglishRules() {
+    let cases = [
+      1: "st", 2: "nd", 3: "rd", 4: "th", 11: "th", 12: "th", 13: "th", 21: "st",
+      22: "nd", 23: "rd", 30: "th", 31: "st",
+    ]
+    for (day, suffix) in cases {
+      #expect(ClockConfig.ordinalSuffix(for: day) == suffix, "day \(day)")
+    }
+  }
+
+  @Test func testDoIsTheOrdinalDay() {
+    #expect(ClockConfig.string(from: date, format: "do", timezone: "UTC") == "16th")
+    #expect(
+      ClockConfig.string(from: date, format: "M/do HH:mm", timezone: "UTC") == "11/16th 09:05")
+  }
+
+  @Test func testOrdinalDayFollowsTheTimezone() {
+    #expect(ClockConfig.string(from: date, format: "do", timezone: "Pacific/Kiritimati") == "16th")
+    #expect(ClockConfig.string(from: date, format: "do", timezone: "Pacific/Pago_Pago") == "15th")
+  }
+
+  @Test func testNamedFormatsBecomeTemplateVariables() throws {
+    let yaml = try Yaml.load(
+      "format: HH:mm\ntimezone: UTC\nformats:\n  date: do\n  year: yyyy\n  bad: [1]\n")
+    let clock = try ClockConfig(yaml: yaml)
+    let vars = clock.getTemplateVariables()
+    #expect(Set(vars.keys) == ["date", "year"])
+    #expect(vars["year"]?.count == 4)
+  }
+}

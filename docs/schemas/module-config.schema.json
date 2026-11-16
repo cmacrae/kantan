@@ -319,11 +319,16 @@
       "properties": {
         "format": {
           "type": "string",
-          "description": "Date/time format string using Unicode Date Format Patterns (e.g. \"HH:mm\", \"EEE d MMM HH:mm\")."
+          "description": "Date/time format string using Unicode Date Format Patterns (e.g. \"HH:mm\", \"EEE d MMM HH:mm\"), plus 'do' for the day of the month with its English ordinal suffix."
         },
         "timezone": {
           "type": "string",
           "description": "IANA timezone identifier (e.g. \"America/New_York\", \"Europe/London\"). Defaults to the system timezone when omitted or unrecognised."
+        },
+        "formats": {
+          "type": "object",
+          "additionalProperties": { "type": "string" },
+          "description": "Variable name to format string. Each is exposed as a template variable holding the current time in that format (e.g. {\"date\": \"E MMM do\"} gives {date} = \"Mon Nov 16th\")."
         }
       }
     },
