@@ -373,8 +373,18 @@ func thermalState() -> (name: String, level: Int) {
 
 // MARK: - Uptime
 
+/// When the Mac booted, from `kern.boottime`, or nil if it can't be read.
+func bootTime() -> Date? {
+  var boot = timeval()
+  var size = MemoryLayout<timeval>.size
+  guard sysctlbyname("kern.boottime", &boot, &size, nil, 0) == 0 else { return nil }
+  return Date(timeIntervalSince1970: TimeInterval(boot.tv_sec) + TimeInterval(boot.tv_usec) / 1e6)
+}
+
 func uptimeString() -> String {
-  let uptime = ProcessInfo.processInfo.systemUptime
+  // Time since boot, asleep included, unlike `systemUptime`.
+  let uptime =
+    bootTime().map { Date().timeIntervalSince($0) } ?? ProcessInfo.processInfo.systemUptime
   let hours = Int(uptime) / 3600
   let minutes = (Int(uptime) % 3600) / 60
   if hours >= 24 {
