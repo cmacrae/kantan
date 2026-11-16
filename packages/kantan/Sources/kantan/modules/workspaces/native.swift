@@ -34,9 +34,10 @@ struct NativeWorkspaces: WorkspaceProvider {
           continue
         }
 
-        // Skip fullscreen/system spaces (type 4 = user space)
+        // Only desktops (type 0) are shown. Fullscreen apps (type 4) and
+        // system spaces aren't, but still take an index.
         let spaceType = space["type"] as? Int ?? 0
-        if spaceType != 0 && spaceType != 4 {
+        if spaceType != 0 {
           globalIndex += 1
           continue
         }

@@ -1866,6 +1866,13 @@ final class NativeWorkspacesTests {
     #expect(workspaces.map(\.isActive) == [false, true, true, false])
   }
 
+  @Test func testOnlyDesktopsAreShown() {
+    let workspaces = NativeWorkspaces.workspaces(
+      of: [display(current: 1, spaces: [(1, 0), (2, 4), (3, 0), (4, 2), (5, 0)])],
+      activeSpace: 1)
+    #expect(workspaces.map(\.label) == ["1", "3", "5"])
+  }
+
   @Test func testADisplayNamingNoCurrentSpaceUsesTheActiveOne() {
     let workspaces = NativeWorkspaces.workspaces(
       of: [display(current: nil, spaces: [(1, 0), (2, 0)])], activeSpace: 2)
