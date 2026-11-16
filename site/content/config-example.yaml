@@ -59,6 +59,9 @@ modules:
       interval: 0
       toggle: kantan-plugin-caffeine --toggle
     interaction:
+      hover:
+        type: tooltip
+        content: "Caffeine: {status}"
       click:
         type: toggle
 
@@ -70,6 +73,10 @@ modules:
       fg: "{theme(pink)}"
     mask:
       name: Focus
+    interaction:
+      hover:
+        type: tooltip
+        content: "{mode}"
 
   - name: bluetooth
     type: bluetooth
@@ -78,6 +85,10 @@ modules:
       fg: "{theme(blue)}"
     mask:
       name: Bluetooth
+    interaction:
+      hover:
+        type: tooltip
+        content: "{state}"
 
   - name: volume
     type: volume
@@ -86,6 +97,10 @@ modules:
       fg: "{theme(lavender)}"
     mask:
       name: Volume
+    interaction:
+      hover:
+        type: tooltip
+        content: "{state}"
 
   - name: wifi
     type: wifi
@@ -94,6 +109,10 @@ modules:
       fg: "{theme(sky)}"
     mask:
       name: WiFi
+    interaction:
+      hover:
+        type: tooltip
+        content: "{state}"
 
   - name: power
     type: power
@@ -102,6 +121,10 @@ modules:
       fg: "{theme(subtext1)}"
     mask:
       name: Battery
+    interaction:
+      hover:
+        type: tooltip
+        content: "{level}%, {state}"
 
   - name: control-centre
     type: icon
@@ -111,6 +134,10 @@ modules:
       fg: "{theme(mauve)}"
     mask:
       name: ControlCenter
+    interaction:
+      hover:
+        type: tooltip
+        content: "Control Centre"
 
   - name: clock
     type: clock
@@ -119,5 +146,11 @@ modules:
       fg: "{theme(flamingo)}"
     config:
       format: "HH:mm"
+      formats:
+        date: "E MMM do"
     mask:
       name: Clock
+    interaction:
+      hover:
+        type: tooltip
+        content: "{date}"

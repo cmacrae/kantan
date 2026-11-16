@@ -94,14 +94,28 @@ export default function KantanBarMock({ themed, dark, children, clock, desktopHe
   const remindersRef = useRef(null);
   const sysmonRef = useRef(null);
   const [time, setTime] = useState(() => clock ?? fmt(new Date()));
+  const [date, setDate] = useState(() => fmtDate(new Date()));
 
   function fmt(d) {
     return `${String(d.getHours()).padStart(2,"0")}:${String(d.getMinutes()).padStart(2,"0")}`;
   }
 
+  // The clock's `formats.date` ("E MMM do"), e.g. "Mon Nov 16th".
+  function fmtDate(d) {
+    const day = d.getDate();
+    const suffix = day % 100 >= 11 && day % 100 <= 13 ? "th"
+      : ({ 1: "st", 2: "nd", 3: "rd" })[day % 10] ?? "th";
+    const weekday = d.toLocaleDateString("en-GB", { weekday: "short" });
+    const month = d.toLocaleDateString("en-GB", { month: "short" });
+    return `${weekday} ${month} ${day}${suffix}`;
+  }
+
   useEffect(() => {
-    if (clock) return;
-    const id = setInterval(() => setTime(fmt(new Date())), 5000);
+    const id = setInterval(() => {
+      const now = new Date();
+      if (!clock) setTime(fmt(now));
+      setDate(fmtDate(now));
+    }, 5000);
     return () => clearInterval(id);
   }, [clock]);
 
@@ -383,29 +397,29 @@ export default function KantanBarMock({ themed, dark, children, clock, desktopHe
 
           {/* Always visible */}
 
-          <M tip={caffeineActive ? "Caffeine: Active" : "Caffeine: Inactive"}
+          <M tip={caffeineActive ? "Caffeine: On" : "Caffeine: Off"}
             onClick={() => setCaffeineActive(a => !a)}
             style={{ opacity: caffeineActive ? 1 : 0.4 }}>
             <I name="mug-filled" size={14} color={c("rosewater")} />
           </M>
 
-          <M tip="Focus: Do Not Disturb">
+          <M tip="Mindfulness">
             <I name="brain" size={14} color={c("pink")} />
           </M>
 
-          <M tip="Bluetooth: Connected">
+          <M tip="Connected">
             <I name="bluetooth" size={14} color={c("blue")} />
           </M>
 
-          <M tip="Volume: 64%">
+          <M tip="64%">
             <I name="volume" size={14} color={c("lavender")} />
           </M>
 
-          <M tip="WiFi: Home Network">
+          <M tip="Connected">
             <WiFi color={c("sky")} />
           </M>
 
-          <M tip="Battery: 78%">
+          <M tip="78%, Discharging">
             <I name="battery-3-filled" size={14} color={c("subtext1")} />
           </M>
 
@@ -413,7 +427,7 @@ export default function KantanBarMock({ themed, dark, children, clock, desktopHe
             <I name="adjustments-horizontal-filled" size={14} color={c("mauve")} />
           </M>
 
-          <M>
+          <M tip={date}>
             <span style={{
               color: c("flamingo"),
               fontVariantNumeric: "tabular-nums",
