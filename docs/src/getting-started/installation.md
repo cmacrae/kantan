@@ -144,7 +144,7 @@ Use `kantan-without-plugins` in place of `kantan` if that's the formula you inst
 
 ### Install Script Agent
 
-The install script writes a launchd agent for the kantan it installs to `<prefix>/lib/kantan/share/examples/bar.kantan.plist`. With the default prefix, copy it into `~/Library/LaunchAgents` and load it:
+The install script writes a launchd agent for the kantan it installs to `<prefix>/lib/kantan/share/examples/bar.kantan.plist`. The agent runs kantan with `<prefix>/bin`, Homebrew's `bin` directories and the system's on its `PATH`, so `command` modules find the tools installed there. With the default prefix, copy it into `~/Library/LaunchAgents` and load it:
 
 ```bash
 cp ~/.local/lib/kantan/share/examples/bar.kantan.plist ~/Library/LaunchAgents/

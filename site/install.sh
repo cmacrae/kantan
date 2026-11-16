@@ -163,7 +163,7 @@ main() {
   <key>EnvironmentVariables</key>
   <dict>
     <key>PATH</key>
-    <string>$agent_bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
+    <string>$agent_bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
   </dict>
   <key>RunAtLoad</key>
   <true/>

@@ -27,6 +27,7 @@ agent = plistlib.load(open(sys.argv[1], "rb"))
 bin = os.environ["HOME"] + "/.local/bin"
 assert agent["ProgramArguments"] == [bin + "/kantan"], agent
 assert agent["EnvironmentVariables"]["PATH"].split(":")[0] == bin, agent
+assert "/opt/homebrew/bin" in agent["EnvironmentVariables"]["PATH"].split(":"), agent
 log = os.environ["HOME"] + "/Library/Logs/kantan.log"
 assert agent["StandardOutPath"] == agent["StandardErrorPath"] == log, agent
 EOF
