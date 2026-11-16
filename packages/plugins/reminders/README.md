@@ -17,7 +17,7 @@ This plugin is bundled with kantan and requires no separate installation. It is 
 - **Completed retention** — Show recently completed reminders for a configurable duration
 - **Complete/Uncomplete** — Toggle reminder completion directly from the bar menu
 - **Format string** — Customise the bar display with template variables and conditional sections
-- **Auto-hide** — Module hides automatically when there are no incomplete reminders
+- **Auto-hide** — Module hides automatically when there are no incomplete reminders, and no completed ones it keeps
 - **Dynamic bar icon** — Bar icon changes to match the displayed reminder's list icon
 - **Permissions** — Automatically requests Reminders access on first run
 
@@ -129,7 +129,7 @@ Every menu view includes a persistent "Reminders" action at the bottom that laun
 
 ### Data Collections
 
-With more than one item to show, the plugin outputs two data collections per list for use with the `foreach` view DSL node, named after the list with spaces replaced by underscores (e.g. `incomplete_Work_Tasks` for the list `Work Tasks`):
+With more than one item to show, the plugin outputs two data collections per list for use with the `foreach` view DSL node, named after the list with spaces replaced by underscores (e.g. `incomplete_Work_Tasks` for the list `Work Tasks`). A list whose name gives the same key as an earlier list's gets a number added (`A_B_2`). The collections are also given while any completed reminder is kept, so it can be unchecked:
 
 | Collection           | Fields                                    | Description                                 |
 |----------------------|-------------------------------------------|---------------------------------------------|

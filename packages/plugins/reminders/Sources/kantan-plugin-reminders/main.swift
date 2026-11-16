@@ -86,6 +86,26 @@ struct Settings: Decodable {
 
 // MARK: - Helpers
 
+/// The data collection key for each of the lists `names`: the name with
+/// spaces replaced by underscores, and a number added for a list whose key
+/// an earlier list has (`A B` and `A_B` give `A_B` and `A_B_2`).
+func dataKeys(for names: [String]) -> [String: String] {
+  var keys: [String: String] = [:]
+  var used = Set<String>()
+  for name in names where keys[name] == nil {
+    let base = name.replacingOccurrences(of: " ", with: "_")
+    var key = base
+    var number = 2
+    while used.contains(key) {
+      key = "\(base)_\(number)"
+      number += 1
+    }
+    keys[name] = key
+    used.insert(key)
+  }
+  return keys
+}
+
 func truncate(_ string: String, maxChars: Int) -> String {
   guard maxChars > 0, string.count > maxChars else { return string }
   return String(string.prefix(maxChars)) + "..."
@@ -345,7 +365,10 @@ func render(
   var dataCollections: [String: [[String: String]]] = [:]
   var viewChildren: [JSONValue] = []
 
-  if hasMultiple {
+  // Retained completed reminders show as a checklist, however few, so they
+  // can be unchecked.
+  if hasMultiple || !completed.isEmpty {
+    let keys = dataKeys(for: settings.lists.map(\.name))
     // Group reminders by list name
     let incompleteByList = Dictionary(grouping: incomplete, by: \.list)
     let completedByList = Dictionary(grouping: completed, by: \.list)
@@ -365,7 +388,7 @@ func render(
       }
 
       // Build per-list data collection keys
-      let safeKey = lc.name.replacingOccurrences(of: " ", with: "_")
+      let safeKey = keys[lc.name] ?? lc.name
       let incKey = "incomplete_\(safeKey)"
       let compKey = "completed_\(safeKey)"
 
@@ -442,7 +465,7 @@ func render(
   return PluginOutput(
     value: value,
     icon: iconName,
-    hidden: !hasReminders,
+    hidden: !hasReminders && completed.isEmpty,
     variables: variables,
     data: dataCollections,
     view: view
