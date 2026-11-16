@@ -29,6 +29,16 @@ icons:
 
 Setting `icons.device` replaces these defaults rather than adding to them. Set `device: {}` to disable device-specific icons entirely.
 
+### Template Variables
+
+These are available to the module's [tooltip](../configuration/modules.md#hover-interaction) and views:
+
+| Variable | Description |
+|----------|-------------|
+| `{state}` | `Muted`, or the volume as a percentage (e.g. `64%`) |
+| `{level}` | Volume from 0 to 100, also set while muted |
+| `{device}` | Name of the output device |
+
 ## Behavior
 
 The volume module is event-driven and updates automatically when:
@@ -90,4 +100,16 @@ With menu bar item masking:
   placement: right
   mask:
     name: Sound
+```
+
+The volume as a tooltip, reading `Muted` while muted:
+
+```yaml
+- name: volume
+  type: volume
+  placement: right
+  interaction:
+    hover:
+      type: tooltip
+      content: "Volume: {state}"
 ```

@@ -15,6 +15,15 @@ These keys go under the module's `config` key:
 
 These go under `config`. The module-level `icon` field has no effect on this module.
 
+### Template Variables
+
+These are available to the module's [tooltip](../configuration/modules.md#hover-interaction) and views:
+
+| Variable | Description |
+|----------|-------------|
+| `{state}` | `Off`, `On`, or `Connected` while any device is connected |
+| `{devices}` | Names of the connected devices, separated by commas |
+
 ## Behavior
 
 The Bluetooth module is event-driven and updates automatically when:
@@ -59,4 +68,16 @@ With menu bar item masking:
   placement: right
   mask:
     name: Bluetooth
+```
+
+Its state as a tooltip, with the connected devices:
+
+```yaml
+- name: bluetooth
+  type: bluetooth
+  placement: right
+  interaction:
+    hover:
+      type: tooltip
+      content: "Bluetooth: {state} {devices}"
 ```

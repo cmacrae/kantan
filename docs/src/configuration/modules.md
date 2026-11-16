@@ -172,7 +172,7 @@ interaction:
           content: "{cpu}"
 ```
 
-Tooltip content supports variable substitution using `{variableName}` syntax: `{value}` and `{icon}` are the module's current value and icon. Other variables come from the module's output (e.g. a plugin's `variables`). Without `content` or `view`, the tooltip shows `{value}`. `type` defaults to `tooltip`.
+Tooltip content supports variable substitution using `{variableName}` syntax: `{value}` and `{icon}` are the module's current value and icon. Other variables come from the module: a plugin's `variables`, or those a built-in module sets, listed on its [page](../modules/index.md) (such as the volume module's `{state}`). Without `content` or `view`, the tooltip shows `{value}`. `type` defaults to `tooltip`.
 
 ### Click Interaction
 

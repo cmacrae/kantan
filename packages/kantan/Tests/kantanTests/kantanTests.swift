@@ -3581,3 +3581,59 @@ final class ClockFormatTests {
     #expect(vars["year"]?.count == 4)
   }
 }
+
+final class StatusTemplateVariableTests {
+  @Test func testVolumeReportsItsLevelOrMuted() {
+    let playing = VolumeStatus(volume: 0.64, isMuted: false, deviceName: "Speakers")
+    #expect(
+      VolumeConfig.templateVariables(for: playing)
+        == ["level": "64", "state": "64%", "device": "Speakers"])
+    let muted = VolumeStatus(volume: 0.64, isMuted: true, deviceName: "Speakers")
+    #expect(VolumeConfig.templateVariables(for: muted)["state"] == "Muted")
+    #expect(VolumeConfig.templateVariables(for: muted)["level"] == "64")
+  }
+
+  @Test func testWiFiReportsWhetherItIsConnected() {
+    #expect(
+      WiFiConfig.templateVariables(for: WiFiStatus(rssi: -50, isConnected: true))
+        == ["state": "Connected"])
+    #expect(WiFiConfig.templateVariables(for: .disconnected) == ["state": "Disconnected"])
+  }
+
+  @Test func testPowerReportsItsLevelAndState() {
+    func vars(charging: Bool, plugged: Bool) -> [String: String] {
+      PowerConfig.templateVariables(
+        for: BatteryStatus(
+          level: 78, isCharging: charging, isPluggedIn: plugged, isLowPowerMode: false))
+    }
+    #expect(vars(charging: false, plugged: false) == ["level": "78", "state": "Discharging"])
+    #expect(vars(charging: false, plugged: true)["state"] == "Plugged")
+    #expect(vars(charging: true, plugged: true)["state"] == "Charging")
+    #expect(PowerConfig.templateVariables(for: .unavailable) == ["level": "", "state": ""])
+  }
+
+  private func bluetooth(_ status: BluetoothStatus) async -> [String: String] {
+    let config = BluetoothConfig(icon: "bluetooth", disabledIcon: "bluetooth-off") { status }
+    let done = Expectation()
+    config.refresh { done.fulfill() }
+    #expect(await fulfillment(of: [done], timeout: 2))
+    return config.getTemplateVariables()
+  }
+
+  @Test func testBluetoothReportsItsStateAndConnectedDevices() async {
+    let devices = [
+      BluetoothDeviceInfo(name: "Buds", address: "aa", isConnected: true),
+      BluetoothDeviceInfo(name: "Mouse", address: "bb", isConnected: true),
+      BluetoothDeviceInfo(name: "Pad", address: "cc", isConnected: false),
+    ]
+    #expect(
+      await bluetooth(BluetoothStatus(isPoweredOn: true, pairedDevices: devices))
+        == ["state": "Connected", "devices": "Buds, Mouse"])
+    #expect(
+      await bluetooth(BluetoothStatus(isPoweredOn: true, pairedDevices: [devices[2]]))
+        == ["state": "On", "devices": ""])
+    #expect(
+      await bluetooth(BluetoothStatus(isPoweredOn: false, pairedDevices: []))
+        == ["state": "Off", "devices": ""])
+  }
+}

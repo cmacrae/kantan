@@ -64,6 +64,21 @@ Multiple icons as visual separators:
   icon: point-filled
 ```
 
+With a fixed label as a tooltip:
+
+```yaml
+- name: control-centre
+  type: icon
+  placement: right
+  icon: adjustments-horizontal-filled
+  mask:
+    name: ControlCenter
+  interaction:
+    hover:
+      type: tooltip
+      content: "Control Centre"
+```
+
 ## Common Use Cases
 
 The icon module is commonly used with masking to replace native macOS menu bar items with custom icons while maintaining visual consistency with your theme.

@@ -29,6 +29,16 @@ icons:
 
 When connected, the WiFi module renders a dimmed copy of the last `icons.strength` icon behind the current signal-strength icon, providing a visual reference for signal quality. This background icon is hidden while on a hotspot or at full signal strength.
 
+### Template Variables
+
+These are available to the module's [tooltip](../configuration/modules.md#hover-interaction) and views:
+
+| Variable | Description |
+|----------|-------------|
+| `{state}` | `Connected` or `Disconnected` |
+
+The network's name isn't available: reading it needs Location Services access.
+
 ## Behavior
 
 The WiFi module is event-driven and updates automatically when:
@@ -83,4 +93,16 @@ With menu bar item masking:
   placement: right
   mask:
     name: WiFi
+```
+
+Whether WiFi is connected, as a tooltip:
+
+```yaml
+- name: wifi
+  type: wifi
+  placement: right
+  interaction:
+    hover:
+      type: tooltip
+      content: "WiFi: {state}"
 ```

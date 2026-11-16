@@ -249,6 +249,14 @@ final class BluetoothConfig: NSObject, ModuleConfiguration, EventDrivenModule,
     return !cached.connected.isEmpty
   }
 
+  /// `{state}` is `Off`, `On` or `Connected`; `{devices}` lists the
+  /// connected devices' names.
+  func getTemplateVariables() -> [String: String] {
+    let cached = cache.get()
+    let state = cached.total < 0 ? "Off" : cached.connected.isEmpty ? "On" : "Connected"
+    return ["state": state, "devices": cached.connected.joined(separator: ", ")]
+  }
+
   // MARK: - IOBluetooth
 
   /// Reads current Bluetooth state.

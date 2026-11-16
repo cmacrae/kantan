@@ -314,6 +314,15 @@ final class WiFiConfig: NSObject, ModuleConfiguration, EventDrivenModule, CWEven
     backgroundIcon(for: cache.get())
   }
 
+  func getTemplateVariables() -> [String: String] {
+    Self.templateVariables(for: cache.get())
+  }
+
+  /// `{state}` is `Connected` or `Disconnected`.
+  static func templateVariables(for status: WiFiStatus) -> [String: String] {
+    ["state": status.isConnected ? "Connected" : "Disconnected"]
+  }
+
   /// The icon for `status`: disconnected, hotspot, or its signal strength.
   func icon(for status: WiFiStatus) -> String {
     guard status.isConnected else { return disconnectedIcon }

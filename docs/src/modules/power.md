@@ -54,6 +54,17 @@ config:
 
 Style priority (highest to lowest): charging, plugged, lowPowerMode, low. Only the first configured style whose state applies is used.
 
+### Template Variables
+
+These are available to the module's [tooltip](../configuration/modules.md#hover-interaction) and views:
+
+| Variable | Description |
+|----------|-------------|
+| `{level}` | Battery level from 0 to 100 |
+| `{state}` | `Charging`, `Plugged` (on AC power but not charging) or `Discharging` |
+
+Both are empty without a battery.
+
 ## Behavior
 
 The power module is event-driven and updates automatically when:
@@ -116,4 +127,16 @@ With menu bar item masking:
     showLevel: true
   mask:
     name: Battery
+```
+
+The battery level and state as a tooltip:
+
+```yaml
+- name: battery
+  type: power
+  placement: right
+  interaction:
+    hover:
+      type: tooltip
+      content: "Battery: {level}%, {state}"
 ```

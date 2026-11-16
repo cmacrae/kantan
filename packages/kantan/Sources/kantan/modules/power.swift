@@ -192,6 +192,18 @@ final class PowerConfig: ModuleConfiguration, EventDrivenModule {
     return nil
   }
 
+  func getTemplateVariables() -> [String: String] {
+    Self.templateVariables(for: cache.get())
+  }
+
+  /// `{level}` is the battery level (0–100) and `{state}` is `Charging`,
+  /// `Plugged` or `Discharging`. Both are empty without a battery.
+  static func templateVariables(for status: BatteryStatus) -> [String: String] {
+    guard status.isAvailable else { return ["level": "", "state": ""] }
+    let state = status.isCharging ? "Charging" : status.isPluggedIn ? "Plugged" : "Discharging"
+    return ["level": "\(status.level)", "state": state]
+  }
+
   // MARK: - IOKit
 
   static func readBatteryStatus() -> BatteryStatus {

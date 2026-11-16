@@ -239,6 +239,20 @@ final class VolumeConfig: ModuleConfiguration, EventDrivenModule {
     return iconForLevel(status.level, icons: levelIcons)
   }
 
+  func getTemplateVariables() -> [String: String] {
+    Self.templateVariables(for: cache.get())
+  }
+
+  /// `{level}` is the volume (0–100), `{state}` is `Muted` or the level as
+  /// a percentage, and `{device}` names the output device.
+  static func templateVariables(for status: VolumeStatus) -> [String: String] {
+    [
+      "level": "\(status.level)",
+      "state": status.isMuted ? "Muted" : "\(status.level)%",
+      "device": status.deviceName,
+    ]
+  }
+
   /// Returns the configured icon for a device name, or nil if no match.
   /// Matches are case-insensitive substrings of the CoreAudio device name.
   private func iconForDevice(_ deviceName: String) -> String? {
