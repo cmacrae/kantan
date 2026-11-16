@@ -20,13 +20,13 @@ struct ListConfig: Decodable {
   init(from decoder: Decoder) throws {
     let container = try decoder.container(keyedBy: CodingKeys.self)
     self.name = try container.decode(String.self, forKey: .name)
-    self.icon = try container.decodeIfPresent(String.self, forKey: .icon) ?? ""
-    self.lookahead = try container.decodeIfPresent(String.self, forKey: .lookahead) ?? "10m"
-    self.overdue = try container.decodeIfPresent(Bool.self, forKey: .overdue) ?? true
-    self.undated = try container.decodeIfPresent(Bool.self, forKey: .undated) ?? false
+    self.icon = container.setting(String.self, forKey: .icon) ?? ""
+    self.lookahead = container.setting(String.self, forKey: .lookahead) ?? "10m"
+    self.overdue = container.setting(Bool.self, forKey: .overdue) ?? true
+    self.undated = container.setting(Bool.self, forKey: .undated) ?? false
     self.completedRetention =
-      try container.decodeIfPresent(String.self, forKey: .completedRetention) ?? "0"
-    self.maxChars = try container.decodeIfPresent(Int.self, forKey: .maxChars) ?? 30
+      container.setting(String.self, forKey: .completedRetention) ?? "0"
+    self.maxChars = container.setting(Int.self, forKey: .maxChars) ?? 30
   }
 
   var lookaheadInterval: TimeInterval {
@@ -57,7 +57,7 @@ struct IconConfig: Decodable {
   init(from decoder: Decoder) throws {
     let d = Self.defaults
     let container = try decoder.container(keyedBy: CodingKeys.self)
-    self.action = try container.decodeIfPresent(String.self, forKey: .action) ?? d.action
+    self.action = container.setting(String.self, forKey: .action) ?? d.action
   }
 }
 
@@ -78,9 +78,9 @@ struct Settings: Decodable {
 
   init(from decoder: Decoder) throws {
     let container = try decoder.container(keyedBy: CodingKeys.self)
-    self.lists = try container.decodeIfPresent([ListConfig].self, forKey: .lists) ?? []
-    self.format = try container.decodeIfPresent(String.self, forKey: .format) ?? "{title}"
-    self.icons = try container.decodeIfPresent(IconConfig.self, forKey: .icons) ?? .defaults
+    self.lists = container.setting([ListConfig].self, forKey: .lists) ?? []
+    self.format = container.setting(String.self, forKey: .format) ?? "{title}"
+    self.icons = container.setting(IconConfig.self, forKey: .icons) ?? .defaults
   }
 }
 

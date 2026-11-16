@@ -325,6 +325,14 @@ func loadSettings<T: Decodable>(defaults: T) -> T {
   return (try? JSONDecoder().decode(T.self, from: data)) ?? defaults
 }
 
+extension KeyedDecodingContainer {
+  /// The setting at `key`, or nil when it's missing or of the wrong kind, so
+  /// one bad setting takes its default without discarding the others.
+  func setting<T: Decodable>(_ type: T.Type, forKey key: Key) -> T? {
+    (try? decodeIfPresent(type, forKey: key)) ?? nil
+  }
+}
+
 // MARK: - Helpers
 
 /// Single-quote shell escape for safe command embedding.

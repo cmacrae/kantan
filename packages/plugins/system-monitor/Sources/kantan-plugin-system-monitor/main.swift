@@ -94,21 +94,21 @@ struct IconConfig: Decodable {
   init(from decoder: Decoder) throws {
     let d = IconConfig.defaults
     let container = try decoder.container(keyedBy: CodingKeys.self)
-    self.cpu = try container.decodeIfPresent(String.self, forKey: .cpu) ?? d.cpu
-    self.memory = try container.decodeIfPresent(String.self, forKey: .memory) ?? d.memory
-    self.disk = try container.decodeIfPresent(String.self, forKey: .disk) ?? d.disk
+    self.cpu = container.setting(String.self, forKey: .cpu) ?? d.cpu
+    self.memory = container.setting(String.self, forKey: .memory) ?? d.memory
+    self.disk = container.setting(String.self, forKey: .disk) ?? d.disk
     self.thermalNominal =
-      try container.decodeIfPresent(String.self, forKey: .thermalNominal) ?? d.thermalNominal
+      container.setting(String.self, forKey: .thermalNominal) ?? d.thermalNominal
     self.thermalFair =
-      try container.decodeIfPresent(String.self, forKey: .thermalFair) ?? d.thermalFair
+      container.setting(String.self, forKey: .thermalFair) ?? d.thermalFair
     self.thermalSerious =
-      try container.decodeIfPresent(String.self, forKey: .thermalSerious) ?? d.thermalSerious
+      container.setting(String.self, forKey: .thermalSerious) ?? d.thermalSerious
     self.thermalCritical =
-      try container.decodeIfPresent(String.self, forKey: .thermalCritical) ?? d.thermalCritical
-    self.uptime = try container.decodeIfPresent(String.self, forKey: .uptime) ?? d.uptime
-    self.load = try container.decodeIfPresent(String.self, forKey: .load) ?? d.load
+      container.setting(String.self, forKey: .thermalCritical) ?? d.thermalCritical
+    self.uptime = container.setting(String.self, forKey: .uptime) ?? d.uptime
+    self.load = container.setting(String.self, forKey: .load) ?? d.load
     self.activityMonitor =
-      try container.decodeIfPresent(String.self, forKey: .activityMonitor) ?? d.activityMonitor
+      container.setting(String.self, forKey: .activityMonitor) ?? d.activityMonitor
   }
 }
 
@@ -128,8 +128,8 @@ struct Settings: Decodable {
 
     init(from decoder: Decoder) throws {
       let container = try decoder.container(keyedBy: CodingKeys.self)
-      let light = try container.decodeIfPresent(StyleColors.self, forKey: .light)
-      let dark = try container.decodeIfPresent(StyleColors.self, forKey: .dark)
+      let light = container.setting(StyleColors.self, forKey: .light)
+      let dark = container.setting(StyleColors.self, forKey: .dark)
       if light != nil || dark != nil {
         self.light = light
         self.dark = dark
@@ -167,15 +167,15 @@ struct Settings: Decodable {
   init(from decoder: Decoder) throws {
     let defaults = Settings()
     let container = try decoder.container(keyedBy: CodingKeys.self)
-    self.format = try container.decodeIfPresent(String.self, forKey: .format) ?? defaults.format
+    self.format = container.setting(String.self, forKey: .format) ?? defaults.format
     self.colorTarget =
-      try container.decodeIfPresent(String.self, forKey: .colorTarget) ?? defaults.colorTarget
-    self.style = try container.decodeIfPresent(StyleConfig.self, forKey: .style)
-    self.icons = try container.decodeIfPresent(IconConfig.self, forKey: .icons) ?? defaults.icons
+      container.setting(String.self, forKey: .colorTarget) ?? defaults.colorTarget
+    self.style = container.setting(StyleConfig.self, forKey: .style)
+    self.icons = container.setting(IconConfig.self, forKey: .icons) ?? defaults.icons
     self.processCount =
-      try container.decodeIfPresent(Int.self, forKey: .processCount) ?? defaults.processCount
+      container.setting(Int.self, forKey: .processCount) ?? defaults.processCount
     self.showCores =
-      try container.decodeIfPresent(Bool.self, forKey: .showCores) ?? defaults.showCores
+      container.setting(Bool.self, forKey: .showCores) ?? defaults.showCores
   }
 }
 

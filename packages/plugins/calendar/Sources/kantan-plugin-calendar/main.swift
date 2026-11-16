@@ -32,8 +32,8 @@ struct IconConfig: Decodable {
   init(from decoder: Decoder) throws {
     let d = Self.defaults
     let container = try decoder.container(keyedBy: CodingKeys.self)
-    self.icon = try container.decodeIfPresent(String.self, forKey: .icon) ?? d.icon
-    self.action = try container.decodeIfPresent(String.self, forKey: .action) ?? d.action
+    self.icon = container.setting(String.self, forKey: .icon) ?? d.icon
+    self.action = container.setting(String.self, forKey: .action) ?? d.action
   }
 }
 
@@ -57,9 +57,9 @@ struct Settings: Decodable {
   init(from decoder: Decoder) throws {
     let defaults = Settings()
     let container = try decoder.container(keyedBy: CodingKeys.self)
-    self.format = try container.decodeIfPresent(Format.self, forKey: .format) ?? defaults.format
-    self.upcoming = try container.decodeIfPresent(String.self, forKey: .upcoming)
-    self.icons = try container.decodeIfPresent(IconConfig.self, forKey: .icons) ?? defaults.icons
+    self.format = container.setting(Format.self, forKey: .format) ?? defaults.format
+    self.upcoming = container.setting(String.self, forKey: .upcoming)
+    self.icons = container.setting(IconConfig.self, forKey: .icons) ?? defaults.icons
 
     // calendars can be either an object with include/exclude or a simple string array (include shorthand)
     if let filter = try? container.decodeIfPresent(CalendarFilter.self, forKey: .calendars) {
