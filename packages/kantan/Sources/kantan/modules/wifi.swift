@@ -2,11 +2,13 @@ import AppKit
 import CoreWLAN
 import Foundation
 import IOKit
+import Network
 
 struct WiFiConfigFactory: ModuleConfigurationFactory {
   /// Default tabler-icons for wifi states.
   static let defaultStrengthIcons = ["wifi-1", "wifi-2", "wifi"]
   static let defaultDisconnectedIcon = "wifi-off"
+  static let defaultHotspotIcon = "circles-relation"
 
   func configuration(from yaml: Yaml, configDir: String?, theme: ThemeConfig?) throws
     -> ModuleConfiguration
@@ -24,34 +26,26 @@ struct WiFiConfigFactory: ModuleConfigurationFactory {
         ))
     }
 
-    var ssidIcons: [String: String] = [:]
-    if let ssidDict = iconsYaml["ssid"].dictionary {
-      for (key, value) in ssidDict {
-        if let k = key.string, let v = value.string {
-          ssidIcons[k] = v
-        }
-      }
-    }
-
     return WiFiConfig(
       strengthIcons: strengthIcons, disconnectedIcon: disconnectedIcon,
-      ssidIcons: ssidIcons
+      hotspotIcon: iconsYaml["hotspot"].string ?? Self.defaultHotspotIcon
     )
   }
 
   func defaultConfiguration() -> ModuleConfiguration? {
     WiFiConfig(
       strengthIcons: Self.defaultStrengthIcons,
-      disconnectedIcon: Self.defaultDisconnectedIcon, ssidIcons: [:])
+      disconnectedIcon: Self.defaultDisconnectedIcon, hotspotIcon: Self.defaultHotspotIcon)
   }
 }
 
 struct WiFiStatus: Sendable {
-  let ssid: String?
   let rssi: Int  // dBm, typically -30 (excellent) to -90 (very weak)
   let isConnected: Bool
+  /// Whether the network is a personal hotspot, which macOS marks as expensive.
+  var isHotspot = false
 
-  static let disconnected = WiFiStatus(ssid: nil, rssi: 0, isConnected: false)
+  static let disconnected = WiFiStatus(rssi: 0, isConnected: false)
 
   /// Signal quality as 0.0 – 1.0, mapped from RSSI.
   /// -30 dBm = 1.0 (excellent), -90 dBm = 0.0 (unusable).
@@ -62,9 +56,9 @@ struct WiFiStatus: Sendable {
   }
 }
 
-/// CoreWLAN's events for every WiFi module observing them, as the shared
-/// `CWWiFiClient` has a single delegate. Monitoring runs while at least one
-/// module observes.
+/// CoreWLAN's events, and whether the WiFi network is a personal hotspot, for
+/// every WiFi module observing them, as the shared `CWWiFiClient` has a single
+/// delegate. Monitoring runs while at least one module observes.
 final class WiFiEvents: NSObject, CWEventDelegate, @unchecked Sendable {
   static let shared = WiFiEvents()
 
@@ -74,6 +68,12 @@ final class WiFiEvents: NSObject, CWEventDelegate, @unchecked Sendable {
 
   private let lock = NSLock()
   private var observers: [ObjectIdentifier: Observer] = [:]
+  private var pathMonitor: NWPathMonitor?
+  private var hotspot = false
+
+  /// Whether the WiFi network is one macOS marks as expensive, as it does a
+  /// personal hotspot. Needs no Location Services access, unlike the SSID.
+  var isHotspot: Bool { lock.withLock { hotspot } }
 
   private static let events: [CWEventType] = [
     .ssidDidChange, .bssidDidChange, .linkDidChange, .linkQualityDidChange, .powerDidChange,
@@ -90,6 +90,7 @@ final class WiFiEvents: NSObject, CWEventDelegate, @unchecked Sendable {
       return isFirst
     }
     guard isFirst else { return }
+    startPathMonitor()
     let client = CWWiFiClient.shared()
     client.delegate = self
     for event in Self.events {
@@ -110,6 +111,34 @@ final class WiFiEvents: NSObject, CWEventDelegate, @unchecked Sendable {
     let client = CWWiFiClient.shared()
     try? client.stopMonitoringAllEvents()
     client.delegate = nil
+    let monitor = lock.withLock {
+      defer { pathMonitor = nil }
+      return pathMonitor
+    }
+    monitor?.cancel()
+  }
+
+  /// Watches the WiFi path, notifying the modules when it becomes or stops
+  /// being a hotspot.
+  private func startPathMonitor() {
+    let monitor = NWPathMonitor(requiredInterfaceType: .wifi)
+    monitor.pathUpdateHandler = { [weak self] path in
+      self?.setHotspot(path.status == .satisfied && path.isExpensive)
+    }
+    lock.withLock { pathMonitor = monitor }
+    monitor.start(queue: DispatchQueue(label: "kantan.wifi.path"))
+  }
+
+  /// Records whether the network is a hotspot, notifying the modules on a
+  /// change. Returns whether it changed.
+  @discardableResult
+  func setHotspot(_ isHotspot: Bool) -> Bool {
+    let changed = lock.withLock {
+      defer { hotspot = isHotspot }
+      return hotspot != isHotspot
+    }
+    if changed { modules.forEach { $0.hotspotDidChange() } }
+    return changed
   }
 
   func ssidDidChangeForWiFiInterface(withName interfaceName: String) {
@@ -141,18 +170,16 @@ final class WiFiEvents: NSObject, CWEventDelegate, @unchecked Sendable {
 /// Fully event-driven WiFi module using CoreWLAN event monitoring.
 /// Listens for SSID, BSSID, link state, link quality (RSSI), and power state
 /// changes via CWWiFiClient delegate. No polling — all updates are event-driven.
-/// The SSID comes from CoreWLAN or IOKit's IORegistry, both of which macOS
-/// redacts for an app without Location Services access, so SSID icons apply
-/// only where the SSID can be read.
+/// A personal hotspot is recognised by Network.framework marking the WiFi
+/// path as expensive.
 final class WiFiConfig: NSObject, ModuleConfiguration, EventDrivenModule, CWEventDelegate,
   @unchecked Sendable
 {
   var type: String { "wifi" }
   let strengthIcons: [String]
   let disconnectedIcon: String
-  /// SSID → icon overrides. When the current SSID matches a key, that icon is shown
-  /// instead of the signal-strength icon.
-  let ssidIcons: [String: String]
+  /// Icon shown in place of the signal-strength icons while on a personal hotspot.
+  let hotspotIcon: String
 
   var redrawInterval: TimeInterval { noPoll }
 
@@ -168,11 +195,11 @@ final class WiFiConfig: NSObject, ModuleConfiguration, EventDrivenModule, CWEven
 
   init(
     strengthIcons: [String], disconnectedIcon: String,
-    ssidIcons: [String: String]
+    hotspotIcon: String
   ) {
     self.strengthIcons = strengthIcons
     self.disconnectedIcon = disconnectedIcon
-    self.ssidIcons = ssidIcons
+    self.hotspotIcon = hotspotIcon
     super.init()
   }
 
@@ -234,7 +261,7 @@ final class WiFiConfig: NSObject, ModuleConfiguration, EventDrivenModule, CWEven
     let levels: (old: Int, new: Int)? = cache.mutate { current in
       guard let cached = current, cached.isConnected else { return nil }
       let oldRssi = cached.rssi
-      current = WiFiStatus(ssid: cached.ssid, rssi: rssi, isConnected: true)
+      current = WiFiStatus(rssi: rssi, isConnected: true, isHotspot: cached.isHotspot)
       _cacheIsFresh = true
       return (signalLevel(rssi: oldRssi), signalLevel(rssi: rssi))
     }
@@ -258,6 +285,10 @@ final class WiFiConfig: NSObject, ModuleConfiguration, EventDrivenModule, CWEven
     notifyWithCoalescing()
   }
 
+  func hotspotDidChange() {
+    notifyWithCoalescing()
+  }
+
   // MARK: - ModuleConfiguration
 
   func getValue(completion: @escaping @Sendable (String) -> Void) {
@@ -276,48 +307,30 @@ final class WiFiConfig: NSObject, ModuleConfiguration, EventDrivenModule, CWEven
       cache.set(Self.readWiFiStatus())
     }
 
-    let status = cache.get()
-    guard status.isConnected else {
-      return disconnectedIcon
-    }
-    if let override = iconForSSID(status.ssid) {
-      return override
-    }
-    let level = Int(status.signalQuality * 100)
-    return iconForLevel(level, icons: strengthIcons)
+    return icon(for: cache.get())
   }
 
   func getBackgroundIcon() -> String? {
-    let status = cache.get()
-    guard status.isConnected, let maxIcon = strengthIcons.last, strengthIcons.count > 1 else {
-      return nil
-    }
-    // No background icon when an SSID-specific icon is active
-    if iconForSSID(status.ssid) != nil {
-      return nil
-    }
-    let level = Int(status.signalQuality * 100)
-    let currentIcon = iconForLevel(level, icons: strengthIcons)
-    // Only show background when not already at full strength
-    guard currentIcon != maxIcon else { return nil }
-    return maxIcon
+    backgroundIcon(for: cache.get())
   }
 
-  /// Returns an SSID-specific icon override, checking the explicit ssid map first,
-  /// then falling back to iPhone hotspot detection (SSIDs ending with "iPhone").
-  private func iconForSSID(_ ssid: String?) -> String? {
-    guard let ssid else { return nil }
-    // Explicit SSID → icon map takes priority
-    if let icon = ssidIcons[ssid] {
-      return icon
+  /// The icon for `status`: disconnected, hotspot, or its signal strength.
+  func icon(for status: WiFiStatus) -> String {
+    guard status.isConnected else { return disconnectedIcon }
+    if status.isHotspot { return hotspotIcon }
+    return iconForLevel(Int(status.signalQuality * 100), icons: strengthIcons)
+  }
+
+  /// The full-strength icon dimmed behind a weaker signal-strength icon, or nil
+  /// while disconnected, on a hotspot or at full strength.
+  func backgroundIcon(for status: WiFiStatus) -> String? {
+    guard status.isConnected, !status.isHotspot, let maxIcon = strengthIcons.last,
+      strengthIcons.count > 1
+    else {
+      return nil
     }
-    // Fallback: detect iPhone hotspots by SSID suffix.
-    // Default iPhone hotspot names are "<Name>'s iPhone" (with curly apostrophe)
-    // or "<Name>'s iPhone" (with straight apostrophe).
-    if ssid.hasSuffix("iPhone") {
-      return ssidIcons["iPhone"] ?? "circles-relation"
-    }
-    return nil
+    let currentIcon = iconForLevel(Int(status.signalQuality * 100), icons: strengthIcons)
+    return currentIcon == maxIcon ? nil : maxIcon
   }
 
   // MARK: - WiFi Status Reading
@@ -332,25 +345,15 @@ final class WiFiConfig: NSObject, ModuleConfiguration, EventDrivenModule, CWEven
       return .disconnected
     }
 
-    // Read SSID and BSSID from IOKit in one pass.
     // A BSSID is only set when the radio is associated with an access point,
     // which is more reliable than RSSI (which can return stale values during
     // transitions) unless macOS withholds the BSSID.
-    let ioInfo = readIORegistryWiFiInfo()
-
     let rssi = interface.rssiValue()
-    guard isAssociated(bssid: ioInfo.bssid, rssi: rssi) else {
+    guard isAssociated(bssid: readIORegistryBSSID(), rssi: rssi) else {
       return .disconnected
     }
 
-    let ssid = knownSSID(interface.ssid()) ?? knownSSID(ioInfo.ssid)
-    return WiFiStatus(ssid: ssid, rssi: rssi, isConnected: true)
-  }
-
-  /// `ssid`, or nil when macOS withholds it, as it does from an app without
-  /// Location Services access.
-  static func knownSSID(_ ssid: String?) -> String? {
-    ssid == "<SSID Redacted>" ? nil : ssid
+    return WiFiStatus(rssi: rssi, isConnected: true, isHotspot: WiFiEvents.shared.isHotspot)
   }
 
   /// Whether the radio is associated with an access point: it has a BSSID.
@@ -362,54 +365,25 @@ final class WiFiConfig: NSObject, ModuleConfiguration, EventDrivenModule, CWEven
     return bssid.contains { $0 != 0 } || rssi != 0
   }
 
-  private struct IORegistryWiFiInfo {
-    let ssid: String?
-    let bssid: Data?
-  }
-
-  /// Reads WiFi SSID and BSSID from IOKit's IORegistry in a single pass.
-  /// In-process API — no subprocess. Without Location Services access, macOS
-  /// redacts the SSID.
-  private static func readIORegistryWiFiInfo() -> IORegistryWiFiInfo {
+  /// Reads the infrastructure WiFi interface's BSSID from IOKit's IORegistry,
+  /// or nil when no interface has one.
+  private static func readIORegistryBSSID() -> Data? {
     var iterator: io_iterator_t = 0
     let kr = IOServiceGetMatchingServices(
       kIOMainPortDefault, IOServiceMatching("IOUserNetworkWLAN"), &iterator)
-    guard kr == KERN_SUCCESS else { return IORegistryWiFiInfo(ssid: nil, bssid: nil) }
+    guard kr == KERN_SUCCESS else { return nil }
     defer { IOObjectRelease(iterator) }
 
     while true {
       let service = IOIteratorNext(iterator)
-      guard service != 0 else { break }
+      guard service != 0 else { return nil }
       defer { IOObjectRelease(service) }
 
-      // Check for BSSID — its presence means the radio is associated
-      let bssid: Data?
-      if let bssidProp = IORegistryEntryCreateCFProperty(
+      if let bssid = IORegistryEntryCreateCFProperty(
         service, "IO80211BSSID" as CFString, kCFAllocatorDefault, 0)
       {
-        bssid = bssidProp.takeRetainedValue() as? Data
-      } else {
-        continue  // Not the infrastructure interface
+        return bssid.takeRetainedValue() as? Data
       }
-
-      // Read SSID
-      var ssid: String?
-      if let ssidProp = IORegistryEntryCreateCFProperty(
-        service, "IO80211SSID" as CFString, kCFAllocatorDefault, 0)
-      {
-        let val = ssidProp.takeRetainedValue()
-        if let s = val as? String, !s.isEmpty {
-          ssid = s
-        } else if let data = val as? Data,
-          let s = String(data: data, encoding: .utf8), !s.isEmpty
-        {
-          ssid = s
-        }
-      }
-
-      return IORegistryWiFiInfo(ssid: ssid, bssid: bssid)
     }
-
-    return IORegistryWiFiInfo(ssid: nil, bssid: nil)
   }
 }

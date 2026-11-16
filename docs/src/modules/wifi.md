@@ -2,9 +2,7 @@
 
 Type: `wifi`
 
-Icon-only WiFi connection status indicator. Uses CoreWLAN with event-driven updates. The icon reflects signal strength. No text is displayed.
-
-SSID-specific icons need the SSID to be readable. macOS withholds it from an app without Location Services access, and kantan doesn't ask for that access, so on recent macOS releases `icons.ssid` and the hotspot icon may never apply.
+Icon-only WiFi connection status indicator. Uses CoreWLAN with event-driven updates. The icon reflects signal strength, or shows that the Mac is connected to a personal hotspot. No text is displayed.
 
 ## Configuration
 
@@ -14,33 +12,30 @@ These keys go under the module's `config` key:
 |-----|------|---------|-------------|
 | `icons.strength` | array | `["wifi-1", "wifi-2", "wifi"]` | Icons for signal strength levels (weak to strong). Must not be empty |
 | `icons.disconnected` | string | `"wifi-off"` | Icon when disconnected |
-| `icons.ssid` | object | -- | SSID-specific icon overrides |
+| `icons.hotspot` | string | `"circles-relation"` | Icon while connected to a personal hotspot |
 
 Signal strength maps RSSI from -90 dBm (weakest) to -30 dBm (strongest), split evenly across the `icons.strength` entries. The module shows `disconnected` while WiFi is off or not associated with a network.
 
-### SSID Icons
+### Hotspot Icon
 
-The `icons.ssid` field maps network names to icons. When the current SSID matches a key exactly, that icon is shown instead of the signal-strength icon.
-
-iPhone hotspot detection is always active: any SSID ending with "iPhone" (matching default hotspot names like "Alice's iPhone") automatically uses the `circles-relation` icon. You can override this by setting an `iPhone` key in the `icons.ssid` map.
+While the Mac is connected to a personal hotspot, such as an iPhone's, the module shows `icons.hotspot` in place of the signal-strength icon. kantan recognises a hotspot as a WiFi network macOS treats as expensive (metered). macOS marks an iPhone's Personal Hotspot this way whatever its name. kantan doesn't read the network's name, so no Location Services access is needed.
 
 ```yaml
 icons:
-  ssid:
-    "My Network": home
-    iPhone: circles-relation   # Overrides the built-in default for iPhone hotspots
+  hotspot: device-mobile   # Replaces the default circles-relation
 ```
 
 ### Background Icon
 
-When connected, the WiFi module renders a dimmed copy of the last `icons.strength` icon behind the current signal-strength icon, providing a visual reference for signal quality. This background icon is automatically hidden when an SSID-specific icon override is active or when signal is at full strength.
+When connected, the WiFi module renders a dimmed copy of the last `icons.strength` icon behind the current signal-strength icon, providing a visual reference for signal quality. This background icon is hidden while on a hotspot or at full signal strength.
 
 ## Behavior
 
 The WiFi module is event-driven and updates automatically when:
 
 - WiFi connection status changes (connected/disconnected)
-- Connected network changes (SSID/BSSID)
+- Connected network changes (BSSID)
+- The network becomes or stops being a personal hotspot
 - Signal strength (RSSI) changes (only when crossing an icon threshold)
 - WiFi power state changes
 
@@ -69,7 +64,7 @@ Custom signal strength icons:
         - wifi       # Strong
 ```
 
-With SSID-specific icons:
+With a custom hotspot icon:
 
 ```yaml
 - name: wifi
@@ -77,14 +72,7 @@ With SSID-specific icons:
   placement: right
   config:
     icons:
-      disconnected: wifi-off
-      strength:
-        - wifi-1
-        - wifi-2
-        - wifi
-      ssid:
-        "Home Network": home-signal
-        iPhone: circles-relation
+      hotspot: device-mobile
 ```
 
 With menu bar item masking:

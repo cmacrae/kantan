@@ -391,9 +391,7 @@ These keys go under a volume module's `config` key:
         - "wifi-1"
         - "wifi-2"
         - "wifi"
-      ssid:
-        "Home Network": "home-signal"
-        iPhone: "circles-relation"
+      hotspot: "circles-relation"
 ```
 
 These keys go under a WiFi module's `config` key:
@@ -402,7 +400,7 @@ These keys go under a WiFi module's `config` key:
 |-----|------|---------|-------------|
 | `icons.strength` | array | `["wifi-1", "wifi-2", "wifi"]` | Icons for signal strength levels (weak to strong) |
 | `icons.disconnected` | string | `"wifi-off"` | Icon when disconnected |
-| `icons.ssid` | object | — | SSID-specific icon overrides. SSIDs ending with "iPhone" are auto-detected as hotspots and use the `iPhone` entry or default to `circles-relation` |
+| `icons.hotspot` | string | `"circles-relation"` | Icon while connected to a personal hotspot, such as an iPhone's |
 
 **Bluetooth module** (icon-only, no text):
 ```yaml

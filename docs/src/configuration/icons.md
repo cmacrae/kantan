@@ -74,7 +74,7 @@ The volume module supports level, muted, and device-specific icons:
         Headphones: "headphones"
 ```
 
-The WiFi module supports signal strength, disconnected, and SSID-specific icons:
+The WiFi module supports signal strength, disconnected, and personal hotspot icons:
 
 ```yaml
 - name: wifi
@@ -87,9 +87,7 @@ The WiFi module supports signal strength, disconnected, and SSID-specific icons:
         - "wifi-1"        # Weak
         - "wifi-2"        # Fair
         - "wifi"          # Strong
-      ssid:
-        "Home Network": "home-signal"
-        iPhone: "circles-relation"
+      hotspot: "circles-relation"
 ```
 
 The Bluetooth module uses top-level config keys for its on/off icons:

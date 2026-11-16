@@ -287,7 +287,7 @@ final class TriggerFieldsTests {
 
 final class WiFiEventsTests {
   private func module() -> WiFiConfig {
-    WiFiConfig(strengthIcons: ["wifi"], disconnectedIcon: "wifi-off", ssidIcons: [:])
+    WiFiConfig(strengthIcons: ["wifi"], disconnectedIcon: "wifi-off", hotspotIcon: "hotspot")
   }
 
   @Test func testEveryWiFiModuleHearsTheEventsUntilItStops() async {
@@ -304,9 +304,30 @@ final class WiFiEventsTests {
     #expect(heard.withLock { $0 } == [1, 2])
     second.stopObserving()
   }
+
+  @Test func testAHotspotChangesOnlyWhenTheNetworkDoes() {
+    let events = WiFiEvents()
+    #expect(!events.isHotspot)
+    #expect(!events.setHotspot(false))
+    #expect(events.setHotspot(true))
+    #expect(events.isHotspot)
+    #expect(!events.setHotspot(true))
+    #expect(events.setHotspot(false))
+  }
 }
 
 final class WiFiStatusTests {
+  private func module(_ yaml: String) throws -> WiFiConfig {
+    try #require(
+      try WiFiConfigFactory().configuration(
+        from: try Yaml.load(yaml), configDir: nil, theme: nil) as? WiFiConfig)
+  }
+
+  @Test func testDisconnectedOutranksAHotspot() throws {
+    let wifi = try module("icons: {}\n")
+    #expect(wifi.icon(for: WiFiStatus(rssi: 0, isConnected: false, isHotspot: true)) == "wifi-off")
+  }
+
   @Test func testAnAllZeroBSSIDNeedsASignalToCountAsAssociated() {
     let zero = Data(count: 6)
     #expect(!WiFiConfig.isAssociated(bssid: zero, rssi: 0))

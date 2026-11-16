@@ -421,10 +421,9 @@
               "type": "string",
               "description": "Icon shown when disconnected. Defaults to 'wifi-off'."
             },
-            "ssid": {
-              "type": "object",
-              "additionalProperties": { "type": "string" },
-              "description": "SSID-specific icon overrides. When the current SSID matches a key exactly, that icon is used instead of the signal-strength icon. SSIDs ending with 'iPhone' (hotspots) otherwise use the 'iPhone' key, or 'circles-relation' without one. Applies only when the SSID is readable, which macOS allows only with Location Services access; kantan doesn't ask for it."
+            "hotspot": {
+              "type": "string",
+              "description": "Icon shown in place of the signal-strength icons while connected to a personal hotspot, such as an iPhone's. Defaults to 'circles-relation'."
             }
           }
         }
