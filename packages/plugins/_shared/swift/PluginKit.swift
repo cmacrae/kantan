@@ -380,10 +380,19 @@ func applyFormat(_ format: String, variables: [String: String]) -> String {
     }
   }
 
-  for (key, value) in variables {
-    result = result.replacingOccurrences(of: "{\(key)}", with: value)
+  // One pass, so a value holding a placeholder, such as a title with
+  // "{count}" in it, is shown as it is.
+  var substituted = ""
+  var rest = result[...]
+  while let open = rest.firstIndex(of: "{"),
+    let close = rest[rest.index(after: open)...].firstIndex(of: "}")
+  {
+    substituted += rest[..<open]
+    let key = String(rest[rest.index(after: open)..<close])
+    substituted += variables[key] ?? String(rest[open...close])
+    rest = rest[rest.index(after: close)...]
   }
-  return result
+  return substituted + rest
 }
 
 /// A plugin's `format` setting: a template for the value, or segments of
