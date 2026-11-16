@@ -110,6 +110,9 @@ final class MenuBarAccessibility: @unchecked Sendable {
   /// requests, so each would cost a full `messagingTimeout`.
   static func read() -> [AccessibleMenuBarItem] {
     let ownPID = ProcessInfo.processInfo.processIdentifier
+    // A timeout set on an element covers that element only. Set on the
+    // system-wide element, it also covers the elements read from each app.
+    AXUIElementSetMessagingTimeout(AXUIElementCreateSystemWide(), messagingTimeout)
     var result: [AccessibleMenuBarItem] = []
     for app in NSWorkspace.shared.runningApplications
     where app.activationPolicy != .prohibited && app.processIdentifier != ownPID {
