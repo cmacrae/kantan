@@ -263,14 +263,122 @@ private struct ShownState {
   var viewTree: ViewNode?
   var data: [String: [[String: String]]] = [:]
   var segments: [ValueSegment] = []
+  var backgroundIcon: String?
+  var workspace: WorkspaceDisplay?
+  var drawerOpen: Bool?
 }
 
-/// The state `module` shows for `output`, what its command printed: text,
-/// or the JSON a plugin's output parses to. A module of another type shows
-/// its own value.
+/// The moment a clock's sample gives: an ISO 8601 date, or milliseconds
+/// since 1970.
+private func sampleDate(_ time: Any?) -> Date? {
+  if let text = time as? String { return ISO8601DateFormatter().date(from: text) }
+  return (time as? Double).map { Date(timeIntervalSince1970: $0 / 1000) }
+}
+
+/// The state a built-in module shows for `sample`, a reading of the system
+/// as the cases write one, or nil for a module of another type.
+private func sampledState(of config: ModuleConfiguration, sample: [String: Any]?) -> ShownState? {
+  var state = ShownState()
+  let flag = { (key: String) in sample?[key] as? Bool ?? false }
+
+  switch config {
+  case let power as PowerConfig:
+    let status =
+      (sample?["level"] as? Int).map {
+        BatteryStatus(
+          level: $0, isCharging: flag("charging"), isPluggedIn: flag("plugged"),
+          isLowPowerMode: flag("lowPowerMode"))
+      } ?? .unavailable
+    state.value = power.value(for: status)
+    state.icon = power.icon(for: status)
+    state.dynamicStyle = power.dynamicStyle(for: status)
+    state.variables = PowerConfig.templateVariables(for: status)
+
+  case let volume as VolumeConfig:
+    let status = VolumeStatus(
+      volume: Float(sample?["volume"] as? Double ?? 0), isMuted: flag("muted"),
+      deviceName: sample?["device"] as? String ?? "")
+    state.icon = volume.icon(for: status)
+    state.backgroundIcon = volume.backgroundIcon(for: status)
+    state.variables = VolumeConfig.templateVariables(for: status)
+
+  case let wifi as WiFiConfig:
+    let status = WiFiStatus(
+      rssi: sample?["rssi"] as? Int ?? 0, isConnected: flag("connected"),
+      isHotspot: flag("hotspot"))
+    state.icon = wifi.icon(for: status)
+    state.backgroundIcon = wifi.backgroundIcon(for: status)
+    state.variables = WiFiConfig.templateVariables(for: status)
+
+  case let bluetooth as BluetoothConfig:
+    let devices = (sample?["devices"] as? [[String: Any]] ?? []).map {
+      BluetoothDeviceInfo(
+        name: $0["name"] as? String ?? "", address: "",
+        isConnected: $0["connected"] as? Bool ?? false)
+    }
+    let status = BluetoothStatus(
+      isPoweredOn: sample?["on"] as? Bool ?? true, pairedDevices: devices)
+    state.icon = bluetooth.icon(for: status)
+    state.isActive = BluetoothConfig.isActive(for: status)
+    state.variables = BluetoothConfig.templateVariables(for: status)
+
+  case let focus as FocusConfig:
+    let mode = (sample?["mode"] as? [String: Any]).flatMap { mode in
+      (mode["identifier"] as? String).map {
+        FocusMode(identifier: $0, name: mode["name"] as? String ?? $0)
+      }
+    }
+    let status = FocusStatus(isActive: sample?["active"] as? Bool ?? (mode != nil), mode: mode)
+    state.shouldDisplay = status.isActive
+    state.icon = focus.icon(for: status)
+    state.dynamicStyle = focus.dynamicStyle(for: status)
+    state.variables = FocusConfig.templateVariables(for: status)
+
+  case let drawer as DrawerConfig:
+    state.drawerOpen = flag("open")
+    state.icon = drawer.icon(open: flag("open"))
+
+  case let clock as ClockConfig:
+    let date = sampleDate(sample?["time"]) ?? Date()
+    let timezone = clock.timezone ?? sample?["timezone"] as? String
+    let locale = (sample?["locale"] as? String).map(Locale.init(identifier:))
+    let write = {
+      ClockConfig.string(from: date, format: $0, timezone: timezone, locale: locale)
+    }
+    state.value = write(clock.format)
+    state.variables = clock.formats.mapValues(write)
+
+  case let workspace as WorkspaceConfig:
+    let spaces = (sample?["workspaces"] as? [[String: Any]] ?? []).enumerated().map {
+      position, space -> Workspace in
+      let index = space["index"] as? Int ?? position
+      return Workspace(
+        index: index, label: space["label"] as? String ?? String(index + 1),
+        isActive: space["active"] as? Bool ?? false,
+        hasWindows: space["hasWindows"] as? Bool ?? false,
+        scroll: (space["scroll"] as? [[String: Any]])?.map {
+          ScrollWindow(
+            id: $0["id"] as? String ?? "", app: $0["app"] as? String ?? "",
+            bundleIdentifier: $0["bundleIdentifier"] as? String,
+            isSelected: $0["selected"] as? Bool ?? false)
+        })
+    }
+    state.workspace = workspace.display(of: spaces)
+
+  default:
+    return nil
+  }
+  return state
+}
+
+/// The state `module` shows for `output`: for a command module, what its
+/// command printed, as text or the JSON a plugin's output parses to; for a
+/// module reading the system, a sample of what it reads. A module of
+/// another type shows its own value.
 private func shownState(of module: ModuleConfig, output: Any?) throws -> ShownState {
   var state = ShownState()
   guard let config = module.config else { return state }
+  if let sampled = sampledState(of: config, sample: output as? [String: Any]) { return sampled }
 
   final class Box: @unchecked Sendable { var value = "" }
   let box = Box()
@@ -297,6 +405,53 @@ private func shownState(of module: ModuleConfig, output: Any?) throws -> ShownSt
   return state
 }
 
+/// A workspace module's display as the cases write one, coloured and paged
+/// as `WorkspaceModuleView` draws it.
+private func caseWorkspace(_ module: ModuleConfig, display: WorkspaceDisplay, styles: StyleResolver)
+  -> [String: Any]
+{
+  let fg = styles.textFg(style: module.style, dynamic: nil)
+  let segment = { (segment: WorkspaceSegment) -> [String: Any] in
+    var result: [String: Any] = [
+      "id": segment.id, "name": segment.label, "active": segment.isActive,
+      "opacity": segment.isActive ? 1 : 0.4,
+    ]
+    if !styles.isNative, let color = segment.colorOverride {
+      result["color"] = caseColor(.value(styles.resolve(color)))
+    } else {
+      result["color"] = caseColor(fg)
+    }
+    switch segment.target {
+    case .workspace(let index, let label): result["target"] = ["workspace": index, "label": label]
+    case .window(let id): result["target"] = ["window": id]
+    case nil: break
+    }
+    return result
+  }
+
+  let overflow = (module.config as? WorkspaceConfig)?.overflow
+  let page = display.page(max: overflow?.enabled == true ? overflow?.max : nil)
+  let indicator = { (icon: String) -> [String: Any] in
+    let own = (styles.isDark ? overflow?.style?.dark : overflow?.style?.light)?.fg
+      .map(styles.resolve)
+    if let own, !own.hasPrefix("{theme(") {
+      return ["name": icon, "color": caseColor(.value(own)), "opacity": 1]
+    }
+    return ["name": icon, "color": caseColor(fg), "opacity": 0.4]
+  }
+
+  var result: [String: Any] = [
+    "scroll": display.isScroll, "activates": WorkspaceModuleView.activates(module),
+    "segments": page.segments.map(segment), "pips": display.pips.map(segment),
+  ]
+  result["slot"] = display.slot.map(segment)
+  if let overflow, overflow.showIcon {
+    result["before"] = page.before ? indicator(overflow.iconLeft) : nil
+    result["after"] = page.after ? indicator(overflow.iconRight) : nil
+  }
+  return result
+}
+
 /// A module as the cases write one, drawn as `StandardModuleView` draws it
 /// and answering hovers and clicks as `ModuleContainerView` does.
 private func caseModule(_ module: ModuleConfig, state: ShownState, styles: StyleResolver)
@@ -305,14 +460,20 @@ private func caseModule(_ module: ModuleConfig, state: ShownState, styles: Style
   var result: [String: Any] = [
     "name": module.name, "type": module.type, "hidden": !state.shouldDisplay,
   ]
+  result["open"] = state.drawerOpen
+  if let display = state.workspace {
+    result["workspace"] = caseWorkspace(module, display: display, styles: styles)
+  }
 
   let icon = state.icon.isEmpty ? module.icon : state.icon
-  if let icon, !icon.isEmpty {
-    result["icon"] = [
+  if let icon, !icon.isEmpty, state.workspace == nil {
+    var shown: [String: Any] = [
       "name": icon,
       "color": caseColor(styles.iconFg(style: module.style, dynamic: state.dynamicStyle)),
       "opacity": state.isActive ? 1 : 0.4,
     ]
+    shown["background"] = state.backgroundIcon.map { ["name": $0] }
+    result["icon"] = shown
   }
 
   if !state.value.isEmpty {
@@ -324,7 +485,9 @@ private func caseModule(_ module: ModuleConfig, state: ShownState, styles: Style
     }
   }
 
-  if let shape = styles.shape(style: module.style, dynamic: state.dynamicStyle) {
+  if state.workspace == nil,
+    let shape = styles.shape(style: module.style, dynamic: state.dynamicStyle)
+  {
     result["shape"] = shape.rawValue
     result["bg"] = caseColor(styles.bg(style: module.style, dynamic: state.dynamicStyle))
   }
@@ -419,7 +582,7 @@ private func caseBar(document: [String: Any], check: [String: Any]) throws -> [S
 
 struct BarConformanceTests {
   @Test func testDocumentsResolveToTheBarsTheSharedCasesExpect() throws {
-    for bar in try fixtures("bars") {
+    for bar in try fixtures("bars") + fixtures("modules") {
       let name = bar["name"] as? String ?? ""
       let document = try #require(bar["document"] as? [String: Any])
       for check in try #require(bar["checks"] as? [[String: Any]]) {
