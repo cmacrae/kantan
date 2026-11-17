@@ -8,9 +8,11 @@ import { cssColor, faded } from "./system.js";
 
 const ROW = { display: "flex", alignItems: "center", minHeight: 22, padding: "0 14px", boxSizing: "border-box" };
 
-// A menu item's highlight, which macOS draws behind an item that can be chosen.
-function Selectable({ onClick, style, children }) {
+// A menu item with the highlight macOS and kantan draw behind an item a
+// click acts on, while the pointer is over it.
+function Selectable({ onClick, dark, style, children }) {
   const [hover, setHover] = useState(false);
+  const highlight = hover && onClick ? cssColor("accent", dark) : undefined;
   return (
     <div
       onClick={onClick}
@@ -19,8 +21,9 @@ function Selectable({ onClick, style, children }) {
       style={{
         ...ROW, ...style, margin: "0 5px", padding: "0 9px", borderRadius: 4,
         cursor: onClick ? "default" : undefined,
-        background: hover && onClick ? "#0a84ff" : undefined,
-        color: hover && onClick ? "#fff" : style?.color,
+        background: highlight,
+        color: highlight ? "#fff" : style?.color,
+        ...(highlight ? { "--kantan-panel": highlight } : {}),
       }}
     >{children}</div>
   );
@@ -66,12 +69,12 @@ export function Menu({ rows, fg, dark, run, close }) {
               </>
             );
             return row.command !== undefined
-              ? <Selectable key={i} onClick={choose(row.command)}>{content}</Selectable>
+              ? <Selectable key={i} dark={dark} onClick={choose(row.command)}>{content}</Selectable>
               : <div key={i} style={ROW}>{content}</div>;
           }
           case "action":
             return (
-              <Selectable key={i} onClick={row.command === undefined ? undefined : choose(row.command)}
+              <Selectable key={i} dark={dark} onClick={row.command === undefined ? undefined : choose(row.command)}
                 style={{ gap: 4, color: row.command === undefined ? faded(text, 0.35) : undefined }}>
                 {row.icon && <Glyph icon={row.icon} dark={dark} fallbackFont="inherit" />}
                 {row.iconText !== undefined && <span>{row.iconText}</span>}
@@ -80,11 +83,11 @@ export function Menu({ rows, fg, dark, run, close }) {
             );
           case "check":
             return (
-              <div key={i} onClick={() => checkCommand(row) && run(checkCommand(row))}
-                style={{ ...ROW, minHeight: 26, gap: 8, color: faded(text, row.checked ? 0.4 : 1) }}>
+              <Selectable key={i} dark={dark} onClick={() => checkCommand(row) && run(checkCommand(row))}
+                style={{ minHeight: 26, gap: 8, color: faded(text, row.checked ? 0.4 : 1) }}>
                 <CheckMark checked={row.checked} />
                 <span style={{ textDecoration: row.checked ? "line-through" : undefined }}>{row.label}</span>
-              </div>
+              </Selectable>
             );
           case "toggle":
             return (

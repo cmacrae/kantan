@@ -77,7 +77,78 @@ function Shaped({ shape, color, height, children }) {
   );
 }
 
-function ModuleView({ module, bar, dark, run }) {
+// How long a drawer takes to open or close, and a workspace to change.
+const DRAWER_TIMING = "0.25s ease-in-out";
+const WORKSPACE_TIMING = "0.3s cubic-bezier(0.4, 0, 0.2, 1)";
+
+// A module's icon, over the icon kantan draws faintly behind it when it
+// has one: the full-strength signal behind a weaker one, say.
+function ModuleIcon({ icon, dark }) {
+  const glyph = <Glyph icon={icon} color={icon.color} dark={dark} opacity={icon.opacity} fallbackFont={fontFamily(icon.font)} />;
+  if (!icon.background) return glyph;
+  return (
+    <span style={{ display: "inline-grid", placeItems: "center", flexShrink: 0 }}>
+      <span style={{ gridArea: "1 / 1" }}>
+        <Glyph icon={{ ...icon, ...icon.background }} color={icon.color} dark={dark} opacity={icon.opacity * 0.15}
+          fallbackFont={fontFamily(icon.font)} />
+      </span>
+      <span style={{ gridArea: "1 / 1" }}>{glyph}</span>
+    </span>
+  );
+}
+
+// A workspace module: a segment for each workspace or window, the active
+// one at full strength, with the pips of a scrolling layout's workspaces
+// before them and an overflow's indicators either side. `activate` switches
+// to a segment's target when it is clicked.
+function WorkspaceView({ workspace, bar, dark, activate }) {
+  const glyph = (segment, style) => (
+    <span style={{
+      display: "inline-block", lineHeight: 1, whiteSpace: "pre",
+      fontFamily: segment.glyph === undefined ? fontFamily(segment.font) : `'${segment.font}'`,
+      fontSize: segment.size, fontWeight: segment.weight ?? 400,
+      color: cssColor(segment.color, dark), opacity: segment.opacity,
+      transition: `opacity ${WORKSPACE_TIMING}, color ${WORKSPACE_TIMING}`,
+      ...style,
+    }}>{segment.glyph ?? segment.text}</span>
+  );
+  const clickable = segment => activate && segment.target !== undefined;
+  // Pips shrink to fit within the bar when there are many.
+  const natural = workspace.pips.length * 4 + (workspace.pips.length - 1) * 2;
+  const scale = Math.min(1, bar.height * 0.6 / natural);
+
+  return (
+    <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+      {workspace.pips.length > 0 && (
+        <div style={{ display: "flex", flexDirection: "column", gap: 2 * scale }}>
+          {workspace.pips.map(pip => (
+            <span key={pip.id} onClick={clickable(pip) ? () => activate(pip.target) : undefined}
+              style={{
+                width: 4 * scale, height: 4 * scale, borderRadius: "50%",
+                background: cssColor(pip.color, dark), opacity: pip.opacity,
+                cursor: clickable(pip) ? "pointer" : undefined,
+              }} />
+          ))}
+        </div>
+      )}
+      {workspace.before && glyph(workspace.before)}
+      {workspace.segments.map(segment => (
+        // A click reaches halfway to the segments beside this one.
+        <span key={segment.id} onClick={clickable(segment) ? () => activate(segment.target) : undefined}
+          style={{
+            display: "inline-grid", placeItems: "center", padding: "0 3px", margin: "0 -3px",
+            cursor: clickable(segment) ? "pointer" : undefined,
+          }}>
+          {workspace.slot && glyph(workspace.slot, { gridArea: "1 / 1", visibility: "hidden" })}
+          {glyph(segment, { gridArea: "1 / 1" })}
+        </span>
+      ))}
+      {workspace.after && glyph(workspace.after)}
+    </div>
+  );
+}
+
+function ModuleView({ module, bar, dark, run, toggleDrawer, switchWorkspace }) {
   const [hover, setHover] = useState(false);
   const [open, setOpen] = useState(false);
   const ref = useRef(null);
@@ -102,17 +173,23 @@ function ModuleView({ module, bar, dark, run }) {
   const { click, tooltip } = module;
   const opens = click?.type === "menu" || click?.type === "popup";
   const onClick = click?.type === "toggle" ? () => run(module.name, click.command)
+    : click?.type === "drawer" && toggleDrawer ? () => toggleDrawer(module.name)
     : opens ? () => setOpen(o => !o)
     : undefined;
+  // A drawer's toggle sits without the padding other modules have, and a
+  // module in a closed drawer takes no room.
+  const padding = module.type === "drawer" || module.slot ? 0 : bar.padding;
+  const folded = module.folded === true;
   const runFrom = command => run(module.name, command);
   const fg = bar.native ? "primary" : bar.fg;
 
   const content = (
     <>
-      {module.icon && (
-        <Glyph icon={module.icon} color={module.icon.color} dark={dark} opacity={module.icon.opacity}
-          fallbackFont={fontFamily(module.icon.font)} />
+      {module.workspace && (
+        <WorkspaceView workspace={module.workspace} bar={bar} dark={dark}
+          activate={switchWorkspace && (target => switchWorkspace(module.name, target))} />
       )}
+      {module.icon && <ModuleIcon icon={module.icon} dark={dark} />}
       {module.text && (
         <span style={{ whiteSpace: "pre", fontFamily: fontFamily(module.textFont.name), fontSize: module.textFont.size, fontWeight: module.textFont.weight }}>
           {module.text.map((segment, i) => <span key={i} style={{ color: cssColor(segment.color, dark) }}>{segment.text}</span>)}
@@ -122,7 +199,21 @@ function ModuleView({ module, bar, dark, run }) {
   );
 
   return (
-    <div style={{ padding: `0 ${bar.padding}px`, display: "flex", alignItems: "center", height: bar.height, boxSizing: "border-box" }}>
+    <div
+      data-kantan-module={module.name}
+      aria-hidden={folded || undefined}
+      style={{
+        paddingLeft: folded ? 0 : padding, paddingRight: folded ? 0 : padding,
+        display: "flex", alignItems: "center", height: bar.height, boxSizing: "border-box",
+        // A masked module is centred in the place of its menu bar item.
+        ...(module.slot ? { width: module.slot.width, justifyContent: "center" } : {}),
+        ...(module.inDrawer ? {
+          maxWidth: folded ? 0 : 600, opacity: folded ? 0 : 1,
+          overflow: folded ? "hidden" : "visible", pointerEvents: folded ? "none" : undefined,
+          transition: `max-width ${DRAWER_TIMING}, padding ${DRAWER_TIMING}, opacity ${DRAWER_TIMING}`,
+        } : {}),
+      }}
+    >
       <div
         ref={ref}
         onMouseEnter={() => setHover(true)}
@@ -170,10 +261,18 @@ function ModuleView({ module, bar, dark, run }) {
 // The bar: its modules at the left, on either side of the notch, and at
 // the right. `run(module, command)` runs a command a module's click, menu
 // or popup asks for.
-export function BarView({ bar, dark, run, style }) {
-  const modules = placement => bar.placements[placement].map(module => (
-    <ModuleView key={module.name} module={module} bar={bar} dark={dark} run={run} />
-  ));
+// `toggleDrawer(module)` opens or closes a drawer when its module is
+// clicked, and `switchWorkspace(module, target)` switches to the workspace
+// or window of a clicked segment. Without them those clicks do nothing.
+export function BarView({ bar, dark, run, toggleDrawer, switchWorkspace, style }) {
+  const view = module => (
+    <ModuleView key={module.name} module={module} bar={bar} dark={dark} run={run}
+      toggleDrawer={toggleDrawer} switchWorkspace={switchWorkspace} />
+  );
+  // Masked modules sit together over the system's menu bar items.
+  const modules = placement => bar.placements[placement].filter(module => !module.slot).map(view);
+  const all = Object.values(bar.placements).flat();
+  const masked = bar.menuBar.modules.map(name => all.find(module => module.name === name));
   const group = { display: "flex", alignItems: "center" };
   return (
     <div data-kantan-bar style={{
@@ -189,6 +288,7 @@ export function BarView({ bar, dark, run, style }) {
       <div style={{ ...group, flex: 1, justifyContent: "flex-end" }}>{modules("notchleft")}</div>
       <div style={{ ...group, flex: 1 }}>{modules("notchright")}</div>
       <div style={group}>{modules("right")}</div>
+      <div style={{ ...group, paddingRight: bar.menuBar.trailing }}>{masked.map(view)}</div>
     </div>
   );
 }
