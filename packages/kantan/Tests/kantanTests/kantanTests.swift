@@ -3004,6 +3004,18 @@ final class CommandOutputDataTests {
     #expect(!(try await decodes(depth: 220)))
   }
 
+  @Test func testStyleShapeOverridesTheModulesShape() throws {
+    func shape(_ raw: String) throws -> ShapeOverride? {
+      let json = try #require(
+        try JSONSerialization.jsonObject(with: Data(raw.utf8)) as? [String: Any])
+      return CommandConfig.parseOutput(json, raw: raw).0.styleShape
+    }
+    #expect(try shape(#"{"value":"v","style":{"shape":"none"}}"#) == .unshaped)
+    #expect(try shape(#"{"value":"v","style":{"shape":"pill"}}"#) == .shaped(.pill))
+    #expect(try shape(#"{"value":"v","style":{"shape":"blob"}}"#) == nil)
+    #expect(try shape(#"{"value":"v","style":{"fg":"FF0000"}}"#) == nil)
+  }
+
   @Test func testANullDataFieldReadsAsMissing() throws {
     let raw = #"{"value":"v","data":{"items":[{"name":"a","due":null}]}}"#
     let json = try #require(

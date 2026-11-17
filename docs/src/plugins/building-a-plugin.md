@@ -163,7 +163,7 @@ kantan ignores fields it doesn't know.
 | `active` | bool | no | Active state, defaults to `true` (when `false`, the module's icon is dimmed) |
 | `variables` | object | no | String key-value pairs for `{var}` template substitution in tooltips and views. A non-string value makes kantan ignore the whole object |
 | `data` | object | no | Named arrays of objects accessible via `foreach` in View DSL |
-| `style` | object | no | Dynamic colour override with `fg`, `bg`, `icon.fg`, and `text.fg`: hex colours or `{theme(name)}` templates |
+| `style` | object | no | Dynamic override with `fg`, `bg`, `icon.fg`, and `text.fg`: hex colours or `{theme(name)}` templates, and `shape`: `pill`, `box`, `underline`, `overline` or `none` |
 | `view` | object | no | View DSL tree shown by the module's click `menu` or `popup` |
 
 Each output replaces the last one entirely: a field left out is cleared, not kept from the previous output.

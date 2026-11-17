@@ -917,7 +917,7 @@ class ThemeProvider: ObservableObject {
 
     // When a module has a shape but no explicit bg, use the theme's shape
     // colour so the shape is visible against the bar background.
-    if moduleMode?.shape != nil, let palette = activePalette, let shapeBg = palette.shape {
+    if shape(for: vm) != nil, let palette = activePalette, let shapeBg = palette.shape {
       return Color(nsColor: NSColor(hex: shapeBg))
     }
 
@@ -930,9 +930,13 @@ class ThemeProvider: ObservableObject {
     return Color(nsColor: NSColor(hex: resolveColor(mode.bg ?? "000000")))
   }
 
+  /// The module's shape: a plugin's override, or the module's style's.
   func shape(for vm: ModuleViewModel) -> ModuleShape? {
-    let moduleMode = resolveModuleStyleMode(vm.moduleConfig.style)
-    return moduleMode?.shape
+    switch vm.dynamicStyle?.shape {
+    case .unshaped: return nil
+    case .shaped(let shape): return shape
+    case nil: return resolveModuleStyleMode(vm.moduleConfig.style)?.shape
+    }
   }
 
   // MARK: - Font Resolution

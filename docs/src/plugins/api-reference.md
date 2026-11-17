@@ -267,7 +267,7 @@ interaction:
 #### style (optional)
 
 **Type:** `object`  
-**Description:** Dynamic colour styling override for the module.
+**Description:** Dynamic colour and shape override for the module.
 
 **Fields:**
 | Field | Type | Description |
@@ -276,6 +276,7 @@ interaction:
 | `bg` | string | Background colour |
 | `icon` | object | Icon-specific overrides: `{"fg": "#RRGGBB"}` |
 | `text` | object | Text-specific overrides: `{"fg": "#RRGGBB"}` |
+| `shape` | string | The module's background shape in place of its configured one: `pill`, `box`, `underline`, `overline`, or `none` for no shape |
 
 Colours are hex (`#RRGGBB` or `RRGGBB`) or `{theme(name)}` templates, resolved against the theme palette for the current appearance. A template that doesn't resolve is skipped.
 
@@ -303,7 +304,7 @@ When both `fg` and `icon.fg`/`text.fg` are set, the specific overrides take prec
 ```
 
 **Behavior:**
-- Overrides module's configured colours, including under the native appearance
+- Overrides module's configured colours and shape, including under the native appearance
 - Is itself overridden by `kantan trigger <name> set fg=… bg=…`
 - Applies to status bar display only (not popups/menus)
 - Use sparingly for state-driven colour changes (alerts, status indicators)

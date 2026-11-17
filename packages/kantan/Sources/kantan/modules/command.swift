@@ -27,6 +27,7 @@ struct CommandOutputData {
   var styleBg: String? = nil
   var styleIconFg: String? = nil
   var styleTextFg: String? = nil
+  var styleShape: ShapeOverride? = nil
 }
 
 private func getCommandData(for key: String) -> CommandOutputData {
@@ -279,13 +280,13 @@ struct CommandConfig: ModuleConfiguration {
     let data = getCommandData(for: cacheKey)
     guard
       data.styleFg != nil || data.styleBg != nil || data.styleIconFg != nil
-        || data.styleTextFg != nil
+        || data.styleTextFg != nil || data.styleShape != nil
     else {
       return nil
     }
     return DynamicStyleOverride(
       fg: data.styleFg, bg: data.styleBg,
-      iconFg: data.styleIconFg, textFg: data.styleTextFg
+      iconFg: data.styleIconFg, textFg: data.styleTextFg, shape: data.styleShape
     )
   }
 
@@ -438,6 +439,7 @@ struct CommandConfig: ModuleConfiguration {
     if let style = json["style"] as? [String: Any] {
       data.styleFg = style["fg"] as? String
       data.styleBg = style["bg"] as? String
+      data.styleShape = (style["shape"] as? String).flatMap(ShapeOverride.init)
       if let iconStyle = style["icon"] as? [String: String] {
         data.styleIconFg = iconStyle["fg"]
       }

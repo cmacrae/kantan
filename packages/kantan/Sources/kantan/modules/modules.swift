@@ -8,6 +8,24 @@ struct DynamicStyleOverride: Sendable {
   let bg: String?
   let iconFg: String?
   let textFg: String?
+  var shape: ShapeOverride? = nil
+}
+
+/// A plugin's override of the module's shape: another shape, or none at all.
+enum ShapeOverride: Equatable, Sendable {
+  case unshaped
+  case shaped(ModuleShape)
+
+  /// The override `raw` names: `none`, or a shape such as `box`.
+  init?(_ raw: String) {
+    if raw == "none" {
+      self = .unshaped
+    } else if let shape = ModuleShape(rawValue: raw) {
+      self = .shaped(shape)
+    } else {
+      return nil
+    }
+  }
 }
 
 /// Style override for a module state (e.g. a power state or Focus mode).

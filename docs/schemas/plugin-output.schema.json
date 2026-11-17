@@ -101,6 +101,11 @@
               "description": "Text-specific foreground color override."
             }
           }
+        },
+        "shape": {
+          "type": "string",
+          "enum": ["pill", "box", "underline", "overline", "none"],
+          "description": "The module's background shape in place of its configured one, or 'none' for no shape."
         }
       }
     },
