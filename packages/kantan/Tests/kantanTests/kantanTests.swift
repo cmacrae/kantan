@@ -1782,7 +1782,7 @@ final class ScreenDiffTests {
 final class ScreenLayoutTests {
   @Test func testSecondaryScreenOffsetToRight() {
     let frame = NSRect(x: 1920, y: 0, width: 1440, height: 900)
-    let gaps = GapsConfig(top: 0, bottom: 0, left: 0, right: 0)
+    let gaps = GapsConfig(top: 0, left: 0, right: 0)
     let layout = ScreenLayout(screenFrame: frame, gaps: gaps, height: 24)
     #expect(layout.screenLeft == 1920)
     #expect(layout.screenRight == 3360)
@@ -1792,7 +1792,7 @@ final class ScreenLayoutTests {
 
   @Test func testTopGapPushesStatusBarDown() {
     let frame = NSRect(x: 0, y: 0, width: 1000, height: 800)
-    let gaps = GapsConfig(top: 10, bottom: 0, left: 0, right: 0)
+    let gaps = GapsConfig(top: 10, left: 0, right: 0)
     let layout = ScreenLayout(screenFrame: frame, gaps: gaps, height: 30)
     #expect(layout.statusBarY == CGFloat(800 - 30 - 10))
     #expect(layout.barFrame.origin.y == layout.statusBarY)

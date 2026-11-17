@@ -38,11 +38,10 @@ enum DisplaysConfig: Sendable {
 
 struct GapsConfig: Sendable {
   let top: CGFloat
-  let bottom: CGFloat
   let left: CGFloat
   let right: CGFloat
 
-  static let `default` = GapsConfig(top: 0, bottom: 0, left: 0, right: 0)
+  static let `default` = GapsConfig(top: 0, left: 0, right: 0)
 }
 
 // MARK: - Autohide
@@ -903,7 +902,6 @@ func loadConfig(from yaml: Yaml, configDir: String? = nil) -> Config? {
   if let gapsYaml = yaml["gaps"].dictionary {
     gaps = GapsConfig(
       top: clampedCGFloat(gapsYaml["top"]),
-      bottom: clampedCGFloat(gapsYaml["bottom"]),
       left: clampedCGFloat(gapsYaml["left"]),
       right: clampedCGFloat(gapsYaml["right"])
     )

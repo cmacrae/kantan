@@ -119,12 +119,11 @@ A theme that can't be found or loaded stops the whole config loading.
 
 ## Gaps Configuration
 
-The `gaps` key controls spacing around the bar edges:
+The `gaps` key sets the bar in from the top, left and right edges of the screen:
 
 ```yaml
 gaps:
   top: 5
-  bottom: 0
   left: 10
   right: 10
 ```
