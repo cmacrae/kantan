@@ -10,8 +10,9 @@ import { nextState, resolveBar } from "../engine/index.js";
 // without one keeps the time.
 //
 // Returns the `bar`; `run`, `toggleDrawer` and `switchWorkspace` for
-// `BarView`; and `states` with `setState(module, name)`, the state each
-// module shows.
+// `BarView`; `states` with `setState(module, name)`, the state each
+// module shows; and `samples`, the readings that using the bar has
+// changed: the drawers opened and the workspaces switched to.
 export function useBar(document, { dark, icons, themes, notch, states: initialStates, samples: fixedSamples } = {}) {
   const [states, setStates] = useState(initialStates ?? {});
   const [samples, setSamples] = useState({});
@@ -61,5 +62,5 @@ export function useBar(document, { dark, icons, themes, notch, states: initialSt
     });
   }, [document, states]);
 
-  return { bar, run, toggleDrawer, switchWorkspace, states, setState };
+  return { bar, run, toggleDrawer, switchWorkspace, states, setState, samples };
 }

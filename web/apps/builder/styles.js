@@ -148,6 +148,8 @@ export const STYLES = `
 .kb-theme-row { margin: 6px 0 10px; }
 .kb-theme-mode { font-weight: 600; padding: 2px 0 4px; }
 .kb-theme-set { display: flex; flex-wrap: wrap; gap: 4px; }
+.kb-shot { display: flex; align-items: center; justify-content: center; min-height: 120px; border: 1px solid var(--line); border-radius: 8px; background: var(--code); overflow: hidden; }
+.kb-shot img { display: block; max-width: 100%; height: auto; }
 .kb .kb-problem .kb-btn { color: var(--fg); }
 .kb-themes { list-style: none; margin-bottom: 8px; }
 .kb-themes li { display: flex; align-items: center; gap: 8px; padding: 2px 0; }

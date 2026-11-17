@@ -7,7 +7,7 @@ import { wallpaper } from "../../components/Desk.jsx";
 import { cssColor, faded } from "../../components/system.js";
 import { useBar } from "../../components/useBar.js";
 import { useFitZoom } from "../../components/useFitZoom.js";
-import { loadConfig } from "../../engine/index.js";
+import { loadConfig, resolveBar } from "../../engine/index.js";
 import { dict } from "../../engine/values.js";
 import {
   addBuiltIn, addPasted, addPlugin, documentFromConfig, emptyDocument, inLayout, layoutOf, modulesOf, placeAtEdge,
@@ -287,7 +287,7 @@ function Workspace({ opened, iconSet, onStart }) {
   const drawersOpen = useMemo(
     () => (trying ? undefined : Object.fromEntries(modules.filter(each => each?.type === "drawer").map(each => [each.name, { open: true }]))),
     [trying, modules]);
-  const { bar, run, toggleDrawer, switchWorkspace, states: shown, setState } = useBar(drawnDocument, {
+  const { bar, run, toggleDrawer, switchWorkspace, states: shown, setState, samples } = useBar(drawnDocument, {
     dark, notch, icons: iconSet.icons, themes: catalog.themes, states: opened.document.view?.shown, samples: drawersOpen,
   });
   const drawn = useMemo(() => Object.values(bar.placements).flat(), [bar]);
@@ -374,6 +374,10 @@ function Workspace({ opened, iconSet, onStart }) {
     const fragment = await encodeLink({ ...inLayout(document, layout), view }, catalog);
     return `${window.location.origin}${window.location.pathname}#${fragment}`;
   }, [document, layout, dark, notch, shown]);
+
+  // The bar as it is looked at now, in an appearance, for a picture of
+  // it: its drawers as they were last left.
+  const barFor = appearance => resolveBar(drawnDocument, { dark: appearance, notch, icons: iconSet.icons, themes: catalog.themes, states: shown, samples });
 
   const files = useMemo(() => documentFiles(inLayout(document, layout)), [document, layout]);
   const themeOutput = useMemo(() => theme && themeFiles(themeName, theme, themeLayout), [themeName, theme, themeLayout]);
@@ -658,7 +662,7 @@ function Workspace({ opened, iconSet, onStart }) {
           onBuiltIn={type => add(doc => addBuiltIn(doc, type))} onPlugin={plugin => add(doc => addPlugin(doc, plugin, catalog))}
           onPasted={(name, pasted) => add(doc => addPasted(doc, name, pasted))} />
       )}
-      {sharing && <Share makeLink={makeLink} source={edited ? undefined : opened.source} onClose={() => setSharing(false)} />}
+      {sharing && <Share makeLink={makeLink} source={edited ? undefined : opened.source} barFor={barFor} dark={dark} onClose={() => setSharing(false)} />}
     </BuilderContext.Provider>
   );
 }

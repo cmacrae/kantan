@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { markdownLink } from "../../builder/share.js";
 import { zip } from "../../builder/zip.js";
 import { highlightYaml } from "../../components/yaml-highlight.jsx";
+import { ShareImage } from "./ShareImage.jsx";
 import { Button, CopyButton, Modal } from "./ui.jsx";
 
 const YAML_COLORS = {
@@ -63,8 +64,8 @@ const GITHUB_LIMIT = 65536;
 
 // The dialog that shares the bar. `makeLink` resolves to the link holding
 // it, and `source` is the link to the file it was opened from, while it is
-// still as that file has it.
-export function Share({ makeLink, source, onClose }) {
+// still as that file has it. `barFor` and `dark` are `ShareImage`'s.
+export function Share({ makeLink, source, barFor, dark, onClose }) {
   const [link, setLink] = useState();
   const [title, setTitle] = useState("My kantan bar");
   useEffect(() => {
@@ -83,7 +84,7 @@ export function Share({ makeLink, source, onClose }) {
     </div>
   );
   return (
-    <Modal title="Share this bar" onClose={onClose}>
+    <Modal title="Share this bar" onClose={onClose} wide>
       {link === undefined ? <div className="kb-note">Making the link…</div> : (
         <>
           <div className="kb-note" style={{ paddingBottom: 10 }}>
@@ -111,6 +112,8 @@ export function Share({ makeLink, source, onClose }) {
           )}
         </>
       )}
+      <div className="kb-h" style={{ marginTop: 16 }}>An image of this bar</div>
+      <ShareImage barFor={barFor} dark={dark} />
     </Modal>
   );
 }
