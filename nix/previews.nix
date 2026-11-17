@@ -63,47 +63,50 @@ let
 
   example = name: pluginsDir + "/${name}/examples/00-${name}.yaml";
 
-  # The states each plugin's generator prints, given the settings of the
-  # plugin's example config as kantan gives a plugin its module's. Theme
-  # templates in the settings stay as written, for the preview to resolve
-  # in either appearance.
-  states =
-    name:
-    pkgs.runCommand "kantan-preview-states-${name}.json" { nativeBuildInputs = [ pkgs.yq-go ]; } ''
-      KANTAN_SETTINGS=$(yq -o=json -I=0 '.config.settings // {}' ${example name})
-      KANTAN_MODULE_NAME=$(yq '.name' ${example name})
+  # The states a plugin's generator prints for a module: the one the yq
+  # expression `module` selects from the YAML file `config`. The generator
+  # is given the module's settings as kantan gives a plugin its module's.
+  # Theme templates in the settings stay as written, for the preview to
+  # resolve in either appearance.
+  statesFor =
+    {
+      plugin,
+      config,
+      module ? ".",
+    }:
+    pkgs.runCommand "kantan-preview-states-${plugin}.json" { nativeBuildInputs = [ pkgs.yq-go ]; } ''
+      KANTAN_SETTINGS=$(yq -o=json -I=0 '${module} | .config.settings // {}' ${config})
+      KANTAN_MODULE_NAME=$(yq '${module} | .name' ${config})
       export KANTAN_SETTINGS KANTAN_MODULE_NAME KANTAN_APPEARANCE=dark TZ=UTC HOME=$TMPDIR
-      ${generate name} > $out
+      ${generate plugin} > $out
     '';
 
-  # Each plugin's preview as a document, <name>.json, drawn in the
-  # Catppuccin theme, with the icons they draw listed in icons.txt.
-  documents =
-    pkgs.runCommand "kantan-previews"
-      {
-        nativeBuildInputs = [
-          pkgs.nodejs
-          pkgs.yq-go
-        ];
-      }
-      ''
-        yq -o=json '{"catppuccin": .}' ${themesDir + "/catppuccin.yaml"} > themes.json
-        ${lib.concatMapStrings (name: ''
-          yq -o=json ${example name} > ${name}.example.json
-        '') plugins.pluginNames}
-        cp -r ${../web/engine} engine
-        cp -r ${../web/previews} previews
-        cp ${../web/package.json} package.json
-        node previews/assemble.js $out themes.json \
-          ${lib.concatMapStringsSep " " (
-            name: "${name}=${name}.example.json=${states name}"
-          ) plugins.pluginNames}
-      '';
+  # The states each plugin's generator prints for its example config.
+  states =
+    name:
+    statesFor {
+      plugin = name;
+      config = example name;
+    };
 
-  # The Tabler fonts cut down to the icons the previews draw: icons.css
-  # holding the fonts, and icons.json mapping each icon to its glyph.
-  icons =
-    pkgs.runCommand "kantan-preview-icons"
+  themes = pkgs.runCommand "kantan-preview-themes.json" { nativeBuildInputs = [ pkgs.yq-go ]; } ''
+    yq -o=json '{"catppuccin": .}' ${themesDir + "/catppuccin.yaml"} > $out
+  '';
+
+  # The engine and the scripts that assemble previews with it.
+  assembler = pkgs.runCommand "kantan-preview-assembler" { } ''
+    mkdir $out
+    cp -r ${../web/engine} $out/engine
+    cp -r ${../web/previews} $out/previews
+    cp ${../web/package.json} $out/package.json
+  '';
+
+  # The Tabler fonts cut down to the icons a file lists, one to a line:
+  # icons.css holding the fonts, and icons.json mapping each icon to its
+  # glyph.
+  iconsFor =
+    name: list:
+    pkgs.runCommand "kantan-${name}-icons"
       {
         nativeBuildInputs = [
           (pkgs.python3.withPackages (ps: [
@@ -118,11 +121,71 @@ let
         python3 ${./preview-icons.py} \
           ${tabler-icons}/share/fonts/tabler-icons.ttf \
           ${tabler-icons}/share/fonts/tabler-icons-filled.ttf \
-          $out $(cat ${documents}/icons.txt)
+          $out $(cat ${list})
       '';
+
+  # Each plugin's preview as a document, <name>.json, drawn in the
+  # Catppuccin theme, with the icons they draw listed in icons.txt.
+  documents =
+    pkgs.runCommand "kantan-previews"
+      {
+        nativeBuildInputs = [
+          pkgs.nodejs
+          pkgs.yq-go
+        ];
+      }
+      ''
+        ${lib.concatMapStrings (name: ''
+          yq -o=json ${example name} > ${name}.example.json
+        '') plugins.pluginNames}
+        node ${assembler}/previews/assemble.js $out ${themes} \
+          ${lib.concatMapStringsSep " " (
+            name: "${name}=${name}.example.json=${states name}"
+          ) plugins.pluginNames}
+      '';
+
+  icons = iconsFor "preview" "${documents}/icons.txt";
+
+  # A whole bar's preview: `config` is its config.yaml, `states` a JSON
+  # file of what its built-in modules read, and `plugins` names the plugin
+  # behind each of its command modules. Gives the bar's `document`, a
+  # directory holding document.json, and its `icons`.
+  bar =
+    {
+      name,
+      config,
+      states,
+      plugins,
+    }:
+    rec {
+      document =
+        pkgs.runCommand "kantan-${name}-document"
+          {
+            nativeBuildInputs = [
+              pkgs.nodejs
+              pkgs.yq-go
+            ];
+          }
+          ''
+            yq -o=json ${config} > config.json
+            node ${assembler}/previews/bar.js $out config.json ${themes} ${states} \
+              ${lib.concatStringsSep " " (
+                lib.mapAttrsToList (
+                  module: plugin:
+                  "${module}=${
+                    statesFor {
+                      inherit plugin config;
+                      module = ".modules[] | select(.name == \"${module}\")";
+                    }
+                  }"
+                ) plugins
+              )}
+          '';
+      icons = iconsFor name "${document}/icons.txt";
+    };
 in
 {
-  inherit documents icons;
+  inherit documents icons bar;
 
   # Every state of every preview holds output the plugin output schema
   # accepts.
