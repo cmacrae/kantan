@@ -1,0 +1,111 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/cmacrae/kantan/packages/plugins/pomodoro/settings.schema.json",
+  "title": "Kantan pomodoro plugin settings",
+  "description": "The 'config.settings' block of a module running kantan-plugin-pomodoro. Every setting is optional.",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "format": {
+      "type": "string",
+      "default": "{remaining}",
+      "description": "Format string for the bar display value. Only {name} substitution is supported."
+    },
+    "work_duration": {
+      "type": "integer",
+      "minimum": 1,
+      "default": 25,
+      "description": "Work session duration in minutes."
+    },
+    "short_break": {
+      "type": "integer",
+      "minimum": 1,
+      "default": 5,
+      "description": "Short break duration in minutes."
+    },
+    "long_break": {
+      "type": "integer",
+      "minimum": 1,
+      "default": 15,
+      "description": "Long break duration in minutes."
+    },
+    "long_break_interval": {
+      "type": "integer",
+      "minimum": 1,
+      "default": 4,
+      "description": "Number of work sessions before a long break."
+    },
+    "auto_start_breaks": {
+      "type": "boolean",
+      "default": true,
+      "description": "Start a break when a work session ends."
+    },
+    "auto_start_work": {
+      "type": "boolean",
+      "default": false,
+      "description": "Start work when a break ends."
+    },
+    "icons": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Icons for each state and action. A key left out keeps its default.",
+      "properties": {
+        "idle": {
+          "$ref": "module-config.schema.json#/$defs/Icon",
+          "description": "Bar icon when idle.",
+          "default": "circle-filled"
+        },
+        "work": {
+          "$ref": "module-config.schema.json#/$defs/Icon",
+          "description": "Bar icon during work.",
+          "default": "hourglass"
+        },
+        "short_break": {
+          "$ref": "module-config.schema.json#/$defs/Icon",
+          "description": "Bar icon during a short break.",
+          "default": "moon-filled"
+        },
+        "long_break": {
+          "$ref": "module-config.schema.json#/$defs/Icon",
+          "description": "Bar icon during a long break.",
+          "default": "moon-filled"
+        },
+        "paused": {
+          "$ref": "module-config.schema.json#/$defs/Icon",
+          "description": "Bar icon while paused.",
+          "default": "player-pause-filled"
+        },
+        "sessions": {
+          "$ref": "module-config.schema.json#/$defs/Icon",
+          "description": "Sessions row in the popup.",
+          "default": "trophy-filled"
+        },
+        "start": {
+          "$ref": "module-config.schema.json#/$defs/Icon",
+          "description": "Start action in the popup.",
+          "default": "player-play-filled"
+        },
+        "resume": {
+          "$ref": "module-config.schema.json#/$defs/Icon",
+          "description": "Resume action in the popup.",
+          "default": "player-play-filled"
+        },
+        "pause": {
+          "$ref": "module-config.schema.json#/$defs/Icon",
+          "description": "Pause action in the popup.",
+          "default": "player-pause-filled"
+        },
+        "skip": {
+          "$ref": "module-config.schema.json#/$defs/Icon",
+          "description": "Skip action in the popup.",
+          "default": "player-track-next-filled"
+        },
+        "reset": {
+          "$ref": "module-config.schema.json#/$defs/Icon",
+          "description": "Reset action in the popup.",
+          "default": "x"
+        }
+      }
+    }
+  }
+}

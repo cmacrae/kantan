@@ -1,0 +1,101 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/cmacrae/kantan/packages/plugins/calendar/settings.schema.json",
+  "title": "Kantan calendar plugin settings",
+  "description": "The 'config.settings' block of a module running kantan-plugin-calendar. Every setting is optional.",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "format": {
+      "description": "Format string for the bar display value, or a list of coloured segments.",
+      "default": "{next_title}{?upcoming: in} {next_countdown}",
+      "oneOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "text"
+            ],
+            "properties": {
+              "text": {
+                "type": "string",
+                "description": "The segment's text, a format string."
+              },
+              "fg": {
+                "$ref": "module-config.schema.json#/$defs/Color",
+                "description": "The segment's colour. Left out, it takes the module's."
+              },
+              "when": {
+                "type": "string",
+                "description": "The variable that decides whether the segment shows. A leading '!' shows it when the variable is empty."
+              }
+            }
+          }
+        }
+      ]
+    },
+    "upcoming": {
+      "type": "string",
+      "pattern": "^[0-9]+[mhd]$",
+      "examples": [
+        "30m",
+        "1h",
+        "2d"
+      ],
+      "description": "Time window for bar visibility, in minutes, hours or days. The module is hidden unless the next event starts within it or is under way."
+    },
+    "calendars": {
+      "description": "The calendars to show: a list of names to include, or an object of names to include or exclude.",
+      "oneOf": [
+        {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "include": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "description": "Only these calendars are used."
+            },
+            "exclude": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "description": "These calendars are left out."
+            }
+          }
+        }
+      ]
+    },
+    "icons": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Icon overrides.",
+      "properties": {
+        "icon": {
+          "$ref": "module-config.schema.json#/$defs/Icon",
+          "description": "Icon for the bar module. It takes the place of the module's own icon.",
+          "default": "calendar-event-filled"
+        },
+        "action": {
+          "$ref": "module-config.schema.json#/$defs/Icon",
+          "description": "Icon for the Calendar action.",
+          "default": "calendar-event-filled"
+        }
+      }
+    }
+  }
+}

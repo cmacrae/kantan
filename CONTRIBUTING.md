@@ -66,6 +66,7 @@ Each bundled plugin's docs page shows the plugin in an interactive bar. The prev
 
 - `examples/00-<name>.yaml`, the module the preview draws.
 - `preview/`, a generator that prints the states the preview moves between.
+- `settings.schema.json`, a JSON schema of the plugin's `config.settings`. The builder makes the plugin's settings form from it.
 
 The generator is built from the plugin's own code. Its `main.swift` or `main.go` takes the place of the plugin's, so keep the plugin's own `main` file to its entry point and put everything else in other files. A shell plugin's `preview/main.sh` is given the path of the plugin's `main.sh` to run. The generator gets the example config's settings in `KANTAN_SETTINGS`, as kantan gives them to the plugin.
 
@@ -85,7 +86,9 @@ It prints one JSON object:
 
 `output` is exactly what the plugin prints in that state. `after` is optional: for each command the state's menu, popup or toggle runs, the output the plugin prints once it has run. A command that leads to another state's output moves the preview to that state.
 
-`nix flake check` fails for a plugin without a generator, for output the [plugin output schema](docs/schemas/plugin-output.schema.json) rejects, for an `after` command no state runs, and for a preview holding something the web preview can't draw. [`web/README.md`](web/README.md) covers the web side.
+In the schema, give a colour `"$ref": "module-config.schema.json#/$defs/Color"` and an icon `"$ref": "module-config.schema.json#/$defs/Icon"`. A preview follows those settings when they change in the builder. For that, a plugin must print a colour or an icon exactly as it was given it. A setting that can be written more than one way lists the plainest way first in its `oneOf`.
+
+`nix flake check` fails for a plugin without a schema, for an example whose settings the schema rejects, for a plugin that prints a colour or an icon other than as given, and for a schema default that isn't the plugin's. It also fails for a plugin without a generator, for output the [plugin output schema](docs/schemas/plugin-output.schema.json) rejects, for an `after` command no state runs, and for a preview holding something the web preview can't draw. [`web/README.md`](web/README.md) covers the web side.
 
 ### Checks
 

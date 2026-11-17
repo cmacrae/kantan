@@ -1,0 +1,158 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/cmacrae/kantan/packages/plugins/system-monitor/settings.schema.json",
+  "title": "Kantan system-monitor plugin settings",
+  "description": "The 'config.settings' block of a module running kantan-plugin-system-monitor. Every setting is optional.",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "format": {
+      "type": "string",
+      "default": "CPU {cpu}",
+      "description": "Format string for the bar display value, with {?var:text} and {?!var:text} conditional sections."
+    },
+    "color_target": {
+      "type": "string",
+      "enum": [
+        "icon",
+        "text",
+        "both"
+      ],
+      "default": "both",
+      "description": "The part of the module the CPU colour applies to."
+    },
+    "process_count": {
+      "type": "integer",
+      "minimum": 0,
+      "default": 5,
+      "description": "Number of top processes to show."
+    },
+    "show_cores": {
+      "type": "boolean",
+      "default": false,
+      "description": "Show each core's CPU usage in the menu."
+    },
+    "style": {
+      "description": "Colours for each level of a reading. A colour left out is left to kantan's own styling. Written once they suit both appearances, since theme templates resolve for the current one. Nested under 'light' and 'dark', each appearance has its own.",
+      "oneOf": [
+        {
+          "$ref": "#/$defs/Colours",
+          "description": "The same colours in both appearances."
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "description": "Colours for each appearance.",
+          "properties": {
+            "light": {
+              "$ref": "#/$defs/Colours",
+              "description": "Colours in the light appearance."
+            },
+            "dark": {
+              "$ref": "#/$defs/Colours",
+              "description": "Colours in the dark appearance."
+            }
+          }
+        }
+      ]
+    },
+    "icons": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Icons for each section of the menu.",
+      "properties": {
+        "cpu": {
+          "$ref": "module-config.schema.json#/$defs/Icon",
+          "description": "CPU section icon.",
+          "default": "cpu"
+        },
+        "memory": {
+          "$ref": "module-config.schema.json#/$defs/Icon",
+          "description": "Memory section icon.",
+          "default": "script"
+        },
+        "disk": {
+          "$ref": "module-config.schema.json#/$defs/Icon",
+          "description": "Disk section icon.",
+          "default": "device-floppy"
+        },
+        "thermal_nominal": {
+          "$ref": "module-config.schema.json#/$defs/Icon",
+          "description": "Thermal icon for the nominal state.",
+          "default": "thermometer"
+        },
+        "thermal_fair": {
+          "$ref": "module-config.schema.json#/$defs/Icon",
+          "description": "Thermal icon for the fair state.",
+          "default": "thermometer"
+        },
+        "thermal_serious": {
+          "$ref": "module-config.schema.json#/$defs/Icon",
+          "description": "Thermal icon for the serious state.",
+          "default": "thermometer"
+        },
+        "thermal_critical": {
+          "$ref": "module-config.schema.json#/$defs/Icon",
+          "description": "Thermal icon for the critical state.",
+          "default": "thermometer"
+        },
+        "uptime": {
+          "$ref": "module-config.schema.json#/$defs/Icon",
+          "description": "Uptime section icon.",
+          "default": "clock"
+        },
+        "load": {
+          "$ref": "module-config.schema.json#/$defs/Icon",
+          "description": "Load average section icon.",
+          "default": "graph"
+        },
+        "activity_monitor": {
+          "$ref": "module-config.schema.json#/$defs/Icon",
+          "description": "Activity Monitor action icon.",
+          "default": "dashboard"
+        }
+      }
+    }
+  },
+  "$defs": {
+    "Colours": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "A colour for each level of a reading.",
+      "properties": {
+        "cpu_low": {
+          "$ref": "module-config.schema.json#/$defs/Color",
+          "description": "CPU colour when usage is under 30%."
+        },
+        "cpu_medium": {
+          "$ref": "module-config.schema.json#/$defs/Color",
+          "description": "CPU colour when usage is 30 to 49%."
+        },
+        "cpu_high": {
+          "$ref": "module-config.schema.json#/$defs/Color",
+          "description": "CPU colour when usage is 50 to 79%."
+        },
+        "cpu_critical": {
+          "$ref": "module-config.schema.json#/$defs/Color",
+          "description": "CPU colour when usage is 80% or more."
+        },
+        "thermal_nominal": {
+          "$ref": "module-config.schema.json#/$defs/Color",
+          "description": "Thermal colour for the nominal state."
+        },
+        "thermal_fair": {
+          "$ref": "module-config.schema.json#/$defs/Color",
+          "description": "Thermal colour for the fair state."
+        },
+        "thermal_serious": {
+          "$ref": "module-config.schema.json#/$defs/Color",
+          "description": "Thermal colour for the serious state."
+        },
+        "thermal_critical": {
+          "$ref": "module-config.schema.json#/$defs/Color",
+          "description": "Thermal colour for the critical state."
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,9 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/cmacrae/kantan/packages/plugins/caffeine/settings.schema.json",
+  "title": "Kantan caffeine plugin settings",
+  "description": "The caffeine plugin takes no settings.",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {}
+}

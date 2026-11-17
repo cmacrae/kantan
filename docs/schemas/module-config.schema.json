@@ -93,6 +93,11 @@
       ]
     },
 
+    "Icon": {
+      "type": "string",
+      "description": "An icon: a glyph name of kantan's bundled icon fonts (e.g. \"bell\" or \"bell-filled\"), or any text to draw in its place."
+    },
+
     "StyleConfig": {
       "description": "Light/dark mode style configuration. Can be specified as nested light/dark objects, or as a flat StyleModeConfig that applies to both modes.",
       "oneOf": [

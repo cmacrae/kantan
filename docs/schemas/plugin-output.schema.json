@@ -118,6 +118,10 @@
       "type": "string",
       "description": "A view colour: a hex colour (\"#RRGGBB\" or \"#RRGGBBAA\", '#' optional), a named colour (primary, secondary, accent, red, orange, yellow, green, blue, purple, pink, gray, grey, white, black, clear), or a template such as {var} or {theme(name)} that resolves to one."
     },
+    "Icon": {
+      "type": "string",
+      "description": "An icon: a glyph name of kantan's bundled icon fonts (e.g. \"bell\" or \"bell-filled\"), any text to draw in its place, or a template such as {var} that resolves to one."
+    },
     "LiteralColor": {
       "type": "string",
       "description": "A hex colour (\"#RRGGBB\" or \"#RRGGBBAA\", '#' optional) or a named colour (primary, secondary, accent, red, orange, yellow, green, blue, purple, pink, gray, grey, white, black, clear). Templates are not resolved."
@@ -369,7 +373,7 @@
       "description": "Icon from the bundled icon font. Accepts an icon name (e.g. \"bell\", \"bolt-filled\") resolved via the icon name map, or a literal Unicode glyph.",
       "properties": {
         "type": { "const": "icon" },
-        "name": { "type": "string", "description": "Icon name from the bundled font (e.g. \"bell\", \"bolt-filled\") or a literal Unicode glyph. The '-filled' suffix selects the filled variant." },
+        "name": { "$ref": "#/$defs/Icon", "description": "Icon name from the bundled font (e.g. \"bell\", \"bolt-filled\") or a literal Unicode glyph. The '-filled' suffix selects the filled variant." },
         "size": { "type": "number", "description": "Icon size in points." },
         "color": { "$ref": "#/$defs/Color", "description": "Icon color." },
         "style": { "$ref": "#/$defs/IconStyle" }

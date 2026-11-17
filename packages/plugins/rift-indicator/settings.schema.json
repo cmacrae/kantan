@@ -1,0 +1,24 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/cmacrae/kantan/packages/plugins/rift-indicator/settings.schema.json",
+  "title": "Kantan rift-indicator plugin settings",
+  "description": "The 'config.settings' block of a module running kantan-plugin-rift-indicator. Both settings are keyed by a layout mode's identifier, such as master_stack, or its name.",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "icons": {
+      "type": "object",
+      "description": "The icon for each layout.",
+      "additionalProperties": {
+        "$ref": "module-config.schema.json#/$defs/Icon"
+      }
+    },
+    "style": {
+      "type": "object",
+      "description": "A style override for each layout. A layout without one uses the module's style.",
+      "additionalProperties": {
+        "$ref": "module-config.schema.json#/$defs/StateStyle"
+      }
+    }
+  }
+}

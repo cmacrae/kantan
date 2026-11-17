@@ -1,0 +1,32 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/cmacrae/kantan/packages/plugins/tailscale/settings.schema.json",
+  "title": "Kantan tailscale plugin settings",
+  "description": "The 'config.settings' block of a module running kantan-plugin-tailscale. Every setting is optional.",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "dimming": {
+      "type": "boolean",
+      "default": true,
+      "description": "Dim the module while disconnected."
+    },
+    "icons": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Icons for each connection state.",
+      "properties": {
+        "connected": {
+          "$ref": "module-config.schema.json#/$defs/Icon",
+          "description": "Icon shown when connected to the tailnet.",
+          "default": "world"
+        },
+        "disconnected": {
+          "$ref": "module-config.schema.json#/$defs/Icon",
+          "description": "Icon shown when disconnected.",
+          "default": "world-off"
+        }
+      }
+    }
+  }
+}
