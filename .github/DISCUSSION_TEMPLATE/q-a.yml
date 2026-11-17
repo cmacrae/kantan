@@ -1,0 +1,27 @@
+body:
+  - type: markdown
+    attributes:
+      value: The [docs](https://kantan.bar/docs/) cover configuration, every module, themes and writing plugins, and may already have your answer.
+  - type: textarea
+    id: question
+    attributes:
+      label: Your question
+      description: What you're trying to do, and what you've tried so far.
+    validations:
+      required: true
+  - type: textarea
+    id: config
+    attributes:
+      label: Config
+      description: The part of `~/.config/kantan/config.yaml` your question is about, if any.
+      render: yaml
+  - type: input
+    id: kantan-version
+    attributes:
+      label: kantan version
+      description: The output of `kantan --version`.
+  - type: input
+    id: macos-version
+    attributes:
+      label: macOS version
+      placeholder: macOS 26.1

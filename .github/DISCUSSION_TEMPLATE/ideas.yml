@@ -1,0 +1,13 @@
+body:
+  - type: textarea
+    id: idea
+    attributes:
+      label: Your idea
+      description: What you'd like kantan to do, and what it would make easier.
+    validations:
+      required: true
+  - type: textarea
+    id: shape
+    attributes:
+      label: How it could work
+      description: A config snippet you'd like to write, a sketch or anything else that shows the idea.

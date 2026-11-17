@@ -1,0 +1,19 @@
+body:
+  - type: textarea
+    id: screenshot
+    attributes:
+      label: Your bar
+      description: A screenshot or two. Drag images straight into this box.
+    validations:
+      required: true
+  - type: textarea
+    id: about
+    attributes:
+      label: About your setup
+      description: Your theme, the plugins you've written or anything you're pleased with.
+  - type: textarea
+    id: config
+    attributes:
+      label: Config
+      description: Your `~/.config/kantan/config.yaml`, or a link to your dotfiles, so others can borrow from it.
+      render: yaml
