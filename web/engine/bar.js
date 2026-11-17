@@ -1,5 +1,7 @@
 // Resolves a document into the bar kantan draws for it: every module's
-// icon, text, colours and shape, its tooltip, and what a click opens.
+// icon, text, colours and shape, its tooltip, and what a click opens. Each
+// module also has its `placeholders`: the `variables` and `data` a view's
+// placeholders read.
 import { loadConfig, DEFAULT_ICON_FONT, DEFAULT_TEXT_FONT } from "./config.js";
 import { menuRows } from "./menu.js";
 import { MENU_BAR, NOTCH, menuBarSlots } from "./menubar.js";
@@ -121,6 +123,7 @@ function resolveModule(module, state, config, styler, icons, dark) {
   const variables = { ...state.variables, value: state.value, ...(glyph === undefined ? {} : { icon: glyph }) };
   const resolver = createResolver({ variables, data: state.data, theme: key => styler.resolve(`{${key}}`) });
   const context = { resolver, native: styler.native, fg: styler.native ? "primary" : styler.barFg, icons };
+  model.placeholders = { variables, data: state.data };
 
   const { hover, click } = module.interaction ?? {};
   if (hover?.type === "tooltip") {

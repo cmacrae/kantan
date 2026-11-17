@@ -15,4 +15,4 @@ export { parseOutput } from "./output.js";
 export { createStyler, parseStyle } from "./style.js";
 export { createResolver, fillTooltip, isURLCommand } from "./template.js";
 export { loadTheme, resolveAllThemeTemplates, resolveThemeTemplate } from "./theme.js";
-export { decodeJsonView, decodeYamlView, NODE_TYPES, resolveView } from "./view.js";
+export { decodeJsonView, decodeYamlView, NODE_FIELDS, NODE_SLOTS, NODE_TYPES, resolveView } from "./view.js";

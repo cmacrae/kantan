@@ -148,7 +148,7 @@ function WorkspaceView({ workspace, bar, dark, activate }) {
   );
 }
 
-function ModuleView({ module, bar, dark, run, toggleDrawer, switchWorkspace, interactive, moduleProps }) {
+function ModuleView({ module, bar, dark, run, toggleDrawer, switchWorkspace, interactive, moduleProps, pinned }) {
   const [hover, setHover] = useState(false);
   const [open, setOpen] = useState(false);
   const ref = useRef(null);
@@ -181,7 +181,13 @@ function ModuleView({ module, bar, dark, run, toggleDrawer, switchWorkspace, int
   // module in a closed drawer takes no room.
   const padding = module.type === "drawer" || module.slot ? 0 : bar.padding;
   const folded = module.folded === true;
-  const runFrom = command => run(module.name, command);
+  // A pinned panel stays open and runs nothing, for whoever pinned it to
+  // answer clicks within it.
+  const held = pinned?.module === module.name ? pinned.slot : undefined;
+  const showing = opens && (open || held === "click");
+  const runFrom = held === undefined ? command => run(module.name, command) : () => {};
+  const close = held === undefined ? () => setOpen(false) : () => {};
+  const mark = held !== undefined;
   const fg = bar.native ? "primary" : bar.fg;
 
   const content = (
@@ -228,30 +234,30 @@ function ModuleView({ module, bar, dark, run, toggleDrawer, switchWorkspace, int
             : content}
         </div>
 
-        {tooltip && hover && interactive && !open && (
+        {tooltip && (held === "hover" || (hover && interactive && !showing)) && (
           <Panel bar={bar} dark={dark} align="center" gap={4} radius={6} deps={[tooltip]}
-            style={{ pointerEvents: "none", color: cssColor(fg, dark), zIndex: 200 }}>
+            style={{ pointerEvents: held === "hover" ? undefined : "none", color: cssColor(fg, dark), zIndex: 200 }}>
             {tooltip.text !== undefined
               ? <div style={{ padding: 8, fontSize: 11, lineHeight: "14px", whiteSpace: "pre" }}>{tooltip.text}</div>
               : (
                 <div style={{ padding: 8, minWidth: 40, minHeight: 20, boxSizing: "border-box", display: "flex", flexDirection: "column", alignItems: "center", fontSize: 13, lineHeight: "16px" }}>
-                  <ViewTree nodes={tooltip.view} context={{ dark, native: bar.native, fg, run: () => {}, dismiss: () => {} }} />
+                  <ViewTree nodes={tooltip.view} context={{ dark, native: bar.native, fg, run: () => {}, dismiss: () => {}, mark }} />
                 </div>
               )}
           </Panel>
         )}
 
-        {open && click.type === "menu" && (
+        {showing && click.type === "menu" && (
           <Panel bar={bar} dark={dark} align="left" gap={0} radius={8} deps={[click]}
             background={PANEL_MATERIAL[dark ? 1 : 0]} style={{ padding: "5px 0", lineHeight: "16px" }}>
-            <Menu rows={click.rows} fg={click.fg} dark={dark} run={runFrom} close={() => setOpen(false)} />
+            <Menu rows={click.rows} fg={click.fg} dark={dark} run={runFrom} close={close} mark={mark} />
           </Panel>
         )}
 
-        {open && click.type === "popup" && (
+        {showing && click.type === "popup" && (
           <Panel bar={bar} dark={dark} align="center" gap={4} radius={6} deps={[click]} style={{ color: cssColor(fg, dark) }}>
             <div style={{ padding: "8px 0", minWidth: 160, minHeight: 20, boxSizing: "border-box", display: "flex", flexDirection: "column", alignItems: "center", fontSize: 13, lineHeight: "16px" }}>
-              <ViewTree nodes={click.view} context={{ dark, native: bar.native, fg, run: runFrom, dismiss: () => setOpen(false) }} />
+              <ViewTree nodes={click.view} context={{ dark, native: bar.native, fg, run: runFrom, dismiss: close, mark }} />
             </div>
           </Panel>
         )}
@@ -290,10 +296,13 @@ function Notch({ notch, gaps }) {
 // or window of a clicked segment. Without them those clicks do nothing.
 // With `interactive` false the modules answer neither clicks nor the
 // pointer. `moduleProps(module)` gives a module's element props of the
-// caller's own.
-export function BarView({ bar, dark, run, toggleDrawer, switchWorkspace, style, interactive = true, moduleProps }) {
+// caller's own. `pinned`, `{ module, slot }`, keeps a module's menu or
+// popup open for the slot `click`, or its tooltip for `hover`: it runs
+// nothing, and each node it draws carries `data-kantan-node`, the path of
+// the node it came from in the view as written.
+export function BarView({ bar, dark, run, toggleDrawer, switchWorkspace, style, interactive = true, moduleProps, pinned }) {
   const view = module => (
-    <ModuleView key={module.name} module={module} bar={bar} dark={dark} run={run}
+    <ModuleView key={module.name} module={module} bar={bar} dark={dark} run={run} pinned={pinned}
       toggleDrawer={toggleDrawer} switchWorkspace={switchWorkspace} interactive={interactive} moduleProps={moduleProps} />
   );
   // Masked modules sit together over the system's menu bar items.

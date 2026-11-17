@@ -55,11 +55,12 @@ in
   inherit src fixtures;
 
   # The engine's tests, the shared cases among them, and the tests of the
-  # builder's logic.
+  # builder's logic, which read the schemas the docs publish.
   engineTests = pkgs.runCommand "kantan-web-engine-tests" { nativeBuildInputs = [ pkgs.nodejs ]; } ''
     cp -r ${../web/engine} engine
     cp -r ${../web/builder} builder
     cp -r ${fixtures} fixtures
+    cp -r ${../docs/schemas} schemas
     cp -r ${nodeModules} node_modules
     cp ${../web/package.json} package.json
     node --test 'engine/test/*.test.js' 'builder/test/*.test.js'

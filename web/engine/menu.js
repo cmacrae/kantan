@@ -1,6 +1,9 @@
 // A view as a native menu shows it. A menu is a flat list of rows, so
 // stacks flatten into their children, an hstack becomes one row, and the
 // nodes a menu has no row for are left out.
+// Each row has its `source`, the path of the node it came from in the view
+// as written. A row an hstack makes also lists the `sources` of the nodes
+// within the hstack that went into it.
 import { parseHex } from "./color.js";
 import { resolveIcon } from "./icons.js";
 
@@ -37,13 +40,15 @@ function nestedParts(node, r, icons) {
 // An hstack as one row: the parts before its first spacer are the label,
 // those after it the detail, and its first coloured rect the indicator.
 function hstackRow(node, r, icons) {
-  const label = [], detail = [];
+  const label = [], detail = [], sources = [];
   let side = label;
   let indicator;
   for (const child of node.children) {
+    const before = label.length + detail.length;
     switch (child.type) {
       case "spacer":
         side = detail;
+        sources.push(child.path);
         break;
       case "text":
         side.push({ text: r.resolve(child.content), secondary: child.style === "secondary", strike: child.strikethrough === true });
@@ -54,16 +59,20 @@ function hstackRow(node, r, icons) {
         break;
       }
       case "rect":
-        if (child.color !== undefined && indicator === undefined) indicator = r.resolve(child.color) || undefined;
+        if (child.color !== undefined && indicator === undefined) {
+          indicator = r.resolve(child.color) || undefined;
+          sources.push(child.path);
+        }
         break;
       case "progress":
         break;
       default:
         side.push(...nestedParts(child, r, icons));
     }
+    if (label.length + detail.length > before) sources.push(child.path);
   }
   if (!label.length && !detail.length) return [];
-  const row = { type: "row", label, detail };
+  const row = { type: "row", label, detail, source: node.path, sources };
   if (indicator !== undefined && parseHex(indicator)) row.indicator = parseHex(indicator);
   if (node.command !== undefined) row.command = r.resolveCommand(node.command);
   return [row];
@@ -75,6 +84,7 @@ export function menuRows(node, r, icons) {
   if (!node) return [];
   const each = nodes => nodes.flatMap(child => menuRows(child, r, icons));
   const command = value => (value === undefined ? undefined : r.resolveCommand(value));
+  const source = node.path;
   switch (node.type) {
     case "vstack":
     case "zstack":
@@ -86,7 +96,7 @@ export function menuRows(node, r, icons) {
       return node.children.some(child => INTERACTIVE.includes(child.type)) ? each(node.children) : hstackRow(node, r, icons);
     case "action": {
       const name = node.icon === undefined ? "" : r.resolve(node.icon);
-      const row = { type: "action", label: r.resolve(node.label ?? ""), command: command(node.command) };
+      const row = { type: "action", label: r.resolve(node.label ?? ""), command: command(node.command), source };
       if (name !== "") {
         const icon = resolveIcon(name, MENU_FONT_SIZE, icons);
         if (icon.glyph === undefined) row.iconText = name;
@@ -98,21 +108,21 @@ export function menuRows(node, r, icons) {
       return [{
         type: "check", label: r.resolve(node.label ?? ""),
         checked: node.checked === undefined ? false : r.resolveBool(node.checked),
-        command: command(node.command), uncheckedCommand: command(node.uncheckedCommand),
+        command: command(node.command), uncheckedCommand: command(node.uncheckedCommand), source,
       }];
     case "toggle":
       return [{
         type: "toggle", label: r.resolve(node.label ?? ""),
-        on: node.on === undefined ? false : r.resolveBool(node.on), command: command(node.command),
+        on: node.on === undefined ? false : r.resolveBool(node.on), command: command(node.command), source,
       }];
     case "header":
-      return [{ type: "header", text: r.resolve(node.content) }];
+      return [{ type: "header", text: r.resolve(node.content), source }];
     case "divider":
-      return [{ type: "divider" }];
+      return [{ type: "divider", source }];
     case "text":
       return [{
         type: "text", text: r.resolve(node.content), bold: BOLD.includes(node.weight),
-        secondary: node.style === "secondary", strike: node.strikethrough === true,
+        secondary: node.style === "secondary", strike: node.strikethrough === true, source,
       }];
     case "foreach":
       return (r.data[node.items] ?? []).flatMap(element => menuRows(node.child, r.scoped(element), icons));

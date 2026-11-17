@@ -73,8 +73,8 @@ test("what the preview can't draw is marked, never left out", () => {
     ],
   });
   const [gauge, image, symbol, glyph, action] = stack.children;
-  assert.deepEqual(gauge, { type: "unsupported", what: "gauge" });
-  assert.deepEqual(image, { type: "unsupported", what: "image" });
+  assert.deepEqual(gauge, { type: "unsupported", what: "gauge", source: ["children", 0] });
+  assert.deepEqual(image, { type: "unsupported", what: "image", source: ["children", 1] });
   assert.deepEqual(symbol.icon, { type: "unsupported", what: "SF Symbol" });
   assert.equal(glyph.icon.text, "★");
   assert.equal(action.icon.type, "unsupported");

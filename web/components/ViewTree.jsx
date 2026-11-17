@@ -213,13 +213,22 @@ function Node({ node, context }) {
   }
 }
 
+// The value of the attribute that says which node of the view as written
+// something drawn came from.
+export const nodeMark = source => JSON.stringify(source);
+
 function ViewNode({ node, context }) {
-  return <Boxed boxes={node.boxes} dark={context.dark}><Node node={node} context={context} /></Boxed>;
+  const drawn = <Boxed boxes={node.boxes} dark={context.dark}><Node node={node} context={context} /></Boxed>;
+  // The mark takes no room of its own, leaving the layout as it is.
+  return context.mark && node.source
+    ? <div data-kantan-node={nodeMark(node.source)} style={{ display: "contents" }}>{drawn}</div>
+    : drawn;
 }
 
 // The view `nodes` the engine resolved. `context` holds the appearance
 // (`dark`, `native`), the default text colour `fg`, `run` to run a command
-// and `dismiss` to close the panel the view is in.
+// and `dismiss` to close the panel the view is in. With `mark`, each node
+// drawn says which node of the view as written it came from.
 export function ViewTree({ nodes, context }) {
   return nodes.map((node, i) => <ViewNode key={i} node={node} context={context} />);
 }

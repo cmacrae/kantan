@@ -53,6 +53,16 @@ const NODES = {
 
 export const NODE_TYPES = Object.keys(NODES);
 
+// The names of each node type's own fields.
+export const NODE_FIELDS = Object.fromEntries(Object.entries(NODES).map(([type, fields]) => [type, Object.keys(fields)]));
+
+// The fields of each node type that hold a node, and those that hold a
+// list of them.
+export const NODE_SLOTS = Object.fromEntries(Object.entries(NODES).map(([type, fields]) => [type, {
+  one: Object.keys(fields).filter(key => (fields[key].kind ?? fields[key]) === K),
+  many: Object.keys(fields).filter(key => (fields[key].kind ?? fields[key]) === C),
+}]));
+
 // A boolean as the views read one back: `true` or `false`.
 const canonicalBool = value => (value ? "true" : "false");
 
@@ -124,7 +134,9 @@ function decodeNode(value, strict, path) {
   const fields = Object.hasOwn(NODES, type) ? NODES[type] : undefined;
   if (!fields) return strict ? fail([...path, "type"], `unknown node type ${type}`) : undefined;
 
-  const decoded = { type, common: decodeCommon(node, strict, path) };
+  // `path` is where the node sits in the view as written, for whoever
+  // draws it to say which node a drawn one came from.
+  const decoded = { type, path, common: decodeCommon(node, strict, path) };
   for (const [key, spec] of Object.entries(fields)) {
     const { kind = spec, required: needed = false, fallback } = spec.kind ? spec : {};
     const at = [...path, key];
@@ -200,7 +212,8 @@ export const unsupported = what => ({ type: "unsupported", what });
 // placeholders filled, `foreach` expanded, `if` and `visible` decided,
 // colours and icons resolved. `context` holds the module's `resolver`, the
 // `native` flag, the default text colour `fg` and the `icons` lookup.
-// Returns the nodes the view comes to, as a list.
+// Returns the nodes the view comes to, as a list, each with its `source`:
+// the path of the node it came from in the view as written.
 export function resolveView(node, context, depth = 0) {
   if (!node || depth > MAX_DEPTH) return [];
   const { resolver: r, icons } = context;
@@ -228,7 +241,7 @@ export function resolveView(node, context, depth = 0) {
   };
   const boxed = Object.values(box).some(v => v !== undefined);
   const wrap = nodes => (boxed ? nodes.map(n => ({ ...n, boxes: [...(n.boxes ?? []), box] })) : nodes);
-  const one = resolved => wrap([resolved]);
+  const one = resolved => wrap([{ ...resolved, source: node.path }]);
 
   switch (node.type) {
     case "vstack":

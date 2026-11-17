@@ -2,7 +2,7 @@
 // draws the menu kantan builds.
 import { useState } from "react";
 import { Glyph } from "./Glyph.jsx";
-import { CheckMark, Switch } from "./ViewTree.jsx";
+import { CheckMark, Switch, nodeMark } from "./ViewTree.jsx";
 import { checkCommand } from "../engine/index.js";
 import { cssColor, faded } from "./system.js";
 
@@ -10,11 +10,12 @@ const ROW = { display: "flex", alignItems: "center", minHeight: 22, padding: "0 
 
 // A menu item with the highlight macOS and kantan draw behind an item a
 // click acts on, while the pointer is over it.
-function Selectable({ onClick, dark, style, children }) {
+function Selectable({ onClick, dark, style, tag, children }) {
   const [hover, setHover] = useState(false);
   const highlight = hover && onClick ? cssColor("accent", dark) : undefined;
   return (
     <div
+      {...tag}
       onClick={onClick}
       onMouseEnter={() => setHover(true)}
       onMouseLeave={() => setHover(false)}
@@ -38,8 +39,10 @@ function Parts({ parts, secondary, dark }) {
 
 // The `rows` of a menu. `fg` is the theme's text colour, when there is one,
 // `run` runs a row's command, and `close` closes the menu, as choosing an
-// item does. Ticking a check leaves the menu open.
-export function Menu({ rows, fg, dark, run, close }) {
+// item does. Ticking a check leaves the menu open. With `mark`, each row
+// says which node of the view as written it came from.
+export function Menu({ rows, fg, dark, run, close, mark }) {
+  const tag = row => (mark && row.source ? { "data-kantan-node": nodeMark(row.source) } : undefined);
   const text = fg === undefined ? cssColor("primary", dark) : cssColor(fg, dark);
   const choose = command => () => {
     close();
@@ -50,12 +53,12 @@ export function Menu({ rows, fg, dark, run, close }) {
       {rows.map((row, i) => {
         switch (row.type) {
           case "header":
-            return <div key={i} style={{ ...ROW, height: 22, fontSize: 12, fontWeight: 700 }}>{row.text}</div>;
+            return <div key={i} {...tag(row)} style={{ ...ROW, height: 22, fontSize: 12, fontWeight: 700 }}>{row.text}</div>;
           case "divider":
-            return <div key={i} style={{ height: 1, margin: "5px 14px", background: dark ? "rgba(255,255,255,0.14)" : "rgba(0,0,0,0.1)" }} />;
+            return <div key={i} {...tag(row)} style={{ height: 1, margin: "5px 14px", background: dark ? "rgba(255,255,255,0.14)" : "rgba(0,0,0,0.1)" }} />;
           case "text":
             return (
-              <div key={i} style={{ ...ROW, fontWeight: row.bold ? 700 : 400, opacity: row.secondary ? 0.5 : undefined, textDecoration: row.strike ? "line-through" : undefined }}>
+              <div key={i} {...tag(row)} style={{ ...ROW, fontWeight: row.bold ? 700 : 400, opacity: row.secondary ? 0.5 : undefined, textDecoration: row.strike ? "line-through" : undefined }}>
                 {row.text}
               </div>
             );
@@ -69,12 +72,12 @@ export function Menu({ rows, fg, dark, run, close }) {
               </>
             );
             return row.command !== undefined
-              ? <Selectable key={i} dark={dark} onClick={choose(row.command)}>{content}</Selectable>
-              : <div key={i} style={ROW}>{content}</div>;
+              ? <Selectable key={i} tag={tag(row)} dark={dark} onClick={choose(row.command)}>{content}</Selectable>
+              : <div key={i} {...tag(row)} style={ROW}>{content}</div>;
           }
           case "action":
             return (
-              <Selectable key={i} dark={dark} onClick={row.command === undefined ? undefined : choose(row.command)}
+              <Selectable key={i} tag={tag(row)} dark={dark} onClick={row.command === undefined ? undefined : choose(row.command)}
                 style={{ gap: 4, color: row.command === undefined ? faded(text, 0.35) : undefined }}>
                 {row.icon && <Glyph icon={row.icon} dark={dark} fallbackFont="inherit" />}
                 {row.iconText !== undefined && <span>{row.iconText}</span>}
@@ -83,7 +86,7 @@ export function Menu({ rows, fg, dark, run, close }) {
             );
           case "check":
             return (
-              <Selectable key={i} dark={dark} onClick={() => checkCommand(row) && run(checkCommand(row))}
+              <Selectable key={i} tag={tag(row)} dark={dark} onClick={() => checkCommand(row) && run(checkCommand(row))}
                 style={{ minHeight: 26, gap: 8, color: faded(text, row.checked ? 0.4 : 1) }}>
                 <CheckMark checked={row.checked} />
                 <span style={{ textDecoration: row.checked ? "line-through" : undefined }}>{row.label}</span>
@@ -91,7 +94,7 @@ export function Menu({ rows, fg, dark, run, close }) {
             );
           case "toggle":
             return (
-              <div key={i} onClick={() => row.command && run(row.command)} style={{ ...ROW, minHeight: 28, gap: 8 }}>
+              <div key={i} {...tag(row)} onClick={() => row.command && run(row.command)} style={{ ...ROW, minHeight: 28, gap: 8 }}>
                 <span>{row.label}</span>
                 <Switch on={row.on} />
               </div>
