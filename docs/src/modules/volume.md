@@ -29,6 +29,10 @@ icons:
 
 Setting `icons.device` replaces these defaults rather than adding to them. Set `device: {}` to disable device-specific icons entirely.
 
+### Background Icon
+
+Below full volume, the module draws a dimmed copy of the last `icons.level` icon behind the current level's icon, showing how much louder the output can go. The background icon is hidden while muted, while a device icon is shown and at full volume.
+
 ### Template Variables
 
 These are available to the module's [tooltip](../configuration/modules.md#hover-interaction) and views:

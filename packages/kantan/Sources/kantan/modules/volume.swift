@@ -228,15 +228,33 @@ final class VolumeConfig: ModuleConfiguration, EventDrivenModule {
 
   func getIcon() -> String {
     cache.set(Self.readVolumeStatus())
-    let status = cache.get()
+    return icon(for: cache.get())
+  }
+
+  func getBackgroundIcon() -> String? {
+    backgroundIcon(for: cache.get())
+  }
+
+  /// The icon for `status`: muted, its output device's, or its level.
+  func icon(for status: VolumeStatus) -> String {
     if status.isMuted {
       return mutedIcon
     }
-    // Check for device-specific icon override (case-insensitive substring match).
     if let deviceIcon = iconForDevice(status.deviceName) {
       return deviceIcon
     }
     return iconForLevel(status.level, icons: levelIcons)
+  }
+
+  /// The full-volume icon dimmed behind a quieter level's icon, or nil
+  /// while muted, on a device with its own icon or at full volume.
+  func backgroundIcon(for status: VolumeStatus) -> String? {
+    guard !status.isMuted, iconForDevice(status.deviceName) == nil,
+      let maxIcon = levelIcons.last, levelIcons.count > 1
+    else {
+      return nil
+    }
+    return iconForLevel(status.level, icons: levelIcons) == maxIcon ? nil : maxIcon
   }
 
   func getTemplateVariables() -> [String: String] {
