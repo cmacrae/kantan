@@ -36,9 +36,37 @@ function useWithinBar(ref, deps) {
   return shift;
 }
 
+// What a menu, popup or tooltip is drawn on: its corners, material,
+// shadow and text. `kind` is `menu`, `popup` or `tooltip`.
+export function panelSurface(kind, bar, dark) {
+  const menu = kind === "menu";
+  const background = menu ? PANEL_MATERIAL[dark ? 1 : 0] : panelBackground(bar, dark);
+  return {
+    width: "max-content", boxSizing: "border-box",
+    borderRadius: menu ? 8 : 6, background, "--kantan-panel": background,
+    boxShadow: PANEL_SHADOW(dark), fontFamily: SYSTEM_FONT, fontWeight: 400,
+    letterSpacing: 0, textAlign: "left", cursor: "default",
+    ...(menu ? { padding: "5px 0", lineHeight: "16px" } : { color: cssColor(bar.native ? "primary" : bar.fg, dark) }),
+  };
+}
+
+// A view in a popup or a tooltip, with the room kantan leaves around it
+// and the least size kantan gives the panel.
+export function PanelView({ kind, nodes, context }) {
+  const tooltip = kind === "tooltip";
+  return (
+    <div style={{
+      padding: tooltip ? 8 : "8px 0", minWidth: tooltip ? 40 : 160, minHeight: 20, boxSizing: "border-box",
+      display: "flex", flexDirection: "column", alignItems: "center", fontSize: 13, lineHeight: "16px",
+    }}>
+      <ViewTree nodes={nodes} context={context} />
+    </div>
+  );
+}
+
 // A panel hanging below the module it sits in: centred under it, or with
 // its left edge at the module's, `gap` below the module's content.
-function Panel({ bar, dark, align, gap, background, radius, style, deps, children }) {
+function Panel({ kind, bar, dark, align, gap, style, deps, children }) {
   const ref = useRef(null);
   const shift = useWithinBar(ref, deps);
   return (
@@ -48,11 +76,7 @@ function Panel({ bar, dark, align, gap, background, radius, style, deps, childre
         position: "absolute", top: `calc(100% + ${gap}px)`, zIndex: 300,
         left: align === "center" ? "50%" : 0,
         transform: `translateX(calc(${align === "center" ? "-50%" : "0px"} + ${shift}px))`,
-        width: "max-content", boxSizing: "border-box",
-        borderRadius: radius, background: background ?? panelBackground(bar, dark),
-        boxShadow: PANEL_SHADOW(dark), fontFamily: SYSTEM_FONT, fontWeight: 400,
-        letterSpacing: 0, textAlign: "left", cursor: "default",
-        "--kantan-panel": background ?? panelBackground(bar, dark),
+        ...panelSurface(kind, bar, dark),
         ...style,
       }}
     >{children}</div>
@@ -235,30 +259,23 @@ function ModuleView({ module, bar, dark, run, toggleDrawer, switchWorkspace, int
         </div>
 
         {tooltip && (held === "hover" || (hover && interactive && !showing)) && (
-          <Panel bar={bar} dark={dark} align="center" gap={4} radius={6} deps={[tooltip]}
-            style={{ pointerEvents: held === "hover" ? undefined : "none", color: cssColor(fg, dark), zIndex: 200 }}>
+          <Panel kind="tooltip" bar={bar} dark={dark} align="center" gap={4} deps={[tooltip]}
+            style={{ pointerEvents: held === "hover" ? undefined : "none", zIndex: 200 }}>
             {tooltip.text !== undefined
               ? <div style={{ padding: 8, fontSize: 11, lineHeight: "14px", whiteSpace: "pre" }}>{tooltip.text}</div>
-              : (
-                <div style={{ padding: 8, minWidth: 40, minHeight: 20, boxSizing: "border-box", display: "flex", flexDirection: "column", alignItems: "center", fontSize: 13, lineHeight: "16px" }}>
-                  <ViewTree nodes={tooltip.view} context={{ dark, native: bar.native, fg, run: () => {}, dismiss: () => {}, mark }} />
-                </div>
-              )}
+              : <PanelView kind="tooltip" nodes={tooltip.view} context={{ dark, native: bar.native, fg, run: () => {}, dismiss: () => {}, mark }} />}
           </Panel>
         )}
 
         {showing && click.type === "menu" && (
-          <Panel bar={bar} dark={dark} align="left" gap={0} radius={8} deps={[click]}
-            background={PANEL_MATERIAL[dark ? 1 : 0]} style={{ padding: "5px 0", lineHeight: "16px" }}>
+          <Panel kind="menu" bar={bar} dark={dark} align="left" gap={0} deps={[click]}>
             <Menu rows={click.rows} fg={click.fg} dark={dark} run={runFrom} close={close} mark={mark} />
           </Panel>
         )}
 
         {showing && click.type === "popup" && (
-          <Panel bar={bar} dark={dark} align="center" gap={4} radius={6} deps={[click]} style={{ color: cssColor(fg, dark) }}>
-            <div style={{ padding: "8px 0", minWidth: 160, minHeight: 20, boxSizing: "border-box", display: "flex", flexDirection: "column", alignItems: "center", fontSize: 13, lineHeight: "16px" }}>
-              <ViewTree nodes={click.view} context={{ dark, native: bar.native, fg, run: runFrom, dismiss: close, mark }} />
-            </div>
+          <Panel kind="popup" bar={bar} dark={dark} align="center" gap={4} deps={[click]}>
+            <PanelView kind="popup" nodes={click.view} context={{ dark, native: bar.native, fg, run: runFrom, dismiss: close, mark }} />
           </Panel>
         )}
       </div>

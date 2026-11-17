@@ -3,7 +3,8 @@
 // them, and writes them out to modules.d when that layout is chosen.
 import { DOCUMENT_VERSION } from "../engine/document.js";
 import { dict, list, str } from "../engine/values.js";
-import { BUILT_INS, defaultStates } from "./catalog.js";
+import { BUILT_INS, defaultStates, pluginOf } from "./catalog.js";
+import { bindStates, settingDefaults } from "./settings.js";
 
 const isRightSide = module => (str(module?.placement) ?? "").includes("right");
 
@@ -88,6 +89,14 @@ export function addPlugin(document, plugin, catalog) {
   return addModule(document, module, states);
 }
 
+// A module someone shared, `{ module, states }`, added under a name no
+// module here has. Returns the document and the name the module took,
+// `{ document, name }`.
+export function addShared(document, shared) {
+  const added = addModule(document, shared.module, shared.states);
+  return { document: added, name: modulesOf(added).at(-1).name };
+}
+
 // A new command module for a plugin of someone's own, showing the output
 // they pasted: JSON when it parses as a mapping, and text otherwise.
 export function addPasted(document, name, pasted) {
@@ -107,6 +116,14 @@ export function addPasted(document, name, pasted) {
     ...(json && dict(output.view) ? { interaction: { click: { type: "menu" } } } : {}),
   };
   return addModule(document, module, [{ name: "Pasted", output }]);
+}
+
+// A new command module for a plugin someone is about to write, called
+// `name`: one that prints JSON and opens a popup, showing an example of
+// what the plugin might print.
+export function addOwnPlugin(document, name) {
+  const module = { name, type: "command", placement: "right", config: { command: name, output: "json" }, interaction: { click: { type: "popup" } } };
+  return addModule(document, module, [{ name: "Example", output: { value: "Hello", icon: "sparkles" } }]);
 }
 
 // The document with the module at `index` replaced by `module`. A new name
@@ -214,3 +231,21 @@ export function documentFromConfig(config, catalog) {
 
 // An empty bar: a config with no modules.
 export const emptyDocument = () => ({ version: DOCUMENT_VERSION, config: { modules: [] } });
+
+// The document as the engine draws it: each command module's states bound
+// to the module's settings, a bundled plugin's with its schema's defaults.
+// A state that names no setting is drawn as it is.
+export function boundDocument(document, catalog) {
+  const states = dict(document.states);
+  if (!states) return document;
+  let bound;
+  for (const module of modulesOf(document)) {
+    const own = dict(module) && states[module.name];
+    if (!own) continue;
+    const plugin = pluginOf(module, catalog);
+    const schema = plugin === undefined ? undefined : catalog.plugins[plugin].settings;
+    const next = bindStates(own, dict(module.config)?.settings ?? {}, schema === undefined ? {} : settingDefaults(schema));
+    if (next !== own) bound = { ...(bound ?? states), [module.name]: next };
+  }
+  return bound === undefined ? document : { ...document, states: bound };
+}

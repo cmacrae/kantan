@@ -11,8 +11,9 @@ import { dict, str } from "../engine/values.js";
 export const EMPTY_CATALOG = { plugins: {}, themes: {} };
 
 // Each module type, in the order the builder lists them: what it's called,
-// the icon that stands for it, the module a new one starts as, and the
-// states a new one shows, each a sample of what the module would read.
+// the icon that stands for it, the module a new one starts as,
+// and the states a new one shows, each a sample of what the module would
+// read.
 export const BUILT_INS = {
   workspace: {
     label: "Workspaces",
@@ -92,6 +93,17 @@ export const BUILT_INS = {
     module: { placement: "right", icon: "terminal-2", config: { command: "echo hello" } },
     states: [{ name: "Output", output: "hello" }],
   },
+};
+
+// What each bundled plugin is for, in a few words.
+export const PLUGIN_ABOUT = {
+  caffeine: "Keep-awake toggle",
+  calendar: "Upcoming events",
+  pomodoro: "Pomodoro timer",
+  reminders: "Due reminders",
+  "rift-indicator": "Rift layout",
+  "system-monitor": "CPU, memory, disk",
+  tailscale: "Tailscale status",
 };
 
 // The bundled plugin behind a module: the one its command runs, or

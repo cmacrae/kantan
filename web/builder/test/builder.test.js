@@ -1,14 +1,21 @@
 // The builder's logic: document edits, YAML files and share links.
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import { test } from "node:test";
-import { loadConfig, loadTheme, resolveBar, validateDocument } from "../../engine/index.js";
+import { NODE_FIELDS, NODE_TYPES, decodeJsonView, loadConfig, loadTheme, resolveBar, validateDocument } from "../../engine/index.js";
 import { SLOTS, readScheme, schemeFileName, schemeTheme } from "../base16.js";
 import { BUILT_INS, pluginOf } from "../catalog.js";
-import { addBuiltIn, addPasted, addPlugin, emptyDocument, inLayout, layoutOf, modulesOf, toDir, toSingle, updateModule } from "../edit.js";
+import {
+  addBuiltIn, addPasted, addPlugin, addShared, boundDocument, emptyDocument, inLayout, layoutOf, modulesOf, toDir, toSingle, updateModule,
+} from "../edit.js";
 import { documentFiles, readYaml, themeFiles } from "../files.js";
-import { decodeLink, encodeLink, readFragment } from "../share.js";
+import { decodeLink, decodeModuleLink, encodeLink, encodeModuleLink, packModule, readFragment } from "../share.js";
 import { configSchema, deref } from "../schema.js";
 import { newTheme, paletteFor, palettesOf, previewRef, themeKind, themeProblems, toKind } from "../theme.js";
+import {
+  NODE_INFO, NODE_KINDS, STARTERS, VIEW_KINDS, insertNode, moveNode, moveView, starterScript, newNode, nodeAt, nudgeNode, removeNode, replaceNode, shows,
+  wrapNode,
+} from "../view.js";
 import { WORDS } from "../words.js";
 import { zip } from "../zip.js";
 
@@ -266,4 +273,169 @@ test("a scheme makes a theme kantan loads", () => {
   const loaded = loadTheme("mocha", { mocha: theme });
   assert.deepEqual([loaded.dark.fg, loaded.dark.bg, loaded.dark.shape], ["#cdd6f4", "#1e1e2e", "#313244"]);
   assert.equal(loaded.light.colors.base08, "#f38ba8");
+});
+
+test("a document is drawn with its plugins' states bound to their modules' settings", () => {
+  const settings = { type: "object", properties: { icons: { type: "object", properties: { on: { $ref: "#/$defs/Icon", default: "mug-filled" } } } }, $defs: { Icon: { type: "string" } } };
+  const following = {
+    themes: {},
+    plugins: { caffeine: { ...catalog.plugins.caffeine, settings, states: [{ name: "On", output: { icon: "{setting(icons.on)}", style: { fg: "{setting(colour)}" } } }] } },
+  };
+  let document = addPlugin(emptyDocument(), "caffeine", following);
+  assert.deepEqual(boundDocument(document, following).states.caffeine[0].output, { icon: "mug-filled" });
+  assert.equal(document.states.caffeine[0].output.icon, "{setting(icons.on)}");
+
+  document = updateModule(document, 0, { ...modulesOf(document)[0], config: { ...modulesOf(document)[0].config, settings: { icons: { on: "coffee" }, colour: "#ff0000" } } });
+  const bound = boundDocument(document, following);
+  assert.deepEqual(bound.states.caffeine[0].output, { icon: "coffee", style: { fg: "#ff0000" } });
+  assert.equal(resolveBar(bound).placements.right[0].icon.name, "coffee");
+
+  // A document naming no settings is drawn as it is.
+  const plain = everything();
+  assert.equal(boundDocument(plain, catalog), plain);
+});
+
+const sampleView = () => ({
+  type: "vstack",
+  children: [
+    { type: "header", content: "A" },
+    { type: "hstack", children: [{ type: "icon", name: "cpu" }, { type: "text", content: "{cpu}" }] },
+    { type: "if", condition: "busy", then: { type: "group", children: [{ type: "text", content: "Busy" }] }, else: { type: "text", content: "Idle" } },
+    { type: "foreach", items: "rows", child: { type: "text", content: "{name}" } },
+    { type: "divider" },
+  ],
+});
+
+test("nodes are added, changed, wrapped and removed where their paths say", () => {
+  const view = sampleView();
+  const added = insertNode(view, ["children", 1], newNode("spacer"), 1);
+  assert.deepEqual(added.children[1].children.map(node => node.type), ["icon", "spacer", "text"]);
+  assert.equal(insertNode(view, [], newNode("badge")).children.at(-1).type, "badge");
+  assert.equal(view.children.length, 5);
+
+  assert.equal(replaceNode(view, ["children", 2, "else"], { type: "text", content: "Free" }).children[2].else.content, "Free");
+  assert.deepEqual(replaceNode(view, [], { type: "text", content: "x" }), { type: "text", content: "x" });
+
+  assert.deepEqual(removeNode(view, ["children", 0]).children.map(node => node.type), ["hstack", "if", "foreach", "divider"]);
+  assert.equal(removeNode(view, ["children", 2, "else"]).children[2].else, undefined);
+  assert.equal(removeNode(view, []), undefined);
+
+  const wrapped = wrapNode(view, ["children", 0], "hstack");
+  assert.deepEqual(wrapped.children[0], { type: "hstack", children: [{ type: "header", content: "A" }] });
+});
+
+test("a node moves within its list, into another, and never into itself", () => {
+  const view = sampleView();
+  const types = at => nodeAt(at, ["children"]).map(node => node.type);
+
+  // Later in its own list: it sits where the node at that place was.
+  let moved = moveNode(view, ["children", 0], [], 3);
+  assert.deepEqual(types(moved.view), ["hstack", "if", "header", "foreach", "divider"]);
+  assert.deepEqual(moved.path, ["children", 2]);
+  // Earlier in its own list, and to its end.
+  moved = moveNode(view, ["children", 4], [], 1);
+  assert.deepEqual(types(moved.view), ["vstack", "header", "divider", "hstack", "if", "foreach"].slice(1));
+  assert.deepEqual(moved.path, ["children", 1]);
+  moved = moveNode(view, ["children", 0], []);
+  assert.deepEqual(types(moved.view), ["hstack", "if", "foreach", "divider", "header"]);
+  assert.deepEqual(moved.path, ["children", 4]);
+
+  // Into a list further on, whose own path changes as the node leaves.
+  moved = moveNode(view, ["children", 0], ["children", 1], 1);
+  assert.deepEqual(types(moved.view), ["hstack", "if", "foreach", "divider"]);
+  assert.deepEqual(moved.path, ["children", 0, "children", 1]);
+  assert.equal(nodeAt(moved.view, moved.path).type, "header");
+  // Out of a single place and into a list.
+  moved = moveNode(view, ["children", 2, "else"], ["children", 2, "then"], 0);
+  assert.equal(moved.view.children[2].else, undefined);
+  assert.deepEqual(moved.view.children[2].then.children.map(node => node.content), ["Idle", "Busy"]);
+
+  assert.equal(moveNode(view, [], [], 0), undefined);
+  assert.equal(moveNode(view, ["children", 1], ["children", 1], 0), undefined);
+  assert.equal(moveNode(view, ["children", 2], ["children", 2, "then"], 0), undefined);
+  assert.equal(moveNode(view, ["children", 0], ["children", 4], 0), undefined);
+
+  assert.deepEqual(nudgeNode(view, ["children", 0], 1).path, ["children", 1]);
+  assert.deepEqual(types(nudgeNode(view, ["children", 0], 1).view).slice(0, 2), ["hstack", "header"]);
+  assert.equal(nudgeNode(view, ["children", 0], -1), undefined);
+  assert.equal(nudgeNode(view, ["children", 2, "then"], 1), undefined);
+});
+
+test("every node type starts as a node kantan accepts", () => {
+  assert.deepEqual(NODE_KINDS.flatMap(([, types]) => types).sort(), [...NODE_TYPES].sort());
+  for (const type of NODE_TYPES) {
+    const { node, problem } = decodeJsonView(newNode(type, "rows"));
+    assert.equal(problem, undefined, type);
+    assert.equal(node.type, type);
+  }
+  assert.equal(newNode("foreach", "rows").items, "rows");
+  for (const starter of STARTERS) assert.equal(decodeJsonView(starter.view()).problem, undefined, starter.name);
+  // Each kind of view has starting points of its own.
+  for (const kind of Object.keys(VIEW_KINDS)) assert.ok(STARTERS.filter(starter => starter.kinds.includes(kind)).length >= 3, kind);
+});
+
+test("the plugin output schema describes the nodes and fields the engine reads", () => {
+  const schema = JSON.parse(readFileSync(new URL("../../schemas/plugin-output.schema.json", import.meta.url), "utf8"));
+  const defs = Object.values(schema.$defs).filter(def => def.properties?.type?.const !== undefined);
+  assert.deepEqual(defs.map(def => def.properties.type.const).sort(), [...NODE_TYPES].sort());
+  for (const def of defs) {
+    const type = def.properties.type.const;
+    assert.deepEqual(Object.keys(def.properties).filter(key => key !== "type").sort(), [...NODE_FIELDS[type]].sort(), type);
+  }
+  assert.deepEqual(Object.keys(schema.$defs.CommonNodeProperties.properties).sort(), ["background", "cornerRadius", "frame", "opacity", "padding", "visible"]);
+});
+
+test("a module is shared on its own, with the states it shows", async () => {
+  // A bundled plugin's module leaves its starting states to the site.
+  const plugin = catalog.plugins.caffeine;
+  const packed = packModule(plugin.module, plugin.states, "Off", catalog);
+  assert.equal(packed.s, undefined);
+  assert.equal(packed.b, 1);
+  const fragment = await encodeModuleLink(plugin.module, plugin.states, "Off", catalog);
+  assert.match(fragment, /^m1\./);
+  assert.deepEqual(readFragment(`#${fragment}`), { module: fragment });
+  assert.deepEqual(await decodeModuleLink(fragment, catalog), { module: plugin.module, states: plugin.states, shown: "Off" });
+
+  // A module of someone's own carries its states, a view among them.
+  const module = {
+    name: "mail", type: "command", placement: "right", config: { command: "~/bin/mail", output: "json" },
+    interaction: { click: { type: "popup", view: sampleView() } },
+  };
+  const states = [{ name: "Unread", output: { value: "3", view: { type: "text", content: "{value}" } } }];
+  const shared = await decodeModuleLink(await encodeModuleLink(module, states, "Unread", catalog), catalog);
+  assert.deepEqual(shared, { module, states });
+
+  // Added to a bar that has a module of its name, it takes another.
+  let document = addShared(emptyDocument(), shared);
+  assert.equal(document.name, "mail");
+  document = addShared(document.document, shared);
+  assert.equal(document.name, "mail-2");
+  assert.deepEqual(names(document.document), ["mail", "mail-2"]);
+  assert.deepEqual(document.document.states["mail-2"], states);
+  assert.deepEqual(validateDocument(document.document), []);
+
+  await assert.rejects(decodeModuleLink("1.abc", catalog), /format/);
+  await assert.rejects(decodeModuleLink("m1.!!!", catalog), /damaged/);
+  await assert.rejects(decodeModuleLink(await encodeLink(emptyDocument(), catalog).then(link => `m${link}`), catalog), /module/);
+});
+
+test("a click's view moves between the config and what the command prints", () => {
+  const view = sampleView();
+  const module = { name: "m", type: "command", placement: "right", config: { command: "x" }, interaction: { click: { type: "popup", view } } };
+  const states = [{ name: "A", output: "plain" }, { name: "B", output: { value: "2" } }];
+
+  // Printed, it is in every state's output, and the command prints JSON.
+  const printed = moveView(module, states, view, "output");
+  assert.deepEqual(printed.module.interaction.click, { type: "popup" });
+  assert.equal(printed.module.config.output, "json");
+  assert.deepEqual(printed.states.map(state => state.output), [{ value: "plain", view }, { value: "2", view }]);
+
+  const kept = moveView(printed.module, printed.states, view, "config");
+  assert.deepEqual(kept.module.interaction.click, { type: "popup", view });
+  assert.deepEqual(kept.states.map(state => state.output), [{ value: "plain" }, { value: "2" }]);
+
+  const script = starterScript(printed.states[1].output);
+  assert.match(script, /^#!\/bin\/sh\n/);
+  assert.deepEqual(JSON.parse(script.slice(script.indexOf("'JSON'\n") + 7, script.lastIndexOf("\nJSON"))), printed.states[1].output);
+  assert.deepEqual(Object.keys(NODE_INFO).sort(), [...NODE_TYPES].sort());
 });

@@ -9,13 +9,14 @@ import { useBar } from "../../components/useBar.js";
 import { useFitZoom } from "../../components/useFitZoom.js";
 import { loadConfig, loadTheme, resolveBar } from "../../engine/index.js";
 import { dict } from "../../engine/values.js";
+import { pluginOf } from "../../builder/catalog.js";
 import {
-  addBuiltIn, addPasted, addPlugin, documentFromConfig, emptyDocument, inLayout, layoutOf, modulesOf, placeAtEdge,
+  addBuiltIn, addOwnPlugin, addPasted, addPlugin, addShared, boundDocument, documentFromConfig, emptyDocument, inLayout, layoutOf, modulesOf, placeAtEdge,
   placeModule, removeModule, setModuleStates, toSingle, updateModule,
 } from "../../builder/edit.js";
 import { adoptSlots, importSchemes } from "../../builder/base16.js";
-import { documentFiles, readYaml, themeFiles } from "../../builder/files.js";
-import { configText, decodeLink, encodeLink, readFragment } from "../../builder/share.js";
+import { documentFiles, readYaml, themeFiles, writeYaml } from "../../builder/files.js";
+import { configText, decodeLink, decodeModuleLink, encodeLink, encodeModuleLink, readFragment } from "../../builder/share.js";
 import {
   freeThemeName, missingColors, newTheme, paletteFor, previewRef, removeTheme, renameColor, renameColorRefs, renameTheme,
   renameThemeFlavour, selectedThemes, setTheme, themeKind,
@@ -23,15 +24,18 @@ import {
 import bundled from "../../generated/catalog.json";
 import example from "../../generated/example.json";
 import schema from "../../generated/module-config.schema.json";
+import outputSchema from "../../generated/plugin-output.schema.json";
 import { AddModule } from "./AddModule.jsx";
 import { BarSettings } from "./BarSettings.jsx";
 import { ModuleEditor } from "./ModuleEditor.jsx";
 import { ModuleList } from "./ModuleList.jsx";
-import { Output, Share } from "./Output.jsx";
+import { Output, Share, ShareModule } from "./Output.jsx";
 import { QuickEdit } from "./QuickEdit.jsx";
 import { ThemeEditor } from "./ThemeEditor.jsx";
 import { STYLES } from "./styles.js";
 import { BuilderContext, Button, Ic, Modal, remember, remembered } from "./ui.jsx";
+import { ViewBuilder } from "./ViewEditor.jsx";
+import { moveView, startView, viewOf, withStateView, withView } from "../../builder/view.js";
 
 // Whether the editor was left open, as this browser keeps it.
 const EDITOR_KEY = "kantan-builder-editor";
@@ -56,12 +60,23 @@ function documentFromText(text) {
 }
 
 // What the page's address asks for: `{ document }` from a shared link,
-// `{ document, source }` from a config file fetched from elsewhere, or
-// undefined when it asks for nothing.
+// `{ document, pick, note }` from a link to one module, which is added to
+// the example bar and picked, `{ document, source }` from a config file
+// fetched from elsewhere, or undefined when it asks for nothing.
 async function fromAddress() {
   const asked = readFragment(window.location.hash);
   if (asked === undefined) return undefined;
   if (asked.link !== undefined) return { document: await decodeLink(asked.link, catalog) };
+  if (asked.module !== undefined) {
+    const shared = await decodeModuleLink(asked.module, catalog);
+    const { document, name } = addShared(exampleDocument(), shared);
+    const shown = { ...document.view?.shown, ...(shared.shown === undefined ? {} : { [name]: shared.shown }) };
+    return {
+      document: { ...document, view: { ...document.view, shown } },
+      pick: name,
+      note: `This link shares one module, ${name}, shown here on the example bar. Its YAML is in its editor. To put it on a bar of your own, open that bar and paste the link into Add a module.`,
+    };
+  }
   const response = await fetch(asked.url);
   if (!response.ok) throw new Error(`The config couldn't be fetched: ${asked.url} answered ${response.status}`);
   return { document: documentFromText(configText(await response.text(), asked)), source: window.location.href };
@@ -126,7 +141,7 @@ function Start({ onClose, onOpen }) {
       </div>
       <div className="kb-h">From your config.yaml</div>
       <textarea aria-label="Your config.yaml" rows={8} spellCheck={false} value={text} placeholder="Paste your config.yaml here" onChange={event => setText(event.target.value)} />
-      <div className="kb-note">Its comments aren't kept. Modules in modules.d aren't part of it: add those from their own files' settings.</div>
+      <div className="kb-note">Comments are dropped. Files in modules.d aren't read.</div>
       {problem !== undefined && <div className="kb-problem">{problem}</div>}
       <Button kind="primary" disabled={text.trim() === ""} onClick={paste}>Open it</Button>
       <div className="kb-h">From a file on the web</div>
@@ -135,7 +150,7 @@ function Start({ onClose, onOpen }) {
           onChange={event => setUrl(event.target.value)} />
         <Button disabled={!/^https:\/\//.test(url)} onClick={fetchUrl}>Fetch it</Button>
       </div>
-      <div className="kb-note">Your browser fetches the file. The page's address becomes a short link to it, which always shows the file as it is.</div>
+      <div className="kb-note">Fetched by the browser. The page's address then links to the live file.</div>
     </Modal>
   );
 }
@@ -167,12 +182,12 @@ function sectionsOf(modules, bar, notch) {
   if (masked.length) {
     sections.push({
       title: "Over the menu bar", fixed: true, items: masked,
-      note: "Each sits over the system's own item, wherever macOS has it. They can't be moved from here.",
+      note: "Masked over menu bar items. Position follows macOS.",
     });
   }
   const rest = modules.map((_, i) => i).filter(i => !listed.has(i));
   if (rest.length) {
-    sections.push({ title: "Not on this screen", fixed: true, items: rest, note: notch ? undefined : "A module placed only beside the notch shows once the screen has one." });
+    sections.push({ title: "Not on this screen", fixed: true, items: rest, note: notch ? undefined : "Notch-only placements. Shown with a notch." });
   }
   return sections;
 }
@@ -183,17 +198,26 @@ function Workspace({ opened, iconSet, onStart }) {
   const [history, setHistory] = useState(() => [toSingle(opened.document)]);
   const [layout, setLayout] = useState(() => layoutOf(opened.document));
   // What the editor is on: `{ kind: "bar" }` for the bar's own settings,
-  // `{ kind: "module", index }` for a module, or `{ kind: "theme", name,
+  // `{ kind: "module", index }` for a module, `{ kind: "theme", name,
   // palette }` for one of the document's themes and the palette of it
-  // being edited.
-  const [focus, setFocus] = useState({ kind: "bar" });
-  const selected = focus.kind === "module" ? focus.index : -1;
+  // being edited, or `{ kind: "view", index, where, path }` for one of a
+  // module's views: which of them, and the node of it picked.
+  const [focus, setFocus] = useState(() => {
+    // A module the address asked for is the one picked.
+    const index = opened.pick === undefined ? -1 : modulesOf(opened.document).findIndex(each => each?.name === opened.pick);
+    return index < 0 ? { kind: "bar" } : { kind: "module", index };
+  });
+  const selected = focus.kind === "module" || focus.kind === "view" ? focus.index : -1;
+  // Keeps the editor on the module now at `index`, in the view being
+  // built if one is.
+  const follow = index => setFocus(now => (now.kind === "view" && index >= 0 ? { ...now, index } : index >= 0 ? { kind: "module", index } : { kind: "bar" }));
   const setSelected = index => setFocus(index >= 0 ? { kind: "module", index } : { kind: "bar" });
   const [themeLayout, setThemeLayout] = useState("file");
   const [dark, setDark] = useState(opened.document.view?.dark ?? systemDark);
   const [notch, setNotch] = useState(opened.document.view?.notch ?? false);
-  const [pane, setPane] = useState("modules");
+  const [pane, setPane] = useState(opened.pick === undefined ? "modules" : "edit");
   const [sharing, setSharing] = useState(false);
+  const [sharingModule, setSharingModule] = useState(false);
   const [edited, setEdited] = useState(false);
   // While trying the bar out its modules answer clicks as they do in
   // kantan. Otherwise a click picks a module and a drag moves it.
@@ -201,8 +225,8 @@ function Workspace({ opened, iconSet, onStart }) {
   const [quick, setQuick] = useState(false);
   // Whether the editor below the bar is showing: the settings, the
   // modules and the config. It starts folded away, and stays as it was
-  // last left.
-  const [editing, setEditingState] = useState(() => remembered(EDITOR_KEY) === "open");
+  // last left. A module the address asked for opens it.
+  const [editing, setEditingState] = useState(() => opened.pick !== undefined || remembered(EDITOR_KEY) === "open");
   const setEditing = open => { setEditingState(open); remember(EDITOR_KEY, open ? "open" : "closed"); };
 
   // Space folds the editor away or brings it back, unless the keyboard is
@@ -245,10 +269,10 @@ function Workspace({ opened, iconSet, onStart }) {
     setEdited(true);
     setHistory(past => (next === past[past.length - 1] ? past : [...past.slice(-HISTORY), next]));
   }, []);
-  // Undoing a change to a theme leaves the editor on the theme.
+  // Undoing a change to a theme or a view leaves the editor on it.
   const undo = () => {
     setHistory(past => (past.length > 1 ? past.slice(0, -1) : past));
-    if (focus.kind !== "theme") setSelected(-1);
+    if (focus.kind !== "theme" && focus.kind !== "view") setSelected(-1);
     setQuick(false);
   };
 
@@ -261,10 +285,11 @@ function Workspace({ opened, iconSet, onStart }) {
   const theme = themeName === undefined ? undefined : document.themes[themeName];
   const themePalette = theme && paletteFor(theme, focus.palette, dark);
   // The bar is drawn in the palette being edited, whatever the config
-  // selects.
-  const drawnDocument = useMemo(
-    () => (theme === undefined ? document : { ...document, config: { ...document.config, theme: previewRef(themeName, theme, themePalette) } }),
-    [document, themeName, theme, themePalette]);
+  // selects, with each plugin's states following its module's settings.
+  const drawnDocument = useMemo(() => {
+    const bound = boundDocument(document, catalog);
+    return theme === undefined ? bound : { ...bound, config: { ...bound.config, theme: previewRef(themeName, theme, themePalette) } };
+  }, [document, themeName, theme, themePalette]);
   const config = useMemo(() => loadConfig(drawnDocument, catalog.themes), [drawnDocument]);
   const accepted = useMemo(() => new Set(config.problem === undefined ? config.modules.map(module => module.name) : []), [config]);
 
@@ -284,15 +309,26 @@ function Workspace({ opened, iconSet, onStart }) {
   // Picking a module from the list opens its settings in full.
   const select = index => { setSelected(index); setQuick(false); setPane("edit"); };
 
-  // Adds the module `make` makes where `adding` says, and picks it.
+  // Adds the module `make` makes where `adding` says, or where a module
+  // of its kind starts when it names no placement, and picks it. Returns
+  // where the module is among the others.
   const add = make => {
     const made = make(document);
     const before = new Set(modules);
     const fresh = modulesOf(made).find(each => !before.has(each));
-    const next = placeAtEdge(made, modulesOf(made).indexOf(fresh), adding.placement, adding.start);
+    const next = placeAtEdge(made, modulesOf(made).indexOf(fresh), adding.placement ?? fresh.placement, adding.start);
     change(next);
     setAdding(undefined);
-    select(modulesOf(next).findIndex(each => each?.name === fresh.name));
+    setEditing(true);
+    const index = modulesOf(next).findIndex(each => each?.name === fresh.name);
+    select(index);
+    return index;
+  };
+  // A plugin someone is about to write starts in the view builder, on the
+  // popup it will print.
+  const addOwn = name => {
+    const index = add(doc => addOwnPlugin(doc, name));
+    setFocus({ kind: "view", index, where: { slot: "state", state: "Example" }, path: [] });
   };
   // A module that moves stays the one picked, if it was.
   const moved = (next, name) => {
@@ -309,7 +345,7 @@ function Workspace({ opened, iconSet, onStart }) {
     if (clash) return;
     const changed = updateModule(document, selected, next);
     change(changed);
-    setSelected(modulesOf(changed).indexOf(next));
+    follow(modulesOf(changed).indexOf(next));
     if (next.name !== module.name && shown[module.name] !== undefined) setState(next.name, shown[module.name]);
   };
   const remove = () => { change(removeModule(document, selected)); setSelected(-1); setQuick(false); };
@@ -320,6 +356,69 @@ function Workspace({ opened, iconSet, onStart }) {
     setQuick(false);
     if (focus.kind !== "module") return;
     setSelected(index === selected ? -1 : modulesOf(next).findIndex(each => each?.name === module?.name));
+  };
+
+  // The view being built, as written, and the changes made to it.
+  const viewing = focus.kind === "view" && dict(module) ? focus : undefined;
+  const ownStates = module?.name === undefined ? undefined : document.states?.[module.name];
+  const view = viewing && viewOf(module, ownStates, viewing.where);
+  // Opens one of the picked module's views in the view builder, with the
+  // state that prints it showing.
+  const editView = where => {
+    setFocus({ kind: "view", index: selected, where, path: [] });
+    setQuick(false);
+    if (where.slot === "state") setState(module.name, where.state);
+  };
+  // Changes the module being built on, and its states with it.
+  const commit = (nextModule, nextStates) => {
+    let next = nextModule === module ? document : updateModule(document, selected, nextModule);
+    if (nextStates !== undefined) next = setModuleStates(next, nextModule.name, nextStates);
+    change(next);
+    follow(modulesOf(next).indexOf(nextModule));
+  };
+  // A command that prints a view prints JSON, and its click shows a view.
+  const printing = () => {
+    const click = dict(dict(module.interaction)?.click) ?? {};
+    const shows = click.type === "menu" || click.type === "popup";
+    if (shows && dict(module.config)?.output === "json") return module;
+    return { ...module, config: { ...dict(module.config), output: "json" }, interaction: { ...dict(module.interaction), click: { ...click, type: shows ? click.type : "menu" } } };
+  };
+  const setView = next => (viewing.where.slot === "state"
+    ? commit(next === undefined ? module : printing(), withStateView(ownStates, viewing.where.state, next))
+    : update(withView(module, viewing.where.slot, next)));
+  // The picked module's states as drawn, and the output of the one showing:
+  // what its command prints, with the module's settings where it names them.
+  const drawnStates = module?.name === undefined ? undefined : drawnDocument.states?.[module.name];
+  const printedNow = (drawnStates?.find(state => state.name === shown[module.name]) ?? drawnStates?.[0])?.output;
+  // The module and its states once `starter` is the view being built.
+  const startFrom = (starter, kind) => startView(module, ownStates, viewing.where, kind, starter, { shown: shown[module.name], placeholders: viewDrawn?.placeholders });
+  const viewEdits = {
+    onWhere: editView,
+    onView: setView,
+    onPath: path => setFocus(now => (now.kind === "view" ? { ...now, path } : now)),
+    onKind: type => update({ ...module, interaction: { ...dict(module.interaction), click: { ...dict(dict(module.interaction)?.click), type } } }),
+    // A view moved to the config is the click's own, with the module's
+    // settings where it named them. One moved to the command's output is
+    // printed in every state. A bundled plugin goes on printing its view.
+    // The config's is shown in its place.
+    onMove: to => {
+      const moved = moveView(module, ownStates, to === "config" ? dict(dict(printedNow)?.view) ?? view : view, to, { keep: pluginOf(module, catalog) !== undefined });
+      commit(moved.module, moved.states);
+      const state = (ownStates?.find(each => each.name === shown[module.name]) ?? ownStates?.[0])?.name;
+      setFocus(now => ({ ...now, where: to === "config" ? { slot: "click" } : { slot: "state", state }, path: [] }));
+    },
+    onShow: state => setState(module.name, state),
+    onStates: states => change(setModuleStates(document, module.name, states.length ? states : undefined)),
+    onModule: update,
+    onCommit: commit,
+    onStart: (starter, kind) => {
+      const started = startFrom(starter, kind);
+      commit(started.module, started.states);
+      setFocus(now => (now.kind === "view" ? { ...now, path: [] } : now));
+    },
+    onDark: () => setDark(!dark),
+    onUndo: history.length > 1 ? () => setHistory(past => past.slice(0, -1)) : undefined,
+    onClose: () => setSelected(selected),
   };
 
   // Opens a theme of the document's in the theme editor.
@@ -379,6 +478,12 @@ function Workspace({ opened, iconSet, onStart }) {
     return `${window.location.origin}${window.location.pathname}#${fragment}`;
   }, [document, layout, dark, notch, shown]);
 
+  // The picked module as shared on its own, in the state it shows now.
+  const makeModuleLink = useCallback(async () => {
+    const fragment = await encodeModuleLink(module, document.states?.[module.name], shown[module.name], catalog);
+    return `${window.location.origin}${window.location.pathname}#${fragment}`;
+  }, [document, module, shown]);
+
   // The bar as it is looked at now, in an appearance, for a picture of
   // it: its drawers as they were last left.
   const barFor = appearance => resolveBar(drawnDocument, { dark: appearance, notch, icons: iconSet.icons, themes: catalog.themes, states: shown, samples });
@@ -386,7 +491,7 @@ function Workspace({ opened, iconSet, onStart }) {
   const files = useMemo(() => documentFiles(inLayout(document, layout)), [document, layout]);
   const themeOutput = useMemo(() => theme && themeFiles(themeName, theme, themeLayout), [themeName, theme, themeLayout]);
   const palette = config.theme?.[dark ? "dark" : "light"];
-  const context = useMemo(() => ({ ...iconSet, catalog, schema, palette, dark }), [iconSet, palette, dark]);
+  const context = useMemo(() => ({ ...iconSet, catalog, schema, outputSchema, palette, dark }), [iconSet, palette, dark]);
 
   // On a narrow screen the bar shrinks only so far, then scrolls.
   const stage = useRef(null);
@@ -532,6 +637,27 @@ function Workspace({ opened, iconSet, onStart }) {
   };
   const moduleProps = useCallback(each => (trying || each.slot ? undefined : { draggable: true }), [trying]);
 
+  // A module alone on a bar of its own, at the bar's left where a panel
+  // has the most room: the one whose view is being built, or one that
+  // might be added. `states` are shown in place of the ones it has.
+  const barOf = (alone, states) => {
+    const { mask: _, ...unmasked } = alone;
+    const { modulesDir: __, ...rest } = drawnDocument;
+    const only = {
+      ...rest,
+      config: { ...rest.config, modules: [{ ...unmasked, placement: "left" }] },
+      ...(states === undefined ? {} : { states: { ...rest.states, [alone.name]: states } }),
+    };
+    return resolveBar(only, { dark, icons: iconSet.icons, themes: catalog.themes, states: shown, samples });
+  };
+  const viewBar = useMemo(() => (viewing ? barOf(module) : undefined), [viewing !== undefined, module, drawnDocument, dark, iconSet, shown, samples]);
+  const viewDrawn = viewBar && Object.values(viewBar.placements).flat()[0];
+  // The module as drawn once `starter` is the view being built.
+  const drawStart = (starter, kind) => {
+    const started = startFrom(starter, kind);
+    return Object.values(barOf(started.module, started.states).placements).flat()[0];
+  };
+
   const tint = cssColor(bar.native ? "primary" : bar.fg, dark);
   const marks = [
     !trying && module?.name !== undefined && `.kb-desk [data-kantan-module="${CSS.escape(module.name)}"] { outline: 1.5px dashed ${dark ? "#fff" : "#000"}; outline-offset: -3px; border-radius: 6px; }`,
@@ -568,7 +694,7 @@ function Workspace({ opened, iconSet, onStart }) {
               <div className="kb-notice" role="status" style={{ top: bar.notch.height + 9 }}>
                 <span className="arrow" />
                 <Ic name="alert-triangle" size={18} />
-                <span><b>Not enough room beside the notch</b>This window is narrower than a MacBook's screen, so some modules sit under the notch here. Widen it to see them as they'd sit.</span>
+                <span><b>Not enough room beside the notch</b>Window too narrow: some modules are under the notch.</span>
               </div>
             )}
             <div className="kb-desk-room" style={{ marginTop: -Math.min(bar.gaps.top, 40) }} />
@@ -578,9 +704,9 @@ function Workspace({ opened, iconSet, onStart }) {
             <div>
               <div className="kb-chips" role="group" aria-label="What a click on the bar does" style={{ padding: 0 }}>
                 <button type="button" className="kb-chip kb-tip" aria-pressed={!trying} onClick={() => setTrying(false)}
-                  data-tip="Click a module for its quick settings, drag one to move it, or click a gap to add one. Drawers stay open.">Customise</button>
+                  data-tip="Click to edit, drag to move, click a gap to add.">Customise</button>
                 <button type="button" className="kb-chip kb-tip" aria-pressed={trying} onClick={() => { setTrying(true); setQuick(false); }}
-                  data-tip="The bar behaves as it does in kantan: hover, click, open its menus.">Try it</button>
+                  data-tip="Live: hover and click as in kantan.">Try it</button>
               </div>
               <span className="kb-keyhint"><kbd>⇥ Tab</kbd> to switch</span>
             </div>
@@ -597,12 +723,13 @@ function Workspace({ opened, iconSet, onStart }) {
         </button>
         {quick && anchor && dict(module) && (
           <QuickEdit key={selected} module={module} drawn={drawn.find(each => each.name === module.name)} states={document.states?.[module.name]} shown={shown[module.name]}
-            at={anchor} width={anchor.width} dark={dark} onChange={update} onShow={state => setState(module.name, state)}
+            at={anchor} width={anchor.width} onChange={update} onShow={state => setState(module.name, state)}
             onEdit={() => { setQuick(false); setPane("edit"); setEditing(true); }} onRemove={remove} onClose={() => setQuick(false)} />
         )}
       </div>
 
       {opened.problem !== undefined && <div style={{ padding: "0 20px" }}><div className="kb-banner"><span>{opened.problem}</span></div></div>}
+      {opened.note !== undefined && <div style={{ padding: "0 20px" }}><div className="kb-banner note"><span>{opened.note}</span></div></div>}
 
       <div className="kb-tabs" role="tablist" hidden={!editing}>
         {[["modules", "Modules"], ["edit", "Edit"], ["yaml", "YAML"]].map(([key, label]) => (
@@ -613,7 +740,7 @@ function Workspace({ opened, iconSet, onStart }) {
         <div className={`kb-col ${pane === "modules" ? "on" : ""}`}>
           <button type="button" className={`kb-pane kb-barcard ${selected === -1 && theme === undefined ? "on" : ""}`} onClick={() => select(-1)}>
             <Ic name="adjustments-horizontal" size={18} />
-            <span><b>Bar Settings</b><span>Theme, size, fonts and colours</span></span>
+            <span><b>Bar Settings</b></span>
           </button>
           <section className="kb-pane">
             <ModuleList modules={modules} sections={sections} accepted={accepted} selected={selected} onSelect={select}
@@ -634,7 +761,7 @@ function Workspace({ opened, iconSet, onStart }) {
                 states={document.states?.[module.name]} shown={shown[module.name]}
                 onChange={update} onShow={state => setState(module.name, state)}
                 onStates={states => change(setModuleStates(document, module.name, states.length ? states : undefined))}
-                onRemove={remove} />
+                onView={editView} onShare={() => setSharingModule(true)} onRemove={remove} />
             )
             : (
               <BarSettings config={document.config} themes={themes} own={Object.keys(document.themes ?? {})} problem={config.problem} theming={theming}
@@ -662,9 +789,20 @@ function Workspace({ opened, iconSet, onStart }) {
       </main>
 
       {adding && (
-        <AddModule onClose={() => setAdding(undefined)} taken={modules.map(each => each?.name)}
+        <AddModule onClose={() => setAdding(undefined)} taken={modules.map(each => each?.name)} draw={barOf} dark={dark} onOwn={addOwn}
           onBuiltIn={type => add(doc => addBuiltIn(doc, type))} onPlugin={plugin => add(doc => addPlugin(doc, plugin, catalog))}
-          onPasted={(name, pasted) => add(doc => addPasted(doc, name, pasted))} />
+          onPasted={(name, pasted) => add(doc => addPasted(doc, name, pasted))}
+          onShared={shared => add(doc => addShared(doc, shared).document)} />
+      )}
+      {viewing && (
+        <ViewBuilder module={module} bar={viewBar} drawn={viewDrawn} states={ownStates} shown={shown[module.name]} printedOutput={printedNow}
+          where={viewing.where} view={view} path={viewing.path} dark={dark} paper={wallpaper(dark)} drawStart={drawStart} {...viewEdits} />
+      )}
+      {sharingModule && dict(module) && (
+        <ShareModule makeLink={makeModuleLink} module={module} plugin={pluginOf(module, catalog)} yaml={() => writeYaml(module)}
+          printed={["menu", "popup"].includes(module.interaction?.click?.type) && dict(module.interaction.click.view) === undefined
+            && (document.states?.[module.name] ?? []).some(state => dict(dict(state.output)?.view))}
+          onClose={() => setSharingModule(false)} />
       )}
       {sharing && <Share makeLink={makeLink} source={edited ? undefined : opened.source} barFor={barFor} dark={dark} onClose={() => setSharing(false)} />}
     </BuilderContext.Provider>

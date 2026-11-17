@@ -2,6 +2,7 @@
 // value a config holds, with colours, icons and styles given fields of
 // their own. A field left empty leaves its key out of the config.
 import { useEffect, useRef, useState } from "react";
+import { labelOf, sameAsKey } from "../../builder/labels.js";
 import { deref, prune } from "../../builder/schema.js";
 import { resolveThemeTemplate } from "../../engine/index.js";
 import { dict } from "../../engine/values.js";
@@ -10,11 +11,18 @@ import { Button, Ic, YamlArea, useBuilder } from "./ui.jsx";
 
 const first = text => (typeof text === "string" ? text.split(/(?<=\.)\s/)[0] : undefined);
 
-// A labelled row. `description` explains the field when hovered over.
-export function Row({ label, description, wide, children }) {
+// A config key beside the label that stands for it, unless the label says
+// no more than the key does.
+export function Key({ label, name }) {
+  return name === undefined || sameAsKey(String(label), name) ? null : <code className="kb-key">{name}</code>;
+}
+
+// A labelled row. `description` explains the field when hovered over, and
+// `name` is the config key the label stands for.
+export function Row({ label, name, description, wide, children }) {
   return (
     <div className={`kb-f ${wide ? "wide" : ""}`}>
-      <span className="label" title={description}>{label}</span>
+      <span className="label" title={description}>{label}<Key label={label} name={name} /></span>
       {children}
     </div>
   );
@@ -39,6 +47,25 @@ function NumberField({ value, onChange, node, label }) {
   );
 }
 
+// Whether `node` takes a string, a number or a truth value, any of them.
+function isLooseScalar(node) {
+  const scalar = type => ["string", "number", "integer", "boolean"].includes(type);
+  if (Array.isArray(node.type)) return node.type.every(scalar);
+  const branches = node.oneOf ?? node.anyOf;
+  return Array.isArray(branches) && branches.every(branch => scalar(branch.type) && !branch.enum);
+}
+
+// A value written as text that may be a number or a truth value: `true`,
+// `false` and numbers are kept as such, anything else as text.
+function LooseField({ value, onChange, label, placeholder }) {
+  const read = text => (text === "" ? undefined : text === "true" ? true : text === "false" ? false
+    : text.trim() !== "" && Number.isFinite(Number(text)) ? Number(text) : text);
+  return (
+    <input type="text" aria-label={label} value={value === undefined || value === null ? "" : String(value)} placeholder={placeholder} spellCheck={false}
+      onChange={event => onChange(read(event.target.value))} />
+  );
+}
+
 // A choice among `options`, the first standing for the key left out.
 function Choice({ value, onChange, options, unset, label }) {
   const index = options.findIndex(option => option === value);
@@ -48,6 +75,17 @@ function Choice({ value, onChange, options, unset, label }) {
       <option value="">{unset}</option>
       {options.map((option, i) => <option key={i} value={String(i)}>{String(option)}</option>)}
     </select>
+  );
+}
+
+// A truth value kantan has a default for, as a tick. One left as kantan
+// has it is left out of the config.
+function Switch({ value, onChange, fallback, label }) {
+  const on = typeof value === "boolean" ? value : fallback;
+  return (
+    <div className="kb-row">
+      <input type="checkbox" aria-label={label} checked={on} onChange={event => onChange(event.target.checked === fallback ? undefined : event.target.checked)} />
+    </div>
   );
 }
 
@@ -104,7 +142,7 @@ export function ColorField({ value, onChange, label, fallback, plain }) {
         style={{ background: shown ?? "repeating-linear-gradient(45deg, transparent 0 4px, var(--line) 4px 8px)" }}>
         <input type="color" aria-label={`${label}: pick a colour`} value={hex ?? "#888888"} onChange={event => onChange(event.target.value)} />
       </span>
-      <input type="text" aria-label={label} value={text} placeholder={fallback === undefined ? "#rrggbb" : "Not set here"} spellCheck={false}
+      <input type="text" aria-label={label} value={text} placeholder={fallback !== undefined ? "Not set here" : palette ? "#rrggbb or {theme(name)}" : "#rrggbb"} spellCheck={false}
         onChange={event => onChange(event.target.value === "" ? undefined : event.target.value)} />
       {palette && <ThemeColors value={text} onChange={onChange} palette={palette} label={label} />}
     </div>
@@ -150,8 +188,14 @@ export function IconField({ value, onChange, placeholder, label }) {
   );
 }
 
+// What a new item of a list starts as: text, or a mapping holding the
+// keys it needs.
+const blankItem = node => (node.type === "object" ? Object.fromEntries((node.required ?? []).map(key => [key, ""])) : "");
+
 // A list, each item a field of its own.
-function ListField({ value, onChange, items, iconish, label }) {
+function ListField({ value, onChange, items: raw, iconish, label }) {
+  const { schema } = useBuilder();
+  const items = deref(schema, raw);
   const list = Array.isArray(value) ? value : [];
   const set = next => onChange(next.length ? next : undefined);
   return (
@@ -165,7 +209,7 @@ function ListField({ value, onChange, items, iconish, label }) {
           <Button kind="plain" icon="x" aria-label={`Remove ${label} ${i + 1}`} onClick={() => set(list.filter((_, j) => j !== i))} />
         </div>
       ))}
-      <Button kind="plain" icon="plus" onClick={() => onChange([...list, ""])}>Add</Button>
+      <Button kind="plain" icon="plus" onClick={() => onChange([...list, blankItem(items)])}>Add</Button>
     </div>
   );
 }
@@ -200,10 +244,18 @@ function MapField({ value, onChange, items, iconish, label }) {
   );
 }
 
-// A style: the same in both appearances, or one for each.
-function StyleField({ value, onChange }) {
-  const { schema } = useBuilder();
-  const mode = deref(schema, { $ref: "#/$defs/StyleModeConfig" });
+// What each appearance takes, when `node` is written either once for both
+// appearances or under `light` and `dark`. Undefined for any other node.
+function appearanceMode(schema, node) {
+  const branches = (node.oneOf ?? []).map(branch => deref(schema, branch));
+  const split = branches.find(branch => Object.keys(branch.properties ?? {}).sort().join() === "dark,light");
+  const flat = branches.find(branch => branch !== split);
+  return branches.length === 2 && split && flat?.properties ? flat : undefined;
+}
+
+// A style, or anything else written per appearance: the same in both, or
+// one for each. `mode` describes what an appearance takes.
+function StyleField({ value, onChange, mode }) {
   const [split, setSplit] = useState(dict(value) !== undefined && (value.light !== undefined || value.dark !== undefined));
   const toggle = () => {
     onChange(split ? prune(value?.light ?? value?.dark) : prune({ light: value, dark: value }));
@@ -217,7 +269,7 @@ function StyleField({ value, onChange }) {
       </label>
       {split
         ? ["light", "dark"].map(key => (
-          <Group key={key} title={key} node={mode} value={value?.[key]} open
+          <Group key={key} title={labelOf(key)} name={key} node={mode} value={value?.[key]} open
             onChange={next => onChange(prune({ ...value, [key]: next }))} />
         ))
         : <Properties node={mode} value={value} onChange={onChange} />}
@@ -225,16 +277,21 @@ function StyleField({ value, onChange }) {
   );
 }
 
-// Whether a key holds icons: any with "icon" in its name.
-const isIconKey = key => /icon/i.test(key);
+// Whether a key holds icons: any with "icon" in its name, but one that
+// names the font icons are drawn in.
+const isIconKey = key => /icon/i.test(key) && !/font$/i.test(key);
 
-// The control for a value of the kind `node` describes.
-function Control({ node: raw, value, onChange, iconish, label }) {
+// The control for a value of the kind `node` describes. `label` names it
+// to someone reading the page, and `name` is the key it is held under.
+function Control({ node: raw, value, onChange, iconish, label, name }) {
   const { schema } = useBuilder();
   const node = deref(schema, raw);
   if (node.ref === "Color") return <ColorField value={value} onChange={onChange} label={label} />;
-  if (node.ref === "StyleConfig") return <StyleField value={value} onChange={onChange} />;
+  if (node.ref === "Icon") return <IconField value={value} onChange={onChange} placeholder={node.default} label={label} />;
   if (node.ref === "StateStyle") return <StateStyleField value={value} onChange={onChange} label={label} />;
+  const mode = appearanceMode(schema, node);
+  if (mode) return <StyleField value={value} onChange={onChange} mode={mode} />;
+  if (isLooseScalar(node)) return <LooseField value={value} onChange={onChange} label={label} placeholder={node.default === undefined ? undefined : String(node.default)} />;
   if (node.oneOf || node.anyOf) return <YamlArea value={value} onChange={onChange} rows={3} label={label} />;
   if (node.enum) return <Choice value={value} onChange={onChange} options={node.enum} label={label} unset={node.default === undefined ? "Not set" : `Default (${node.default})`} />;
   switch (node.type) {
@@ -243,14 +300,16 @@ function Control({ node: raw, value, onChange, iconish, label }) {
         ? <IconField value={value} onChange={onChange} placeholder={node.default} label={label} />
         : <TextField value={value} onChange={onChange} placeholder={node.default} examples={node.examples} label={label} />;
     case "boolean":
-      return <Choice value={value} onChange={onChange} options={[true, false]} label={label} unset={node.default === undefined ? "Not set" : `Default (${node.default})`} />;
+      return typeof node.default === "boolean"
+        ? <Switch value={value} onChange={onChange} fallback={node.default} label={label} />
+        : <Choice value={value} onChange={onChange} options={[true, false]} label={label} unset="Not set" />;
     case "number":
     case "integer":
       return <NumberField value={value} onChange={onChange} node={node} label={label} />;
     case "array":
       return <ListField value={value} onChange={onChange} items={node.items ?? { type: "string" }} iconish={iconish} label={label} />;
     case "object":
-      if (node.properties && Object.keys(node.properties).length) return <Properties node={node} value={value} onChange={onChange} iconish={iconish} name={label} />;
+      if (node.properties && Object.keys(node.properties).length) return <Properties node={node} value={value} onChange={onChange} iconish={iconish} name={name ?? label} />;
       if (dict(node.additionalProperties)) return <MapField value={value} onChange={onChange} items={node.additionalProperties} iconish={iconish} label={label} />;
       return <YamlArea value={value} onChange={onChange} rows={5} label={label} />;
     default:
@@ -261,14 +320,15 @@ function Control({ node: raw, value, onChange, iconish, label }) {
 // Whether a value of the kind `node` describes takes more room than a row.
 function isBlock(schema, raw) {
   const node = deref(schema, raw);
-  if (node.ref === "Color") return false;
-  return node.ref === "StyleConfig" || node.oneOf !== undefined || node.type === "object" || node.type === "array";
+  if (node.ref === "Color" || isLooseScalar(node)) return false;
+  return node.oneOf !== undefined || node.type === "object" || node.type === "array";
 }
 
-// A field for each of an object's properties. Those in `skip` are left to
-// the caller. `name` is the key the object is held under: the properties
-// of `fonts` name fonts, whatever they're called.
-export function Properties({ node, value, onChange, iconish, name, skip = [] }) {
+// A field for each of an object's properties, or only those in `only`.
+// Those in `skip` are left to the caller. `name` is the key the object is
+// held under. Its properties' labels can depend on it: the properties of
+// `fonts` name fonts, whatever they're called.
+export function Properties({ node, value, onChange, iconish, name, skip = [], only }) {
   const { schema } = useBuilder();
   const object = dict(value) ?? {};
   const set = (key, next) => {
@@ -276,28 +336,30 @@ export function Properties({ node, value, onChange, iconish, name, skip = [] }) 
     const pruned = prune(next);
     onChange(prune(pruned === undefined ? rest : { ...object, [key]: pruned }));
   };
-  return Object.entries(node.properties ?? {}).filter(([key]) => !skip.includes(key)).map(([key, child]) => {
+  return Object.entries(node.properties ?? {}).filter(([key]) => !skip.includes(key) && (only === undefined || only.includes(key))).map(([key, child]) => {
     const iconKey = name !== "fonts" && (iconish || isIconKey(key));
+    const label = labelOf(key, name);
     return isBlock(schema, child)
-      ? <Group key={key} title={key} node={child} value={object[key]} onChange={next => set(key, next)} iconish={iconKey} />
+      ? <Group key={key} title={label} name={key} node={child} value={object[key]} onChange={next => set(key, next)} iconish={iconKey} />
       : (
-        <Row key={key} label={key} description={first(child.description)}>
-          <Control node={child} value={object[key]} onChange={next => set(key, next)} iconish={iconKey} label={key} />
+        <Row key={key} label={label} name={key} description={first(child.description)}>
+          <Control node={child} value={object[key]} onChange={next => set(key, next)} iconish={iconKey} label={label} name={key} />
         </Row>
       );
   });
 }
 
-// A value that takes more room than a row, folded away under its name
-// until opened. One that is set says so.
-export function Group({ title, node, value, onChange, iconish, open }) {
+// A value that takes more room than a row, folded away under its title
+// until opened. One that is set says so. `name` is the config key it is
+// held under.
+export function Group({ title, name, node, value, onChange, iconish, open }) {
   return (
     <details className="kb-group" open={open}>
       <summary title={first(node.description)}>
-        {title}
+        {title}<Key label={title} name={name} />
         {value !== undefined && <span className="set">set</span>}
       </summary>
-      <div><Control node={node} value={value} onChange={onChange} iconish={iconish} label={title} /></div>
+      <div><Control node={node} value={value} onChange={onChange} iconish={iconish} label={title} name={name ?? title} /></div>
     </details>
   );
 }

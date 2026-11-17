@@ -1,7 +1,8 @@
 // A module's states: what the bar shows it reading. A built-in module's
 // state is a sample of the system, set with controls for its type. A
 // command module's is the output its command printed, edited as written,
-// with the state each command it runs leads to.
+// with the state each command it runs leads to. None of it is part of a
+// config.
 import { useState } from "react";
 import { BUILT_INS, pluginOf } from "../../builder/catalog.js";
 import { removeState, renameState, setTransition } from "../../builder/edit.js";
@@ -135,15 +136,16 @@ function StateName({ name, taken, onRename }) {
 
 // `module` is the module's config, `drawn` the module as the bar draws it,
 // `states` its states, `shown` the name of the one showing, `onShow` shows
-// another and `onStates` changes them.
-export function StateEditor({ module, drawn, states = [], shown, onShow, onStates }) {
+// another and `onStates` changes them. A `bare` one leaves picking among
+// them to whatever holds it.
+export function StateEditor({ module, drawn, states = [], shown, onShow, onStates, bare }) {
   const { catalog } = useBuilder();
   const type = module.type;
   const fields = SAMPLE_FIELDS[type];
   const current = states.find(state => state.name === shown) ?? states[0];
 
   if (type === "text" || type === "icon") {
-    return <div className="kb-note">This module shows what its settings say. It reads nothing, so there is nothing to sample.</div>;
+    return <div className="kb-note">This module shows what its settings say. It reads nothing, so it has no states.</div>;
   }
 
   const fresh = wanted => {
@@ -163,9 +165,9 @@ export function StateEditor({ module, drawn, states = [], shown, onShow, onState
     return (
       <div>
         <div className="kb-note">
-          {type === "clock" ? "The clock shows the time now. Add a state to stop it at a time of your choosing."
+          {type === "clock" ? "The clock shows the time now. Add a state to stop it at a set time."
             : type === "drawer" ? "The drawer starts closed, and opens when clicked. Add a state to start it open."
-            : "This module has no states, so the bar draws it as it is with nothing to read."}
+            : "This module has no states, so the bar draws it with nothing to read."}
         </div>
         <Button icon="plus" onClick={add}>Add a state</Button>
       </div>
@@ -180,14 +182,15 @@ export function StateEditor({ module, drawn, states = [], shown, onShow, onState
     <div>
       {plugin !== undefined && (
         <div className="kb-note">
-          These states are what the {plugin} plugin prints for its example settings. Changing the module's settings changes the YAML, not these states.
+          These states are what the {plugin} plugin prints. A <code>{"{setting(…)}"}</code> stands for a colour or an icon of the module's
+          settings, which the preview follows. Its other settings change the config, not these states.
         </div>
       )}
       <div className="kb-chips" role="group" aria-label="States">
-        {states.map(state => (
+        {!bare && states.map(state => (
           <button key={state.name} type="button" className="kb-chip" aria-pressed={state === current} onClick={() => onShow(state.name)}>{state.name}</button>
         ))}
-        <Button kind="plain" icon="plus" onClick={add}>Add</Button>
+        <Button kind="plain" icon="plus" onClick={add}>Add a state</Button>
       </div>
 
       <StateName key={current.name} name={current.name} taken={states.map(state => state.name)}
@@ -204,7 +207,7 @@ export function StateEditor({ module, drawn, states = [], shown, onShow, onState
         )
         : (
           <>
-            <div className="kb-h">{json ? "The JSON its command prints" : "The text its command prints"}</div>
+            <div className="kb-h">{json ? "Output (JSON)" : "Output"}</div>
             <OutputArea key={`${current.name}-${json}`} json={json} value={current.output ?? (json ? {} : "")} onChange={output => setCurrent({ output })} rows={14} />
           </>
         )}
@@ -213,7 +216,7 @@ export function StateEditor({ module, drawn, states = [], shown, onShow, onState
 
       {commands.length > 0 && states.length > 1 && (
         <>
-          <div className="kb-h">Where its commands lead</div>
+          <div className="kb-h">Transitions</div>
           {commands.map(command => (
             <Row key={command} wide label={<code>{command}</code>}>
               <select aria-label={`${command} leads to`} value={current.transitions?.[command] ?? ""}
@@ -231,6 +234,41 @@ export function StateEditor({ module, drawn, states = [], shown, onShow, onState
           Remove this state
         </Button>
       </div>
+    </div>
+  );
+}
+
+// The state a module is previewed in, set apart from its config: which
+// state is showing, and behind a fold, what each one holds. A
+// `compact` one only picks among them. A module that reads nothing has
+// none.
+export function PreviewWith({ module, drawn, states = [], shown, onShow, onStates, compact }) {
+  const [open, setOpen] = useState(false);
+  if (module.type === "text" || module.type === "icon") return null;
+  if (compact && states.length < 2) return null;
+  const current = states.find(state => state.name === shown) ?? states[0];
+  return (
+    <div className="kb-preview">
+      <div className="head">
+        <b>Preview state</b>
+        <div className="kb-chips" role="group" aria-label="The state shown">
+          {states.map(state => (
+            <button key={state.name} type="button" className="kb-chip" aria-pressed={state === current} onClick={() => onShow(state.name)}>{state.name}</button>
+          ))}
+          {states.length === 0 && <span className="kb-note">{module.type === "clock" ? "now" : "none"}</span>}
+        </div>
+        {!compact && (
+          <Button kind="plain" icon={open ? "chevron-up" : "chevron-down"} aria-expanded={open} onClick={() => setOpen(!open)}>
+            {open ? "Done" : "Edit states"}
+          </Button>
+        )}
+      </div>
+      {open && !compact && (
+        <div className="body">
+          <div className="kb-note">States are preview data. They are never written to the config.</div>
+          <StateEditor module={module} drawn={drawn} states={states} shown={shown} onShow={onShow} onStates={onStates} bare />
+        </div>
+      )}
     </div>
   );
 }

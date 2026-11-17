@@ -69,14 +69,15 @@ let
   };
 
   # The builder's script, with what it offers to add to a bar, the landing
-  # page's bar as its example, and the schema its forms are made from.
+  # page's bar as its example, and the schemas its forms are made from.
   builder = web.bundle {
     name = "builder";
     entries = [ "apps/builder/main.jsx" ];
     generated = {
       "catalog.json" = previews.catalog;
-      "example.json" = "${landingBar.document}/document.json";
+      "example.json" = "${landingBar.document}/named.json";
       "module-config.schema.json" = ../docs/schemas/module-config.schema.json;
+      "plugin-output.schema.json" = ../docs/schemas/plugin-output.schema.json;
     };
   };
 

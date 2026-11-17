@@ -254,8 +254,18 @@ export function newNode(type, collection) {
   return type === "foreach" && collection !== undefined ? { ...node, items: collection } : node;
 }
 
-const row = (icon, label, value) => ({
+// Room at a row's sides, for a view with none around it: an action, a
+// check and a toggle have as much of their own.
+const SIDES = { leading: 14, trailing: 14 };
+
+// Room around a whole view: a popup has its own above and below.
+const ROOM = { leading: 14, bottom: 4, trailing: 14 };
+
+const heading = content => ({ type: "header", content, padding: SIDES });
+
+const row = (icon, label, value, padding) => ({
   type: "hstack",
+  ...(padding && { padding }),
   children: [{ type: "icon", name: icon }, { type: "text", content: label }, { type: "spacer" }, { type: "text", content: value, style: "secondary" }],
 });
 
@@ -275,7 +285,7 @@ const figure = (label, value) => ({
   padding: 10,
   background: "#80808026",
   cornerRadius: 8,
-  frame: { minW: 100 },
+  frame: { w: 104 },
   children: [{ type: "text", content: label, size: 11, style: "secondary" }, { type: "text", content: value, size: 20, weight: "bold" }],
 });
 
@@ -298,7 +308,7 @@ export const STARTERS = [
     view: () => ({
       type: "vstack",
       children: [
-        { type: "header", content: "Shortcuts" },
+        heading("Shortcuts"),
         { type: "action", label: "Activity Monitor", icon: "dashboard", command: "open -a 'Activity Monitor'" },
         { type: "action", label: "System Settings", icon: "settings", command: "open -a 'System Settings'" },
         { type: "divider" },
@@ -312,7 +322,7 @@ export const STARTERS = [
     view: (main = "{value}") => ({
       type: "vstack",
       spacing: 8,
-      padding: { top: 12, leading: 16, bottom: 12, trailing: 16 },
+      padding: ROOM,
       frame: { w: 240 },
       children: [{ type: "header", content: "Overview" }, row("activity", "Now", main), row("clock", "Checked", "just now")],
     }),
@@ -324,7 +334,7 @@ export const STARTERS = [
     view: (main = "{value}", list = "items", fields = ["title", "detail"]) => ({
       type: "vstack",
       spacing: 6,
-      padding: { top: 12, leading: 16, bottom: 12, trailing: 16 },
+      padding: ROOM,
       frame: { w: 260 },
       children: [
         { type: "header", content: main },
@@ -348,7 +358,7 @@ export const STARTERS = [
     view: () => ({
       type: "vstack",
       children: [
-        { type: "header", content: "Settings" },
+        heading("Settings"),
         { type: "toggle", label: "Do Not Disturb", on: false, command: "true" },
         { type: "toggle", label: "Keep awake", on: true, command: "true" },
         { type: "divider" },
@@ -363,7 +373,7 @@ export const STARTERS = [
     view: (main = "{value}", list = "items", fields = ["title"]) => ({
       type: "vstack",
       children: [
-        { type: "header", content: main },
+        heading(main),
         { type: "foreach", items: list, child: { type: "check", label: `{${fields[0] ?? "title"}}`, checked: false, command: `echo {${fields[0] ?? "title"}}` } },
         { type: "divider" },
         { type: "action", label: "Add another", icon: "plus", command: "true" },
@@ -376,12 +386,12 @@ export const STARTERS = [
     view: (main = "{value}") => ({
       type: "vstack",
       children: [
-        { type: "header", content: "Status" },
+        heading("Status"),
         {
           type: "if",
           condition: main.slice(1, -1),
-          then: { type: "group", children: [row("circle-check", "Reading", main), row("clock", "Checked", "just now")] },
-          else: { type: "text", content: "Nothing to show", style: "secondary" },
+          then: { type: "group", children: [row("circle-check", "Reading", main, SIDES), row("clock", "Checked", "just now", SIDES)] },
+          else: { type: "text", content: "Nothing to show", style: "secondary", padding: SIDES },
         },
         { type: "divider" },
         { type: "action", label: "Refresh", icon: "refresh", command: "kantan trigger" },
@@ -395,7 +405,7 @@ export const STARTERS = [
     view: () => ({
       type: "vstack",
       spacing: 10,
-      padding: { top: 12, leading: 16, bottom: 12, trailing: 16 },
+      padding: ROOM,
       frame: { w: 220 },
       children: [{ type: "header", content: "Usage" }, meter("Processor", "0.5"), meter("Memory", "0.5")],
     }),
@@ -460,7 +470,7 @@ export const STARTERS = [
     view: (main = "{value}", list = "items", fields = ["title", "detail"]) => ({
       type: "vstack",
       spacing: 8,
-      padding: 14,
+      padding: ROOM,
       frame: { w: 270 },
       children: [
         { type: "hstack", children: [{ type: "header", content: "Services" }, { type: "spacer" }, { type: "badge", content: main, color: "accent", textColor: "white" }] },
@@ -488,7 +498,7 @@ export const STARTERS = [
     view: (main = "{value}", list = "items", fields = ["title", "detail"]) => ({
       type: "vstack",
       spacing: 8,
-      padding: 14,
+      padding: ROOM,
       frame: { w: 260 },
       children: [
         { type: "header", content: main },
@@ -501,13 +511,19 @@ export const STARTERS = [
               type: "foreach",
               items: list,
               child: {
-                type: "vstack",
-                spacing: 1,
-                alignment: "leading",
+                type: "hstack",
                 padding: { top: 3, bottom: 3 },
                 children: [
-                  { type: "text", content: `{${fields[0] ?? "title"}}`, weight: "medium" },
-                  ...(fields[1] === undefined ? [] : [{ type: "text", content: `{${fields[1]}}`, size: 11, style: "secondary" }]),
+                  {
+                    type: "vstack",
+                    spacing: 1,
+                    alignment: "leading",
+                    children: [
+                      { type: "text", content: `{${fields[0] ?? "title"}}`, weight: "medium" },
+                      ...(fields[1] === undefined ? [] : [{ type: "text", content: `{${fields[1]}}`, size: 11, style: "secondary" }]),
+                    ],
+                  },
+                  { type: "spacer" },
                 ],
               },
             },

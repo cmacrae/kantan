@@ -102,14 +102,14 @@ export function Share({ makeLink, source, barFor, dark, onClose }) {
       {link === undefined ? <div className="kb-note">Making the link…</div> : (
         <>
           <div className="kb-note" style={{ paddingBottom: 10 }}>
-            The link holds the whole bar: its config, the states its modules show and how you're looking at it. Nothing is stored on this site.
+            Holds the config, states and view. Nothing is stored.
           </div>
           {row(`A link to this bar · ${link.length.toLocaleString()} characters`, link)}
           {link.length > LONG_LINK && (
             <div className="kb-problem" style={{ paddingBottom: 10 }}>
               {link.length > GITHUB_LIMIT
                 ? "This link is longer than a GitHub post can hold. Trim the states you've added to shorten it."
-                : "This link is long. It works, but it reads better inside a titled link, as below."}
+                : "Long link. Use the titled form below."}
             </div>
           )}
           <div className="kb-h">For a GitHub post</div>
@@ -117,7 +117,7 @@ export function Share({ makeLink, source, barFor, dark, onClose }) {
             <input type="text" aria-label="The link's title" value={title} onChange={event => setTitle(event.target.value)} />
             <CopyButton kind="primary" text={() => markdownLink(title || "My kantan bar", link)}>Copy for GitHub</CopyButton>
           </div>
-          <div className="kb-note">Copies the link as Markdown under that title, so the post shows the title and not the link.</div>
+          <div className="kb-note">Copies a Markdown link with that title.</div>
           {source !== undefined && (
             <div style={{ marginTop: 14 }}>
               {row("A short link to the file this bar was opened from", source)}
@@ -128,6 +128,60 @@ export function Share({ makeLink, source, barFor, dark, onClose }) {
       )}
       <div className="kb-h" style={{ marginTop: 16 }}>An image of this bar</div>
       <ShareImage barFor={barFor} dark={dark} />
+    </Modal>
+  );
+}
+
+// The dialog that shares one module. `makeLink` resolves to the link
+// holding it, `module` is its config, `plugin` the bundled plugin it runs,
+// if any, and `printed` says whether its menu or popup is one its command
+// prints. `yaml` is the module as written to a config.
+export function ShareModule({ makeLink, module, plugin, printed, yaml, onClose }) {
+  const [link, setLink] = useState();
+  const [title, setTitle] = useState(`My kantan ${module.name} module`);
+  useEffect(() => {
+    let current = true;
+    makeLink().then(made => current && setLink(made));
+    return () => { current = false; };
+  }, [makeLink]);
+  const command = module.type === "command" ? module.config?.command : undefined;
+  return (
+    <Modal title={`Share ${module.name}`} onClose={onClose} wide>
+      {link === undefined ? <div className="kb-note">Making the link…</div> : (
+        <>
+          <div className="kb-note" style={{ paddingBottom: 10 }}>
+            Holds the module's config, views and states. It opens on the example bar.
+          </div>
+          <div className="kb-h">A link to this module · {link.length.toLocaleString()} characters</div>
+          <div className="kb-row" style={{ marginBottom: 12 }}>
+            <input type="text" readOnly aria-label="A link to this module" value={link} onFocus={event => event.target.select()} />
+            <CopyButton text={link}>Copy link</CopyButton>
+          </div>
+          <div className="kb-h">For a GitHub post</div>
+          <div className="kb-row">
+            <input type="text" aria-label="The link's title" value={title} onChange={event => setTitle(event.target.value)} />
+            <CopyButton kind="primary" text={() => markdownLink(title || module.name, link)}>Copy for GitHub</CopyButton>
+          </div>
+          {plugin !== undefined && (
+            <div className="kb-note" style={{ paddingTop: 10 }}>
+              Bundled plugin: unedited states aren't in the link.
+            </div>
+          )}
+          {plugin === undefined && typeof command === "string" && (
+            <div className="kb-note" style={{ paddingTop: 10 }}>
+              The command <code>{command}</code> isn't in the link. Its states are.
+            </div>
+          )}
+          {printed && (
+            <div className="kb-problem" style={{ paddingTop: 6 }}>
+              Its {module.interaction.click.type} is a view its command prints, which kantan shows only while that command prints it. To share the
+              view itself, open it in the view editor and copy it into the config.
+            </div>
+          )}
+        </>
+      )}
+      <div className="kb-h" style={{ marginTop: 16 }}>Its YAML</div>
+      <div className="kb-row"><CopyButton text={yaml}>Copy the module's YAML</CopyButton></div>
     </Modal>
   );
 }
