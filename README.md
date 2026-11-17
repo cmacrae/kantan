@@ -1,8 +1,10 @@
 <p align="center">
-  <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="site/images/readme-dark.png">
-    <img src="site/images/readme-light.png" alt="kantan · かんたん: the kantan bar across the top of a macOS desktop" width="960">
-  </picture>
+  <a href="https://kantan.bar">
+    <picture>
+      <source media="(prefers-color-scheme: dark)" srcset="site/images/readme-dark.png">
+      <img src="site/images/readme-light.png" alt="kantan · かんたん: the kantan bar across the top of a macOS desktop" width="960">
+    </picture>
+  </a>
 </p>
 
 <p align="center"><strong>A beautifully simple status bar for macOS</strong></p>
@@ -16,7 +18,7 @@
 - **Deeply native modules.** Battery, volume, WiFi, Bluetooth, Focus and workspaces, updating the instant something changes.
 - **Plugins in any language.** A plugin reads its settings from environment variables and prints JSON.
 - **Rich popups and menus.** Build them from a view DSL in your config or a plugin's output.
-- **Themes with light and dark mode.** Bring your own palettes or use the bundled Catppuccin.
+- **Themes with light and dark mode.** Bring your own palettes or use the bundled [Catppuccin](https://catppuccin.com).
 - **Menu bar masking.** Restyle native indicators. Their menus keep working underneath.
 - **Tidy by design.** Drawers, notch-aware placement and every display covered.
 
