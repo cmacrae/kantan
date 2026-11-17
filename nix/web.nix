@@ -2,7 +2,7 @@
 let
   inherit (pkgs) lib;
 
-  # React, from the npm registry, for esbuild to bundle.
+  # A package from the npm registry, for esbuild to bundle.
   npmPackage = name: version: hash: {
     inherit name;
     src = pkgs.fetchurl {
@@ -27,14 +27,19 @@ let
         (npmPackage "scheduler" "0.28.0"
           "sha512-juorfCmIkIw8tT+p5BXSm6PJjQF/ycEYmKyzURCIt/RaZIhL+PulbQ9Yu2z1HdOJDdqDTlxA1+xKBmHXJsczAw=="
         )
+        (npmPackage "yaml" "2.9.1"
+          "sha512-3NxN8+78OdzbT7C/WjGsyfPAtJaN3FNDsWxv7Y7mcDsT/oOmgW8BpyQQFFBnvZE3j9Y2Sdz1ULFLezL7Eb2yFw=="
+        )
       ]
   );
 
-  # The engine, the components and the apps: everything a bundle is made of.
+  # The engine, the builder's logic, the components and the apps: everything
+  # a bundle is made of.
   src = lib.fileset.toSource {
     root = ../web;
     fileset = lib.fileset.unions [
       ../web/engine
+      ../web/builder
       ../web/components
       ../web/apps
     ];
@@ -49,12 +54,15 @@ in
 {
   inherit src fixtures;
 
-  # The engine's tests, the shared cases among them.
+  # The engine's tests, the shared cases among them, and the tests of the
+  # builder's logic.
   engineTests = pkgs.runCommand "kantan-web-engine-tests" { nativeBuildInputs = [ pkgs.nodejs ]; } ''
     cp -r ${../web/engine} engine
+    cp -r ${../web/builder} builder
     cp -r ${fixtures} fixtures
+    cp -r ${nodeModules} node_modules
     cp ${../web/package.json} package.json
-    node --test 'engine/test/*.test.js'
+    node --test 'engine/test/*.test.js' 'builder/test/*.test.js'
     touch $out
   '';
 

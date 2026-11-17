@@ -1,0 +1,177 @@
+// Share links: a whole document in a URL's fragment, so a link shows a bar
+// without the site storing anything. The fragment is the codec's version, a
+// dot, then base64url of the deflated JSON of a packed document.
+//
+// Packing keeps a link short in three ways. What the site already has is
+// left out: a module's states when they are the ones it starts with, or
+// the ones it has in the example bar. What
+// says nothing is left out: empty parts, and a view that is the default.
+// And the words nearly every config uses are swapped for short tokens.
+//
+// A fragment may instead name a config file to fetch: `from=<url>`,
+// `gh=<user>/<repo>/<path>` or `gist=<id>`.
+import { sameValue } from "./equal.js";
+import { DOCUMENT_VERSION } from "../engine/document.js";
+import { dict, str } from "../engine/values.js";
+import { defaultStates } from "./catalog.js";
+import { modulesOf } from "./edit.js";
+import { WORDS } from "./words.js";
+
+export const CODEC_VERSION = "1";
+
+// Tokens count in base 62 from the start of the word list.
+const DIGITS = "0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ";
+function digits(n) {
+  let text = "";
+  do {
+    text = DIGITS[n % 62] + text;
+    n = Math.floor(n / 62);
+  } while (n > 0);
+  return text;
+}
+const TOKEN_OF = new Map(WORDS.map((word, i) => [word, `^${digits(i)}`]));
+const WORD_OF = new Map(WORDS.map((word, i) => [`^${digits(i)}`, word]));
+
+// A string as it's packed: its token when the list has it, and a string
+// that starts as a token does marked with a second caret.
+const packString = text => TOKEN_OF.get(text) ?? (text.startsWith("^") ? `^${text}` : text);
+function unpackString(text) {
+  if (!text.startsWith("^")) return text;
+  if (text.startsWith("^^")) return text.slice(1);
+  if (!WORD_OF.has(text)) throw new Error("The link uses a word this site doesn't know");
+  return WORD_OF.get(text);
+}
+
+// `value` with `each` applied to every string in it, keys included.
+function mapStrings(value, each) {
+  if (typeof value === "string") return each(value);
+  if (Array.isArray(value)) return value.map(item => mapStrings(item, each));
+  if (value === null || typeof value !== "object") return value;
+  return Object.fromEntries(Object.entries(value).map(([key, item]) => [each(key), mapStrings(item, each)]));
+}
+
+const present = value => dict(value) !== undefined && Object.keys(value).length > 0;
+
+// The packed form of `document`: `c` its config, `m` its modules.d, `t`
+// its themes, `s` the states that are its own, `b` the modules whose
+// states are the ones they start with, `e` those whose states are the
+// example bar's for a module of that name, and `v` its view.
+export function packDocument(document, catalog) {
+  const modules = Object.fromEntries(modulesOf(document).filter(dict).map(module => [module.name, module]));
+  const states = {}, bundled = [], example = [];
+  for (const [name, own] of Object.entries(document.states ?? {})) {
+    const starting = modules[name] && defaultStates(modules[name], catalog);
+    if (starting !== undefined && sameValue(own, starting)) bundled.push(name);
+    else if (sameValue(own, catalog.example?.states?.[name])) example.push(name);
+    else states[name] = own;
+  }
+
+  const view = { ...document.view };
+  if (view.dark === false) delete view.dark;
+  if (view.notch === false) delete view.notch;
+  if (!present(view.shown)) delete view.shown;
+
+  const packed = { c: document.config };
+  if (present(document.modulesDir)) packed.m = document.modulesDir;
+  if (present(document.themes)) packed.t = document.themes;
+  if (present(states)) packed.s = states;
+  if (bundled.length) packed.b = bundled;
+  if (example.length) packed.e = example;
+  if (present(view)) packed.v = view;
+  return mapStrings(packed, packString);
+}
+
+// The document a packed form holds. A module whose starting states the
+// site no longer has shows none.
+export function unpackDocument(packed, catalog) {
+  if (!dict(packed)) throw new Error("The link doesn't hold a bar");
+  const { c, m, t, s, b, e, v } = mapStrings(packed, unpackString);
+  const document = { version: DOCUMENT_VERSION, config: dict(c) ?? {} };
+  if (present(m)) document.modulesDir = m;
+  if (present(t)) document.themes = t;
+  const states = { ...dict(s) };
+  const modules = Object.fromEntries(modulesOf(document).filter(dict).map(module => [module.name, module]));
+  for (const name of Array.isArray(b) ? b : []) {
+    const starting = modules[name] && defaultStates(modules[name], catalog);
+    if (starting !== undefined) states[name] = starting;
+  }
+  for (const name of Array.isArray(e) ? e : []) {
+    const shown = catalog.example?.states?.[name];
+    if (shown !== undefined) states[name] = shown;
+  }
+  if (present(states)) document.states = states;
+  if (present(v)) document.view = v;
+  return document;
+}
+
+async function pipe(bytes, stream) {
+  const piped = new Blob([bytes]).stream().pipeThrough(stream);
+  return new Uint8Array(await new Response(piped).arrayBuffer());
+}
+
+function toBase64Url(bytes) {
+  let binary = "";
+  for (const byte of bytes) binary += String.fromCharCode(byte);
+  return btoa(binary).replaceAll("+", "-").replaceAll("/", "_").replace(/=+$/, "");
+}
+
+function fromBase64Url(text) {
+  const binary = atob(text.replaceAll("-", "+").replaceAll("_", "/"));
+  return Uint8Array.from(binary, char => char.charCodeAt(0));
+}
+
+// The fragment, without its `#`, that shares `document`.
+export async function encodeLink(document, catalog) {
+  const json = JSON.stringify(packDocument(document, catalog));
+  const deflated = await pipe(new TextEncoder().encode(json), new CompressionStream("deflate-raw"));
+  return `${CODEC_VERSION}.${toBase64Url(deflated)}`;
+}
+
+// The document a fragment made by `encodeLink` shares. Throws an error
+// saying what's wrong with a fragment that isn't one.
+export async function decodeLink(fragment, catalog) {
+  const dot = fragment.indexOf(".");
+  if (dot < 0 || fragment.slice(0, dot) !== CODEC_VERSION) throw new Error("The link is in a format this site doesn't read");
+  let json;
+  try {
+    const inflated = await pipe(fromBase64Url(fragment.slice(dot + 1)), new DecompressionStream("deflate-raw"));
+    json = JSON.parse(new TextDecoder().decode(inflated));
+  } catch {
+    throw new Error("The link is damaged");
+  }
+  return unpackDocument(json, catalog);
+}
+
+// What a fragment asks the builder to open: `{ link }` for a shared
+// document, `{ url }` for a config file to fetch, with `gist` when the
+// file is a gist's first YAML file, or undefined for anything else.
+export function readFragment(fragment) {
+  const text = fragment.replace(/^#/, "");
+  if (text === "") return undefined;
+  const equals = text.indexOf("=");
+  const key = equals < 0 ? "" : text.slice(0, equals);
+  const value = equals < 0 ? "" : decodeURIComponent(text.slice(equals + 1));
+  if (key === "from" && /^https:\/\//.test(value)) return { url: value };
+  if (key === "gh") {
+    const [user, repo, ...path] = value.split("/");
+    if (!user || !repo || path.length === 0) return undefined;
+    return { url: `https://raw.githubusercontent.com/${user}/${repo}/HEAD/${path.join("/")}` };
+  }
+  if (key === "gist" && /^[0-9a-f]+$/i.test(value)) return { url: `https://api.github.com/gists/${value}`, gist: true };
+  if (/^[0-9]+\./.test(text)) return { link: text };
+  return undefined;
+}
+
+// The config.yaml within what a fetch of `readFragment`'s URL returned:
+// the body itself, or for a gist its config.yaml or first YAML file.
+export function configText(body, { gist } = {}) {
+  if (!gist) return body;
+  const files = Object.values(dict(JSON.parse(body).files) ?? {});
+  const yaml = files.filter(file => /\.ya?ml$/.test(str(file?.filename) ?? ""));
+  const file = yaml.find(file => file.filename === "config.yaml") ?? yaml[0];
+  if (!file || typeof file.content !== "string") throw new Error("The gist holds no YAML file");
+  return file.content;
+}
+
+// The Markdown that links `url` under `title`, for a GitHub post.
+export const markdownLink = (title, url) => `[${title.replace(/([\\[\]])/g, "\\$1")}](${url})`;
