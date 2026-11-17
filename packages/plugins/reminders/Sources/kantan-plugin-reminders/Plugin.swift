@@ -478,7 +478,8 @@ func render(
 
   return PluginOutput(
     value: value,
-    icon: iconName,
+    // A list with no icon of its own leaves the module's in place.
+    icon: iconName.flatMap { $0.isEmpty ? nil : $0 },
     hidden: !hasReminders && !persisting,
     active: persisting ? false : nil,
     variables: variables,
