@@ -1,16 +1,20 @@
 import Foundation
 
 struct DrawerConfigFactory: ModuleConfigurationFactory {
+  /// Default tabler-icons for a closed and an open drawer.
+  static let defaultShowIcon = "box-align-right"
+  static let defaultHideIcon = "box-align-left"
+
   func configuration(from yaml: Yaml, configDir: String?, theme: ThemeConfig?) throws
     -> ModuleConfiguration
   {
-    let showIcon = yaml["icons"]["show"].string ?? "〈"
-    let hideIcon = yaml["icons"]["hide"].string ?? "〉"
+    let showIcon = yaml["icons"]["show"].string ?? Self.defaultShowIcon
+    let hideIcon = yaml["icons"]["hide"].string ?? Self.defaultHideIcon
     return DrawerConfig(showIcon: showIcon, hideIcon: hideIcon)
   }
 
   func defaultConfiguration() -> ModuleConfiguration? {
-    return DrawerConfig(showIcon: "〈", hideIcon: "〉")
+    return DrawerConfig(showIcon: Self.defaultShowIcon, hideIcon: Self.defaultHideIcon)
   }
 }
 
@@ -36,8 +40,12 @@ struct DrawerConfig: ModuleConfiguration {
     completion("")
   }
 
-  /// The hide icon while the drawer is open, the show icon otherwise.
   func getIcon() -> String {
-    state.isOpen ? hideIcon : showIcon
+    icon(open: state.isOpen)
+  }
+
+  /// The hide icon while the drawer is open, the show icon otherwise.
+  func icon(open: Bool) -> String {
+    open ? hideIcon : showIcon
   }
 }

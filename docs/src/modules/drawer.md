@@ -10,8 +10,10 @@ These keys go under the module's `config` key:
 
 | Key | Type | Default | Description |
 |-----|------|---------|-------------|
-| `icons.show` | string | `"〈"` | Icon/text shown when drawer is collapsed (click to expand) |
-| `icons.hide` | string | `"〉"` | Icon/text shown when drawer is expanded (click to collapse) |
+| `icons.show` | string | `"box-align-right"` | Icon/text shown when drawer is collapsed (click to expand) |
+| `icons.hide` | string | `"box-align-left"` | Icon/text shown when drawer is expanded (click to collapse) |
+
+The default icons suit a drawer on the right. For one on the left, swap them.
 
 ## Behavior
 
@@ -91,8 +93,8 @@ Left-side drawer with workspace info:
   placement: left
   config:
     icons:
-      show: "〉"
-      hide: "〈"
+      show: box-align-left
+      hide: box-align-right
 
 - name: workspaces
   type: workspace

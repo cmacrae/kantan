@@ -44,7 +44,7 @@ Some module types also accept icon names within their `config` block. For exampl
         - "battery-4-filled"
 ```
 
-The drawer module uses icons for its open/close states (defaults are Unicode angle brackets `〈` and `〉`):
+The drawer module uses icons for its open/close states (defaults are `box-align-right` and `box-align-left`):
 
 ```yaml
 - name: drawer

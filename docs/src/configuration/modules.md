@@ -349,8 +349,8 @@ These keys go under a drawer module's `config` key:
 
 | Key | Type | Default | Description |
 |-----|------|---------|-------------|
-| `icons.show` | string | `〈` | Icon while the drawer is closed |
-| `icons.hide` | string | `〉` | Icon while the drawer is open |
+| `icons.show` | string | `box-align-right` | Icon while the drawer is closed |
+| `icons.hide` | string | `box-align-left` | Icon while the drawer is open |
 
 The drawer hides the modules in its own placement that sit inward of it: the modules listed before the drawer for `right` and `notchleft`, and those listed after it for `left` and `notchright`. Clicking the drawer, or an empty part of the bar on its side, opens and closes it. One drawer per side is supported.
 

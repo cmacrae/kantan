@@ -531,8 +531,8 @@
         "icons": {
           "type": "object",
           "properties": {
-            "show": { "type": "string", "default": "〈", "description": "Icon shown when drawer content is hidden (click to show)." },
-            "hide": { "type": "string", "default": "〉", "description": "Icon shown when drawer content is visible (click to hide)." }
+            "show": { "type": "string", "default": "box-align-right", "description": "Icon shown when drawer content is hidden (click to show)." },
+            "hide": { "type": "string", "default": "box-align-left", "description": "Icon shown when drawer content is visible (click to hide)." }
           }
         }
       }
