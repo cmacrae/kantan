@@ -39,7 +39,7 @@ const NODES = {
   rect: { width: N, height: N, color: S, cornerRadius: N, strokeColor: S, strokeWidth: N },
   circle: { size: N, color: S, strokeColor: S, strokeWidth: N },
   capsule: { width: N, height: N, color: S },
-  action: { label: defaulted(S, ""), icon: S, command: S, iconFont: S },
+  action: { label: defaulted(S, ""), icon: S, command: S },
   check: { label: defaulted(S, ""), checked: defaulted(F, "false"), command: S, uncheckedCommand: S },
   toggle: { label: defaulted(S, ""), on: defaulted(F, "false"), command: S },
   button: { label: defaulted(S, ""), icon: S, command: S, style: E("default", "bordered", "borderless", "plain") },

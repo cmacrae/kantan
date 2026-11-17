@@ -451,8 +451,7 @@
         "type": { "const": "action" },
         "label": { "type": "string", "description": "Action text. Supports {variable} substitution." },
         "icon": { "type": "string", "description": "Icon character for the action." },
-        "command": { "type": "string", "description": "Shell command to execute on click, or a URL to open. Supports {variable} substitution." },
-        "iconFont": { "type": "string", "description": "Override icon font name for this action's icon." }
+        "command": { "type": "string", "description": "Shell command to execute on click, or a URL to open. Supports {variable} substitution." }
       },
       "required": ["type"]
     },

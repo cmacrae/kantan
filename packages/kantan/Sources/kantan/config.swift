@@ -693,9 +693,7 @@ func parseViewNodeFromYaml(_ yaml: Yaml) -> ViewNode? {
     let label = dict["label"]?.string ?? ""
     let icon = dict["icon"]?.string
     let command = dict["command"]?.string
-    let iconFont = dict["iconFont"]?.string
-    return .action(
-      label: label, icon: icon, command: command, iconFont: iconFont, common: common)
+    return .action(label: label, icon: icon, command: command, common: common)
 
   case "check":
     let label = dict["label"]?.string ?? ""

@@ -46,7 +46,7 @@ func nativeMenuRows(from node: ViewNode, resolver: TemplateResolver) -> [NativeM
     }
     return hstackRow(children: children, command: command, resolver: resolver).map { [$0] } ?? []
 
-  case .action(let label, let icon, let command, _, _):
+  case .action(let label, let icon, let command, _):
     let iconName = icon.map { resolver.resolve($0) }
     return [
       .action(

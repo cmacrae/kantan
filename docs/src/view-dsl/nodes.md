@@ -151,7 +151,7 @@ A bare placeholder whose value is empty leaves nothing. A command that is a sing
 
 | Type | Description | Properties |
 |------|-------------|------------|
-| `action` | Clickable menu-style row with icon and label | `label` (string, optional), `icon` (string, optional icon name), `command` (string, optional), `iconFont` (string, optional; accepted but not currently used in rendering) |
+| `action` | Clickable menu-style row with icon and label | `label` (string, optional), `icon` (string, optional icon name), `command` (string, optional) |
 | `check` | Checkbox item | `label` (string, optional), `checked` (boolean, number, or template string; default false), `command` (string, optional; run when checking), `uncheckedCommand` (string, optional; run when unchecking, falling back to `command`) |
 | `toggle` | Toggle switch | `label` (string, optional), `on` (boolean, number, or template string; default false), `command` (string, optional; run whenever it is switched, either way) |
 | `button` | Button | `label` (string, optional), `icon` (string, optional icon name), `command` (string, optional), `style` (`default`/`bordered`/`borderless`/`plain`; accepted but currently renders as `borderless`) |

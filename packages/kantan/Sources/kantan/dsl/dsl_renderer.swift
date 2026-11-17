@@ -133,7 +133,7 @@ extension ViewNode {
       .rect(_, _, _, _, _, _, let c),
       .circle(_, _, _, _, let c),
       .capsule(_, _, _, let c),
-      .action(_, _, _, _, let c),
+      .action(_, _, _, let c),
       .check(_, _, _, _, let c),
       .toggle(_, _, _, let c),
       .button(_, _, _, _, let c),
@@ -227,7 +227,7 @@ struct DSLRendererView: View {
       renderCapsule(width: width, height: height, color: color)
 
     // Interactive
-    case .action(let label, let icon, let command, _, _):
+    case .action(let label, let icon, let command, _):
       DSLActionView(
         label: label, icon: icon, command: command,
         resolver: resolver, isNative: isNative, dismissHandler: dismissHandler)

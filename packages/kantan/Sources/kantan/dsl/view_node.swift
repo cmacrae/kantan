@@ -274,7 +274,6 @@ enum ViewNode: Sendable {
     label: String?,
     icon: String?,
     command: String?,
-    iconFont: String?,
     common: CommonNodeProperties
   )
 
@@ -367,7 +366,7 @@ extension ViewNode: Decodable {
     case strokeColor, strokeWidth
 
     // Interactive
-    case label, icon, command, uncheckedCommand, iconFont, checked, on
+    case label, icon, command, uncheckedCommand, checked, on
 
     // Data
     case items, child, condition, then, `else`
@@ -501,7 +500,6 @@ extension ViewNode: Decodable {
         label: try container.decodeIfPresent(String.self, forKey: .label),
         icon: try container.decodeIfPresent(String.self, forKey: .icon),
         command: try container.decodeIfPresent(String.self, forKey: .command),
-        iconFont: try container.decodeIfPresent(String.self, forKey: .iconFont),
         common: common
       )
 
