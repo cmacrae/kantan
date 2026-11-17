@@ -313,6 +313,14 @@ function Workspace({ opened, iconSet, onStart }) {
     if (next.name !== module.name && shown[module.name] !== undefined) setState(next.name, shown[module.name]);
   };
   const remove = () => { change(removeModule(document, selected)); setSelected(-1); setQuick(false); };
+  // Removing a module from the list leaves any other being edited picked.
+  const removeAt = index => {
+    const next = removeModule(document, index);
+    change(next);
+    setQuick(false);
+    if (focus.kind !== "module") return;
+    setSelected(index === selected ? -1 : modulesOf(next).findIndex(each => each?.name === module?.name));
+  };
 
   // Opens a theme of the document's in the theme editor.
   const editTheme = name => { setFocus({ kind: "theme", name }); setQuick(false); setPane("edit"); };
@@ -609,7 +617,7 @@ function Workspace({ opened, iconSet, onStart }) {
           </button>
           <section className="kb-pane">
             <ModuleList modules={modules} sections={sections} accepted={accepted} selected={selected} onSelect={select}
-              onPlace={place} onPlaceIn={placeIn} onAdd={placement => setAdding({ placement, start: false })} />
+              onPlace={place} onPlaceIn={placeIn} onAdd={placement => setAdding({ placement, start: false })} onRemove={removeAt} />
           </section>
         </div>
         <section className={`kb-pane ${pane === "edit" ? "on" : ""}`}>
