@@ -30,7 +30,7 @@ let
     mkdir -p $out/src/plugins
     cp -r ${docsDir}/* $out/
     chmod -R u+w $out
-    cp ${../site/favicon.svg} $out/theme/favicon.svg
+    cp ${../web/static/favicon.svg} $out/theme/favicon.svg
     ${lib.concatMapStringsSep "\n" (name: ''
       grep -qF '${siteUrl}/docs/plugins/${name}.html' ${pluginsDir}/${name}/README.md \
         || { echo "${name}'s README must link to ${siteUrl}/docs/plugins/${name}.html" >&2; exit 1; }
@@ -45,7 +45,7 @@ let
 
   # The kantan logo, drawn in the menu bar icons' colour
   logo = builtins.replaceStrings [ ''width="32" height="32" '' ''fill="#f38ba8"'' ] [ "" "" ] (
-    builtins.readFile ../site/favicon.svg
+    builtins.readFile ../web/static/favicon.svg
   );
 
   websiteLink = ''<a href="${siteUrl}/" title="Website" aria-label="Website"><span class=fa-svg>${logo}</span></a>'';

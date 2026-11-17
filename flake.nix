@@ -25,6 +25,7 @@
       shell = import ./nix/shell.nix { inherit pkgs plugin; };
       discover = import ./nix/discover.nix { inherit (pkgs) lib; };
       siteUrl = "https://kantan.bar";
+      web = import ./nix/web.nix { inherit pkgs; };
 
       docs = import ./nix/docs.nix {
         inherit pkgs siteUrl;
@@ -34,6 +35,7 @@
       site = import ./nix/site.nix {
         inherit
           pkgs
+          web
           docs
           buildSwiftPackage
           siteUrl

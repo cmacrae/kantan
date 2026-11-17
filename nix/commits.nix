@@ -152,11 +152,11 @@ in
         expect pass
         commit "fix: before packages/" Sources/kantan/bar.swift
         expect pass
-        commit "site: new page" site/index.html
+        commit "site: new page" web/static/index.html
         expect pass
         commit "build(nix): tidy" nix/site.nix
         expect pass
-        commit "feat: a landing page" site/index.html
+        commit "feat: a landing page" web/static/index.html
         expect fail
         commit "fix(nix): packaging" nix/homebrew.nix
         expect fail
@@ -173,7 +173,7 @@ in
         zero=0000000000000000000000000000000000000000
         commit "feat(bar): pushed" packages/kantan/Sources/kantan/bar.swift
         echo "refs/heads/main $(git rev-parse HEAD) refs/heads/main $base" | kantan-check-commits --pre-push
-        commit "feat: a landing page" site/index.html
+        commit "feat: a landing page" web/static/index.html
         if echo "refs/heads/main $(git rev-parse HEAD) refs/heads/main $base" | kantan-check-commits --pre-push 2>/dev/null; then
           echo "the pre-push check passed a mislabelled commit" >&2
           exit 1

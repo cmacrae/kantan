@@ -1,8 +1,8 @@
 <p align="center">
   <a href="https://kantan.bar">
     <picture>
-      <source media="(prefers-color-scheme: dark)" srcset="site/images/readme-dark.png">
-      <img src="site/images/readme-light.png" alt="kantan · かんたん: the kantan bar across the top of a macOS desktop" width="960">
+      <source media="(prefers-color-scheme: dark)" srcset="web/images/readme-dark.png">
+      <img src="web/images/readme-light.png" alt="kantan · かんたん: the kantan bar across the top of a macOS desktop" width="960">
     </picture>
   </a>
 </p>

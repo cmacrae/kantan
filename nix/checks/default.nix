@@ -210,8 +210,8 @@ in
         ];
       }
       ''
-        shellcheck ${../../site/install.sh}
-        bash ${./install.sh} ${../../site/install.sh} ${releaseAssets} ${version.release}
+        shellcheck ${../../web/static/install.sh}
+        bash ${./install.sh} ${../../web/static/install.sh} ${releaseAssets} ${version.release}
         touch $out
       '';
   module-darwin = mkModuleCheck {

@@ -1,5 +1,6 @@
 {
   pkgs,
+  web,
   docs,
   version,
   buildSwiftPackage,
@@ -7,36 +8,6 @@
 }:
 let
   inherit (pkgs) lib;
-
-  siteDir = ../site;
-
-  # React, from the npm registry, for esbuild to bundle.
-  npmPackage = name: version: hash: {
-    inherit name;
-    src = pkgs.fetchurl {
-      url = "https://registry.npmjs.org/${name}/-/${name}-${version}.tgz";
-      inherit hash;
-    };
-  };
-
-  nodeModules = pkgs.runCommand "kantan-site-node-modules" { } (
-    lib.concatMapStrings
-      (package: ''
-        mkdir -p $out/${package.name}
-        tar -xzf ${package.src} -C $out/${package.name} --strip-components=1
-      '')
-      [
-        (npmPackage "react" "19.3.1"
-          "sha512-QNhWdt7nrgVWWQG58QuGsAR3jv3Hbe4mb4vz7w2csnHavciZJgda1CPNaldF6eVxv90ud3jUXpKlHL69gO38yw=="
-        )
-        (npmPackage "react-dom" "19.3.1"
-          "sha512-Y0bARz53lhEC1NMCASs0/j+faB/zqt3R8hpvg1e8+61ZVJ4UL0UdC4cBbXfZMcIuhrfgeILTLe+ZeBCavQPtKQ=="
-        )
-        (npmPackage "scheduler" "0.28.0"
-          "sha512-juorfCmIkIw8tT+p5BXSm6PJjQF/ycEYmKyzURCIt/RaZIhL+PulbQ9Yu2z1HdOJDdqDTlxA1+xKBmHXJsczAw=="
-        )
-      ]
-  );
 
   # The wordmark's fonts, from the Google Fonts repository.
   googleFont =
@@ -83,34 +54,20 @@ let
         EOF
       '';
 
-  # The landing page and the preview page, each bundled with React.
-  pages = pkgs.stdenvNoCC.mkDerivation {
-    pname = "kantan-site-pages";
-    inherit version;
-    # Everything but the rendered images and the tool that renders them
-    src = lib.fileset.toSource {
-      root = siteDir;
-      fileset = lib.fileset.difference siteDir (
-        lib.fileset.unions [
-          (lib.fileset.maybeMissing ../site/images)
-          ../site/snapshot
-        ]
-      );
-    };
-    nativeBuildInputs = [ pkgs.esbuild ];
-    buildPhase = ''
-      cp -r ${nodeModules} node_modules
-      esbuild main.jsx preview.jsx --bundle --minify --format=iife --jsx=automatic \
-        --define:process.env.NODE_ENV='"production"' \
-        --loader:.yaml=text \
-        --outdir=.
-    '';
-    installPhase = ''
-      mkdir -p $out/fonts
-      cp index.html 404.html main.js preview.html preview.js favicon.svg install.sh docs-versions.js $out/
-      cp ${fonts}/* $out/fonts/
-    '';
-  };
+  # The landing page and the preview page, with their scripts and fonts.
+  pages = pkgs.runCommand "kantan-site-pages-${version}" { } ''
+    mkdir -p $out/fonts
+    cp ${../web/static}/* ${
+      web.bundle {
+        name = "landing";
+        entries = [
+          "apps/landing/main.jsx"
+          "apps/landing/preview.jsx"
+        ];
+      }
+    }/* $out/
+    cp ${fonts}/* $out/fonts/
+  '';
 
   # Assembles the site in a directory from the landing page and the docs of
   # each release, given as <version>=<docs> pairs with the latest first. The
@@ -135,7 +92,7 @@ let
       mkdir -p "$out/docs" "$out/images"
       cp -r ${pages}/{index.html,404.html,main.js,favicon.svg,install.sh,fonts} "$out/"
       cp ${pages}/docs-versions.js "$out/docs/versions.js"
-      cp ${../site/images/og.png} "$out/images/og.png"
+      cp ${../web/images/og.png} "$out/images/og.png"
       chmod -R u+w "$out"
 
       latest=true
@@ -192,16 +149,16 @@ let
   snapshot = buildSwiftPackage {
     pname = "kantan-site-snapshot";
     inherit version;
-    src = ../site/snapshot;
+    src = ../web/snapshot;
   };
 
   # Renders the README's light and dark images and the link preview image
-  # into site/images, from the preview page.
+  # into web/images, from the preview page.
   renderImages = pkgs.writeShellApplication {
     name = "kantan-site-render-images";
     runtimeInputs = [ pkgs.oxipng ];
     text = ''
-      out=site/images
+      out=web/images
       if [ ! -d "$out" ]; then
         echo "Run this from the root of the kantan repository" >&2
         exit 1
