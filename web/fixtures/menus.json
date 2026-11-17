@@ -1,0 +1,260 @@
+[
+  {
+    "name": "stacks flatten and each kind of row comes through",
+    "source": "json",
+    "variables": { "name": "World", "done": "true", "off": "0" },
+    "view": {
+      "type": "vstack",
+      "children": [
+        { "type": "header", "content": "Hello {name}" },
+        { "type": "text", "content": "plain" },
+        { "type": "text", "content": "bold", "weight": "semibold", "style": "secondary", "strikethrough": true },
+        { "type": "text", "content": "medium", "weight": "medium" },
+        { "type": "divider" },
+        { "type": "zstack", "children": [{ "type": "group", "children": [{ "type": "action", "label": "Open {name}", "icon": "rocket", "command": "open {name}" }] }] },
+        { "type": "action", "label": "Disabled" },
+        { "type": "action", "icon": "{missing}", "command": "true" },
+        { "type": "check", "label": "Task", "checked": "{done}", "command": "done 1", "uncheckedCommand": "undone 1" },
+        { "type": "check", "label": "Literal", "checked": true },
+        { "type": "check" },
+        { "type": "toggle", "label": "Wi-Fi", "on": "{off}", "command": "wifi toggle" },
+        { "type": "toggle", "label": "Number", "on": 1 }
+      ]
+    },
+    "expect": {
+      "rows": [
+        { "type": "header", "text": "Hello World" },
+        { "type": "text", "text": "plain", "bold": false, "secondary": false, "strike": false },
+        { "type": "text", "text": "bold", "bold": true, "secondary": true, "strike": true },
+        { "type": "text", "text": "medium", "bold": false },
+        { "type": "divider" },
+        { "type": "action", "label": "Open World", "iconText": "rocket", "command": "open 'World'" },
+        { "type": "action", "label": "Disabled", "command": null, "iconText": null },
+        { "type": "action", "label": "", "command": "true", "iconText": null },
+        { "type": "check", "label": "Task", "checked": true, "command": "done 1", "uncheckedCommand": "undone 1" },
+        { "type": "check", "label": "Literal", "checked": true, "command": null, "uncheckedCommand": null },
+        { "type": "check", "label": "", "checked": false },
+        { "type": "toggle", "label": "Wi-Fi", "on": false, "command": "wifi toggle" },
+        { "type": "toggle", "label": "Number", "on": true, "command": null }
+      ]
+    }
+  },
+  {
+    "name": "an hstack is one row, split at its first spacer",
+    "source": "json",
+    "variables": { "color": "#1E66F5", "empty": "" },
+    "view": {
+      "type": "vstack",
+      "children": [
+        {
+          "type": "hstack",
+          "command": "calshow:{empty}",
+          "children": [
+            { "type": "rect", "width": 3, "height": 14 },
+            { "type": "rect", "color": "{empty}" },
+            { "type": "rect", "color": "{color}" },
+            { "type": "rect", "color": "#ff0000" },
+            { "type": "icon", "name": "calendar", "size": 11 },
+            { "type": "icon", "name": "{empty}" },
+            { "type": "text", "content": "Standup", "style": "secondary" },
+            { "type": "text", "content": "{empty}" },
+            { "type": "progress", "value": 0.5 },
+            { "type": "badge", "content": "ignored" },
+            { "type": "vstack", "children": [{ "type": "text", "content": "nested" }, { "type": "text", "content": "{empty}" }, { "type": "hstack", "children": [{ "type": "icon", "name": "clock" }] }] },
+            { "type": "spacer" },
+            { "type": "text", "content": "09:00", "strikethrough": true },
+            { "type": "spacer" },
+            { "type": "text", "content": "15m" }
+          ]
+        },
+        { "type": "hstack", "children": [{ "type": "text", "content": "label only" }] },
+        { "type": "hstack", "children": [{ "type": "spacer" }, { "type": "rect", "color": "not a colour" }, { "type": "text", "content": "detail only" }] },
+        { "type": "hstack", "children": [{ "type": "rect", "color": "#ff0000" }, { "type": "progress", "value": "1" }, { "type": "spacer" }] },
+        { "type": "hstack", "children": [{ "type": "text", "content": "" }] }
+      ]
+    },
+    "expect": {
+      "rows": [
+        {
+          "type": "row",
+          "indicator": "#1e66f5",
+          "command": "calshow:",
+          "label": [
+            { "text": "calendar", "secondary": false, "strike": false },
+            { "text": "Standup", "secondary": true, "strike": false },
+            { "text": "", "secondary": false, "strike": false },
+            { "text": "nested" },
+            { "text": "clock" }
+          ],
+          "detail": [{ "text": "09:00", "strike": true }, { "text": "15m", "strike": false }]
+        },
+        { "type": "row", "label": [{ "text": "label only" }], "detail": [], "indicator": null, "command": null },
+        { "type": "row", "label": [], "detail": [{ "text": "detail only" }], "indicator": null },
+        { "type": "row", "label": [{ "text": "" }], "detail": [] }
+      ]
+    }
+  },
+  {
+    "name": "an hstack holding an interactive node flattens instead",
+    "source": "json",
+    "view": {
+      "type": "hstack",
+      "command": "ignored",
+      "children": [
+        { "type": "text", "content": "Label" },
+        { "type": "icon", "name": "star" },
+        { "type": "spacer" },
+        { "type": "button", "label": "Go", "command": "go" },
+        { "type": "hstack", "children": [{ "type": "text", "content": "inner" }] }
+      ]
+    },
+    "expect": {
+      "rows": [
+        { "type": "text", "text": "Label" },
+        { "type": "row", "label": [{ "text": "inner" }], "detail": [], "command": null }
+      ]
+    }
+  },
+  {
+    "name": "foreach scopes each item and if picks a branch",
+    "source": "json",
+    "variables": { "has_items": "true", "none": "", "title": "outer" },
+    "data": {
+      "items": [
+        { "title": "First", "id": "a b", "done": false, "count": 2, "ratio": 0.5, "absent": null },
+        { "title": "Second", "id": "c", "done": true, "count": 10 }
+      ]
+    },
+    "view": {
+      "type": "vstack",
+      "children": [
+        {
+          "type": "if",
+          "condition": "has_items",
+          "then": {
+            "type": "foreach",
+            "items": "items",
+            "child": {
+              "type": "vstack",
+              "children": [
+                { "type": "check", "label": "{title} {count} {ratio} [{absent}]", "checked": "{done}", "command": "tick '{id}'" },
+                { "type": "if", "condition": "done", "then": { "type": "text", "content": "{title} is done" } }
+              ]
+            }
+          },
+          "else": { "type": "text", "content": "Nothing" }
+        },
+        { "type": "if", "condition": "none", "then": { "type": "text", "content": "hidden" }, "else": { "type": "text", "content": "{title}" } },
+        { "type": "if", "condition": "none", "then": { "type": "text", "content": "hidden" } },
+        { "type": "foreach", "items": "absent", "child": { "type": "text", "content": "never" } }
+      ]
+    },
+    "expect": {
+      "rows": [
+        { "type": "check", "label": "First 2 0.5 []", "checked": false, "command": "tick 'a b'" },
+        { "type": "check", "label": "Second 10  []", "checked": true, "command": "tick 'c'" },
+        { "type": "text", "text": "Second is done" },
+        { "type": "text", "text": "outer" }
+      ]
+    }
+  },
+  {
+    "name": "nodes a menu has no row for are left out",
+    "source": "json",
+    "view": {
+      "type": "scroll",
+      "children": [
+        { "type": "spacer" },
+        { "type": "icon", "name": "star" },
+        { "type": "image", "url": "https://example.com/a.png" },
+        { "type": "rect" },
+        { "type": "circle", "size": 4 },
+        { "type": "capsule" },
+        { "type": "button", "label": "Go" },
+        { "type": "progress", "value": "{x}" },
+        { "type": "gauge", "value": 1 },
+        { "type": "badge", "content": "3" },
+        { "type": "grid", "columns": 2, "children": [{ "type": "text", "content": "in a grid" }] }
+      ]
+    },
+    "expect": { "rows": [{ "type": "text", "text": "in a grid" }] }
+  },
+  {
+    "name": "visible is not a menu's concern",
+    "source": "json",
+    "view": { "type": "vstack", "children": [{ "type": "text", "content": "shown", "visible": false }] },
+    "expect": { "rows": [{ "type": "text", "text": "shown" }] }
+  },
+  { "name": "JSON rejects a field of the wrong type", "source": "json", "view": { "type": "text", "content": "x", "size": "12" }, "expect": { "rejected": true } },
+  { "name": "JSON rejects a missing required field", "source": "json", "view": { "type": "text" }, "expect": { "rejected": true } },
+  { "name": "JSON rejects an unknown node type, however deep", "source": "json", "view": { "type": "vstack", "children": [{ "type": "hstack", "children": [{ "type": "sparkline" }] }] }, "expect": { "rejected": true } },
+  { "name": "JSON rejects an unknown word", "source": "json", "view": { "type": "text", "content": "x", "weight": "chunky" }, "expect": { "rejected": true } },
+  { "name": "JSON rejects padding as a list", "source": "json", "view": { "type": "text", "content": "x", "padding": [1, 2, 3, 4] }, "expect": { "rejected": true } },
+  { "name": "JSON rejects a number for a string", "source": "json", "view": { "type": "header", "content": 5 }, "expect": { "rejected": true } },
+  { "name": "JSON rejects a number for visible", "source": "json", "view": { "type": "divider", "visible": 1 }, "expect": { "rejected": true } },
+  { "name": "JSON rejects children that aren't a list", "source": "json", "view": { "type": "vstack", "children": { "type": "divider" } }, "expect": { "rejected": true } },
+  { "name": "JSON rejects a fractional column count", "source": "json", "view": { "type": "grid", "columns": 2.5 }, "expect": { "rejected": true } },
+  { "name": "JSON rejects a foreach without a child", "source": "json", "view": { "type": "foreach", "items": "x" }, "expect": { "rejected": true } },
+  {
+    "name": "JSON takes null as absent, and numbers and booleans where a value may be either",
+    "source": "json",
+    "view": {
+      "type": "vstack",
+      "spacing": null,
+      "padding": { "top": 2 },
+      "frame": { "w": 10 },
+      "children": [
+        { "type": "text", "content": "ok", "size": 12, "color": null, "visible": true },
+        { "type": "check", "label": "n", "checked": 0 },
+        { "type": "toggle", "label": "s", "on": "yes" },
+        { "type": "grid", "columns": 3.0 }
+      ]
+    },
+    "expect": {
+      "rows": [
+        { "type": "text", "text": "ok" },
+        { "type": "check", "label": "n", "checked": false },
+        { "type": "toggle", "label": "s", "on": true }
+      ]
+    }
+  },
+  {
+    "name": "YAML reads a field of the wrong type as missing and leaves out a node it can't read",
+    "source": "yaml",
+    "variables": { "done": "true" },
+    "view": {
+      "type": "vstack",
+      "padding": [1, 2],
+      "children": [
+        { "type": "text", "content": "x", "size": "12", "weight": "chunky" },
+        { "type": "text" },
+        { "type": "header", "content": 5 },
+        { "type": "sparkline" },
+        "not a node",
+        { "type": "foreach", "items": "x" },
+        { "type": "if", "condition": "done" },
+        { "type": "if", "condition": "done", "then": { "type": "text", "content": "then" }, "else": { "type": "nonsense" } },
+        { "type": "check", "checked": true },
+        { "type": "check", "checked": "{done}", "label": 7 },
+        { "type": "check" },
+        { "type": "toggle", "on": false },
+        { "type": "action", "icon": 3 }
+      ]
+    },
+    "expect": {
+      "rows": [
+        { "type": "text", "text": "x", "bold": false },
+        { "type": "text", "text": "" },
+        { "type": "header", "text": "" },
+        { "type": "text", "text": "then" },
+        { "type": "check", "label": "", "checked": true },
+        { "type": "check", "label": "", "checked": true },
+        { "type": "check", "label": "", "checked": false },
+        { "type": "toggle", "label": "", "on": false },
+        { "type": "action", "label": "", "command": null, "iconText": null }
+      ]
+    }
+  },
+  { "name": "YAML has no view when the root can't be read", "source": "yaml", "view": { "type": "foreach", "items": "x" }, "expect": { "rejected": true } },
+  { "name": "YAML has no view for an unknown root", "source": "yaml", "view": { "type": "sparkline" }, "expect": { "rejected": true } }
+]

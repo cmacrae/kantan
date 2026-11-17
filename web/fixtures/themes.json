@@ -1,0 +1,105 @@
+[
+  {
+    "name": "a single palette serves both appearances",
+    "themes": { "fx-single": { "fg": "#111111", "bg": "#eeeeee", "shape": "#cccccc", "colors": { "red": "#ff0000", "skipped": 5 } } },
+    "selection": "fx-single",
+    "expect": {
+      "light": { "fg": "#111111", "bg": "#eeeeee", "shape": "#cccccc", "colors": { "red": "#ff0000", "skipped": null } },
+      "dark": { "fg": "#111111", "bg": "#eeeeee", "shape": "#cccccc" }
+    }
+  },
+  {
+    "name": "a mode-aware theme, and one missing a mode takes the other's",
+    "themes": {
+      "fx-modes": { "light": { "fg": "#111111", "bg": "#eeeeee" }, "dark": { "fg": "#eeeeee", "bg": "#111111" } },
+      "fx-dark-only": { "dark": { "fg": "#eeeeee", "bg": "#111111" } }
+    },
+    "selection": "fx-modes",
+    "expect": { "light": { "fg": "#111111", "shape": null }, "dark": { "fg": "#eeeeee" } }
+  },
+  {
+    "name": "a theme with only a dark palette uses it for light too",
+    "themes": { "fx-dark-only": { "dark": { "fg": "#eeeeee", "bg": "#111111" } } },
+    "selection": "fx-dark-only",
+    "expect": { "light": { "fg": "#eeeeee" }, "dark": { "fg": "#eeeeee" } }
+  },
+  {
+    "name": "a flavoured theme uses its defaults",
+    "themes": {
+      "fx-flavours": {
+        "defaults": { "light": "day", "dark": "night" },
+        "flavours": {
+          "day": { "fg": "#111111", "bg": "#eeeeee" },
+          "dusk": { "fg": "#555555", "bg": "#aaaaaa" },
+          "night": { "fg": "#eeeeee", "bg": "#111111" }
+        }
+      }
+    },
+    "selection": "fx-flavours",
+    "expect": { "light": { "fg": "#111111" }, "dark": { "fg": "#eeeeee" } }
+  },
+  {
+    "name": "a named flavour serves both appearances",
+    "themes": {
+      "fx-flavours": {
+        "defaults": { "light": "day", "dark": "night" },
+        "flavours": { "day": { "fg": "#111111", "bg": "#eeeeee" }, "dusk": { "fg": "#555555", "bg": "#aaaaaa" }, "night": { "fg": "#eeeeee", "bg": "#111111" } }
+      }
+    },
+    "selection": " fx-flavours [ dusk ] ",
+    "expect": { "light": { "fg": "#555555" }, "dark": { "fg": "#555555" } }
+  },
+  {
+    "name": "a flavour per appearance, from two themes",
+    "themes": {
+      "fx-flavours": {
+        "defaults": { "light": "day", "dark": "night" },
+        "flavours": { "day": { "fg": "#111111", "bg": "#eeeeee" }, "dusk": { "fg": "#555555", "bg": "#aaaaaa" }, "night": { "fg": "#eeeeee", "bg": "#111111" } }
+      },
+      "fx-single": { "fg": "#123456", "bg": "#654321" }
+    },
+    "selection": { "light": "fx-flavours[dusk]", "dark": "fx-single" },
+    "expect": { "light": { "fg": "#555555" }, "dark": { "fg": "#123456" } }
+  },
+  {
+    "name": "a flavour per appearance falls back to the theme's defaults",
+    "themes": {
+      "fx-flavours": {
+        "defaults": { "light": "day", "dark": "night" },
+        "flavours": { "day": { "fg": "#111111", "bg": "#eeeeee" }, "night": { "fg": "#eeeeee", "bg": "#111111" } }
+      }
+    },
+    "selection": { "light": "fx-flavours", "dark": "fx-flavours" },
+    "expect": { "light": { "fg": "#111111" }, "dark": { "fg": "#eeeeee" } }
+  },
+  {
+    "name": "a theme that doesn't exist",
+    "themes": {},
+    "selection": "fx-absent",
+    "expect": null
+  },
+  {
+    "name": "a flavour the theme lacks",
+    "themes": { "fx-flavours": { "defaults": { "light": "day", "dark": "day" }, "flavours": { "day": { "fg": "#111111", "bg": "#eeeeee" } } } },
+    "selection": "fx-flavours[absent]",
+    "expect": null
+  },
+  {
+    "name": "a flavoured theme without defaults needs a flavour",
+    "themes": { "fx-flavours": { "flavours": { "day": { "fg": "#111111", "bg": "#eeeeee" } } } },
+    "selection": "fx-flavours",
+    "expect": null
+  },
+  {
+    "name": "a per-appearance selection needs both",
+    "themes": { "fx-single": { "fg": "#123456", "bg": "#654321" } },
+    "selection": { "light": "fx-single" },
+    "expect": null
+  },
+  {
+    "name": "a palette needs fg and bg",
+    "themes": { "fx-partial": { "fg": "#123456" } },
+    "selection": "fx-partial",
+    "expect": null
+  }
+]

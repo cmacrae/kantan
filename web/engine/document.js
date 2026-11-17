@@ -1,0 +1,69 @@
+// The document every preview, builder and share link holds: a user's config
+// files as parsed YAML, and the states its modules show.
+//
+//   version     the format's version
+//   config      config.yaml
+//   modulesDir  the files of modules.d, by filename
+//   themes      the theme files the config selects from, by theme name
+//   states      what each module shows, by module name: a list of named
+//               states, each holding the `output` its command printed and
+//               the `transitions` from it, the state each command leads to
+import { dict, list } from "./values.js";
+
+export const DOCUMENT_VERSION = 1;
+
+// What's wrong with `document`, as a list of sentences: empty when it is a
+// document the engine can draw.
+export function validateDocument(document) {
+  if (!dict(document)) return ["The document isn't a mapping"];
+  const problems = [];
+  if (document.version !== DOCUMENT_VERSION) problems.push(`The document's version isn't ${DOCUMENT_VERSION}`);
+  if (!dict(document.config)) problems.push("config isn't a mapping");
+
+  for (const key of ["modulesDir", "themes", "states"]) {
+    if (document[key] !== undefined && !dict(document[key])) problems.push(`${key} isn't a mapping`);
+  }
+  for (const [file, module] of Object.entries(dict(document.modulesDir) ?? {})) {
+    if (!dict(module)) problems.push(`modulesDir's ${file} isn't a mapping`);
+  }
+  for (const [name, theme] of Object.entries(dict(document.themes) ?? {})) {
+    if (!dict(theme)) problems.push(`The theme ${name} isn't a mapping`);
+  }
+
+  for (const [module, states] of Object.entries(dict(document.states) ?? {})) {
+    if (!list(states)) {
+      problems.push(`${module}'s states aren't a list`);
+      continue;
+    }
+    const names = states.map(state => state?.name);
+    states.forEach((state, i) => {
+      const label = `${module}'s state ${typeof state?.name === "string" ? state.name : i + 1}`;
+      if (!dict(state) || typeof state.name !== "string" || state.name === "") {
+        problems.push(`${label} has no name`);
+        return;
+      }
+      if (names.indexOf(state.name) !== i) problems.push(`${label} shares its name with another`);
+      if (state.output !== undefined && typeof state.output !== "string" && !dict(state.output)) {
+        problems.push(`${label}'s output is neither text nor a mapping`);
+      }
+      if (state.transitions === undefined) return;
+      if (!dict(state.transitions)) {
+        problems.push(`${label}'s transitions aren't a mapping`);
+        return;
+      }
+      for (const [command, target] of Object.entries(state.transitions)) {
+        if (!names.includes(target)) problems.push(`${label} leads to ${target}, which isn't a state, by ${command}`);
+      }
+    });
+  }
+  return problems;
+}
+
+// The state the module named `module` moves to when `command` runs while it
+// shows the state named `state`, or undefined when the command leads
+// nowhere.
+export function nextState(document, module, state, command) {
+  const states = document.states?.[module] ?? [];
+  const current = states.find(s => s.name === state) ?? states[0];
+  return current?.transitions?.[command];
+}

@@ -224,6 +224,7 @@
           pkgs
           version
           swift
+          web
           docs
           site
           pluginPackages

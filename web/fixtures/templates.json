@@ -1,0 +1,97 @@
+[
+  {
+    "name": "variables fill placeholders and unknown ones come to nothing",
+    "variables": { "title": "Standup", "count": "3" },
+    "checks": [
+      { "resolve": "{title} ({count})", "expect": "Standup (3)" },
+      { "resolve": "Next: {missing}!", "expect": "Next: !" },
+      { "resolve": "no placeholders", "expect": "no placeholders" },
+      { "resolve": "an {unclosed brace", "expect": "an {unclosed brace" },
+      { "resolve": "{}", "expect": "" },
+      { "resolve": "}{title}{", "expect": "}Standup{" }
+    ]
+  },
+  {
+    "name": "the innermost foreach scope comes first, then outer ones, then the variables",
+    "variables": { "name": "module", "only": "variable" },
+    "scopes": [{ "name": "outer", "outer": "yes" }, { "name": "inner" }],
+    "checks": [
+      { "resolve": "{name} {outer} {only}", "expect": "inner yes variable" }
+    ]
+  },
+  {
+    "name": "a value is used as written, but for the theme templates within it",
+    "variables": { "color": "{theme(red)}", "nested": "{title}", "title": "T", "unknown": "{theme(absent)}" },
+    "palette": { "fg": "#111111", "bg": "#222222", "shape": "#333333", "colors": { "red": "#ff0000" } },
+    "checks": [
+      { "resolve": "{color}", "expect": "#ff0000" },
+      { "resolve": "{nested}", "expect": "{title}" },
+      { "resolve": "{unknown}", "expect": "{theme(absent)}" },
+      { "resolve": "{theme(red)} {theme(fg)} {theme(bg)} {theme(shape)}", "expect": "#ff0000 #111111 #222222 #333333" },
+      { "resolve": "{theme(absent)}", "expect": "{theme(absent)}" }
+    ]
+  },
+  {
+    "name": "without a palette a theme template stays as written",
+    "variables": { "color": "{theme(red)}" },
+    "checks": [
+      { "resolve": "{theme(red)}", "expect": "{theme(red)}" },
+      { "resolve": "{color}", "expect": "{theme(red)}" }
+    ]
+  },
+  {
+    "name": "a command's values are quoted for where their placeholders sit",
+    "variables": { "title": "it's a \"test\" $HOME `id`", "empty": "", "plain": "word", "built": "open -a 'My App'" },
+    "checks": [
+      { "command": "echo {plain}", "expect": "echo 'word'" },
+      { "command": "echo {title}", "expect": "echo 'it'\\''s a \"test\" $HOME `id`'" },
+      { "command": "echo '{title}'", "expect": "echo 'it'\\''s a \"test\" $HOME `id`'" },
+      { "command": "echo \"{title}\"", "expect": "echo \"it's a \\\"test\\\" \\$HOME \\`id\\`\"" },
+      { "command": "echo {empty} end", "expect": "echo  end" },
+      { "command": "echo {missing}", "expect": "echo " },
+      { "command": "{built}", "expect": "open -a 'My App'" },
+      { "command": "  {built}  ", "expect": "open -a 'My App'" },
+      { "command": "{missing}", "expect": "" },
+      { "command": "echo \\'{plain}", "expect": "echo \\''word'" },
+      { "command": "echo \"a'{plain}'b\"", "expect": "echo \"a'word'b\"" }
+    ]
+  },
+  {
+    "name": "a URL command's values are percent-encoded",
+    "variables": { "id": "a b&c=d/e?f#g+h", "accent": "café" },
+    "checks": [
+      { "command": "calshow:{id}", "expect": "calshow:a%20b%26c%3Dd/e%3Ff%23g%2Bh" },
+      { "command": "https://example.com/?q={accent}", "expect": "https://example.com/?q=caf%C3%A9" },
+      { "command": "open https://example.com/{id}", "expect": "open https://example.com/'a b&c=d/e?f#g+h'" }
+    ]
+  },
+  {
+    "name": "booleans and conditions",
+    "variables": {
+      "t": "true", "one": "1", "yes": "YES", "word": "anything", "f": "false", "zero": "0",
+      "no": "No", "empty": "", "spaced": "  false  ", "space": " "
+    },
+    "checks": [
+      { "bool": "{t}", "expect": true },
+      { "bool": "{one}", "expect": true },
+      { "bool": "{yes}", "expect": true },
+      { "bool": "{word}", "expect": true },
+      { "bool": "{f}", "expect": false },
+      { "bool": "{zero}", "expect": false },
+      { "bool": "{no}", "expect": false },
+      { "bool": "{empty}", "expect": false },
+      { "bool": "{missing}", "expect": false },
+      { "bool": "{spaced}", "expect": false },
+      { "bool": "true", "expect": true },
+      { "truthy": "t", "expect": true },
+      { "truthy": "word", "expect": true },
+      { "truthy": "f", "expect": false },
+      { "truthy": "zero", "expect": false },
+      { "truthy": "no", "expect": false },
+      { "truthy": "empty", "expect": false },
+      { "truthy": "missing", "expect": false },
+      { "truthy": "spaced", "expect": true },
+      { "truthy": "space", "expect": true }
+    ]
+  }
+]

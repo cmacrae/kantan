@@ -30,17 +30,33 @@ let
       ]
   );
 
-  # The components and the apps: everything a bundle is made of.
+  # The engine, the components and the apps: everything a bundle is made of.
   src = lib.fileset.toSource {
     root = ../web;
     fileset = lib.fileset.unions [
+      ../web/engine
       ../web/components
       ../web/apps
     ];
   };
+
+  # The cases kantan's tests and the engine's tests both run.
+  fixtures = lib.fileset.toSource {
+    root = ../web/fixtures;
+    fileset = lib.fileset.fileFilter (file: file.hasExt "json") ../web/fixtures;
+  };
 in
 {
-  inherit src;
+  inherit src fixtures;
+
+  # The engine's tests, the shared cases among them.
+  engineTests = pkgs.runCommand "kantan-web-engine-tests" { nativeBuildInputs = [ pkgs.nodejs ]; } ''
+    cp -r ${../web/engine} engine
+    cp -r ${fixtures} fixtures
+    cp ${../web/package.json} package.json
+    node --test 'engine/test/*.test.js'
+    touch $out
+  '';
 
   # The `entries`, paths within web/, each bundled with React into a
   # minified script named after it. YAML files import as text.

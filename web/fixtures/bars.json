@@ -1,0 +1,405 @@
+[
+  {
+    "name": "a module's colours come from the plugin, then the module, then the bar",
+    "document": {
+      "version": 1,
+      "config": {
+        "theme": "fx-bar",
+        "modules": [
+          { "name": "bar-fg", "type": "command", "placement": "left", "icon": "a", "config": { "command": "x", "output": "json" } },
+          { "name": "module-fg", "type": "command", "placement": "left", "icon": "a", "style": { "fg": "{theme(blue)}" }, "config": { "command": "x", "output": "json" } },
+          { "name": "module-elements", "type": "command", "placement": "left", "icon": "a", "style": { "fg": "{theme(blue)}", "icon": { "fg": "{theme(red)}" }, "text": { "fg": "#00FF00" } }, "config": { "command": "x", "output": "json" } },
+          { "name": "plugin-fg", "type": "command", "placement": "left", "icon": "a", "style": { "fg": "{theme(blue)}", "icon": { "fg": "{theme(red)}" } }, "config": { "command": "x", "output": "json" } },
+          { "name": "plugin-elements", "type": "command", "placement": "left", "icon": "a", "style": { "fg": "{theme(blue)}" }, "config": { "command": "x", "output": "json" } },
+          { "name": "plugin-unknown-colour", "type": "command", "placement": "left", "icon": "a", "style": { "fg": "{theme(blue)}" }, "config": { "command": "x", "output": "json" } }
+        ]
+      },
+      "themes": {
+        "fx-bar": {
+          "light": { "fg": "#111111", "bg": "#EEEEEE", "shape": "#CCCCCC", "colors": { "blue": "#0000FF", "red": "#FF0000", "teal": "#00FFFF" } },
+          "dark": { "fg": "#EEEEEE", "bg": "#111111", "shape": "#333333", "colors": { "blue": "#8888FF", "red": "#FF8888", "teal": "#88FFFF" } }
+        }
+      },
+      "states": {
+        "bar-fg": [{ "name": "s", "output": { "value": "v" } }],
+        "module-fg": [{ "name": "s", "output": { "value": "v" } }],
+        "module-elements": [{ "name": "s", "output": { "value": "v" } }],
+        "plugin-fg": [{ "name": "s", "output": { "value": "v", "style": { "fg": "{theme(teal)}" } } }],
+        "plugin-elements": [{ "name": "s", "output": { "value": "v", "style": { "fg": "{theme(teal)}", "icon": { "fg": "#ABCDEF" }, "text": { "fg": "123456" } } } }],
+        "plugin-unknown-colour": [{ "name": "s", "output": { "value": "v", "style": { "fg": "{theme(absent)}" } } }]
+      }
+    },
+    "checks": [
+      {
+        "dark": false,
+        "expect": {
+          "native": false, "fg": "#111111", "bg": "#eeeeee", "height": 33, "padding": 10, "iconTextSpacing": 5,
+          "placements": {
+            "left": [
+              { "name": "bar-fg", "icon": { "name": "a", "color": "#111111", "opacity": 1 }, "text": [{ "text": "v", "color": "#111111" }], "shape": null, "bg": null },
+              { "name": "module-fg", "icon": { "color": "#0000ff" }, "text": [{ "color": "#0000ff" }] },
+              { "name": "module-elements", "icon": { "color": "#ff0000" }, "text": [{ "color": "#00ff00" }] },
+              { "name": "plugin-fg", "icon": { "color": "#00ffff" }, "text": [{ "color": "#00ffff" }] },
+              { "name": "plugin-elements", "icon": { "color": "#abcdef" }, "text": [{ "color": "#123456" }] },
+              { "name": "plugin-unknown-colour", "icon": { "color": "clear" }, "text": [{ "color": "clear" }] }
+            ],
+            "right": []
+          }
+        }
+      },
+      {
+        "dark": true,
+        "expect": {
+          "fg": "#eeeeee", "bg": "#111111",
+          "placements": {
+            "left": [
+              { "name": "bar-fg", "icon": { "color": "#eeeeee" } },
+              { "name": "module-fg", "icon": { "color": "#8888ff" } },
+              { "name": "module-elements", "icon": { "color": "#ff8888" }, "text": [{ "color": "#00ff00" }] },
+              { "name": "plugin-fg", "icon": { "color": "#88ffff" } },
+              { "name": "plugin-elements", "icon": { "color": "#abcdef" } },
+              { "name": "plugin-unknown-colour" }
+            ]
+          }
+        }
+      }
+    ]
+  },
+  {
+    "name": "a style for one appearance leaves the other to the bar's",
+    "document": {
+      "version": 1,
+      "config": {
+        "style": {
+          "light": { "fg": "#101010", "bg": "#F0F0F0", "icon": { "fg": "#AA0000" } },
+          "dark": { "fg": "#F0F0F0", "bg": "#101010", "text": { "fg": "#00AA00" } }
+        },
+        "height": 28, "padding": 6, "iconTextSpacing": 2,
+        "modules": [
+          { "name": "light-only", "type": "text", "placement": "left", "icon": "a", "style": { "light": { "fg": "#0000AA" } }, "config": { "value": "v" } },
+          { "name": "plain", "type": "text", "placement": "left", "icon": "a", "config": { "value": "v" } }
+        ]
+      }
+    },
+    "checks": [
+      {
+        "dark": false,
+        "expect": {
+          "native": false, "fg": "#101010", "bg": "#f0f0f0", "height": 28, "padding": 6, "iconTextSpacing": 2,
+          "placements": {
+            "left": [
+              { "name": "light-only", "icon": { "color": "#0000aa" }, "text": [{ "color": "#0000aa" }] },
+              { "name": "plain", "icon": { "color": "#aa0000" }, "text": [{ "color": "#101010" }] }
+            ]
+          }
+        }
+      },
+      {
+        "dark": true,
+        "expect": {
+          "placements": {
+            "left": [
+              { "name": "light-only", "icon": { "color": "#f0f0f0" }, "text": [{ "color": "#00aa00" }] },
+              { "name": "plain", "icon": { "color": "#f0f0f0" }, "text": [{ "color": "#00aa00" }] }
+            ]
+          }
+        }
+      }
+    ]
+  },
+  {
+    "name": "a shape takes the plugin's colour, the module's, then the palette's shape colour",
+    "document": {
+      "version": 1,
+      "config": {
+        "theme": "fx-shapes",
+        "modules": [
+          { "name": "palette-shape", "type": "text", "placement": "right", "style": { "shape": "pill" }, "config": { "value": "v" } },
+          { "name": "module-bg", "type": "text", "placement": "right", "style": { "shape": "box", "bg": "{theme(blue)}" }, "config": { "value": "v" } },
+          { "name": "no-shape", "type": "text", "placement": "right", "style": { "bg": "{theme(blue)}" }, "config": { "value": "v" } },
+          { "name": "unknown-shape", "type": "text", "placement": "right", "style": { "shape": "blob", "fg": "#000000" }, "config": { "value": "v" } },
+          { "name": "plugin-bg", "type": "command", "placement": "right", "style": { "shape": "underline", "bg": "{theme(blue)}" }, "config": { "command": "x", "output": "json" } },
+          { "name": "plugin-shape", "type": "command", "placement": "right", "config": { "command": "x", "output": "json" } },
+          { "name": "plugin-unshaped", "type": "command", "placement": "right", "style": { "shape": "pill" }, "config": { "command": "x", "output": "json" } },
+          { "name": "plugin-unknown-shape", "type": "command", "placement": "right", "style": { "shape": "pill" }, "config": { "command": "x", "output": "json" } }
+        ]
+      },
+      "themes": { "fx-shapes": { "fg": "#111111", "bg": "#EEEEEE", "shape": "#CCCCCC", "colors": { "blue": "#0000FF" } } },
+      "states": {
+        "plugin-bg": [{ "name": "s", "output": { "value": "v", "style": { "bg": "#FF00FF80" } } }],
+        "plugin-shape": [
+          { "name": "shaped", "output": { "value": "v", "style": { "shape": "overline" } } },
+          { "name": "empty-bg", "output": { "value": "v", "style": { "shape": "box", "bg": "" } } }
+        ],
+        "plugin-unshaped": [{ "name": "s", "output": { "value": "v", "style": { "shape": "none" } } }],
+        "plugin-unknown-shape": [{ "name": "s", "output": { "value": "v", "style": { "shape": "blob" } } }]
+      }
+    },
+    "checks": [
+      {
+        "dark": true,
+        "expect": {
+          "placements": {
+            "right": [
+              { "name": "palette-shape", "shape": "pill", "bg": "#cccccc" },
+              { "name": "module-bg", "shape": "box", "bg": "#0000ff" },
+              { "name": "no-shape", "shape": null },
+              { "name": "unknown-shape", "shape": null },
+              { "name": "plugin-bg", "shape": "underline", "bg": "#ff00ff80" },
+              { "name": "plugin-shape", "shape": "overline", "bg": "#cccccc" },
+              { "name": "plugin-unshaped", "shape": null },
+              { "name": "plugin-unknown-shape", "shape": "pill", "bg": "#cccccc" }
+            ]
+          }
+        }
+      },
+      {
+        "dark": false,
+        "states": { "plugin-shape": "empty-bg" },
+        "expect": { "placements": { "right": [{}, {}, {}, {}, {}, { "name": "plugin-shape", "shape": "box", "bg": "#cccccc" }, {}, {}] } }
+      }
+    ]
+  },
+  {
+    "name": "the native appearance takes the system's colours",
+    "document": {
+      "version": 1,
+      "config": {
+        "modules": [
+          { "name": "plain", "type": "command", "placement": "left", "icon": "a", "style": { "fg": "#FF0000", "shape": "pill", "bg": "#00FF00" }, "config": { "command": "x", "output": "json" } },
+          { "name": "plugin-hex", "type": "command", "placement": "left", "icon": "a", "config": { "command": "x", "output": "json" } },
+          { "name": "plugin-template", "type": "command", "placement": "left", "icon": "a", "config": { "command": "x", "output": "json" } }
+        ]
+      },
+      "states": {
+        "plain": [{ "name": "s", "output": { "value": "ab", "segments": [{ "text": "a", "fg": "#0000FF" }, { "text": "b" }] } }],
+        "plugin-hex": [{ "name": "s", "output": { "value": "v", "style": { "fg": "#ABCDEF", "bg": "#123456", "shape": "box" } } }],
+        "plugin-template": [{ "name": "s", "output": { "value": "v", "style": { "fg": "{theme(red)}", "icon": { "fg": "{theme(blue)}" }, "bg": "{theme(red)}", "shape": "box" } } }]
+      }
+    },
+    "checks": [
+      {
+        "dark": true,
+        "expect": {
+          "native": true, "fg": "label", "bg": "clear",
+          "placements": {
+            "left": [
+              { "name": "plain", "icon": { "color": "label" }, "text": [{ "text": "a", "color": "label" }, { "text": "b", "color": "label" }], "shape": "pill", "bg": "clear" },
+              { "name": "plugin-hex", "icon": { "color": "#abcdef" }, "text": [{ "color": "#abcdef" }], "shape": "box", "bg": "#123456" },
+              { "name": "plugin-template", "icon": { "color": "label" }, "text": [{ "color": "label" }], "shape": "box", "bg": "clear" }
+            ]
+          }
+        }
+      }
+    ]
+  },
+  {
+    "name": "a plugin's output sets the value, icon, segments, visibility and whether it's active",
+    "document": {
+      "version": 1,
+      "config": { "theme": "fx-output" },
+      "modulesDir": {
+        "00-plugin.yaml": { "name": "plugin", "type": "command", "placement": "right", "icon": "module-icon", "config": { "command": "x", "output": "json" } },
+        "10-text.yaml": { "name": "text-mode", "type": "command", "placement": "right", "config": { "command": "x" } }
+      },
+      "themes": { "fx-output": { "fg": "#111111", "bg": "#EEEEEE", "colors": { "blue": "#0000FF" } } },
+      "states": {
+        "plugin": [
+          { "name": "full", "output": { "value": "ab", "icon": "plugin-icon", "active": false, "segments": [{ "text": "a", "fg": "{theme(blue)}" }, { "text": "b" }, { "fg": "#FF0000" }, { "text": "c", "fg": "{theme(absent)}" }] } },
+          { "name": "bare", "output": { "value": "" } },
+          { "name": "hidden", "output": { "value": "v", "hidden": true } },
+          { "name": "numbers", "output": { "value": "v", "hidden": 1, "active": 0, "icon": 5, "variables": { "ok": "yes", "bad": 3 } } },
+          { "name": "no-value", "output": { "icon": "plugin-icon" } },
+          { "name": "not-json", "output": "plain text" },
+          { "name": "json-text", "output": "{\"value\": \"parsed\"}" },
+          { "name": "bad-segments", "output": { "value": "v", "segments": [{ "text": "a" }, "b"] } }
+        ],
+        "text-mode": [{ "name": "s", "output": "{\"value\": \"raw\"}" }]
+      }
+    },
+    "checks": [
+      {
+        "dark": false,
+        "expect": {
+          "placements": {
+            "right": [
+              {
+                "name": "plugin", "hidden": false,
+                "icon": { "name": "plugin-icon", "opacity": 0.4 },
+                "text": [{ "text": "a", "color": "#0000ff" }, { "text": "b", "color": "#111111" }, { "text": "c", "color": "clear" }]
+              },
+              { "name": "text-mode", "icon": null, "text": [{ "text": "{\"value\": \"raw\"}" }] }
+            ]
+          }
+        }
+      },
+      { "dark": false, "states": { "plugin": "bare" }, "expect": { "placements": { "right": [{ "name": "plugin", "icon": { "name": "module-icon", "opacity": 1 }, "text": null }, {}] } } },
+      { "dark": false, "states": { "plugin": "hidden" }, "expect": { "placements": { "right": [{ "name": "plugin", "hidden": true }, {}] } } },
+      { "dark": false, "states": { "plugin": "numbers" }, "expect": { "placements": { "right": [{ "name": "plugin", "hidden": true, "icon": { "name": "module-icon", "opacity": 0.4 } }, {}] } } },
+      { "dark": false, "states": { "plugin": "no-value" }, "expect": { "placements": { "right": [{ "name": "plugin", "icon": { "name": "plugin-icon" }, "text": [{ "text": "{\"icon\":\"plugin-icon\"}" }] }, {}] } } },
+      { "dark": false, "states": { "plugin": "not-json" }, "expect": { "placements": { "right": [{ "name": "plugin", "icon": { "name": "module-icon" }, "text": [{ "text": "plain text" }] }, {}] } } },
+      { "dark": false, "states": { "plugin": "json-text" }, "expect": { "placements": { "right": [{ "name": "plugin", "text": [{ "text": "parsed" }] }, {}] } } },
+      { "dark": false, "states": { "plugin": "bad-segments" }, "expect": { "placements": { "right": [{ "name": "plugin", "text": [{ "text": "v" }] }, {}] } } }
+    ]
+  },
+  {
+    "name": "a plain tooltip fills what it knows and a click does what its type says",
+    "document": {
+      "version": 1,
+      "config": {
+        "theme": "fx-clicks",
+        "modules": [
+          { "name": "tooltip", "type": "command", "placement": "left", "icon": "bell", "config": { "command": "x", "output": "json" }, "interaction": { "hover": { "type": "tooltip", "content": "{status}: {value} {icon} {unknown} {theme(blue)}" } } },
+          { "name": "default-tooltip", "type": "command", "placement": "left", "config": { "command": "x", "output": "json" }, "interaction": { "hover": {} } },
+          { "name": "not-a-tooltip", "type": "command", "placement": "left", "config": { "command": "x", "output": "json" }, "interaction": { "hover": { "type": "other", "content": "x" } } },
+          { "name": "toggle", "type": "command", "placement": "left", "config": { "command": "x", "output": "json", "toggle": "x --toggle" }, "interaction": { "click": { "type": "toggle" } } },
+          { "name": "complete", "type": "command", "placement": "left", "config": { "command": "x", "output": "json", "toggle": "x --done" }, "interaction": { "click": { "type": "complete" } } },
+          { "name": "toggle-without-command", "type": "command", "placement": "left", "config": { "command": "x", "output": "json" }, "interaction": { "click": { "type": "toggle" } } },
+          { "name": "plugin-menu", "type": "command", "placement": "left", "config": { "command": "x", "output": "json" }, "interaction": { "click": {} } },
+          { "name": "config-menu", "type": "command", "placement": "left", "config": { "command": "x", "output": "json" }, "interaction": { "click": { "type": "menu", "view": { "type": "vstack", "children": [{ "type": "text", "content": "{status} {value} {theme(blue)}", "weight": "bold" }, { "type": "check", "label": "c", "checked": true }] } } } },
+          { "name": "menu-without-view", "type": "command", "placement": "left", "config": { "command": "x", "output": "json" }, "interaction": { "click": { "type": "menu" } } },
+          { "name": "text-toggle", "type": "text", "placement": "left", "config": { "value": "v" }, "interaction": { "click": { "type": "toggle" } } }
+        ]
+      },
+      "themes": { "fx-clicks": { "fg": "#111111", "bg": "#EEEEEE", "colors": { "blue": "#0000FF" } } },
+      "states": {
+        "tooltip": [{ "name": "s", "output": { "value": "val", "variables": { "status": "On" } } }],
+        "default-tooltip": [{ "name": "s", "output": { "value": "val" } }],
+        "plugin-menu": [{ "name": "s", "output": { "value": "val", "variables": { "status": "On" }, "view": { "type": "action", "label": "{status}", "command": "run {value}" } } }],
+        "config-menu": [{ "name": "s", "output": { "value": "val", "variables": { "status": "On" }, "view": { "type": "header", "content": "from the plugin" } } }]
+      }
+    },
+    "checks": [
+      {
+        "dark": false,
+        "expect": {
+          "placements": {
+            "left": [
+              { "name": "tooltip", "tooltip": { "text": "On: val bell {unknown} {theme(blue)}" }, "click": null },
+              { "name": "default-tooltip", "tooltip": { "text": "val" } },
+              { "name": "not-a-tooltip", "tooltip": null },
+              { "name": "toggle", "tooltip": null, "click": { "type": "toggle", "command": "x --toggle" } },
+              { "name": "complete", "click": { "type": "toggle", "command": "x --done" } },
+              { "name": "toggle-without-command", "click": null },
+              { "name": "plugin-menu", "click": { "type": "menu", "fg": "#111111", "rows": [{ "type": "action", "label": "On", "command": "run 'val'" }] } },
+              { "name": "config-menu", "click": { "type": "menu", "rows": [{ "type": "text", "text": "On val #0000FF", "bold": true }, { "type": "check", "label": "c", "checked": true }] } },
+              { "name": "menu-without-view", "click": null },
+              { "name": "text-toggle", "click": null }
+            ]
+          }
+        }
+      }
+    ]
+  },
+  {
+    "name": "config.yaml's modules sit at the edges with modules.d's inside them",
+    "document": {
+      "version": 1,
+      "config": {
+        "modules": [
+          { "name": "base-left-1", "type": "text", "placement": "left", "config": { "value": "v" } },
+          { "name": "base-right-1", "type": "text", "placement": "right", "config": { "value": "v" } },
+          { "name": "base-notch", "type": "text", "placement": "notchleft", "config": { "value": "v" } },
+          { "name": "base-either", "type": "text", "placement": "right|notchright", "config": { "value": "v" } },
+          { "name": "base-left-2", "type": "text", "placement": "left", "config": { "value": "v" } },
+          { "name": "base-left-1", "type": "text", "placement": "right", "config": { "value": "duplicate" } },
+          { "name": "no-config", "type": "text", "placement": "left" },
+          { "name": "unknown-type", "type": "sparkline", "placement": "left" },
+          { "type": "text", "placement": "left", "config": { "value": "nameless" } },
+          { "name": "icon-only", "type": "icon", "placement": "left", "icon": "star" },
+          { "name": "elsewhere", "type": "text", "placement": "centre", "config": { "value": "v" } }
+        ]
+      },
+      "modulesDir": {
+        "20-b.yaml": { "name": "extra-right", "type": "text", "placement": "right", "config": { "value": "v" } },
+        "10-a.yml": { "name": "extra-left", "type": "text", "placement": "notchleft|left", "config": { "value": "v" } },
+        "30-c.yaml": { "name": "base-right-1", "type": "text", "placement": "left", "config": { "value": "duplicate" } },
+        "05-first.yaml": { "name": "extra-left-first", "type": "text", "placement": "left", "config": { "value": "v" } },
+        "notes.txt": { "name": "not-yaml", "type": "text", "placement": "left", "config": { "value": "v" } }
+      }
+    },
+    "checks": [
+      {
+        "dark": false,
+        "notch": false,
+        "expect": {
+          "native": true,
+          "placements": {
+            "left": [{ "name": "base-left-1" }, { "name": "base-left-2" }, { "name": "icon-only", "icon": { "name": "star" }, "text": null }, { "name": "extra-left-first" }, { "name": "extra-left" }],
+            "notchleft": [],
+            "notchright": [],
+            "right": [{ "name": "extra-right" }, { "name": "base-right-1" }, { "name": "base-either" }]
+          }
+        }
+      },
+      {
+        "dark": false,
+        "notch": true,
+        "expect": {
+          "placements": {
+            "left": [{ "name": "base-left-1" }, { "name": "base-left-2" }, { "name": "icon-only" }, { "name": "extra-left-first" }],
+            "notchleft": [{ "name": "base-notch" }, { "name": "extra-left" }],
+            "notchright": [{ "name": "base-either" }],
+            "right": [{ "name": "extra-right" }, { "name": "base-right-1" }]
+          }
+        }
+      }
+    ]
+  },
+  {
+    "name": "a bar with no modules welcomes its user",
+    "document": { "version": 1, "config": { "theme": "fx-welcome" }, "themes": { "fx-welcome": { "fg": "#111111", "bg": "#EEEEEE" } } },
+    "checks": [
+      {
+        "dark": false,
+        "notch": false,
+        "expect": {
+          "native": false,
+          "placements": {
+            "left": [{ "name": "welcome", "icon": { "name": "mood-smile-beam", "color": "#111111" }, "text": [{ "text": "Welcome to kantan!" }] }],
+            "right": [{ "name": "setup-hint", "icon": { "name": "file-smile" } }]
+          }
+        }
+      }
+    ]
+  },
+  {
+    "name": "a config kantan refuses shows what's wrong in a native bar",
+    "document": {
+      "version": 1,
+      "config": { "style": { "light": { "fg": "#111111", "bg": "#EEEEEE" } }, "modules": [{ "name": "m", "type": "text", "placement": "left", "config": { "value": "v" } }] }
+    },
+    "checks": [
+      {
+        "dark": false,
+        "notch": false,
+        "expect": {
+          "native": true, "fg": "label", "height": 33, "padding": 10, "iconTextSpacing": 4,
+          "placements": {
+            "left": [{ "name": "config-error", "icon": { "name": "alert-triangle" }, "text": [{ "text": "config.yaml isn't a valid configuration", "color": "label" }] }],
+            "right": [{ "name": "config-error-hint", "text": [{ "text": "Fix it and save to reload" }] }]
+          }
+        }
+      }
+    ]
+  },
+  {
+    "name": "a theme the config can't load is refused too",
+    "document": { "version": 1, "config": { "theme": "fx-absent", "modules": [{ "name": "m", "type": "text", "placement": "left", "config": { "value": "v" } }] } },
+    "checks": [{ "dark": true, "notch": false, "expect": { "native": true, "placements": { "left": [{ "name": "config-error" }], "right": [{ "name": "config-error-hint" }] } } }]
+  },
+  {
+    "name": "a theme alone styles the bar, and a flat style serves both appearances",
+    "document": {
+      "version": 1,
+      "config": { "theme": { "light": "fx-pair[day]", "dark": "fx-pair[night]" }, "style": { "fg": "{theme(accent)}", "bg": "{theme(bg)}" }, "modules": [{ "name": "m", "type": "text", "placement": "left", "config": { "value": "v" } }] },
+      "themes": {
+        "fx-pair": { "flavours": { "day": { "fg": "#111111", "bg": "#EEEEEE", "colors": { "accent": "#AA0000" } }, "night": { "fg": "#EEEEEE", "bg": "#111111", "colors": { "accent": "#FFAAAA" } } } }
+      }
+    },
+    "checks": [
+      { "dark": false, "expect": { "native": false, "fg": "#aa0000", "bg": "#eeeeee", "placements": { "left": [{ "text": [{ "color": "#aa0000" }] }] } } },
+      { "dark": true, "expect": { "fg": "#ffaaaa", "bg": "#111111" } }
+    ]
+  }
+]
