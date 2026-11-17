@@ -1,8 +1,8 @@
 import Foundation
 
-// Prints the states of the reminders module's preview: two reminders, with
-// each combination of them ticked off, so ticking one in a state's menu
-// leads to another state.
+// Prints the states of the reminders module's preview: three reminders,
+// with each combination of them ticked off, so ticking one in a state's
+// menu leads to another state.
 
 /// A state of the preview: its name, the output the plugin prints in it,
 /// and the output each command run from it leads to.
@@ -27,7 +27,12 @@ let reminders = [
     completionDate: nil),
   Reminder(
     id: "2", title: "Call the garage", list: "Reminders", dueDate: at(15), completionDate: nil),
+  Reminder(
+    id: "3", title: "Run 5k", list: "Reminders", dueDate: at(15, 5), completionDate: nil),
 ]
+
+/// What each reminder is called in a state's name.
+let shortNames = ["1": "Dentist", "2": "Garage", "3": "Run"]
 
 /// The output with the reminders `completed` ticked off just now.
 func output(completed: Set<String>) -> PluginOutput {
@@ -40,9 +45,19 @@ func output(completed: Set<String>) -> PluginOutput {
     settings: settings, module: module, now: now)
 }
 
-/// The state named `name`, with `completed` ticked off: ticking another
-/// reminder off, or one back on, leads to the state with that set.
-func state(_ name: String, completed: Set<String>) -> PreviewState {
+/// The name of the state with `completed` ticked off: `Due`, `All done`,
+/// or the reminders done, as in `Dentist and run done`.
+func name(completed: Set<String>) -> String {
+  if completed.isEmpty { return "Due" }
+  if completed.count == reminders.count { return "All done" }
+  let done = reminders.filter { completed.contains($0.id) }.compactMap { shortNames[$0.id] }
+  let listed = done.dropFirst().reduce(done[0]) { "\($0) and \($1.lowercased())" }
+  return "\(listed) done"
+}
+
+/// The state with `completed` ticked off: ticking another reminder off, or
+/// one back on, leads to the state with that set.
+func state(completed: Set<String>) -> PreviewState {
   var after: [String: PluginOutput] = [:]
   for reminder in reminders {
     if completed.contains(reminder.id) {
@@ -53,17 +68,15 @@ func state(_ name: String, completed: Set<String>) -> PreviewState {
         completed: completed.union([reminder.id]))
     }
   }
-  return PreviewState(name: name, output: output(completed: completed), after: after)
+  return PreviewState(
+    name: name(completed: completed), output: output(completed: completed), after: after)
 }
 
 let encoder = JSONEncoder()
 encoder.outputFormatting = [.sortedKeys]
-let preview = [
-  "states": [
-    state("Due", completed: []),
-    state("Dentist done", completed: ["1"]),
-    state("Garage done", completed: ["2"]),
-    state("All done", completed: ["1", "2"]),
-  ]
-]
+/// Every set of the reminders, the smallest first.
+let subsets = reminders.reduce([Set<String>()]) { sets, reminder in
+  sets + sets.map { $0.union([reminder.id]) }
+}.sorted { ($0.count, $0.sorted().joined()) < ($1.count, $1.sorted().joined()) }
+let preview = ["states": subsets.map(state)]
 print(String(decoding: try encoder.encode(preview), as: UTF8.self))
