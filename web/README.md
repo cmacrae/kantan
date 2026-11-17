@@ -1,12 +1,12 @@
 # web
 
-The website, and kantan's bar drawn in the browser: the landing page, the docs' plugin previews, the config builder and, later, the theme builder all draw from the one engine here.
+The website, and kantan's bar drawn in the browser: the landing page, the docs' plugin previews, and the config builder with its theme builder all draw from the one engine here.
 
 | Directory | What it holds |
 |-----------|---------------|
 | `engine/` | kantan's config, theme, style, template and View DSL semantics in plain JavaScript, with no React and no DOM. It turns a document into a bar ready to draw. |
-| `builder/` | What the builder does to a document, with no React and no DOM: its edits, the YAML files it writes, and share links. |
-| `components/` | React components that draw what the engine resolves: the bar, a module, its menu, popup and tooltip. |
+| `builder/` | What the builder does to a document, with no React and no DOM: its edits to configs and themes, the YAML files it writes, share links, and the SVG a share image is made from. |
+| `components/` | React components that draw what the engine resolves: the bar, a module, its menu, popup and tooltip, and the mock desktop a bar is shown on. |
 | `apps/` | The pages built from them: `landing/`, `docs-preview/` and `builder/`. |
 | `previews/` | Assembles preview documents from generators' output: each bundled plugin's, and a whole bar's such as the landing page's. |
 | `fixtures/` | The cases kantan's tests and the engine's tests both run. |
@@ -56,13 +56,29 @@ The bar has two ways of answering the pointer. While customising, a click on a m
 
 A bundled plugin's states are what its generator prints for its example settings. Changing the settings in the builder changes the YAML but not the states.
 
+### Themes
+
+The builder's editor is on one thing at a time: the bar's settings, a module, or a theme. Bar Settings lists the themes. One of kantan's can be copied, a new one started, or a theme file pasted in.
+
+A theme being edited is a theme file in the document's `themes`, exactly as kantan would read it from `themes/<name>.yaml`. `builder/theme.js` holds its edits: the three kinds of file, colours added, renamed and removed in every palette at once, and flavours. While a theme is edited the bar is drawn in the palette being edited, whatever the config selects.
+
+A Base16 or Base24 scheme can be imported too, pasted in or picked from a gallery: one for both appearances, or one for light and another for dark. `builder/base16.js` reads a scheme and makes its theme: one palette, with a colour for each slot. A config that names Catppuccin's colours is rewritten to name the slots holding them, as Catppuccin's own scheme lays them out, wherever both appearances' palettes have the slot. The example bar is drawn in an imported scheme straight away.
+
+The gallery is the tinted-theming project's schemes, which the browser lists and fetches from GitHub when the import dialog opens. It shows only while that listing is laid out as `readListing` expects and its first file reads as a scheme. Otherwise the dialog offers pasting alone. The browser keeps the listing, and each scheme it has drawn, in local storage for a day.
+
+`builder/files.js` writes the theme's file, or a directory with a file for each flavour. A config's own files include the themes it selects, because kantan won't load a config whose theme is missing.
+
 ### Share links
 
 A link holds a whole document in the address's fragment, so the site stores nothing. `builder/share.js` packs the document, deflates it and writes it as base64url after the codec's version: `/builder/#1.<data>`.
 
-Packing keeps links short. States a module starts with, or has in the example bar, are left out and restored from the catalogue when the link opens. The words nearly every config uses are written as tokens from the list in `builder/words.js`. That list only ever grows at its end, because a word's place is its token. The example bar's link is about 750 characters.
+The document's themes travel with it. Packing keeps links short. States a module starts with, or has in the example bar, are left out and restored from the catalogue when the link opens. The words nearly every config uses are written as tokens from the list in `builder/words.js`. That list only ever grows at its end, because a word's place is its token. The example bar's link is about 750 characters.
 
 A fragment can instead name a config file for the browser to fetch: `#from=<url>`, `#gh=<user>/<repo>/<path>` or `#gist=<id>`. Such a link is short and always shows the file as it is, with each module in the states it starts with.
+
+### Share images
+
+The Share dialog makes a PNG of the bar on the mock desktop, in light, dark or both, laid out as the README's images are. `apps/builder/ShareImage.jsx` draws the desktop off the page with `components/Desk.jsx`, the same component the landing page and the README's images use. It serialises that into an SVG image as a foreign object with its fonts held within (`builder/image.js`), then draws the SVG onto a canvas. The image is made by the browser's own renderer from the builder's own components. No second renderer has to be kept in step.
 
 ## Staying faithful to kantan
 
