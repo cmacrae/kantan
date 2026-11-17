@@ -1,0 +1,34 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>kantan · Build your bar</title>
+  <meta name="description" content="Build a kantan bar in the browser: pick modules, change icons and styles, see the config.yaml update as you go, and share the result as a link.">
+  <link rel="canonical" href="https://kantan.bar/builder/">
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="../fonts/fonts.css">
+  <link rel="stylesheet" href="icons.css">
+  <meta name="theme-color" content="#faf9f5" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#141413" media="(prefers-color-scheme: dark)">
+  <meta property="og:site_name" content="kantan">
+  <meta property="og:type" content="website">
+  <meta property="og:url" content="https://kantan.bar/builder/">
+  <meta property="og:title" content="kantan · Build your bar">
+  <meta property="og:description" content="Build a kantan bar in the browser and share it as a link.">
+  <meta property="og:image" content="https://kantan.bar/images/og.png">
+  <style>
+    *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+    html, body { height: 100%; }
+  </style>
+</head>
+<body>
+  <div id="root">
+    <noscript>
+      <h1>kantan</h1>
+      <p>The builder needs JavaScript. <a href="/docs/">Read the documentation</a> to write a config by hand.</p>
+    </noscript>
+  </div>
+  <script src="main.js" defer></script>
+</body>
+</html>

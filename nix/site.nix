@@ -68,9 +68,22 @@ let
     };
   };
 
-  # The landing page and the preview page, with their scripts and fonts.
+  # The builder's script, with what it offers to add to a bar, the landing
+  # page's bar as its example, and the schema its forms are made from.
+  builder = web.bundle {
+    name = "builder";
+    entries = [ "apps/builder/main.jsx" ];
+    generated = {
+      "catalog.json" = previews.catalog;
+      "example.json" = "${landingBar.document}/document.json";
+      "module-config.schema.json" = ../docs/schemas/module-config.schema.json;
+    };
+  };
+
+  # The landing page, the preview page and the builder, with their scripts
+  # and fonts. The builder has every icon, in files of its own.
   pages = pkgs.runCommand "kantan-site-pages-${version}" { } ''
-    mkdir -p $out/fonts
+    mkdir -p $out/fonts $out/builder
     cp ${../web/static}/* ${
       web.bundle {
         name = "landing";
@@ -86,6 +99,8 @@ let
     }/* $out/
     cp ${fonts}/* $out/fonts/
     cp ${landingBar.icons}/icons.css $out/fonts/icons.css
+    mv $out/builder.html $out/builder/index.html
+    cp ${builder}/main.js ${previews.allIcons}/* $out/builder/
   '';
 
   # Assembles the site in a directory from the landing page and the docs of
@@ -109,7 +124,7 @@ let
       shift
 
       mkdir -p "$out/docs" "$out/images"
-      cp -r ${pages}/{index.html,404.html,main.js,favicon.svg,install.sh,fonts} "$out/"
+      cp -r ${pages}/{index.html,404.html,main.js,favicon.svg,install.sh,fonts,builder} "$out/"
       cp ${pages}/docs-versions.js "$out/docs/versions.js"
       cp ${../web/images/og.png} "$out/images/og.png"
       chmod -R u+w "$out"
@@ -136,12 +151,13 @@ let
       done
       echo "[$versions]" > "$out/docs/versions.json"
 
-      # The landing page and the latest docs, but not their print, 404 and
-      # sidebar pages
+      # The landing page, the builder and the latest docs, but not their
+      # print, 404 and sidebar pages
       {
         echo '<?xml version="1.0" encoding="UTF-8"?>'
         echo '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">'
         echo "  <url><loc>${siteUrl}/</loc></url>"
+        echo "  <url><loc>${siteUrl}/builder/</loc></url>"
         (cd "$out" && find docs -path 'docs/v[0-9]*' -prune -o -name '*.html' \
           ! -name print.html ! -name 404.html ! -name toc.html -print) \
           | sort | while read -r page; do
