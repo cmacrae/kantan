@@ -509,7 +509,8 @@ struct WorkspaceModuleView: View {
   var body: some View {
     let wsConfig = self.wsConfig
     let display = wsConfig?.display ?? WorkspaceDisplay()
-    let window = windowedSegments(display.segments, config: wsConfig)
+    let overflow = wsConfig?.overflow
+    let window = display.page(max: overflow?.enabled == true ? overflow?.max : nil)
     let animates = viewModel.contentAnimation != nil
     let activate = self.activate
 
@@ -517,7 +518,7 @@ struct WorkspaceModuleView: View {
       if !display.pips.isEmpty {
         pipColumn(display.pips, animates: animates, activate: activate)
       }
-      if window.overflowBefore {
+      if window.before {
         overflowIndicatorView(icon: wsConfig?.overflow.iconLeft ?? "‹", config: wsConfig)
       }
       ForEach(window.segments, id: \.id) { segment in
@@ -528,7 +529,7 @@ struct WorkspaceModuleView: View {
           )
           .transition(Self.transition(forScroll: display.isScroll, animates: animates))
       }
-      if window.overflowAfter {
+      if window.after {
         overflowIndicatorView(icon: wsConfig?.overflow.iconRight ?? "›", config: wsConfig)
       }
     }
@@ -617,34 +618,6 @@ struct WorkspaceModuleView: View {
   }
 
   // MARK: - Windowing
-
-  private struct WindowResult {
-    let segments: [WorkspaceSegment]
-    let overflowBefore: Bool
-    let overflowAfter: Bool
-  }
-
-  private func windowedSegments(_ all: [WorkspaceSegment], config: WorkspaceConfig?) -> WindowResult
-  {
-    guard let of = config?.overflow, of.enabled, of.max > 0, all.count > of.max else {
-      return WindowResult(segments: all, overflowBefore: false, overflowAfter: false)
-    }
-
-    let activeIndex = all.firstIndex(where: { $0.isActive }) ?? 0
-
-    // Page-based: spaces are divided into fixed pages of `max` size.
-    // The active space determines which page is displayed.
-    let page = activeIndex / of.max
-    let windowStart = page * of.max
-    let windowEnd = min(windowStart + of.max, all.count)
-    let slice = Array(all[windowStart..<windowEnd])
-
-    let overflowBefore = windowStart > 0
-    let overflowAfter = windowEnd < all.count
-
-    return WindowResult(
-      segments: slice, overflowBefore: overflowBefore, overflowAfter: overflowAfter)
-  }
 
   // MARK: - Overflow Indicator
 

@@ -59,6 +59,17 @@ struct WorkspaceDisplay: Equatable, Sendable {
       .map { ($0.isActive ? ">" : "") + $0.label }.joined(separator: " ")
   }
 
+  /// The segments one page of `max` shows, the page holding the active
+  /// segment, and whether segments lie before and after it. With `max`
+  /// nil or no fewer than the segments, every segment shows.
+  func page(max: Int?) -> (segments: [WorkspaceSegment], before: Bool, after: Bool) {
+    guard let max, max > 0, segments.count > max else { return (segments, false, false) }
+    let active = segments.firstIndex(where: \.isActive) ?? 0
+    let start = active / max * max
+    let end = min(start + max, segments.count)
+    return (Array(segments[start..<end]), start > 0, end < segments.count)
+  }
+
   /// The target of the segment `steps` along from the active one, stopping
   /// at either end; nil when that is the active segment or none is active.
   func target(steppingBy steps: Int) -> WorkspaceTarget? {
