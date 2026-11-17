@@ -23,16 +23,16 @@ let module = moduleName(fallback: "reminders")
 let settings = loadSettings(defaults: Settings())
 let reminders = [
   Reminder(
-    id: "1", title: "Book the dentist", list: "Reminders", dueDate: at(14, 30),
+    id: "1", title: "Dentist", list: "Reminders", dueDate: at(14, 30),
     completionDate: nil),
   Reminder(
-    id: "2", title: "Call the garage", list: "Reminders", dueDate: at(15), completionDate: nil),
+    id: "2", title: "Haircut", list: "Reminders", dueDate: at(15), completionDate: nil),
   Reminder(
     id: "3", title: "Run 5k", list: "Reminders", dueDate: at(15, 5), completionDate: nil),
 ]
 
 /// What each reminder is called in a state's name.
-let shortNames = ["1": "Dentist", "2": "Garage", "3": "Run"]
+let shortNames = ["1": "Dentist", "2": "Haircut", "3": "Run"]
 
 /// The output with the reminders `completed` ticked off just now.
 func output(completed: Set<String>) -> PluginOutput {
