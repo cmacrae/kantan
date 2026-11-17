@@ -38,3 +38,8 @@ export function menuBarSlots(modules, menuBar = MENU_BAR) {
     .map(module => ({ name: module.name, width: menuBar.items[position(module)].width }));
   return [...others, ...system];
 }
+
+// The camera housing at the top of a MacBook's screen, in points, as
+// measured on a 14-inch MacBook Pro: the room between the two areas macOS
+// leaves for the menu bar on either side of it.
+export const NOTCH = { width: 185, height: 32 };

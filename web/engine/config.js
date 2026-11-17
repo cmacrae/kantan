@@ -108,6 +108,7 @@ function errorConfig(problem) {
     problem,
     native: true, style: undefined, theme: undefined,
     height: 33, padding: 10, iconTextSpacing: 4, cornerRadius: 0, blur: 0,
+    gaps: { top: 0, left: 0, right: 0 },
     textFont: undefined, iconFont: undefined,
     modules: [
       {
@@ -174,6 +175,11 @@ export function loadConfig(document, bundledThemes = {}) {
     iconTextSpacing: int(yaml.iconTextSpacing) ?? 5,
     cornerRadius: clamp(num(yaml.cornerRadius), 0, Infinity, 0),
     blur: clamp(int(yaml.blur), 0, 6, 0),
+    gaps: {
+      top: Math.max(0, int(yaml.gaps?.top) ?? 0),
+      left: Math.max(0, int(yaml.gaps?.left) ?? 0),
+      right: Math.max(0, int(yaml.gaps?.right) ?? 0),
+    },
     textFont: str(yaml.fonts?.text) === undefined ? undefined : parseFont(yaml.fonts.text),
     iconFont: str(yaml.fonts?.icon) === undefined ? undefined : parseFont(yaml.fonts.icon),
     modules: modules.length ? modules : WELCOME_MODULES,

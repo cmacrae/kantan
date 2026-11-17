@@ -2,7 +2,7 @@
 // icon, text, colours and shape, its tooltip, and what a click opens.
 import { loadConfig, DEFAULT_ICON_FONT, DEFAULT_TEXT_FONT } from "./config.js";
 import { menuRows } from "./menu.js";
-import { MENU_BAR, menuBarSlots } from "./menubar.js";
+import { MENU_BAR, NOTCH, menuBarSlots } from "./menubar.js";
 import { moduleType } from "./modules/index.js";
 import { barColor } from "./color.js";
 import { noIcons } from "./icons.js";
@@ -157,8 +157,12 @@ function resolveModule(module, state, config, styler, icons, dark) {
 // in for a module's state (`samples`, by module name: the time, say, or
 // which workspace is active), the `icons` lookup, the theme files kantan
 // bundles (`themes`), whether the screen has a `notch`, and the system's
-// menu bar items that masked modules sit over (`menuBar`). The modules are listed for each placement, as they sit from
-// left to right.
+// menu bar items that masked modules sit over (`menuBar`). The modules are
+// listed for each placement, as they sit from left to right. A screen with
+// a notch gives the bar its `notch`, the size of the camera housing. The
+// bar's `gaps` are the room left between it and the screen's top, left
+// and right edges, and its `blur` how far its background lets what is
+// behind it through: 0 for not at all, then 1, the most, to 6.
 export function resolveBar(document, { dark = false, states = {}, samples = {}, icons = noIcons, themes = {}, notch = false, menuBar = MENU_BAR } = {}) {
   const config = loadConfig(document, themes);
   const styler = createStyler(config, dark);
@@ -213,9 +217,11 @@ export function resolveBar(document, { dark = false, states = {}, samples = {}, 
     iconTextSpacing: config.iconTextSpacing,
     cornerRadius: config.cornerRadius,
     blur: config.blur,
+    gaps: config.gaps,
     placements,
     menuBar: { trailing: slots.length ? menuBar.trailing : 0, modules: slots.map(slot => slot.name) },
   };
+  if (notch) bar.notch = NOTCH;
   if (config.problem !== undefined) bar.problem = config.problem;
   return bar;
 }

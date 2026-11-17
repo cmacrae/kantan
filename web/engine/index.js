@@ -7,7 +7,7 @@ export { loadConfig, parseFont } from "./config.js";
 export { DOCUMENT_VERSION, nextState, validateDocument } from "./document.js";
 export { iconTable, noIcons, resolveIcon, scaledSize } from "./icons.js";
 export { menuRows } from "./menu.js";
-export { MENU_BAR } from "./menubar.js";
+export { MENU_BAR, NOTCH } from "./menubar.js";
 export { MODULE_TYPES } from "./modules/index.js";
 export { formatDate, ordinalSuffix } from "./dates.js";
 export { shuffledRainbow } from "./modules/workspace.js";

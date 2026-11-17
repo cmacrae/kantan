@@ -6,7 +6,7 @@ import { Glyph } from "./Glyph.jsx";
 import { Menu } from "./Menu.jsx";
 import { Unsupported } from "./Unsupported.jsx";
 import { ViewTree } from "./ViewTree.jsx";
-import { cssColor, fontFamily, SYSTEM_FONT } from "./system.js";
+import { cssColor, faded, fontFamily, SYSTEM_FONT } from "./system.js";
 
 // The translucent materials macOS draws behind the native bar and behind
 // menus, popups and tooltips.
@@ -148,7 +148,7 @@ function WorkspaceView({ workspace, bar, dark, activate }) {
   );
 }
 
-function ModuleView({ module, bar, dark, run, toggleDrawer, switchWorkspace }) {
+function ModuleView({ module, bar, dark, run, toggleDrawer, switchWorkspace, interactive, moduleProps }) {
   const [hover, setHover] = useState(false);
   const [open, setOpen] = useState(false);
   const ref = useRef(null);
@@ -172,7 +172,8 @@ function ModuleView({ module, bar, dark, run, toggleDrawer, switchWorkspace }) {
 
   const { click, tooltip } = module;
   const opens = click?.type === "menu" || click?.type === "popup";
-  const onClick = click?.type === "toggle" ? () => run(module.name, click.command)
+  const onClick = !interactive ? undefined
+    : click?.type === "toggle" ? () => run(module.name, click.command)
     : click?.type === "drawer" && toggleDrawer ? () => toggleDrawer(module.name)
     : opens ? () => setOpen(o => !o)
     : undefined;
@@ -187,7 +188,7 @@ function ModuleView({ module, bar, dark, run, toggleDrawer, switchWorkspace }) {
     <>
       {module.workspace && (
         <WorkspaceView workspace={module.workspace} bar={bar} dark={dark}
-          activate={switchWorkspace && (target => switchWorkspace(module.name, target))} />
+          activate={interactive && switchWorkspace && (target => switchWorkspace(module.name, target))} />
       )}
       {module.icon && <ModuleIcon icon={module.icon} dark={dark} />}
       {module.text && (
@@ -200,6 +201,7 @@ function ModuleView({ module, bar, dark, run, toggleDrawer, switchWorkspace }) {
 
   return (
     <div
+      {...moduleProps?.(module)}
       data-kantan-module={module.name}
       aria-hidden={folded || undefined}
       style={{
@@ -216,17 +218,17 @@ function ModuleView({ module, bar, dark, run, toggleDrawer, switchWorkspace }) {
     >
       <div
         ref={ref}
-        onMouseEnter={() => setHover(true)}
+        onMouseEnter={() => setHover(interactive)}
         onMouseLeave={() => setHover(false)}
         style={{ position: "relative", display: "flex", alignItems: "center", gap: bar.iconTextSpacing, cursor: onClick ? "pointer" : "default" }}
       >
-        <div onClick={onClick} style={{ display: "flex", alignItems: "center", gap: "inherit" }}>
+        <div data-kantan-content onClick={onClick} style={{ display: "flex", alignItems: "center", gap: "inherit" }}>
           {module.shape
             ? <Shaped shape={module.shape} color={cssColor(module.bg, dark)} height={bar.height}>{content}</Shaped>
             : content}
         </div>
 
-        {tooltip && hover && !open && (
+        {tooltip && hover && interactive && !open && (
           <Panel bar={bar} dark={dark} align="center" gap={4} radius={6} deps={[tooltip]}
             style={{ pointerEvents: "none", color: cssColor(fg, dark), zIndex: 200 }}>
             {tooltip.text !== undefined
@@ -258,37 +260,85 @@ function ModuleView({ module, bar, dark, run, toggleDrawer, switchWorkspace }) {
   );
 }
 
+// The camera housing of a screen with a notch: black, hanging from the
+// top of the screen over whatever the bar draws there, its lower corners
+// rounded and its upper ones flaring into the screen's edge.
+function Notch({ notch, gaps }) {
+  const flare = 6;
+  const corner = side => ({
+    position: "absolute", top: 0, [side]: -flare, width: flare, height: flare,
+    background: `radial-gradient(circle at ${side === "left" ? "0 100%" : "100% 100%"}, transparent ${flare}px, #000 ${flare + 0.5}px)`,
+  });
+  return (
+    <div data-kantan-notch style={{
+      alignSelf: "flex-start", flexShrink: 0, position: "relative", zIndex: 2, width: notch.width, height: notch.height,
+      background: "#000", borderRadius: "0 0 10px 10px",
+      // The notch stays at the top centre of the screen wherever gaps put the bar.
+      marginTop: -gaps.top, transform: `translateX(${(gaps.right - gaps.left) / 2}px)`,
+    }}>
+      <span style={corner("left")} />
+      <span style={corner("right")} />
+    </div>
+  );
+}
+
 // The bar: its modules at the left, on either side of the notch, and at
 // the right. `run(module, command)` runs a command a module's click, menu
 // or popup asks for.
 // `toggleDrawer(module)` opens or closes a drawer when its module is
 // clicked, and `switchWorkspace(module, target)` switches to the workspace
 // or window of a clicked segment. Without them those clicks do nothing.
-export function BarView({ bar, dark, run, toggleDrawer, switchWorkspace, style }) {
+// With `interactive` false the modules answer neither clicks nor the
+// pointer. `moduleProps(module)` gives a module's element props of the
+// caller's own.
+export function BarView({ bar, dark, run, toggleDrawer, switchWorkspace, style, interactive = true, moduleProps }) {
   const view = module => (
     <ModuleView key={module.name} module={module} bar={bar} dark={dark} run={run}
-      toggleDrawer={toggleDrawer} switchWorkspace={switchWorkspace} />
+      toggleDrawer={toggleDrawer} switchWorkspace={switchWorkspace} interactive={interactive} moduleProps={moduleProps} />
   );
   // Masked modules sit together over the system's menu bar items.
   const modules = placement => bar.placements[placement].filter(module => !module.slot).map(view);
   const all = Object.values(bar.placements).flat();
   const masked = bar.menuBar.modules.map(name => all.find(module => module.name === name));
   const group = { display: "flex", alignItems: "center" };
+  const gaps = bar.gaps ?? { top: 0, left: 0, right: 0 };
+  // With a blur the bar is a tint of its background colour, or of black in
+  // the native appearance, over a blur of what is behind it: the lower the
+  // blur, the thinner the tint.
+  const frosted = bar.native || bar.blur > 0;
+  const background = bar.blur > 0 ? faded(bar.native ? "#000000" : cssColor(bar.bg, dark), bar.blur / 7)
+    : bar.native ? BAR_MATERIAL[dark ? 1 : 0] : cssColor(bar.bg, dark);
+  // A bar with corners of its own, or set in from the screen's edges, is
+  // drawn with them and not with the corners its caller gives the screen.
+  const detached = bar.cornerRadius > 0 || gaps.top > 0 || gaps.left > 0 || gaps.right > 0;
+  // Each half of the screen is as wide as the other whatever it holds, so
+  // a notch sits at the screen's centre. Modules a half has no room for
+  // run on beneath the notch, those of the right half from the right.
+  const half = { ...group, flex: "1 1 0", minWidth: 0 };
   return (
-    <div data-kantan-bar style={{
-      display: "flex", alignItems: "center", height: bar.height, position: "relative", zIndex: 1,
-      color: cssColor(bar.fg, dark),
-      background: bar.native ? BAR_MATERIAL[dark ? 1 : 0] : cssColor(bar.bg, dark),
-      backdropFilter: bar.native ? "blur(24px) saturate(1.5)" : undefined,
-      WebkitBackdropFilter: bar.native ? "blur(24px) saturate(1.5)" : undefined,
-      fontSize: 13, lineHeight: 1, whiteSpace: "nowrap",
-      ...style,
-    }}>
-      <div style={group}>{modules("left")}</div>
-      <div style={{ ...group, flex: 1, justifyContent: "flex-end" }}>{modules("notchleft")}</div>
-      <div style={{ ...group, flex: 1 }}>{modules("notchright")}</div>
-      <div style={group}>{modules("right")}</div>
-      <div style={{ ...group, paddingRight: bar.menuBar.trailing }}>{masked.map(view)}</div>
+    // The gaps are room within the screen, between its edges and the bar.
+    <div style={{ padding: `${gaps.top}px ${gaps.right}px 0 ${gaps.left}px` }}>
+      <div data-kantan-bar style={{
+        display: "flex", alignItems: "center", height: bar.height, position: "relative", zIndex: 1,
+        color: cssColor(bar.fg, dark),
+        background,
+        backdropFilter: frosted ? "blur(24px) saturate(1.5)" : undefined,
+        WebkitBackdropFilter: frosted ? "blur(24px) saturate(1.5)" : undefined,
+        fontSize: 13, lineHeight: 1, whiteSpace: "nowrap",
+        ...style,
+        ...(detached ? { borderRadius: bar.cornerRadius } : {}),
+      }}>
+        <div data-kantan-half style={half}>
+          <div data-kantan-placement="left" style={group}>{modules("left")}</div>
+          <div data-kantan-placement="notchleft" style={{ ...group, marginLeft: "auto" }}>{modules("notchleft")}</div>
+        </div>
+        {bar.notch && <Notch notch={bar.notch} gaps={gaps} />}
+        <div data-kantan-half style={{ ...half, justifyContent: "flex-end" }}>
+          <div data-kantan-placement="notchright" style={group}>{modules("notchright")}</div>
+          <div data-kantan-placement="right" style={{ ...group, marginLeft: "auto" }}>{modules("right")}</div>
+          <div style={{ ...group, paddingRight: Math.max(0, bar.menuBar.trailing - gaps.right) }}>{masked.map(view)}</div>
+        </div>
+      </div>
     </div>
   );
 }
