@@ -253,17 +253,16 @@ final class VolumeConfig: ModuleConfiguration, EventDrivenModule {
     ]
   }
 
-  /// Returns the configured icon for a device name, or nil if no match.
-  /// Matches are case-insensitive substrings of the CoreAudio device name.
-  private func iconForDevice(_ deviceName: String) -> String? {
-    guard !deviceName.isEmpty, !deviceIcons.isEmpty else { return nil }
+  /// The icon configured for a device name, or nil when no key matches.
+  /// A key matches when the name contains it, ignoring case. Of several
+  /// matching keys the longest wins, then the first in alphabetical order.
+  func iconForDevice(_ deviceName: String) -> String? {
     let lowered = deviceName.lowercased()
-    for (key, icon) in deviceIcons {
-      if lowered.contains(key.lowercased()) {
-        return icon
-      }
-    }
-    return nil
+    return
+      deviceIcons
+      .filter { !$0.key.isEmpty && lowered.contains($0.key.lowercased()) }
+      .min { ($1.key.count, $0.key) < ($0.key.count, $1.key) }?
+      .value
   }
 
   // MARK: - CoreAudio

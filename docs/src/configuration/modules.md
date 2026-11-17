@@ -377,7 +377,7 @@ These keys go under a volume module's `config` key:
 |-----|------|---------|-------------|
 | `icons.level` | array | `["volume-4", "volume-2", "volume"]` | Icons for volume levels (low to high) |
 | `icons.muted` | string | `"volume-off"` | Icon when muted |
-| `icons.device` | object | `{AirPods: device-airpods, Headphones: headphones}` | Output device name substrings (case-insensitive) mapped to icons, shown in place of the level icons while that device is the audio output. Setting it replaces the defaults. `{}` disables device icons |
+| `icons.device` | object | `{AirPods: device-airpods, Headphones: headphones}` | Output device name substrings (case-insensitive) mapped to icons, shown in place of the level icons while that device is the audio output. The longest matching key wins. Setting it replaces the defaults. `{}` disables device icons |
 
 **WiFi module** (icon-only, no text):
 ```yaml

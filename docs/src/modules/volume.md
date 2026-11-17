@@ -16,7 +16,7 @@ These keys go under the module's `config` key:
 
 ### Device Icons
 
-The `icons.device` field maps audio device name substrings (case-insensitive) to icon names. While the audio output is a device whose name contains a key, the module shows that key's icon in place of the volume level icons. For example, put your AirPods in and macOS switches the output to them. Their name (such as "AirPods Pro") contains `AirPods`. The module then shows `device-airpods`. Take them out and it goes back to the level icons. The `muted` icon takes precedence over device icons.
+The `icons.device` field maps audio device name substrings (case-insensitive) to icon names. While the audio output is a device whose name contains a key, the module shows that key's icon in place of the volume level icons. For example, put your AirPods in and macOS switches the output to them. Their name (such as "AirPods Pro") contains `AirPods`. The module then shows `device-airpods`. Take them out and it goes back to the level icons. When the name contains several keys, the longest wins. The `muted` icon takes precedence over device icons.
 
 Default device icons:
 
