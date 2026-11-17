@@ -28,7 +28,12 @@
       web = import ./nix/web.nix { inherit pkgs; };
 
       docs = import ./nix/docs.nix {
-        inherit pkgs siteUrl;
+        inherit
+          pkgs
+          web
+          previews
+          siteUrl
+          ;
         pluginsDir = ./packages/plugins;
         version = version.release;
       };

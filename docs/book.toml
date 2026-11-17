@@ -9,6 +9,7 @@ src = "src"
 default-theme = "light"
 preferred-dark-theme = "coal"
 additional-css = ["theme/kantan.css"]
+additional-js = ["theme/preview-loader.js"]
 site-url = "/docs/"
 git-repository-url = "https://github.com/cmacrae/kantan"
 git-repository-icon = "fab-github"

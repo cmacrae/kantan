@@ -1,5 +1,7 @@
 {
   pkgs,
+  web,
+  previews,
   pluginsDir,
   version,
   siteUrl,
@@ -24,17 +26,28 @@ let
     name: "  - [${pluginTitle name}](plugins/${name}.md)\\n"
   ) pluginNames;
 
-  # Each plugin's README becomes its page, listed under Plugins. A README's
-  # github-only block links to that page, so the page drops it.
+  # The script drawing the plugin previews.
+  previewScript = web.bundle {
+    name = "docs-preview";
+    entries = [ "apps/docs-preview/main.jsx" ];
+  };
+
+  # Each plugin's README becomes its page, listed under Plugins, with its
+  # preview below its title. A README's github-only block links to that
+  # page, so the page drops it. The previews, their icons and the script
+  # drawing them sit in the book's preview directory.
   assembledSrc = pkgs.runCommand "kantan-docs-src" { nativeBuildInputs = [ pkgs.perl ]; } ''
-    mkdir -p $out/src/plugins
+    mkdir -p $out/src/plugins $out/src/preview
     cp -r ${docsDir}/* $out/
     chmod -R u+w $out
     cp ${../web/static/favicon.svg} $out/theme/favicon.svg
+    cp ${previews.icons}/* ${previewScript}/main.js $out/src/preview/
     ${lib.concatMapStringsSep "\n" (name: ''
       grep -qF '${siteUrl}/docs/plugins/${name}.html' ${pluginsDir}/${name}/README.md \
         || { echo "${name}'s README must link to ${siteUrl}/docs/plugins/${name}.html" >&2; exit 1; }
-      perl -0pe 's/<!-- github-only -->.*?<!-- \/github-only -->\n+//gs' \
+      cp ${previews.documents}/${name}.json $out/src/preview/
+      perl -0pe 's/<!-- github-only -->.*?<!-- \/github-only -->\n+//gs;
+        s/\A(# [^\n]*\n)/$1\n<div class="kantan-preview" data-preview="${name}"><\/div>\n/' \
         ${pluginsDir}/${name}/README.md > $out/src/plugins/${name}.md
       ! grep -q 'github-only' $out/src/plugins/${name}.md
     '') pluginNames}

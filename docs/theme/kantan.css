@@ -210,3 +210,69 @@ html {
 .light .hljs-punctuation, .coal .hljs-punctuation {
     color: var(--code-punct);
 }
+
+/* A plugin page's preview: a strip of bar holding its module over a
+   wallpaper, with a picker for its states below it */
+
+.kantan-preview {
+    margin: 20px 0 28px;
+    min-height: 110px;
+}
+
+.kantan-preview-figure {
+    margin: 0;
+    min-width: 0;
+}
+
+.kantan-preview-frame {
+    height: 72px;
+    border-radius: 8px;
+    background: linear-gradient(150deg, #91bdd6 0%, #6fa3c2 25%, #5d90ac 50%, #7fafc8 70%, #b0d4e6 100%);
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.12), 0 1px 4px rgba(0, 0, 0, 0.06);
+}
+
+.kantan-preview-frame.dark {
+    background: radial-gradient(ellipse at 25% 25%, #1e3a5f 0%, #132740 35%, #162447 60%, #1a1a2e 100%);
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.45), 0 1px 4px rgba(0, 0, 0, 0.3);
+}
+
+.kantan-preview-figure figcaption {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px 16px;
+    margin-top: 12px;
+    font-size: 0.85em;
+}
+
+.kantan-preview-states {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+}
+
+.kantan-preview-states button {
+    font: inherit;
+    padding: 3px 10px;
+    border-radius: 999px;
+    border: 1px solid var(--table-border-color);
+    background: transparent;
+    color: var(--fg);
+    cursor: pointer;
+}
+
+.kantan-preview-states button:hover {
+    background: var(--theme-hover);
+}
+
+.kantan-preview-states button[aria-pressed="true"] {
+    background: var(--fg);
+    border-color: var(--fg);
+    color: var(--bg);
+}
+
+.kantan-preview-hint {
+    color: var(--fg);
+    opacity: 0.6;
+}
