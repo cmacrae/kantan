@@ -14,5 +14,10 @@ keys it leaves out aren't compared. A list must match item for item, and
 | `themes.json` | theme files and a config's `theme` | the light and dark palettes, or `null` when the theme doesn't load |
 | `menus.json` | a view from plugin JSON or config YAML, with variables and data | the native menu's rows, or that the view is rejected |
 | `bars.json` | a document | for each appearance checked, the bar and its modules |
+| `modules.json` | a document whose states hold what a built-in module reads | for each state checked, the module as the bar shows it |
+
+A built-in module reads the system: the battery's level, the workspaces, the
+time. A case gives it a sample of that reading as its state's `output`, and
+`web/engine/modules/` describes each type's sample.
 
 The icon table is empty in every case. An icon is then the name it was given.

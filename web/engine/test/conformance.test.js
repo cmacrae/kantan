@@ -48,7 +48,7 @@ for (const { name, source, view, variables, data, expect } of fixtures("menus"))
   });
 }
 
-for (const { name, document, checks } of fixtures("bars")) {
+for (const { name, document, checks } of [...fixtures("bars"), ...fixtures("modules")]) {
   test(`bars: ${name}`, () => {
     assert.deepEqual(validateDocument(document), []);
     for (const { expect, ...options } of checks) check(expect, resolveBar(document, options));

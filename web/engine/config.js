@@ -1,6 +1,6 @@
 // Loads a document's config as kantan loads its files: config.yaml, the
 // modules in modules.d and the theme they select.
-import { moduleType, MODULE_TYPES } from "./modules/index.js";
+import { moduleType } from "./modules/index.js";
 import { parseStyle } from "./style.js";
 import { loadTheme } from "./theme.js";
 import { dict, int, list, num, str } from "./values.js";
@@ -47,7 +47,8 @@ function parseHover(value) {
 function parseModule(yaml) {
   const name = str(yaml?.name), placement = str(yaml?.placement), type = str(yaml?.type);
   if (name === undefined || placement === undefined || type === undefined) return undefined;
-  if (!MODULE_TYPES.includes(type)) return undefined;
+  const implementation = moduleType(type);
+  if (!implementation) return undefined;
 
   const module = {
     name, placement, type,
@@ -73,6 +74,7 @@ function parseModule(yaml) {
   // drawer's opens and closes it, unless the config says otherwise.
   if (dict(yaml.mask) && (int(yaml.mask.index) !== undefined || str(yaml.mask.name) !== undefined)) {
     module.masked = true;
+    module.mask = { name: str(yaml.mask.name), index: int(yaml.mask.index) };
   }
   if (dict(yaml.mask) && clickType === undefined) {
     module.interaction = { hover: parseHover(yaml.interaction?.hover), click: { type: "passthrough" } };
@@ -81,12 +83,8 @@ function parseModule(yaml) {
     module.interaction = { click: { type: "drawer" } };
   }
 
-  const implementation = moduleType(type);
-  if (implementation) {
-    module.loaded = implementation.load(yaml.config ?? null);
-    if (module.loaded === undefined) return undefined;
-  }
-  return module;
+  module.loaded = implementation.load(yaml.config ?? null);
+  return module.loaded === undefined ? undefined : module;
 }
 
 const unique = modules => {

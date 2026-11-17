@@ -3,7 +3,7 @@
 // document itself.
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { createResolver, decodeJsonView, iconTable, resolveBar, resolveView, validateDocument } from "../index.js";
+import { createResolver, decodeJsonView, formatDate, iconTable, ordinalSuffix, resolveBar, resolveView, validateDocument } from "../index.js";
 
 const icons = iconTable({
   bell: { font: "icons", char: "", scale: 1.1333 },
@@ -90,7 +90,7 @@ const document = {
       config: { command: "x", output: "json", toggle: "bell --toggle" },
       interaction: { click: { type: "popup" } },
     },
-    "10-clock.yaml": { name: "clock", type: "clock", placement: "right" },
+    "10-clock.yaml": { name: "clock", type: "clock", placement: "right", config: { format: "QQQ yyyy" } },
   },
   themes: { t: { fg: "#111111", bg: "#eeeeee" } },
   states: {
@@ -105,9 +105,70 @@ const document = {
   },
 };
 
-test("a module type the preview can't draw yet is marked in the bar", () => {
-  const [, clock] = resolveBar(document).placements.right;
-  assert.deepEqual(clock, { name: "clock", type: "clock", hidden: false, unsupported: "clock module" });
+test("a date pattern writes its fields, its quoted text and the ordinal day", () => {
+  const time = Date.parse("2026-07-03T15:04:05.678Z");
+  const write = (pattern, timezone = "America/New_York") => formatDate(time, pattern, { timezone, locale: "en_US" });
+  assert.deepEqual(write("EEEE, MMMM do yyyy 'at' hh:mm:ss.SS 'o''clock'"), { text: "Friday, July 3rd 2026 at 11:04:05.67 o'clock" });
+  assert.deepEqual(write("y-M-d H:m:s K k ZZZ ZZZZ", "Asia/Kolkata"), { text: "2026-7-3 20:34:5 8 20 +0530 GMT+05:30" });
+  assert.deepEqual(write("LLLL ddo doo"), { unsupported: "o" });
+  assert.deepEqual(write("d MMM", "Nowhere/Unknown"), formatDate(time, "d MMM", { locale: "en_US" }));
+  assert.deepEqual([1, 2, 3, 4, 11, 12, 13, 21, 22, 23, 30, 31].map(ordinalSuffix),
+    ["st", "nd", "rd", "th", "th", "th", "th", "st", "nd", "rd", "th", "st"]);
+});
+
+const builtIns = {
+  version: 1,
+  config: {
+    fonts: { text: "system:Menlo:10" },
+    modules: [
+      { name: "spaces", type: "workspace", placement: "left", icon: "bell", config: { icons: ["literal"] } },
+      { name: "note", type: "text", placement: "left", config: { value: "outside" } },
+      { name: "left-drawer", type: "drawer", placement: "left" },
+      { name: "folded", type: "text", placement: "left", config: { value: "inside" } },
+      { name: "wifi", type: "wifi", placement: "right", config: { icons: { strength: ["bell", "bell-filled"] } } },
+      { name: "right-drawer", type: "drawer", placement: "right" },
+      { name: "second-drawer", type: "drawer", placement: "right" },
+    ],
+  },
+  states: {
+    spaces: [{ name: "Two", output: { workspaces: [{ active: true }, {}] } }],
+    wifi: [{ name: "Weak", output: { connected: true, rssi: -80 } }],
+    "right-drawer": [{ name: "Closed" }, { name: "Open", output: { open: true } }],
+    "second-drawer": [{ name: "Open", output: { open: true } }],
+  },
+};
+
+test("a drawer folds the modules beyond it away until its side's first drawer opens", () => {
+  const folded = bar => Object.fromEntries(
+    [...bar.placements.left, ...bar.placements.right].map(module => [module.name, module.folded]));
+  assert.deepEqual(folded(resolveBar(builtIns)), {
+    spaces: undefined, note: undefined, "left-drawer": undefined, folded: true,
+    wifi: true, "right-drawer": undefined, "second-drawer": undefined,
+  });
+  const open = resolveBar(builtIns, { states: { "right-drawer": "Open" } });
+  assert.equal(folded(open).wifi, false);
+  assert.equal(folded(open).folded, true);
+});
+
+test("masked modules take their menu bar items' places, a hidden one giving its up", () => {
+  const masked = (name, type, mask, extra = {}) => ({ name, type, placement: "right", mask, config: { value: "x", format: "HH" }, ...extra });
+  const document = {
+    version: 1,
+    config: { modules: [
+      masked("clock", "clock", { name: "Clock" }), masked("other", "text", { name: "Some App" }),
+      { name: "plain", type: "text", placement: "right", config: { value: "x" } },
+      masked("focus", "focus", { name: "focus" }), masked("battery", "text", { name: "Battery" }, { placement: "left" }),
+      masked("numbered", "text", { index: 2 }), masked("unmasked", "text", {}),
+    ] },
+    states: { focus: [{ name: "Off" }, { name: "On", output: { active: true } }] },
+  };
+  const bar = resolveBar(document);
+  assert.deepEqual(bar.menuBar, { trailing: 12, modules: ["other", "numbered", "battery", "clock"] });
+  const slot = name => Object.values(bar.placements).flat().find(module => module.name === name).slot;
+  assert.deepEqual([slot("clock"), slot("battery"), slot("other"), slot("plain"), slot("unmasked"), slot("focus")],
+    [{ width: 54 }, { width: 44 }, { width: 36 }, undefined, undefined, undefined]);
+  assert.deepEqual(resolveBar(document, { states: { focus: "On" } }).menuBar.modules, ["other", "numbered", "focus", "battery", "clock"]);
+  assert.deepEqual(resolveBar(builtIns).menuBar, { trailing: 0, modules: [] });
 });
 
 test("a document is checked before it's drawn", () => {

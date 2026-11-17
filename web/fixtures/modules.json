@@ -1,0 +1,5043 @@
+[
+ {
+  "name": "power shows the battery's level, state and style",
+  "document": {
+   "version": 1,
+   "config": {
+    "style": {
+     "light": {
+      "fg": "101010",
+      "bg": "F0F0F0"
+     },
+     "dark": {
+      "fg": "F0F0F0",
+      "bg": "101010"
+     }
+    },
+    "modules": [
+     {
+      "name": "m",
+      "placement": "left",
+      "type": "power",
+      "interaction": {
+       "hover": {
+        "type": "tooltip",
+        "content": "{level}%, {state}"
+       }
+      },
+      "config": {
+       "style": {
+        "charging": "00FF00",
+        "low": {
+         "icon": {
+          "fg": "FF0000"
+         }
+        },
+        "lowPowerMode": "FFAA00"
+       }
+      }
+     }
+    ]
+   },
+   "states": {
+    "m": [
+     {
+      "name": "no battery"
+     },
+     {
+      "name": "discharging",
+      "output": {
+       "level": 78
+      }
+     },
+     {
+      "name": "empty",
+      "output": {
+       "level": 0
+      }
+     },
+     {
+      "name": "step edge",
+      "output": {
+       "level": 20
+      }
+     },
+     {
+      "name": "full",
+      "output": {
+       "level": 100
+      }
+     },
+     {
+      "name": "low",
+      "output": {
+       "level": 19
+      }
+     },
+     {
+      "name": "low power mode",
+      "output": {
+       "level": 19,
+       "lowPowerMode": true
+      }
+     },
+     {
+      "name": "charging",
+      "output": {
+       "level": 40,
+       "charging": true,
+       "plugged": true
+      }
+     },
+     {
+      "name": "plugged",
+      "output": {
+       "level": 100,
+       "plugged": true,
+       "lowPowerMode": true
+      }
+     }
+    ]
+   }
+  },
+  "checks": [
+   {
+    "dark": false,
+    "states": {
+     "m": "no battery"
+    },
+    "expect": {
+     "placements": {
+      "left": [
+       {
+        "name": "m",
+        "hidden": false,
+        "icon": {
+         "name": "battery-filled",
+         "color": "#101010",
+         "opacity": 1,
+         "background": null
+        },
+        "text": null,
+        "tooltip": {
+         "text": "%, "
+        }
+       }
+      ]
+     }
+    }
+   },
+   {
+    "dark": false,
+    "states": {
+     "m": "discharging"
+    },
+    "expect": {
+     "placements": {
+      "left": [
+       {
+        "name": "m",
+        "hidden": false,
+        "icon": {
+         "name": "battery-3-filled",
+         "color": "#101010",
+         "opacity": 1,
+         "background": null
+        },
+        "text": null,
+        "tooltip": {
+         "text": "78%, Discharging"
+        }
+       }
+      ]
+     }
+    }
+   },
+   {
+    "dark": false,
+    "states": {
+     "m": "empty"
+    },
+    "expect": {
+     "placements": {
+      "left": [
+       {
+        "name": "m",
+        "hidden": false,
+        "icon": {
+         "name": "battery-filled",
+         "color": "#ff0000",
+         "opacity": 1,
+         "background": null
+        },
+        "text": null,
+        "tooltip": {
+         "text": "0%, Discharging"
+        }
+       }
+      ]
+     }
+    }
+   },
+   {
+    "dark": false,
+    "states": {
+     "m": "step edge"
+    },
+    "expect": {
+     "placements": {
+      "left": [
+       {
+        "name": "m",
+        "hidden": false,
+        "icon": {
+         "name": "battery-1-filled",
+         "color": "#101010",
+         "opacity": 1,
+         "background": null
+        },
+        "text": null,
+        "tooltip": {
+         "text": "20%, Discharging"
+        }
+       }
+      ]
+     }
+    }
+   },
+   {
+    "dark": false,
+    "states": {
+     "m": "full"
+    },
+    "expect": {
+     "placements": {
+      "left": [
+       {
+        "name": "m",
+        "hidden": false,
+        "icon": {
+         "name": "battery-4-filled",
+         "color": "#101010",
+         "opacity": 1,
+         "background": null
+        },
+        "text": null,
+        "tooltip": {
+         "text": "100%, Discharging"
+        }
+       }
+      ]
+     }
+    }
+   },
+   {
+    "dark": false,
+    "states": {
+     "m": "low"
+    },
+    "expect": {
+     "placements": {
+      "left": [
+       {
+        "name": "m",
+        "hidden": false,
+        "icon": {
+         "name": "battery-filled",
+         "color": "#ff0000",
+         "opacity": 1,
+         "background": null
+        },
+        "text": null,
+        "tooltip": {
+         "text": "19%, Discharging"
+        }
+       }
+      ]
+     }
+    }
+   },
+   {
+    "dark": false,
+    "states": {
+     "m": "low power mode"
+    },
+    "expect": {
+     "placements": {
+      "left": [
+       {
+        "name": "m",
+        "hidden": false,
+        "icon": {
+         "name": "battery-filled",
+         "color": "#ffaa00",
+         "opacity": 1,
+         "background": null
+        },
+        "text": null,
+        "tooltip": {
+         "text": "19%, Discharging"
+        }
+       }
+      ]
+     }
+    }
+   },
+   {
+    "dark": false,
+    "states": {
+     "m": "charging"
+    },
+    "expect": {
+     "placements": {
+      "left": [
+       {
+        "name": "m",
+        "hidden": false,
+        "icon": {
+         "name": "bolt-filled",
+         "color": "#00ff00",
+         "opacity": 1,
+         "background": null
+        },
+        "text": null,
+        "tooltip": {
+         "text": "40%, Charging"
+        }
+       }
+      ]
+     }
+    }
+   },
+   {
+    "dark": false,
+    "states": {
+     "m": "plugged"
+    },
+    "expect": {
+     "placements": {
+      "left": [
+       {
+        "name": "m",
+        "hidden": false,
+        "icon": {
+         "name": "plug",
+         "color": "#101010",
+         "opacity": 1,
+         "background": null
+        },
+        "text": null,
+        "tooltip": {
+         "text": "100%, Plugged"
+        }
+       }
+      ]
+     }
+    }
+   }
+  ]
+ },
+ {
+  "name": "power shows its level as text and takes its own icons",
+  "document": {
+   "version": 1,
+   "config": {
+    "modules": [
+     {
+      "name": "m",
+      "placement": "left",
+      "type": "power",
+      "icon": "fallback",
+      "config": {
+       "showLevel": true,
+       "lowThreshold": 50,
+       "icons": {
+        "level": [
+         "low",
+         "high"
+        ],
+        "charging": "",
+        "plugged": "p"
+       },
+       "style": {
+        "low": "FF0000"
+       }
+      }
+     }
+    ]
+   },
+   "states": {
+    "m": [
+     {
+      "name": "no battery"
+     },
+     {
+      "name": "half",
+      "output": {
+       "level": 49
+      }
+     },
+     {
+      "name": "high",
+      "output": {
+       "level": 50
+      }
+     },
+     {
+      "name": "full",
+      "output": {
+       "level": 100
+      }
+     },
+     {
+      "name": "charging",
+      "output": {
+       "level": 5,
+       "charging": true
+      }
+     }
+    ]
+   }
+  },
+  "checks": [
+   {
+    "dark": false,
+    "states": {
+     "m": "no battery"
+    },
+    "expect": {
+     "placements": {
+      "left": [
+       {
+        "name": "m",
+        "hidden": false,
+        "icon": {
+         "name": "low",
+         "color": "label",
+         "opacity": 1,
+         "background": null
+        },
+        "text": null,
+        "tooltip": null
+       }
+      ]
+     }
+    }
+   },
+   {
+    "dark": false,
+    "states": {
+     "m": "half"
+    },
+    "expect": {
+     "placements": {
+      "left": [
+       {
+        "name": "m",
+        "hidden": false,
+        "icon": {
+         "name": "low",
+         "color": "#ff0000",
+         "opacity": 1,
+         "background": null
+        },
+        "text": [
+         {
+          "text": "49%",
+          "color": "#ff0000"
+         }
+        ],
+        "tooltip": null
+       }
+      ]
+     }
+    }
+   },
+   {
+    "dark": false,
+    "states": {
+     "m": "high"
+    },
+    "expect": {
+     "placements": {
+      "left": [
+       {
+        "name": "m",
+        "hidden": false,
+        "icon": {
+         "name": "high",
+         "color": "label",
+         "opacity": 1,
+         "background": null
+        },
+        "text": [
+         {
+          "text": "50%",
+          "color": "label"
+         }
+        ],
+        "tooltip": null
+       }
+      ]
+     }
+    }
+   },
+   {
+    "dark": false,
+    "states": {
+     "m": "full"
+    },
+    "expect": {
+     "placements": {
+      "left": [
+       {
+        "name": "m",
+        "hidden": false,
+        "icon": {
+         "name": "high",
+         "color": "label",
+         "opacity": 1,
+         "background": null
+        },
+        "text": [
+         {
+          "text": "100%",
+          "color": "label"
+         }
+        ],
+        "tooltip": null
+       }
+      ]
+     }
+    }
+   },
+   {
+    "dark": false,
+    "states": {
+     "m": "charging"
+    },
+    "expect": {
+     "placements": {
+      "left": [
+       {
+        "name": "m",
+        "hidden": false,
+        "icon": {
+         "name": "fallback",
+         "color": "#ff0000",
+         "opacity": 1,
+         "background": null
+        },
+        "text": [
+         {
+          "text": "5%",
+          "color": "#ff0000"
+         }
+        ],
+        "tooltip": null
+       }
+      ]
+     }
+    }
+   }
+  ]
+ },
+ {
+  "name": "volume shows the level, the device and a muted output",
+  "document": {
+   "version": 1,
+   "config": {
+    "modules": [
+     {
+      "name": "m",
+      "placement": "left",
+      "type": "volume",
+      "interaction": {
+       "hover": {
+        "type": "tooltip",
+        "content": "{state} on {device} ({level})"
+       }
+      }
+     }
+    ]
+   },
+   "states": {
+    "m": [
+     {
+      "name": "no output"
+     },
+     {
+      "name": "quiet",
+      "output": {
+       "volume": 0.1,
+       "device": "MacBook Pro Speakers"
+      }
+     },
+     {
+      "name": "two thirds",
+      "output": {
+       "volume": 0.64,
+       "device": "MacBook Pro Speakers"
+      }
+     },
+     {
+      "name": "loud",
+      "output": {
+       "volume": 0.66,
+       "device": "MacBook Pro Speakers"
+      }
+     },
+     {
+      "name": "float below",
+      "output": {
+       "volume": 0.29,
+       "device": ""
+      }
+     },
+     {
+      "name": "float above",
+      "output": {
+       "volume": 0.57,
+       "device": ""
+      }
+     },
+     {
+      "name": "full",
+      "output": {
+       "volume": 1,
+       "device": ""
+      }
+     },
+     {
+      "name": "muted",
+      "output": {
+       "volume": 0.5,
+       "muted": true,
+       "device": "Calum's AirPods Pro"
+      }
+     },
+     {
+      "name": "airpods",
+      "output": {
+       "volume": 0.5,
+       "device": "Calum's AIRPODS Pro"
+      }
+     },
+     {
+      "name": "headphones",
+      "output": {
+       "volume": 0.2,
+       "device": "Sony headphones"
+      }
+     }
+    ]
+   }
+  },
+  "checks": [
+   {
+    "dark": false,
+    "states": {
+     "m": "no output"
+    },
+    "expect": {
+     "placements": {
+      "left": [
+       {
+        "name": "m",
+        "hidden": false,
+        "icon": {
+         "name": "volume-4",
+         "color": "label",
+         "opacity": 1,
+         "background": {
+          "name": "volume"
+         }
+        },
+        "text": null,
+        "tooltip": {
+         "text": "0% on  (0)"
+        }
+       }
+      ]
+     }
+    }
+   },
+   {
+    "dark": false,
+    "states": {
+     "m": "quiet"
+    },
+    "expect": {
+     "placements": {
+      "left": [
+       {
+        "name": "m",
+        "hidden": false,
+        "icon": {
+         "name": "volume-4",
+         "color": "label",
+         "opacity": 1,
+         "background": {
+          "name": "volume"
+         }
+        },
+        "text": null,
+        "tooltip": {
+         "text": "10% on MacBook Pro Speakers (10)"
+        }
+       }
+      ]
+     }
+    }
+   },
+   {
+    "dark": false,
+    "states": {
+     "m": "two thirds"
+    },
+    "expect": {
+     "placements": {
+      "left": [
+       {
+        "name": "m",
+        "hidden": false,
+        "icon": {
+         "name": "volume-2",
+         "color": "label",
+         "opacity": 1,
+         "background": {
+          "name": "volume"
+         }
+        },
+        "text": null,
+        "tooltip": {
+         "text": "64% on MacBook Pro Speakers (64)"
+        }
+       }
+      ]
+     }
+    }
+   },
+   {
+    "dark": false,
+    "states": {
+     "m": "loud"
+    },
+    "expect": {
+     "placements": {
+      "left": [
+       {
+        "name": "m",
+        "hidden": false,
+        "icon": {
+         "name": "volume",
+         "color": "label",
+         "opacity": 1,
+         "background": null
+        },
+        "text": null,
+        "tooltip": {
+         "text": "66% on MacBook Pro Speakers (66)"
+        }
+       }
+      ]
+     }
+    }
+   },
+   {
+    "dark": false,
+    "states": {
+     "m": "float below"
+    },
+    "expect": {
+     "placements": {
+      "left": [
+       {
+        "name": "m",
+        "hidden": false,
+        "icon": {
+         "name": "volume-4",
+         "color": "label",
+         "opacity": 1,
+         "background": {
+          "name": "volume"
+         }
+        },
+        "text": null,
+        "tooltip": {
+         "text": "29% on  (29)"
+        }
+       }
+      ]
+     }
+    }
+   },
+   {
+    "dark": false,
+    "states": {
+     "m": "float above"
+    },
+    "expect": {
+     "placements": {
+      "left": [
+       {
+        "name": "m",
+        "hidden": false,
+        "icon": {
+         "name": "volume-2",
+         "color": "label",
+         "opacity": 1,
+         "background": {
+          "name": "volume"
+         }
+        },
+        "text": null,
+        "tooltip": {
+         "text": "57% on  (57)"
+        }
+       }
+      ]
+     }
+    }
+   },
+   {
+    "dark": false,
+    "states": {
+     "m": "full"
+    },
+    "expect": {
+     "placements": {
+      "left": [
+       {
+        "name": "m",
+        "hidden": false,
+        "icon": {
+         "name": "volume",
+         "color": "label",
+         "opacity": 1,
+         "background": null
+        },
+        "text": null,
+        "tooltip": {
+         "text": "100% on  (100)"
+        }
+       }
+      ]
+     }
+    }
+   },
+   {
+    "dark": false,
+    "states": {
+     "m": "muted"
+    },
+    "expect": {
+     "placements": {
+      "left": [
+       {
+        "name": "m",
+        "hidden": false,
+        "icon": {
+         "name": "volume-off",
+         "color": "label",
+         "opacity": 1,
+         "background": null
+        },
+        "text": null,
+        "tooltip": {
+         "text": "Muted on Calum's AirPods Pro (50)"
+        }
+       }
+      ]
+     }
+    }
+   },
+   {
+    "dark": false,
+    "states": {
+     "m": "airpods"
+    },
+    "expect": {
+     "placements": {
+      "left": [
+       {
+        "name": "m",
+        "hidden": false,
+        "icon": {
+         "name": "device-airpods",
+         "color": "label",
+         "opacity": 1,
+         "background": null
+        },
+        "text": null,
+        "tooltip": {
+         "text": "50% on Calum's AIRPODS Pro (50)"
+        }
+       }
+      ]
+     }
+    }
+   },
+   {
+    "dark": false,
+    "states": {
+     "m": "headphones"
+    },
+    "expect": {
+     "placements": {
+      "left": [
+       {
+        "name": "m",
+        "hidden": false,
+        "icon": {
+         "name": "headphones",
+         "color": "label",
+         "opacity": 1,
+         "background": null
+        },
+        "text": null,
+        "tooltip": {
+         "text": "20% on Sony headphones (20)"
+        }
+       }
+      ]
+     }
+    }
+   }
+  ]
+ },
+ {
+  "name": "volume takes its own icons, the longest matching device first",
+  "document": {
+   "version": 1,
+   "config": {
+    "modules": [
+     {
+      "name": "m",
+      "placement": "left",
+      "type": "volume",
+      "config": {
+       "icons": {
+        "level": [
+         "only"
+        ],
+        "muted": "m",
+        "device": {
+         "Pro": "pro",
+         "AirPods Pro": "airpods-pro",
+         "Air": "air",
+         "Aaa": "aaa",
+         "": "empty"
+        }
+       }
+      }
+     }
+    ]
+   },
+   "states": {
+    "m": [
+     {
+      "name": "plain",
+      "output": {
+       "volume": 0.3,
+       "device": "Speakers"
+      }
+     },
+     {
+      "name": "pro",
+      "output": {
+       "volume": 0.3,
+       "device": "MacBook Pro"
+      }
+     },
+     {
+      "name": "airpods pro",
+      "output": {
+       "volume": 0.3,
+       "device": "AirPods Pro"
+      }
+     },
+     {
+      "name": "tie",
+      "output": {
+       "volume": 0.3,
+       "device": "Aaa Air Pro"
+      }
+     }
+    ]
+   }
+  },
+  "checks": [
+   {
+    "dark": false,
+    "states": {
+     "m": "plain"
+    },
+    "expect": {
+     "placements": {
+      "left": [
+       {
+        "name": "m",
+        "hidden": false,
+        "icon": {
+         "name": "only",
+         "color": "label",
+         "opacity": 1,
+         "background": null
+        },
+        "text": null,
+        "tooltip": null
+       }
+      ]
+     }
+    }
+   },
+   {
+    "dark": false,
+    "states": {
+     "m": "pro"
+    },
+    "expect": {
+     "placements": {
+      "left": [
+       {
+        "name": "m",
+        "hidden": false,
+        "icon": {
+         "name": "pro",
+         "color": "label",
+         "opacity": 1,
+         "background": null
+        },
+        "text": null,
+        "tooltip": null
+       }
+      ]
+     }
+    }
+   },
+   {
+    "dark": false,
+    "states": {
+     "m": "airpods pro"
+    },
+    "expect": {
+     "placements": {
+      "left": [
+       {
+        "name": "m",
+        "hidden": false,
+        "icon": {
+         "name": "airpods-pro",
+         "color": "label",
+         "opacity": 1,
+         "background": null
+        },
+        "text": null,
+        "tooltip": null
+       }
+      ]
+     }
+    }
+   },
+   {
+    "dark": false,
+    "states": {
+     "m": "tie"
+    },
+    "expect": {
+     "placements": {
+      "left": [
+       {
+        "name": "m",
+        "hidden": false,
+        "icon": {
+         "name": "aaa",
+         "color": "label",
+         "opacity": 1,
+         "background": null
+        },
+        "text": null,
+        "tooltip": null
+       }
+      ]
+     }
+    }
+   }
+  ]
+ },
+ {
+  "name": "volume without device icons shows the level on every device",
+  "document": {
+   "version": 1,
+   "config": {
+    "modules": [
+     {
+      "name": "m",
+      "placement": "left",
+      "type": "volume",
+      "config": {
+       "icons": {
+        "device": {}
+       }
+      }
+     }
+    ]
+   },
+   "states": {
+    "m": [
+     {
+      "name": "airpods",
+      "output": {
+       "volume": 0.5,
+       "device": "AirPods"
+      }
+     }
+    ]
+   }
+  },
+  "checks": [
+   {
+    "dark": false,
+    "states": {
+     "m": "airpods"
+    },
+    "expect": {
+     "placements": {
+      "left": [
+       {
+        "name": "m",
+        "hidden": false,
+        "icon": {
+         "name": "volume-2",
+         "color": "label",
+         "opacity": 1,
+         "background": {
+          "name": "volume"
+         }
+        },
+        "text": null,
+        "tooltip": null
+       }
+      ]
+     }
+    }
+   }
+  ]
+ },
+ {
+  "name": "wifi shows the signal's strength, a hotspot and no connection",
+  "document": {
+   "version": 1,
+   "config": {
+    "modules": [
+     {
+      "name": "m",
+      "placement": "left",
+      "type": "wifi",
+      "interaction": {
+       "hover": {
+        "type": "tooltip",
+        "content": "{state}"
+       }
+      }
+     }
+    ]
+   },
+   "states": {
+    "m": [
+     {
+      "name": "no reading"
+     },
+     {
+      "name": "off",
+      "output": {
+       "connected": false,
+       "rssi": -40
+      }
+     },
+     {
+      "name": "weakest",
+      "output": {
+       "connected": true,
+       "rssi": -95
+      }
+     },
+     {
+      "name": "weak",
+      "output": {
+       "connected": true,
+       "rssi": -71
+      }
+     },
+     {
+      "name": "medium",
+      "output": {
+       "connected": true,
+       "rssi": -70
+      }
+     },
+     {
+      "name": "medium edge",
+      "output": {
+       "connected": true,
+       "rssi": -51
+      }
+     },
+     {
+      "name": "strong",
+      "output": {
+       "connected": true,
+       "rssi": -50
+      }
+     },
+     {
+      "name": "strongest",
+      "output": {
+       "connected": true,
+       "rssi": -20
+      }
+     },
+     {
+      "name": "hotspot",
+      "output": {
+       "connected": true,
+       "rssi": -80,
+       "hotspot": true
+      }
+     }
+    ]
+   }
+  },
+  "checks": [
+   {
+    "dark": false,
+    "states": {
+     "m": "no reading"
+    },
+    "expect": {
+     "placements": {
+      "left": [
+       {
+        "name": "m",
+        "hidden": false,
+        "icon": {
+         "name": "wifi-off",
+         "color": "label",
+         "opacity": 1,
+         "background": null
+        },
+        "text": null,
+        "tooltip": {
+         "text": "Disconnected"
+        }
+       }
+      ]
+     }
+    }
+   },
+   {
+    "dark": false,
+    "states": {
+     "m": "off"
+    },
+    "expect": {
+     "placements": {
+      "left": [
+       {
+        "name": "m",
+        "hidden": false,
+        "icon": {
+         "name": "wifi-off",
+         "color": "label",
+         "opacity": 1,
+         "background": null
+        },
+        "text": null,
+        "tooltip": {
+         "text": "Disconnected"
+        }
+       }
+      ]
+     }
+    }
+   },
+   {
+    "dark": false,
+    "states": {
+     "m": "weakest"
+    },
+    "expect": {
+     "placements": {
+      "left": [
+       {
+        "name": "m",
+        "hidden": false,
+        "icon": {
+         "name": "wifi-1",
+         "color": "label",
+         "opacity": 1,
+         "background": {
+          "name": "wifi"
+         }
+        },
+        "text": null,
+        "tooltip": {
+         "text": "Connected"
+        }
+       }
+      ]
+     }
+    }
+   },
+   {
+    "dark": false,
+    "states": {
+     "m": "weak"
+    },
+    "expect": {
+     "placements": {
+      "left": [
+       {
+        "name": "m",
+        "hidden": false,
+        "icon": {
+         "name": "wifi-1",
+         "color": "label",
+         "opacity": 1,
+         "background": {
+          "name": "wifi"
+         }
+        },
+        "text": null,
+        "tooltip": {
+         "text": "Connected"
+        }
+       }
+      ]
+     }
+    }
+   },
+   {
+    "dark": false,
+    "states": {
+     "m": "medium"
+    },
+    "expect": {
+     "placements": {
+      "left": [
+       {
+        "name": "m",
+        "hidden": false,
+        "icon": {
+         "name": "wifi-2",
+         "color": "label",
+         "opacity": 1,
+         "background": {
+          "name": "wifi"
+         }
+        },
+        "text": null,
+        "tooltip": {
+         "text": "Connected"
+        }
+       }
+      ]
+     }
+    }
+   },
+   {
+    "dark": false,
+    "states": {
+     "m": "medium edge"
+    },
+    "expect": {
+     "placements": {
+      "left": [
+       {
+        "name": "m",
+        "hidden": false,
+        "icon": {
+         "name": "wifi-2",
+         "color": "label",
+         "opacity": 1,
+         "background": {
+          "name": "wifi"
+         }
+        },
+        "text": null,
+        "tooltip": {
+         "text": "Connected"
+        }
+       }
+      ]
+     }
+    }
+   },
+   {
+    "dark": false,
+    "states": {
+     "m": "strong"
+    },
+    "expect": {
+     "placements": {
+      "left": [
+       {
+        "name": "m",
+        "hidden": false,
+        "icon": {
+         "name": "wifi",
+         "color": "label",
+         "opacity": 1,
+         "background": null
+        },
+        "text": null,
+        "tooltip": {
+         "text": "Connected"
+        }
+       }
+      ]
+     }
+    }
+   },
+   {
+    "dark": false,
+    "states": {
+     "m": "strongest"
+    },
+    "expect": {
+     "placements": {
+      "left": [
+       {
+        "name": "m",
+        "hidden": false,
+        "icon": {
+         "name": "wifi",
+         "color": "label",
+         "opacity": 1,
+         "background": null
+        },
+        "text": null,
+        "tooltip": {
+         "text": "Connected"
+        }
+       }
+      ]
+     }
+    }
+   },
+   {
+    "dark": false,
+    "states": {
+     "m": "hotspot"
+    },
+    "expect": {
+     "placements": {
+      "left": [
+       {
+        "name": "m",
+        "hidden": false,
+        "icon": {
+         "name": "circles-relation",
+         "color": "label",
+         "opacity": 1,
+         "background": null
+        },
+        "text": null,
+        "tooltip": {
+         "text": "Connected"
+        }
+       }
+      ]
+     }
+    }
+   }
+  ]
+ },
+ {
+  "name": "wifi with one strength icon has nothing behind it",
+  "document": {
+   "version": 1,
+   "config": {
+    "modules": [
+     {
+      "name": "m",
+      "placement": "left",
+      "type": "wifi",
+      "config": {
+       "icons": {
+        "strength": [
+         "s"
+        ],
+        "disconnected": "d",
+        "hotspot": "h"
+       }
+      }
+     }
+    ]
+   },
+   "states": {
+    "m": [
+     {
+      "name": "weak",
+      "output": {
+       "connected": true,
+       "rssi": -80
+      }
+     },
+     {
+      "name": "off",
+      "output": {
+       "connected": false
+      }
+     },
+     {
+      "name": "hotspot",
+      "output": {
+       "connected": true,
+       "hotspot": true
+      }
+     }
+    ]
+   }
+  },
+  "checks": [
+   {
+    "dark": false,
+    "states": {
+     "m": "weak"
+    },
+    "expect": {
+     "placements": {
+      "left": [
+       {
+        "name": "m",
+        "hidden": false,
+        "icon": {
+         "name": "s",
+         "color": "label",
+         "opacity": 1,
+         "background": null
+        },
+        "text": null,
+        "tooltip": null
+       }
+      ]
+     }
+    }
+   },
+   {
+    "dark": false,
+    "states": {
+     "m": "off"
+    },
+    "expect": {
+     "placements": {
+      "left": [
+       {
+        "name": "m",
+        "hidden": false,
+        "icon": {
+         "name": "d",
+         "color": "label",
+         "opacity": 1,
+         "background": null
+        },
+        "text": null,
+        "tooltip": null
+       }
+      ]
+     }
+    }
+   },
+   {
+    "dark": false,
+    "states": {
+     "m": "hotspot"
+    },
+    "expect": {
+     "placements": {
+      "left": [
+       {
+        "name": "m",
+        "hidden": false,
+        "icon": {
+         "name": "h",
+         "color": "label",
+         "opacity": 1,
+         "background": null
+        },
+        "text": null,
+        "tooltip": null
+       }
+      ]
+     }
+    }
+   }
+  ]
+ },
+ {
+  "name": "bluetooth dims without a device and names those connected",
+  "document": {
+   "version": 1,
+   "config": {
+    "modules": [
+     {
+      "name": "m",
+      "placement": "left",
+      "type": "bluetooth",
+      "interaction": {
+       "hover": {
+        "type": "tooltip",
+        "content": "{state}: {devices}"
+       }
+      }
+     }
+    ]
+   },
+   "states": {
+    "m": [
+     {
+      "name": "no reading"
+     },
+     {
+      "name": "off",
+      "output": {
+       "on": false,
+       "devices": [
+        {
+         "name": "Keyboard",
+         "connected": true
+        }
+       ]
+      }
+     },
+     {
+      "name": "on",
+      "output": {
+       "on": true,
+       "devices": [
+        {
+         "name": "Keyboard",
+         "connected": false
+        }
+       ]
+      }
+     },
+     {
+      "name": "connected",
+      "output": {
+       "on": true,
+       "devices": [
+        {
+         "name": "Keyboard",
+         "connected": true
+        },
+        {
+         "name": "Mouse",
+         "connected": false
+        },
+        {
+         "name": "AirPods",
+         "connected": true
+        }
+       ]
+      }
+     }
+    ]
+   }
+  },
+  "checks": [
+   {
+    "dark": false,
+    "states": {
+     "m": "no reading"
+    },
+    "expect": {
+     "placements": {
+      "left": [
+       {
+        "name": "m",
+        "hidden": false,
+        "icon": {
+         "name": "bluetooth",
+         "color": "label",
+         "opacity": 0.4,
+         "background": null
+        },
+        "text": null,
+        "tooltip": {
+         "text": "On: "
+        }
+       }
+      ]
+     }
+    }
+   },
+   {
+    "dark": false,
+    "states": {
+     "m": "off"
+    },
+    "expect": {
+     "placements": {
+      "left": [
+       {
+        "name": "m",
+        "hidden": false,
+        "icon": {
+         "name": "bluetooth-off",
+         "color": "label",
+         "opacity": 0.4,
+         "background": null
+        },
+        "text": null,
+        "tooltip": {
+         "text": "Off: "
+        }
+       }
+      ]
+     }
+    }
+   },
+   {
+    "dark": false,
+    "states": {
+     "m": "on"
+    },
+    "expect": {
+     "placements": {
+      "left": [
+       {
+        "name": "m",
+        "hidden": false,
+        "icon": {
+         "name": "bluetooth",
+         "color": "label",
+         "opacity": 0.4,
+         "background": null
+        },
+        "text": null,
+        "tooltip": {
+         "text": "On: "
+        }
+       }
+      ]
+     }
+    }
+   },
+   {
+    "dark": false,
+    "states": {
+     "m": "connected"
+    },
+    "expect": {
+     "placements": {
+      "left": [
+       {
+        "name": "m",
+        "hidden": false,
+        "icon": {
+         "name": "bluetooth",
+         "color": "label",
+         "opacity": 1,
+         "background": null
+        },
+        "text": null,
+        "tooltip": {
+         "text": "Connected: Keyboard, AirPods"
+        }
+       }
+      ]
+     }
+    }
+   }
+  ]
+ },
+ {
+  "name": "bluetooth takes its icons from its config block",
+  "document": {
+   "version": 1,
+   "config": {
+    "modules": [
+     {
+      "name": "m",
+      "placement": "left",
+      "type": "bluetooth",
+      "icon": "ignored",
+      "config": {
+       "icon": "on-icon",
+       "disabledIcon": "off-icon"
+      }
+     }
+    ]
+   },
+   "states": {
+    "m": [
+     {
+      "name": "off",
+      "output": {
+       "on": false
+      }
+     },
+     {
+      "name": "on",
+      "output": {
+       "on": true
+      }
+     }
+    ]
+   }
+  },
+  "checks": [
+   {
+    "dark": false,
+    "states": {
+     "m": "off"
+    },
+    "expect": {
+     "placements": {
+      "left": [
+       {
+        "name": "m",
+        "hidden": false,
+        "icon": {
+         "name": "off-icon",
+         "color": "label",
+         "opacity": 0.4,
+         "background": null
+        },
+        "text": null,
+        "tooltip": null
+       }
+      ]
+     }
+    }
+   },
+   {
+    "dark": false,
+    "states": {
+     "m": "on"
+    },
+    "expect": {
+     "placements": {
+      "left": [
+       {
+        "name": "m",
+        "hidden": false,
+        "icon": {
+         "name": "on-icon",
+         "color": "label",
+         "opacity": 0.4,
+         "background": null
+        },
+        "text": null,
+        "tooltip": null
+       }
+      ]
+     }
+    }
+   }
+  ]
+ },
+ {
+  "name": "focus shows only while a Focus is on, with its mode's icon and style",
+  "document": {
+   "version": 1,
+   "config": {
+    "style": {
+     "light": {
+      "fg": "101010",
+      "bg": "F0F0F0"
+     },
+     "dark": {
+      "fg": "F0F0F0",
+      "bg": "101010"
+     }
+    },
+    "modules": [
+     {
+      "name": "m",
+      "placement": "left",
+      "type": "focus",
+      "interaction": {
+       "hover": {
+        "type": "tooltip",
+        "content": "{mode}"
+       }
+      },
+      "config": {
+       "icons": {
+        "Work": "briefcase",
+        "com.apple.focus.sleep": "bed"
+       },
+       "style": {
+        "Work": "FF0000",
+        "com.apple.focus.sleep": {
+         "icon": {
+          "fg": "0000FF"
+         }
+        },
+        "Reading": {}
+       }
+      }
+     }
+    ]
+   },
+   "states": {
+    "m": [
+     {
+      "name": "no reading"
+     },
+     {
+      "name": "off",
+      "output": {
+       "active": false
+      }
+     },
+     {
+      "name": "on, mode unknown",
+      "output": {
+       "active": true
+      }
+     },
+     {
+      "name": "work",
+      "output": {
+       "active": true,
+       "mode": {
+        "identifier": "com.apple.focus.work",
+        "name": "Work"
+       }
+      }
+     },
+     {
+      "name": "sleep",
+      "output": {
+       "mode": {
+        "identifier": "com.apple.focus.sleep",
+        "name": "Sleep"
+       }
+      }
+     },
+     {
+      "name": "unnamed",
+      "output": {
+       "active": true,
+       "mode": {
+        "identifier": "com.apple.focus.sleep"
+       }
+      }
+     },
+     {
+      "name": "other",
+      "output": {
+       "active": true,
+       "mode": {
+        "identifier": "custom",
+        "name": "Reading"
+       }
+      }
+     }
+    ]
+   }
+  },
+  "checks": [
+   {
+    "dark": false,
+    "states": {
+     "m": "no reading"
+    },
+    "expect": {
+     "placements": {
+      "left": [
+       {
+        "name": "m",
+        "hidden": true,
+        "icon": {
+         "name": "brain",
+         "color": "#101010",
+         "opacity": 1,
+         "background": null
+        },
+        "text": null,
+        "tooltip": {
+         "text": ""
+        }
+       }
+      ]
+     }
+    }
+   },
+   {
+    "dark": false,
+    "states": {
+     "m": "off"
+    },
+    "expect": {
+     "placements": {
+      "left": [
+       {
+        "name": "m",
+        "hidden": true,
+        "icon": {
+         "name": "brain",
+         "color": "#101010",
+         "opacity": 1,
+         "background": null
+        },
+        "text": null,
+        "tooltip": {
+         "text": ""
+        }
+       }
+      ]
+     }
+    }
+   },
+   {
+    "dark": false,
+    "states": {
+     "m": "on, mode unknown"
+    },
+    "expect": {
+     "placements": {
+      "left": [
+       {
+        "name": "m",
+        "hidden": false,
+        "icon": {
+         "name": "brain",
+         "color": "#101010",
+         "opacity": 1,
+         "background": null
+        },
+        "text": null,
+        "tooltip": {
+         "text": ""
+        }
+       }
+      ]
+     }
+    }
+   },
+   {
+    "dark": false,
+    "states": {
+     "m": "work"
+    },
+    "expect": {
+     "placements": {
+      "left": [
+       {
+        "name": "m",
+        "hidden": false,
+        "icon": {
+         "name": "briefcase",
+         "color": "#ff0000",
+         "opacity": 1,
+         "background": null
+        },
+        "text": null,
+        "tooltip": {
+         "text": "Work"
+        }
+       }
+      ]
+     }
+    }
+   },
+   {
+    "dark": false,
+    "states": {
+     "m": "sleep"
+    },
+    "expect": {
+     "placements": {
+      "left": [
+       {
+        "name": "m",
+        "hidden": false,
+        "icon": {
+         "name": "bed",
+         "color": "#0000ff",
+         "opacity": 1,
+         "background": null
+        },
+        "text": null,
+        "tooltip": {
+         "text": "Sleep"
+        }
+       }
+      ]
+     }
+    }
+   },
+   {
+    "dark": false,
+    "states": {
+     "m": "unnamed"
+    },
+    "expect": {
+     "placements": {
+      "left": [
+       {
+        "name": "m",
+        "hidden": false,
+        "icon": {
+         "name": "bed",
+         "color": "#0000ff",
+         "opacity": 1,
+         "background": null
+        },
+        "text": null,
+        "tooltip": {
+         "text": "com.apple.focus.sleep"
+        }
+       }
+      ]
+     }
+    }
+   },
+   {
+    "dark": false,
+    "states": {
+     "m": "other"
+    },
+    "expect": {
+     "placements": {
+      "left": [
+       {
+        "name": "m",
+        "hidden": false,
+        "icon": {
+         "name": "brain",
+         "color": "#101010",
+         "opacity": 1,
+         "background": null
+        },
+        "text": null,
+        "tooltip": {
+         "text": "Reading"
+        }
+       }
+      ]
+     }
+    }
+   }
+  ]
+ },
+ {
+  "name": "focus takes the module's icon",
+  "document": {
+   "version": 1,
+   "config": {
+    "modules": [
+     {
+      "name": "m",
+      "placement": "left",
+      "type": "focus",
+      "icon": "moon"
+     }
+    ]
+   },
+   "states": {
+    "m": [
+     {
+      "name": "on",
+      "output": {
+       "active": true
+      }
+     }
+    ]
+   }
+  },
+  "checks": [
+   {
+    "dark": false,
+    "states": {
+     "m": "on"
+    },
+    "expect": {
+     "placements": {
+      "left": [
+       {
+        "name": "m",
+        "hidden": false,
+        "icon": {
+         "name": "moon",
+         "color": "label",
+         "opacity": 1,
+         "background": null
+        },
+        "text": null,
+        "tooltip": null
+       }
+      ]
+     }
+    }
+   }
+  ]
+ },
+ {
+  "name": "a drawer shows whether it is open and drops its hover",
+  "document": {
+   "version": 1,
+   "config": {
+    "modules": [
+     {
+      "name": "m",
+      "placement": "left",
+      "type": "drawer",
+      "interaction": {
+       "hover": {
+        "type": "tooltip",
+        "content": "ignored"
+       }
+      }
+     }
+    ]
+   },
+   "states": {
+    "m": [
+     {
+      "name": "closed"
+     },
+     {
+      "name": "open",
+      "output": {
+       "open": true
+      }
+     },
+     {
+      "name": "shut",
+      "output": {
+       "open": false
+      }
+     }
+    ]
+   }
+  },
+  "checks": [
+   {
+    "dark": false,
+    "states": {
+     "m": "closed"
+    },
+    "expect": {
+     "placements": {
+      "left": [
+       {
+        "name": "m",
+        "hidden": false,
+        "open": false,
+        "icon": {
+         "name": "box-align-right",
+         "color": "label",
+         "opacity": 1,
+         "background": null
+        },
+        "text": null,
+        "tooltip": null,
+        "click": {
+         "type": "drawer"
+        }
+       }
+      ]
+     }
+    }
+   },
+   {
+    "dark": false,
+    "states": {
+     "m": "open"
+    },
+    "expect": {
+     "placements": {
+      "left": [
+       {
+        "name": "m",
+        "hidden": false,
+        "open": true,
+        "icon": {
+         "name": "box-align-left",
+         "color": "label",
+         "opacity": 1,
+         "background": null
+        },
+        "text": null,
+        "tooltip": null,
+        "click": {
+         "type": "drawer"
+        }
+       }
+      ]
+     }
+    }
+   },
+   {
+    "dark": false,
+    "states": {
+     "m": "shut"
+    },
+    "expect": {
+     "placements": {
+      "left": [
+       {
+        "name": "m",
+        "hidden": false,
+        "open": false,
+        "icon": {
+         "name": "box-align-right",
+         "color": "label",
+         "opacity": 1,
+         "background": null
+        },
+        "text": null,
+        "tooltip": null,
+        "click": {
+         "type": "drawer"
+        }
+       }
+      ]
+     }
+    }
+   }
+  ]
+ },
+ {
+  "name": "a drawer takes its own icons and click",
+  "document": {
+   "version": 1,
+   "config": {
+    "modules": [
+     {
+      "name": "m",
+      "placement": "left",
+      "type": "drawer",
+      "config": {
+       "icons": {
+        "show": "〈",
+        "hide": "〉"
+       }
+      },
+      "interaction": {
+       "hover": {
+        "content": "kept"
+       },
+       "click": {
+        "type": "passthrough"
+       }
+      }
+     }
+    ]
+   },
+   "states": {
+    "m": [
+     {
+      "name": "closed"
+     },
+     {
+      "name": "open",
+      "output": {
+       "open": true
+      }
+     }
+    ]
+   }
+  },
+  "checks": [
+   {
+    "dark": false,
+    "states": {
+     "m": "closed"
+    },
+    "expect": {
+     "placements": {
+      "left": [
+       {
+        "name": "m",
+        "hidden": false,
+        "open": false,
+        "icon": {
+         "name": "〈",
+         "color": "label",
+         "opacity": 1,
+         "background": null
+        },
+        "text": null,
+        "tooltip": {
+         "text": "kept"
+        },
+        "click": {
+         "type": "passthrough"
+        }
+       }
+      ]
+     }
+    }
+   },
+   {
+    "dark": false,
+    "states": {
+     "m": "open"
+    },
+    "expect": {
+     "placements": {
+      "left": [
+       {
+        "name": "m",
+        "hidden": false,
+        "open": true,
+        "icon": {
+         "name": "〉",
+         "color": "label",
+         "opacity": 1,
+         "background": null
+        },
+        "text": null,
+        "tooltip": {
+         "text": "kept"
+        },
+        "click": {
+         "type": "passthrough"
+        }
+       }
+      ]
+     }
+    }
+   }
+  ]
+ },
+ {
+  "name": "a clock writes the time in its format and its formats as variables",
+  "document": {
+   "version": 1,
+   "config": {
+    "modules": [
+     {
+      "name": "m",
+      "placement": "left",
+      "type": "clock",
+      "icon": "clock",
+      "interaction": {
+       "hover": {
+        "type": "tooltip",
+        "content": "{date} | {long} | {twelve} | {quoted}"
+       }
+      },
+      "config": {
+       "format": "HH:mm",
+       "timezone": "Europe/London",
+       "formats": {
+        "date": "E MMM do",
+        "long": "EEEE d MMMM yyyy",
+        "twelve": "h:mm:ss a",
+        "quoted": "'do' yy/MM/dd 'o''clock' ZZZZZ"
+       }
+      }
+     }
+    ]
+   },
+   "states": {
+    "m": [
+     {
+      "name": "winter",
+      "output": {
+       "time": "2026-11-16T09:41:07Z",
+       "locale": "en_GB"
+      }
+     },
+     {
+      "name": "summer",
+      "output": {
+       "time": "2026-07-01T23:30:00Z",
+       "locale": "en_GB"
+      }
+     },
+     {
+      "name": "second",
+      "output": {
+       "time": "2026-03-02T12:00:00Z",
+       "locale": "en_GB"
+      }
+     },
+     {
+      "name": "third",
+      "output": {
+       "time": "2026-03-03T00:05:00Z",
+       "locale": "en_GB"
+      }
+     },
+     {
+      "name": "eleventh",
+      "output": {
+       "time": "2026-03-11T15:00:00Z",
+       "locale": "en_GB"
+      }
+     },
+     {
+      "name": "twenty-second",
+      "output": {
+       "time": "2026-03-22T15:00:00Z",
+       "locale": "en_GB"
+      }
+     },
+     {
+      "name": "german",
+      "output": {
+       "time": "2026-03-23T15:00:00Z",
+       "locale": "de_DE"
+      }
+     },
+     {
+      "name": "milliseconds",
+      "output": {
+       "time": 0,
+       "locale": "en_GB"
+      }
+     }
+    ]
+   }
+  },
+  "checks": [
+   {
+    "dark": false,
+    "states": {
+     "m": "winter"
+    },
+    "expect": {
+     "placements": {
+      "left": [
+       {
+        "name": "m",
+        "hidden": false,
+        "icon": {
+         "name": "clock",
+         "color": "label",
+         "opacity": 1,
+         "background": null
+        },
+        "text": [
+         {
+          "text": "09:41",
+          "color": "label"
+         }
+        ],
+        "tooltip": {
+         "text": "Mon Nov 16th | Monday 16 November 2026 | 9:41:07 am | do 26/11/16 o'clock Z"
+        }
+       }
+      ]
+     }
+    }
+   },
+   {
+    "dark": false,
+    "states": {
+     "m": "summer"
+    },
+    "expect": {
+     "placements": {
+      "left": [
+       {
+        "name": "m",
+        "hidden": false,
+        "icon": {
+         "name": "clock",
+         "color": "label",
+         "opacity": 1,
+         "background": null
+        },
+        "text": [
+         {
+          "text": "00:30",
+          "color": "label"
+         }
+        ],
+        "tooltip": {
+         "text": "Thu Jul 2nd | Thursday 2 July 2026 | 12:30:00 am | do 26/07/02 o'clock +01:00"
+        }
+       }
+      ]
+     }
+    }
+   },
+   {
+    "dark": false,
+    "states": {
+     "m": "second"
+    },
+    "expect": {
+     "placements": {
+      "left": [
+       {
+        "name": "m",
+        "hidden": false,
+        "icon": {
+         "name": "clock",
+         "color": "label",
+         "opacity": 1,
+         "background": null
+        },
+        "text": [
+         {
+          "text": "12:00",
+          "color": "label"
+         }
+        ],
+        "tooltip": {
+         "text": "Mon Mar 2nd | Monday 2 March 2026 | 12:00:00 pm | do 26/03/02 o'clock Z"
+        }
+       }
+      ]
+     }
+    }
+   },
+   {
+    "dark": false,
+    "states": {
+     "m": "third"
+    },
+    "expect": {
+     "placements": {
+      "left": [
+       {
+        "name": "m",
+        "hidden": false,
+        "icon": {
+         "name": "clock",
+         "color": "label",
+         "opacity": 1,
+         "background": null
+        },
+        "text": [
+         {
+          "text": "00:05",
+          "color": "label"
+         }
+        ],
+        "tooltip": {
+         "text": "Tue Mar 3rd | Tuesday 3 March 2026 | 12:05:00 am | do 26/03/03 o'clock Z"
+        }
+       }
+      ]
+     }
+    }
+   },
+   {
+    "dark": false,
+    "states": {
+     "m": "eleventh"
+    },
+    "expect": {
+     "placements": {
+      "left": [
+       {
+        "name": "m",
+        "hidden": false,
+        "icon": {
+         "name": "clock",
+         "color": "label",
+         "opacity": 1,
+         "background": null
+        },
+        "text": [
+         {
+          "text": "15:00",
+          "color": "label"
+         }
+        ],
+        "tooltip": {
+         "text": "Wed Mar 11th | Wednesday 11 March 2026 | 3:00:00 pm | do 26/03/11 o'clock Z"
+        }
+       }
+      ]
+     }
+    }
+   },
+   {
+    "dark": false,
+    "states": {
+     "m": "twenty-second"
+    },
+    "expect": {
+     "placements": {
+      "left": [
+       {
+        "name": "m",
+        "hidden": false,
+        "icon": {
+         "name": "clock",
+         "color": "label",
+         "opacity": 1,
+         "background": null
+        },
+        "text": [
+         {
+          "text": "15:00",
+          "color": "label"
+         }
+        ],
+        "tooltip": {
+         "text": "Sun Mar 22nd | Sunday 22 March 2026 | 3:00:00 pm | do 26/03/22 o'clock Z"
+        }
+       }
+      ]
+     }
+    }
+   },
+   {
+    "dark": false,
+    "states": {
+     "m": "german"
+    },
+    "expect": {
+     "placements": {
+      "left": [
+       {
+        "name": "m",
+        "hidden": false,
+        "icon": {
+         "name": "clock",
+         "color": "label",
+         "opacity": 1,
+         "background": null
+        },
+        "text": [
+         {
+          "text": "15:00",
+          "color": "label"
+         }
+        ],
+        "tooltip": {
+         "text": "Mo. März 23rd | Montag 23 März 2026 | 3:00:00 PM | do 26/03/23 o'clock Z"
+        }
+       }
+      ]
+     }
+    }
+   },
+   {
+    "dark": false,
+    "states": {
+     "m": "milliseconds"
+    },
+    "expect": {
+     "placements": {
+      "left": [
+       {
+        "name": "m",
+        "hidden": false,
+        "icon": {
+         "name": "clock",
+         "color": "label",
+         "opacity": 1,
+         "background": null
+        },
+        "text": [
+         {
+          "text": "01:00",
+          "color": "label"
+         }
+        ],
+        "tooltip": {
+         "text": "Thu Jan 1st | Thursday 1 January 1970 | 1:00:00 am | do 70/01/01 o'clock +01:00"
+        }
+       }
+      ]
+     }
+    }
+   }
+  ]
+ },
+ {
+  "name": "a clock takes its sample's time zone, and its own before it",
+  "document": {
+   "version": 1,
+   "config": {
+    "modules": [
+     {
+      "name": "m",
+      "placement": "left",
+      "type": "clock",
+      "interaction": {
+       "hover": {
+        "type": "tooltip",
+        "content": "{here}"
+       }
+      },
+      "config": {
+       "format": "HH:mm ZZZ",
+       "formats": {
+        "here": "d MMM HH:mm"
+       }
+      }
+     }
+    ]
+   },
+   "states": {
+    "m": [
+     {
+      "name": "tokyo",
+      "output": {
+       "time": "2026-11-16T20:41:00Z",
+       "timezone": "Asia/Tokyo",
+       "locale": "en_GB"
+      }
+     },
+     {
+      "name": "new york",
+      "output": {
+       "time": "2026-11-16T03:41:00Z",
+       "timezone": "America/New_York",
+       "locale": "en_GB"
+      }
+     }
+    ]
+   }
+  },
+  "checks": [
+   {
+    "dark": false,
+    "states": {
+     "m": "tokyo"
+    },
+    "expect": {
+     "placements": {
+      "left": [
+       {
+        "name": "m",
+        "hidden": false,
+        "icon": null,
+        "text": [
+         {
+          "text": "05:41 +0900",
+          "color": "label"
+         }
+        ],
+        "tooltip": {
+         "text": "17 Nov 05:41"
+        }
+       }
+      ]
+     }
+    }
+   },
+   {
+    "dark": false,
+    "states": {
+     "m": "new york"
+    },
+    "expect": {
+     "placements": {
+      "left": [
+       {
+        "name": "m",
+        "hidden": false,
+        "icon": null,
+        "text": [
+         {
+          "text": "22:41 -0500",
+          "color": "label"
+         }
+        ],
+        "tooltip": {
+         "text": "15 Nov 22:41"
+        }
+       }
+      ]
+     }
+    }
+   }
+  ]
+ },
+ {
+  "name": "workspaces take the rainbow's colours in a theme",
+  "document": {
+   "version": 1,
+   "config": {
+    "theme": "fx",
+    "modules": [
+     {
+      "name": "m",
+      "placement": "left",
+      "type": "workspace",
+      "icon": "point-filled",
+      "config": {
+       "rainbow": {
+        "enabled": true,
+        "colors": [
+         "{theme(red)}",
+         "{theme(green)}",
+         "{theme(blue)}",
+         "FFD700"
+        ]
+       }
+      }
+     }
+    ]
+   },
+   "themes": {
+    "fx": {
+     "fg": "#111111",
+     "bg": "#eeeeee",
+     "colors": {
+      "red": "#ff0000",
+      "green": "#00ff00",
+      "blue": "#0000ff",
+      "gold": "#ffd700"
+     }
+    }
+   },
+   "states": {
+    "m": [
+     {
+      "name": "none"
+     },
+     {
+      "name": "three",
+      "output": {
+       "workspaces": [
+        {
+         "active": true
+        },
+        {},
+        {}
+       ]
+      }
+     },
+     {
+      "name": "six",
+      "output": {
+       "workspaces": [
+        {},
+        {},
+        {
+         "active": true
+        },
+        {},
+        {},
+        {}
+       ]
+      }
+     },
+     {
+      "name": "nine",
+      "output": {
+       "workspaces": [
+        {},
+        {},
+        {},
+        {},
+        {},
+        {},
+        {},
+        {},
+        {
+         "active": true
+        }
+       ]
+      }
+     },
+     {
+      "name": "gaps",
+      "output": {
+       "workspaces": [
+        {
+         "index": 0,
+         "label": "1"
+        },
+        {
+         "index": 2,
+         "label": "3",
+         "active": true
+        },
+        {
+         "index": 5,
+         "label": "6"
+        }
+       ]
+      }
+     }
+    ]
+   }
+  },
+  "checks": [
+   {
+    "dark": false,
+    "states": {
+     "m": "none"
+    },
+    "expect": {
+     "placements": {
+      "left": [
+       {
+        "name": "m",
+        "hidden": false,
+        "icon": null,
+        "text": null,
+        "tooltip": null,
+        "workspace": {
+         "scroll": false,
+         "activates": false,
+         "segments": [],
+         "pips": [],
+         "slot": null,
+         "before": null,
+         "after": null
+        }
+       }
+      ]
+     }
+    }
+   },
+   {
+    "dark": false,
+    "states": {
+     "m": "three"
+    },
+    "expect": {
+     "placements": {
+      "left": [
+       {
+        "name": "m",
+        "hidden": false,
+        "icon": null,
+        "text": null,
+        "tooltip": null,
+        "workspace": {
+         "scroll": false,
+         "activates": false,
+         "segments": [
+          {
+           "id": "workspace-0",
+           "name": "point-filled",
+           "active": true,
+           "color": "#ff0000",
+           "opacity": 1,
+           "target": null
+          },
+          {
+           "id": "workspace-1",
+           "name": "point-filled",
+           "active": false,
+           "color": "#0000ff",
+           "opacity": 0.4,
+           "target": {
+            "workspace": 1,
+            "label": "2"
+           }
+          },
+          {
+           "id": "workspace-2",
+           "name": "point-filled",
+           "active": false,
+           "color": "#00ff00",
+           "opacity": 0.4,
+           "target": {
+            "workspace": 2,
+            "label": "3"
+           }
+          }
+         ],
+         "pips": [],
+         "slot": null,
+         "before": null,
+         "after": null
+        }
+       }
+      ]
+     }
+    }
+   },
+   {
+    "dark": false,
+    "states": {
+     "m": "six"
+    },
+    "expect": {
+     "placements": {
+      "left": [
+       {
+        "name": "m",
+        "hidden": false,
+        "icon": null,
+        "text": null,
+        "tooltip": null,
+        "workspace": {
+         "scroll": false,
+         "activates": false,
+         "segments": [
+          {
+           "id": "workspace-0",
+           "name": "point-filled",
+           "active": false,
+           "color": "#ff0000",
+           "opacity": 0.4,
+           "target": {
+            "workspace": 0,
+            "label": "1"
+           }
+          },
+          {
+           "id": "workspace-1",
+           "name": "point-filled",
+           "active": false,
+           "color": "#00ff00",
+           "opacity": 0.4,
+           "target": {
+            "workspace": 1,
+            "label": "2"
+           }
+          },
+          {
+           "id": "workspace-2",
+           "name": "point-filled",
+           "active": true,
+           "color": "#0000ff",
+           "opacity": 1,
+           "target": null
+          },
+          {
+           "id": "workspace-3",
+           "name": "point-filled",
+           "active": false,
+           "color": "#ffd700",
+           "opacity": 0.4,
+           "target": {
+            "workspace": 3,
+            "label": "4"
+           }
+          },
+          {
+           "id": "workspace-4",
+           "name": "point-filled",
+           "active": false,
+           "color": "#ff0000",
+           "opacity": 0.4,
+           "target": {
+            "workspace": 4,
+            "label": "5"
+           }
+          },
+          {
+           "id": "workspace-5",
+           "name": "point-filled",
+           "active": false,
+           "color": "#00ff00",
+           "opacity": 0.4,
+           "target": {
+            "workspace": 5,
+            "label": "6"
+           }
+          }
+         ],
+         "pips": [],
+         "slot": null,
+         "before": null,
+         "after": null
+        }
+       }
+      ]
+     }
+    }
+   },
+   {
+    "dark": false,
+    "states": {
+     "m": "nine"
+    },
+    "expect": {
+     "placements": {
+      "left": [
+       {
+        "name": "m",
+        "hidden": false,
+        "icon": null,
+        "text": null,
+        "tooltip": null,
+        "workspace": {
+         "scroll": false,
+         "activates": false,
+         "segments": [
+          {
+           "id": "workspace-0",
+           "name": "point-filled",
+           "active": false,
+           "color": "#00ff00",
+           "opacity": 0.4,
+           "target": {
+            "workspace": 0,
+            "label": "1"
+           }
+          },
+          {
+           "id": "workspace-1",
+           "name": "point-filled",
+           "active": false,
+           "color": "#0000ff",
+           "opacity": 0.4,
+           "target": {
+            "workspace": 1,
+            "label": "2"
+           }
+          },
+          {
+           "id": "workspace-2",
+           "name": "point-filled",
+           "active": false,
+           "color": "#ff0000",
+           "opacity": 0.4,
+           "target": {
+            "workspace": 2,
+            "label": "3"
+           }
+          },
+          {
+           "id": "workspace-3",
+           "name": "point-filled",
+           "active": false,
+           "color": "#ffd700",
+           "opacity": 0.4,
+           "target": {
+            "workspace": 3,
+            "label": "4"
+           }
+          },
+          {
+           "id": "workspace-4",
+           "name": "point-filled",
+           "active": false,
+           "color": "#00ff00",
+           "opacity": 0.4,
+           "target": {
+            "workspace": 4,
+            "label": "5"
+           }
+          },
+          {
+           "id": "workspace-5",
+           "name": "point-filled",
+           "active": false,
+           "color": "#0000ff",
+           "opacity": 0.4,
+           "target": {
+            "workspace": 5,
+            "label": "6"
+           }
+          },
+          {
+           "id": "workspace-6",
+           "name": "point-filled",
+           "active": false,
+           "color": "#ff0000",
+           "opacity": 0.4,
+           "target": {
+            "workspace": 6,
+            "label": "7"
+           }
+          },
+          {
+           "id": "workspace-7",
+           "name": "point-filled",
+           "active": false,
+           "color": "#ffd700",
+           "opacity": 0.4,
+           "target": {
+            "workspace": 7,
+            "label": "8"
+           }
+          },
+          {
+           "id": "workspace-8",
+           "name": "point-filled",
+           "active": true,
+           "color": "#00ff00",
+           "opacity": 1,
+           "target": null
+          }
+         ],
+         "pips": [],
+         "slot": null,
+         "before": null,
+         "after": null
+        }
+       }
+      ]
+     }
+    }
+   },
+   {
+    "dark": false,
+    "states": {
+     "m": "gaps"
+    },
+    "expect": {
+     "placements": {
+      "left": [
+       {
+        "name": "m",
+        "hidden": false,
+        "icon": null,
+        "text": null,
+        "tooltip": null,
+        "workspace": {
+         "scroll": false,
+         "activates": false,
+         "segments": [
+          {
+           "id": "workspace-0",
+           "name": "point-filled",
+           "active": false,
+           "color": "#ff0000",
+           "opacity": 0.4,
+           "target": {
+            "workspace": 0,
+            "label": "1"
+           }
+          },
+          {
+           "id": "workspace-2",
+           "name": "point-filled",
+           "active": true,
+           "color": "#00ff00",
+           "opacity": 1,
+           "target": null
+          },
+          {
+           "id": "workspace-5",
+           "name": "point-filled",
+           "active": false,
+           "color": "#0000ff",
+           "opacity": 0.4,
+           "target": {
+            "workspace": 5,
+            "label": "6"
+           }
+          }
+         ],
+         "pips": [],
+         "slot": null,
+         "before": null,
+         "after": null
+        }
+       }
+      ]
+     }
+    }
+   }
+  ]
+ },
+ {
+  "name": "workspaces ignore the rainbow in the native appearance",
+  "document": {
+   "version": 1,
+   "config": {
+    "modules": [
+     {
+      "name": "m",
+      "placement": "left",
+      "type": "workspace",
+      "config": {
+       "rainbow": {
+        "enabled": true,
+        "random": false,
+        "colors": [
+         "FF0000",
+         "00FF00"
+        ]
+       }
+      }
+     }
+    ]
+   },
+   "states": {
+    "m": [
+     {
+      "name": "three",
+      "output": {
+       "workspaces": [
+        {
+         "active": true
+        },
+        {},
+        {}
+       ]
+      }
+     }
+    ]
+   }
+  },
+  "checks": [
+   {
+    "dark": false,
+    "states": {
+     "m": "three"
+    },
+    "expect": {
+     "placements": {
+      "left": [
+       {
+        "name": "m",
+        "hidden": false,
+        "icon": null,
+        "text": null,
+        "tooltip": null,
+        "workspace": {
+         "scroll": false,
+         "activates": false,
+         "segments": [
+          {
+           "id": "workspace-0",
+           "name": "1",
+           "active": true,
+           "color": "label",
+           "opacity": 1,
+           "target": null
+          },
+          {
+           "id": "workspace-1",
+           "name": "2",
+           "active": false,
+           "color": "label",
+           "opacity": 0.4,
+           "target": {
+            "workspace": 1,
+            "label": "2"
+           }
+          },
+          {
+           "id": "workspace-2",
+           "name": "3",
+           "active": false,
+           "color": "label",
+           "opacity": 0.4,
+           "target": {
+            "workspace": 2,
+            "label": "3"
+           }
+          }
+         ],
+         "pips": [],
+         "slot": null,
+         "before": null,
+         "after": null
+        }
+       }
+      ]
+     }
+    }
+   }
+  ]
+ },
+ {
+  "name": "workspaces take colours in order without the shuffle, and icons by index",
+  "document": {
+   "version": 1,
+   "config": {
+    "theme": "fx",
+    "modules": [
+     {
+      "name": "m",
+      "placement": "left",
+      "type": "workspace",
+      "icon": "dot",
+      "style": {
+       "fg": "{theme(blue)}",
+       "text": {
+        "fg": "{theme(green)}"
+       }
+      },
+      "config": {
+       "type": "aerospace",
+       "icons": [
+        "one",
+        "two"
+       ],
+       "rainbow": {
+        "enabled": true,
+        "random": false,
+        "colors": [
+         "FF0000",
+         "{theme(gold)}"
+        ]
+       }
+      }
+     }
+    ]
+   },
+   "themes": {
+    "fx": {
+     "fg": "#111111",
+     "bg": "#eeeeee",
+     "colors": {
+      "red": "#ff0000",
+      "green": "#00ff00",
+      "blue": "#0000ff",
+      "gold": "#ffd700"
+     }
+    }
+   },
+   "states": {
+    "m": [
+     {
+      "name": "four",
+      "output": {
+       "workspaces": [
+        {
+         "label": "web"
+        },
+        {
+         "label": "code",
+         "active": true
+        },
+        {
+         "label": "chat"
+        },
+        {
+         "label": "music"
+        }
+       ]
+      }
+     }
+    ]
+   }
+  },
+  "checks": [
+   {
+    "dark": false,
+    "states": {
+     "m": "four"
+    },
+    "expect": {
+     "placements": {
+      "left": [
+       {
+        "name": "m",
+        "hidden": false,
+        "icon": null,
+        "text": null,
+        "tooltip": null,
+        "workspace": {
+         "scroll": false,
+         "activates": true,
+         "segments": [
+          {
+           "id": "workspace-0",
+           "name": "one",
+           "active": false,
+           "color": "#ff0000",
+           "opacity": 0.4,
+           "target": {
+            "workspace": 0,
+            "label": "web"
+           }
+          },
+          {
+           "id": "workspace-1",
+           "name": "two",
+           "active": true,
+           "color": "#ffd700",
+           "opacity": 1,
+           "target": null
+          },
+          {
+           "id": "workspace-2",
+           "name": "dot",
+           "active": false,
+           "color": "#ff0000",
+           "opacity": 0.4,
+           "target": {
+            "workspace": 2,
+            "label": "chat"
+           }
+          },
+          {
+           "id": "workspace-3",
+           "name": "dot",
+           "active": false,
+           "color": "#ffd700",
+           "opacity": 0.4,
+           "target": {
+            "workspace": 3,
+            "label": "music"
+           }
+          }
+         ],
+         "pips": [],
+         "slot": null,
+         "before": null,
+         "after": null
+        }
+       }
+      ]
+     }
+    }
+   }
+  ]
+ },
+ {
+  "name": "workspaces show their labels without icons, and don't switch with a click of their own",
+  "document": {
+   "version": 1,
+   "config": {
+    "style": {
+     "light": {
+      "fg": "101010",
+      "bg": "F0F0F0"
+     },
+     "dark": {
+      "fg": "F0F0F0",
+      "bg": "101010",
+      "text": {
+       "fg": "00AA00"
+      }
+     }
+    },
+    "modules": [
+     {
+      "name": "m",
+      "placement": "left",
+      "type": "workspace",
+      "config": {
+       "type": "rift"
+      },
+      "interaction": {
+       "click": {
+        "type": "none"
+       }
+      }
+     }
+    ]
+   },
+   "states": {
+    "m": [
+     {
+      "name": "two",
+      "output": {
+       "workspaces": [
+        {
+         "label": "web",
+         "active": true
+        },
+        {
+         "label": "code"
+        }
+       ]
+      }
+     }
+    ]
+   }
+  },
+  "checks": [
+   {
+    "dark": false,
+    "states": {
+     "m": "two"
+    },
+    "expect": {
+     "placements": {
+      "left": [
+       {
+        "name": "m",
+        "hidden": false,
+        "icon": null,
+        "text": null,
+        "tooltip": null,
+        "click": {
+         "type": "none"
+        },
+        "workspace": {
+         "scroll": false,
+         "activates": false,
+         "segments": [
+          {
+           "id": "workspace-0",
+           "name": "web",
+           "active": true,
+           "color": "#101010",
+           "opacity": 1,
+           "target": null
+          },
+          {
+           "id": "workspace-1",
+           "name": "code",
+           "active": false,
+           "color": "#101010",
+           "opacity": 0.4,
+           "target": {
+            "workspace": 1,
+            "label": "code"
+           }
+          }
+         ],
+         "pips": [],
+         "slot": null,
+         "before": null,
+         "after": null
+        }
+       }
+      ]
+     }
+    }
+   },
+   {
+    "dark": true,
+    "states": {
+     "m": "two"
+    },
+    "expect": {
+     "placements": {
+      "left": [
+       {
+        "name": "m",
+        "hidden": false,
+        "icon": null,
+        "text": null,
+        "tooltip": null,
+        "click": {
+         "type": "none"
+        },
+        "workspace": {
+         "scroll": false,
+         "activates": false,
+         "segments": [
+          {
+           "id": "workspace-0",
+           "name": "web",
+           "active": true,
+           "color": "#00aa00",
+           "opacity": 1,
+           "target": null
+          },
+          {
+           "id": "workspace-1",
+           "name": "code",
+           "active": false,
+           "color": "#00aa00",
+           "opacity": 0.4,
+           "target": {
+            "workspace": 1,
+            "label": "code"
+           }
+          }
+         ],
+         "pips": [],
+         "slot": null,
+         "before": null,
+         "after": null
+        }
+       }
+      ]
+     }
+    }
+   }
+  ]
+ },
+ {
+  "name": "an overflow shows the page holding the active workspace",
+  "document": {
+   "version": 1,
+   "config": {
+    "theme": "fx",
+    "modules": [
+     {
+      "name": "m",
+      "placement": "left",
+      "type": "workspace",
+      "config": {
+       "overflow": {
+        "enabled": true,
+        "max": 3,
+        "icon": {
+         "left": "before"
+        },
+        "style": {
+         "dark": {
+          "fg": "{theme(red)}"
+         }
+        }
+       }
+      }
+     }
+    ]
+   },
+   "themes": {
+    "fx": {
+     "fg": "#111111",
+     "bg": "#eeeeee",
+     "colors": {
+      "red": "#ff0000",
+      "green": "#00ff00",
+      "blue": "#0000ff",
+      "gold": "#ffd700"
+     }
+    }
+   },
+   "states": {
+    "m": [
+     {
+      "name": "fits",
+      "output": {
+       "workspaces": [
+        {},
+        {},
+        {
+         "active": true
+        }
+       ]
+      }
+     },
+     {
+      "name": "first",
+      "output": {
+       "workspaces": [
+        {},
+        {
+         "active": true
+        },
+        {},
+        {},
+        {},
+        {},
+        {}
+       ]
+      }
+     },
+     {
+      "name": "middle",
+      "output": {
+       "workspaces": [
+        {},
+        {},
+        {},
+        {},
+        {
+         "active": true
+        },
+        {},
+        {}
+       ]
+      }
+     },
+     {
+      "name": "last",
+      "output": {
+       "workspaces": [
+        {},
+        {},
+        {},
+        {},
+        {},
+        {},
+        {
+         "active": true
+        }
+       ]
+      }
+     },
+     {
+      "name": "none active",
+      "output": {
+       "workspaces": [
+        {},
+        {},
+        {},
+        {}
+       ]
+      }
+     }
+    ]
+   }
+  },
+  "checks": [
+   {
+    "dark": false,
+    "states": {
+     "m": "fits"
+    },
+    "expect": {
+     "placements": {
+      "left": [
+       {
+        "name": "m",
+        "hidden": false,
+        "icon": null,
+        "text": null,
+        "tooltip": null,
+        "workspace": {
+         "scroll": false,
+         "activates": false,
+         "segments": [
+          {
+           "id": "workspace-0",
+           "name": "1",
+           "active": false,
+           "color": "#111111",
+           "opacity": 0.4,
+           "target": {
+            "workspace": 0,
+            "label": "1"
+           }
+          },
+          {
+           "id": "workspace-1",
+           "name": "2",
+           "active": false,
+           "color": "#111111",
+           "opacity": 0.4,
+           "target": {
+            "workspace": 1,
+            "label": "2"
+           }
+          },
+          {
+           "id": "workspace-2",
+           "name": "3",
+           "active": true,
+           "color": "#111111",
+           "opacity": 1,
+           "target": null
+          }
+         ],
+         "pips": [],
+         "slot": null,
+         "before": null,
+         "after": null
+        }
+       }
+      ]
+     }
+    }
+   },
+   {
+    "dark": true,
+    "states": {
+     "m": "fits"
+    },
+    "expect": {
+     "placements": {
+      "left": [
+       {
+        "name": "m",
+        "hidden": false,
+        "icon": null,
+        "text": null,
+        "tooltip": null,
+        "workspace": {
+         "scroll": false,
+         "activates": false,
+         "segments": [
+          {
+           "id": "workspace-0",
+           "name": "1",
+           "active": false,
+           "color": "#111111",
+           "opacity": 0.4,
+           "target": {
+            "workspace": 0,
+            "label": "1"
+           }
+          },
+          {
+           "id": "workspace-1",
+           "name": "2",
+           "active": false,
+           "color": "#111111",
+           "opacity": 0.4,
+           "target": {
+            "workspace": 1,
+            "label": "2"
+           }
+          },
+          {
+           "id": "workspace-2",
+           "name": "3",
+           "active": true,
+           "color": "#111111",
+           "opacity": 1,
+           "target": null
+          }
+         ],
+         "pips": [],
+         "slot": null,
+         "before": null,
+         "after": null
+        }
+       }
+      ]
+     }
+    }
+   },
+   {
+    "dark": false,
+    "states": {
+     "m": "first"
+    },
+    "expect": {
+     "placements": {
+      "left": [
+       {
+        "name": "m",
+        "hidden": false,
+        "icon": null,
+        "text": null,
+        "tooltip": null,
+        "workspace": {
+         "scroll": false,
+         "activates": false,
+         "segments": [
+          {
+           "id": "workspace-0",
+           "name": "1",
+           "active": false,
+           "color": "#111111",
+           "opacity": 0.4,
+           "target": {
+            "workspace": 0,
+            "label": "1"
+           }
+          },
+          {
+           "id": "workspace-1",
+           "name": "2",
+           "active": true,
+           "color": "#111111",
+           "opacity": 1,
+           "target": null
+          },
+          {
+           "id": "workspace-2",
+           "name": "3",
+           "active": false,
+           "color": "#111111",
+           "opacity": 0.4,
+           "target": {
+            "workspace": 2,
+            "label": "3"
+           }
+          }
+         ],
+         "pips": [],
+         "slot": null,
+         "before": null,
+         "after": {
+          "name": "›",
+          "color": "#111111",
+          "opacity": 0.4
+         }
+        }
+       }
+      ]
+     }
+    }
+   },
+   {
+    "dark": true,
+    "states": {
+     "m": "first"
+    },
+    "expect": {
+     "placements": {
+      "left": [
+       {
+        "name": "m",
+        "hidden": false,
+        "icon": null,
+        "text": null,
+        "tooltip": null,
+        "workspace": {
+         "scroll": false,
+         "activates": false,
+         "segments": [
+          {
+           "id": "workspace-0",
+           "name": "1",
+           "active": false,
+           "color": "#111111",
+           "opacity": 0.4,
+           "target": {
+            "workspace": 0,
+            "label": "1"
+           }
+          },
+          {
+           "id": "workspace-1",
+           "name": "2",
+           "active": true,
+           "color": "#111111",
+           "opacity": 1,
+           "target": null
+          },
+          {
+           "id": "workspace-2",
+           "name": "3",
+           "active": false,
+           "color": "#111111",
+           "opacity": 0.4,
+           "target": {
+            "workspace": 2,
+            "label": "3"
+           }
+          }
+         ],
+         "pips": [],
+         "slot": null,
+         "before": null,
+         "after": {
+          "name": "›",
+          "color": "#ff0000",
+          "opacity": 1
+         }
+        }
+       }
+      ]
+     }
+    }
+   },
+   {
+    "dark": false,
+    "states": {
+     "m": "middle"
+    },
+    "expect": {
+     "placements": {
+      "left": [
+       {
+        "name": "m",
+        "hidden": false,
+        "icon": null,
+        "text": null,
+        "tooltip": null,
+        "workspace": {
+         "scroll": false,
+         "activates": false,
+         "segments": [
+          {
+           "id": "workspace-3",
+           "name": "4",
+           "active": false,
+           "color": "#111111",
+           "opacity": 0.4,
+           "target": {
+            "workspace": 3,
+            "label": "4"
+           }
+          },
+          {
+           "id": "workspace-4",
+           "name": "5",
+           "active": true,
+           "color": "#111111",
+           "opacity": 1,
+           "target": null
+          },
+          {
+           "id": "workspace-5",
+           "name": "6",
+           "active": false,
+           "color": "#111111",
+           "opacity": 0.4,
+           "target": {
+            "workspace": 5,
+            "label": "6"
+           }
+          }
+         ],
+         "pips": [],
+         "slot": null,
+         "before": {
+          "name": "before",
+          "color": "#111111",
+          "opacity": 0.4
+         },
+         "after": {
+          "name": "›",
+          "color": "#111111",
+          "opacity": 0.4
+         }
+        }
+       }
+      ]
+     }
+    }
+   },
+   {
+    "dark": true,
+    "states": {
+     "m": "middle"
+    },
+    "expect": {
+     "placements": {
+      "left": [
+       {
+        "name": "m",
+        "hidden": false,
+        "icon": null,
+        "text": null,
+        "tooltip": null,
+        "workspace": {
+         "scroll": false,
+         "activates": false,
+         "segments": [
+          {
+           "id": "workspace-3",
+           "name": "4",
+           "active": false,
+           "color": "#111111",
+           "opacity": 0.4,
+           "target": {
+            "workspace": 3,
+            "label": "4"
+           }
+          },
+          {
+           "id": "workspace-4",
+           "name": "5",
+           "active": true,
+           "color": "#111111",
+           "opacity": 1,
+           "target": null
+          },
+          {
+           "id": "workspace-5",
+           "name": "6",
+           "active": false,
+           "color": "#111111",
+           "opacity": 0.4,
+           "target": {
+            "workspace": 5,
+            "label": "6"
+           }
+          }
+         ],
+         "pips": [],
+         "slot": null,
+         "before": {
+          "name": "before",
+          "color": "#ff0000",
+          "opacity": 1
+         },
+         "after": {
+          "name": "›",
+          "color": "#ff0000",
+          "opacity": 1
+         }
+        }
+       }
+      ]
+     }
+    }
+   },
+   {
+    "dark": false,
+    "states": {
+     "m": "last"
+    },
+    "expect": {
+     "placements": {
+      "left": [
+       {
+        "name": "m",
+        "hidden": false,
+        "icon": null,
+        "text": null,
+        "tooltip": null,
+        "workspace": {
+         "scroll": false,
+         "activates": false,
+         "segments": [
+          {
+           "id": "workspace-6",
+           "name": "7",
+           "active": true,
+           "color": "#111111",
+           "opacity": 1,
+           "target": null
+          }
+         ],
+         "pips": [],
+         "slot": null,
+         "before": {
+          "name": "before",
+          "color": "#111111",
+          "opacity": 0.4
+         },
+         "after": null
+        }
+       }
+      ]
+     }
+    }
+   },
+   {
+    "dark": true,
+    "states": {
+     "m": "last"
+    },
+    "expect": {
+     "placements": {
+      "left": [
+       {
+        "name": "m",
+        "hidden": false,
+        "icon": null,
+        "text": null,
+        "tooltip": null,
+        "workspace": {
+         "scroll": false,
+         "activates": false,
+         "segments": [
+          {
+           "id": "workspace-6",
+           "name": "7",
+           "active": true,
+           "color": "#111111",
+           "opacity": 1,
+           "target": null
+          }
+         ],
+         "pips": [],
+         "slot": null,
+         "before": {
+          "name": "before",
+          "color": "#ff0000",
+          "opacity": 1
+         },
+         "after": null
+        }
+       }
+      ]
+     }
+    }
+   },
+   {
+    "dark": false,
+    "states": {
+     "m": "none active"
+    },
+    "expect": {
+     "placements": {
+      "left": [
+       {
+        "name": "m",
+        "hidden": false,
+        "icon": null,
+        "text": null,
+        "tooltip": null,
+        "workspace": {
+         "scroll": false,
+         "activates": false,
+         "segments": [
+          {
+           "id": "workspace-0",
+           "name": "1",
+           "active": false,
+           "color": "#111111",
+           "opacity": 0.4,
+           "target": {
+            "workspace": 0,
+            "label": "1"
+           }
+          },
+          {
+           "id": "workspace-1",
+           "name": "2",
+           "active": false,
+           "color": "#111111",
+           "opacity": 0.4,
+           "target": {
+            "workspace": 1,
+            "label": "2"
+           }
+          },
+          {
+           "id": "workspace-2",
+           "name": "3",
+           "active": false,
+           "color": "#111111",
+           "opacity": 0.4,
+           "target": {
+            "workspace": 2,
+            "label": "3"
+           }
+          }
+         ],
+         "pips": [],
+         "slot": null,
+         "before": null,
+         "after": {
+          "name": "›",
+          "color": "#111111",
+          "opacity": 0.4
+         }
+        }
+       }
+      ]
+     }
+    }
+   },
+   {
+    "dark": true,
+    "states": {
+     "m": "none active"
+    },
+    "expect": {
+     "placements": {
+      "left": [
+       {
+        "name": "m",
+        "hidden": false,
+        "icon": null,
+        "text": null,
+        "tooltip": null,
+        "workspace": {
+         "scroll": false,
+         "activates": false,
+         "segments": [
+          {
+           "id": "workspace-0",
+           "name": "1",
+           "active": false,
+           "color": "#111111",
+           "opacity": 0.4,
+           "target": {
+            "workspace": 0,
+            "label": "1"
+           }
+          },
+          {
+           "id": "workspace-1",
+           "name": "2",
+           "active": false,
+           "color": "#111111",
+           "opacity": 0.4,
+           "target": {
+            "workspace": 1,
+            "label": "2"
+           }
+          },
+          {
+           "id": "workspace-2",
+           "name": "3",
+           "active": false,
+           "color": "#111111",
+           "opacity": 0.4,
+           "target": {
+            "workspace": 2,
+            "label": "3"
+           }
+          }
+         ],
+         "pips": [],
+         "slot": null,
+         "before": null,
+         "after": {
+          "name": "›",
+          "color": "#ff0000",
+          "opacity": 1
+         }
+        }
+       }
+      ]
+     }
+    }
+   }
+  ]
+ },
+ {
+  "name": "an overflow without an icon shows no indicators",
+  "document": {
+   "version": 1,
+   "config": {
+    "modules": [
+     {
+      "name": "m",
+      "placement": "left",
+      "type": "workspace",
+      "config": {
+       "overflow": {
+        "enabled": true,
+        "max": 2,
+        "icon": false
+       }
+      }
+     }
+    ]
+   },
+   "states": {
+    "m": [
+     {
+      "name": "middle",
+      "output": {
+       "workspaces": [
+        {},
+        {},
+        {
+         "active": true
+        },
+        {},
+        {}
+       ]
+      }
+     }
+    ]
+   }
+  },
+  "checks": [
+   {
+    "dark": false,
+    "states": {
+     "m": "middle"
+    },
+    "expect": {
+     "placements": {
+      "left": [
+       {
+        "name": "m",
+        "hidden": false,
+        "icon": null,
+        "text": null,
+        "tooltip": null,
+        "workspace": {
+         "scroll": false,
+         "activates": false,
+         "segments": [
+          {
+           "id": "workspace-2",
+           "name": "3",
+           "active": true,
+           "color": "label",
+           "opacity": 1,
+           "target": null
+          },
+          {
+           "id": "workspace-3",
+           "name": "4",
+           "active": false,
+           "color": "label",
+           "opacity": 0.4,
+           "target": {
+            "workspace": 3,
+            "label": "4"
+           }
+          }
+         ],
+         "pips": [],
+         "slot": null,
+         "before": null,
+         "after": null
+        }
+       }
+      ]
+     }
+    }
+   }
+  ]
+ },
+ {
+  "name": "a scrolling layout shows its windows beside pips for the workspaces",
+  "document": {
+   "version": 1,
+   "config": {
+    "style": {
+     "light": {
+      "fg": "101010",
+      "bg": "F0F0F0"
+     },
+     "dark": {
+      "fg": "F0F0F0",
+      "bg": "101010"
+     }
+    },
+    "modules": [
+     {
+      "name": "m",
+      "placement": "left",
+      "type": "workspace",
+      "icon": "point-filled",
+      "config": {
+       "type": "rift",
+       "rainbow": {
+        "enabled": true,
+        "random": false,
+        "colors": [
+         "FF0000",
+         "00FF00",
+         "0000FF"
+        ]
+       },
+       "scrolling": {
+        "enabled": true,
+        "icons": {
+         "com.apple.Safari": "compass",
+         "Terminal": "terminal"
+        },
+        "rainbow": {
+         "enabled": true
+        }
+       }
+      }
+     }
+    ]
+   },
+   "states": {
+    "m": [
+     {
+      "name": "scroll",
+      "output": {
+       "workspaces": [
+        {
+         "hasWindows": true
+        },
+        {
+         "active": true,
+         "hasWindows": true,
+         "scroll": [
+          {
+           "id": "1-1",
+           "app": "Safari",
+           "bundleIdentifier": "com.apple.safari"
+          },
+          {
+           "id": "2-1",
+           "app": "terminal",
+           "selected": true
+          },
+          {
+           "id": "3-1",
+           "app": "Notes",
+           "bundleIdentifier": "com.apple.Notes"
+          }
+         ]
+        },
+        {}
+       ]
+      }
+     },
+     {
+      "name": "no windows",
+      "output": {
+       "workspaces": [
+        {
+         "hasWindows": true
+        },
+        {
+         "active": true,
+         "scroll": []
+        }
+       ]
+      }
+     },
+     {
+      "name": "another layout",
+      "output": {
+       "workspaces": [
+        {
+         "active": true,
+         "hasWindows": true
+        },
+        {
+         "hasWindows": true
+        }
+       ]
+      }
+     }
+    ]
+   }
+  },
+  "checks": [
+   {
+    "dark": false,
+    "states": {
+     "m": "scroll"
+    },
+    "expect": {
+     "placements": {
+      "left": [
+       {
+        "name": "m",
+        "hidden": false,
+        "icon": null,
+        "text": null,
+        "tooltip": null,
+        "workspace": {
+         "scroll": true,
+         "activates": true,
+         "segments": [
+          {
+           "id": "window-1-1",
+           "name": "compass",
+           "active": false,
+           "color": "#ff0000",
+           "opacity": 0.4,
+           "target": {
+            "window": "1-1"
+           }
+          },
+          {
+           "id": "window-2-1",
+           "name": "terminal",
+           "active": true,
+           "color": "#0000ff",
+           "opacity": 1,
+           "target": {
+            "window": "2-1"
+           }
+          },
+          {
+           "id": "window-3-1",
+           "name": "rectangle-vertical-filled",
+           "active": false,
+           "color": "#ff0000",
+           "opacity": 0.4,
+           "target": {
+            "window": "3-1"
+           }
+          }
+         ],
+         "pips": [
+          {
+           "id": "workspace-0",
+           "name": "point-filled",
+           "active": false,
+           "color": "#ff0000",
+           "opacity": 0.4,
+           "target": {
+            "workspace": 0,
+            "label": "1"
+           }
+          },
+          {
+           "id": "workspace-1",
+           "name": "point-filled",
+           "active": true,
+           "color": "#00ff00",
+           "opacity": 1,
+           "target": null
+          }
+         ],
+         "slot": {
+          "id": "workspace-1",
+          "name": "point-filled",
+          "active": true,
+          "color": "#00ff00",
+          "opacity": 1,
+          "target": null
+         },
+         "before": null,
+         "after": null
+        }
+       }
+      ]
+     }
+    }
+   },
+   {
+    "dark": false,
+    "states": {
+     "m": "no windows"
+    },
+    "expect": {
+     "placements": {
+      "left": [
+       {
+        "name": "m",
+        "hidden": false,
+        "icon": null,
+        "text": null,
+        "tooltip": null,
+        "workspace": {
+         "scroll": false,
+         "activates": true,
+         "segments": [
+          {
+           "id": "workspace-0",
+           "name": "point-filled",
+           "active": false,
+           "color": "#ff0000",
+           "opacity": 0.4,
+           "target": {
+            "workspace": 0,
+            "label": "1"
+           }
+          },
+          {
+           "id": "workspace-1",
+           "name": "point-filled",
+           "active": true,
+           "color": "#00ff00",
+           "opacity": 1,
+           "target": null
+          }
+         ],
+         "pips": [],
+         "slot": null,
+         "before": null,
+         "after": null
+        }
+       }
+      ]
+     }
+    }
+   },
+   {
+    "dark": false,
+    "states": {
+     "m": "another layout"
+    },
+    "expect": {
+     "placements": {
+      "left": [
+       {
+        "name": "m",
+        "hidden": false,
+        "icon": null,
+        "text": null,
+        "tooltip": null,
+        "workspace": {
+         "scroll": false,
+         "activates": true,
+         "segments": [
+          {
+           "id": "workspace-0",
+           "name": "point-filled",
+           "active": true,
+           "color": "#ff0000",
+           "opacity": 1,
+           "target": null
+          },
+          {
+           "id": "workspace-1",
+           "name": "point-filled",
+           "active": false,
+           "color": "#00ff00",
+           "opacity": 0.4,
+           "target": {
+            "workspace": 1,
+            "label": "2"
+           }
+          }
+         ],
+         "pips": [],
+         "slot": null,
+         "before": null,
+         "after": null
+        }
+       }
+      ]
+     }
+    }
+   }
+  ]
+ },
+ {
+  "name": "a scroll's windows take their workspace's colour without a rainbow of their own, and no pips when told",
+  "document": {
+   "version": 1,
+   "config": {
+    "style": {
+     "light": {
+      "fg": "101010",
+      "bg": "F0F0F0"
+     },
+     "dark": {
+      "fg": "F0F0F0",
+      "bg": "101010"
+     }
+    },
+    "modules": [
+     {
+      "name": "m",
+      "placement": "left",
+      "type": "workspace",
+      "config": {
+       "type": "rift",
+       "rainbow": {
+        "enabled": true,
+        "random": false,
+        "colors": [
+         "FF0000",
+         "00FF00"
+        ]
+       },
+       "scrolling": {
+        "enabled": true,
+        "icon": "win",
+        "workspaces": false
+       }
+      }
+     }
+    ]
+   },
+   "states": {
+    "m": [
+     {
+      "name": "scroll",
+      "output": {
+       "workspaces": [
+        {
+         "hasWindows": true
+        },
+        {
+         "active": true,
+         "scroll": [
+          {
+           "id": "a",
+           "app": "A",
+           "selected": true
+          },
+          {
+           "id": "b",
+           "app": "B"
+          }
+         ]
+        }
+       ]
+      }
+     }
+    ]
+   }
+  },
+  "checks": [
+   {
+    "dark": false,
+    "states": {
+     "m": "scroll"
+    },
+    "expect": {
+     "placements": {
+      "left": [
+       {
+        "name": "m",
+        "hidden": false,
+        "icon": null,
+        "text": null,
+        "tooltip": null,
+        "workspace": {
+         "scroll": true,
+         "activates": true,
+         "segments": [
+          {
+           "id": "window-a",
+           "name": "win",
+           "active": true,
+           "color": "#00ff00",
+           "opacity": 1,
+           "target": {
+            "window": "a"
+           }
+          },
+          {
+           "id": "window-b",
+           "name": "win",
+           "active": false,
+           "color": "#00ff00",
+           "opacity": 0.4,
+           "target": {
+            "window": "b"
+           }
+          }
+         ],
+         "pips": [],
+         "slot": {
+          "id": "workspace-1",
+          "name": "2",
+          "active": true,
+          "color": "#00ff00",
+          "opacity": 1,
+          "target": null
+         },
+         "before": null,
+         "after": null
+        }
+       }
+      ]
+     }
+    }
+   }
+  ]
+ },
+ {
+  "name": "a built-in module with a config it rejects is left out",
+  "document": {
+   "version": 1,
+   "config": {
+    "modules": [
+     {
+      "name": "clock",
+      "type": "clock",
+      "placement": "left"
+     },
+     {
+      "name": "power",
+      "type": "power",
+      "placement": "left",
+      "config": {
+       "icons": {
+        "level": []
+       }
+      }
+     },
+     {
+      "name": "volume",
+      "type": "volume",
+      "placement": "left",
+      "config": {
+       "icons": {
+        "level": [
+         1,
+         2
+        ]
+       }
+      }
+     },
+     {
+      "name": "wifi",
+      "type": "wifi",
+      "placement": "left",
+      "config": {
+       "icons": {
+        "strength": []
+       }
+      }
+     },
+     {
+      "name": "kept",
+      "type": "wifi",
+      "placement": "left",
+      "config": {
+       "icons": {
+        "strength": "wrong type"
+       }
+      }
+     }
+    ]
+   }
+  },
+  "checks": [
+   {
+    "dark": false,
+    "expect": {
+     "placements": {
+      "left": [
+       {
+        "name": "kept",
+        "hidden": false,
+        "icon": {
+         "name": "wifi-off",
+         "color": "label",
+         "opacity": 1,
+         "background": null
+        },
+        "text": null,
+        "tooltip": null
+       }
+      ]
+     }
+    }
+   }
+  ]
+ }
+]
