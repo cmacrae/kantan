@@ -1231,14 +1231,20 @@ func loadFileContents(filePath: String) -> String? {
   }
 }
 
+/// The digits of `hex`, a colour written as `RRGGBB` or `RRGGBBAA` with or
+/// without a leading `#`, or nil for anything else.
+func hexColorDigits(_ hex: String) -> String? {
+  let digits = hex.trimmingCharacters(in: CharacterSet.alphanumerics.inverted)
+  guard digits.count == 6 || digits.count == 8, UInt64(digits, radix: 16) != nil else { return nil }
+  return digits
+}
+
 extension NSColor {
   /// A colour from `RRGGBB` or `RRGGBBAA` hex, with or without a leading
   /// `#`, or `defaultColor` for anything else.
   convenience init(hex: String, defaultColor: NSColor = NSColor.clear) {
-    let hex = hex.trimmingCharacters(in: CharacterSet.alphanumerics.inverted)
-
-    if hex.count == 6 || hex.count == 8, let value = UInt64(hex, radix: 16) {
-      let rgba = hex.count == 6 ? value << 8 | 0xFF : value
+    if let digits = hexColorDigits(hex), let value = UInt64(digits, radix: 16) {
+      let rgba = digits.count == 6 ? value << 8 | 0xFF : value
       self.init(
         red: CGFloat(rgba >> 24 & 0xFF) / 255.0,
         green: CGFloat(rgba >> 16 & 0xFF) / 255.0,

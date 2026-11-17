@@ -732,8 +732,6 @@ class BarViewModel: ObservableObject {
 
 // MARK: - Theme Provider
 
-private let defaultStyleMode = StyleModeConfig(
-  fg: "FFFFFF", bg: "000000", text: nil, icon: nil, shape: nil)
 private let defaultTextFontConfig = FontConfig(
   descriptor: "Helvetica Neue:13", source: .system)
 private let defaultIconFontConfig = FontConfig(
@@ -764,120 +762,62 @@ class ThemeProvider: ObservableObject {
     }
   }
 
-  // MARK: - Theme Template Resolution
+  // MARK: - Style Resolution
 
-  /// The active theme palette for the current appearance mode.
-  private var activePalette: ThemePalette? {
-    guard let theme = config.theme else { return nil }
-    return isDarkMode ? theme.darkPalette : theme.lightPalette
+  /// The config's styles for the current appearance.
+  var styles: StyleResolver {
+    StyleResolver(config: config, isDark: isDarkMode)
+  }
+
+  /// The SwiftUI colour `color` draws as.
+  private func swiftUIColor(_ color: StyleColor) -> Color {
+    switch color {
+    case .value(let hex): Color(nsColor: NSColor(hex: hex))
+    case .label: Color(nsColor: .labelColor)
+    case .clear: .clear
+    }
   }
 
   /// Resolve a raw colour string (hex or `{theme(name)}` template) to a SwiftUI Color.
   func resolvedColor(_ value: String) -> Color {
-    Color(nsColor: NSColor(hex: resolveColor(value)))
+    Color(nsColor: NSColor(hex: styles.resolve(value)))
   }
 
   /// The colour `value` names, a hex colour or `{theme(name)}` template, or
   /// nil for a template the palette can't resolve.
   func color(_ value: String) -> Color? {
-    let resolved = resolveColor(value)
+    let resolved = styles.resolve(value)
     return resolved.hasPrefix("{theme(") ? nil : Color(nsColor: NSColor(hex: resolved))
   }
 
   /// Resolve a raw colour string to its hex representation. Used by
   /// TemplateResolver's fallbackResolver to handle `{theme(name)}` patterns.
   func resolveColorString(_ value: String) -> String {
-    resolveColor(value)
-  }
-
-  /// Resolve a colour string that may be a `{theme(name)}` template.
-  /// Returns the resolved hex colour, or the original string if not a template.
-  private func resolveColor(_ value: String) -> String {
-    guard let palette = activePalette else { return value }
-    return resolveThemeTemplate(value, palette: palette)
-  }
-
-  /// Returns true when the value is a `{theme(...)}` template that cannot
-  /// be resolved because no theme palette is loaded (native mode).
-  private func isUnresolvableTemplate(_ value: String) -> Bool {
-    activePalette == nil && value.hasPrefix("{theme(") && value.hasSuffix(")}")
-  }
-
-  // MARK: - Style Resolution Helpers
-
-  private func resolveGlobalStyleMode() -> StyleModeConfig {
-    if isDarkMode {
-      return config.style.dark ?? config.style.light ?? defaultStyleMode
-    } else {
-      return config.style.light ?? config.style.dark ?? defaultStyleMode
-    }
-  }
-
-  private func resolveModuleStyleMode(_ style: StyleConfig?) -> StyleModeConfig? {
-    guard let style = style else { return nil }
-    return isDarkMode ? style.dark : style.light
+    styles.resolve(value)
   }
 
   // MARK: - Color Resolution
 
   func globalColors() -> (fg: Color, bg: Color) {
-    let mode = resolveGlobalStyleMode()
+    let styles = styles
     return (
-      Color(nsColor: NSColor(hex: resolveColor(mode.fg ?? "FFFFFF"))),
-      Color(nsColor: NSColor(hex: resolveColor(mode.bg ?? "000000")))
+      Color(nsColor: NSColor(hex: styles.globalFg)), Color(nsColor: NSColor(hex: styles.globalBg))
     )
   }
 
   func globalFgNSColor() -> NSColor {
-    if isNative { return .labelColor }
-    let mode = resolveGlobalStyleMode()
-    return NSColor(hex: resolveColor(mode.fg ?? "FFFFFF"))
+    isNative ? .labelColor : NSColor(hex: styles.globalFg)
   }
 
   func globalBgNSColor() -> NSColor {
-    if isNative { return .windowBackgroundColor }
-    let mode = resolveGlobalStyleMode()
-    return NSColor(hex: resolveColor(mode.bg ?? "000000"))
+    isNative ? .windowBackgroundColor : NSColor(hex: styles.globalBg)
   }
 
-  private func elementFgColor(
-    for vm: ModuleViewModel,
-    dynamicFg: KeyPath<DynamicStyleOverride, String?>,
-    elementFg: KeyPath<StyleModeConfig, ElementStyle?>
-  ) -> Color {
-    // Override is a raw hex value from a plugin; bypasses theme resolution.
-    if let override = vm.fgOverride {
-      return Color(nsColor: NSColor(hex: override))
-    }
-
-    // Dynamic style values may contain `{theme(...)}` templates that can't
-    // resolve without a palette; skip those so we fall through to defaults.
-    let ds = vm.dynamicStyle
-    let dynamicCandidates: [String?] = [
-      ds?[keyPath: dynamicFg],
-      ds?.fg,
-    ]
-    if let fg = dynamicCandidates.compactMap({ $0 })
-      .first(where: { !isUnresolvableTemplate($0) })
-    {
-      return resolvedColor(fg)
-    }
-
-    if isNative { return Color(nsColor: .labelColor) }
-
-    let moduleMode = resolveModuleStyleMode(vm.moduleConfig.style)
-    let globalMode = resolveGlobalStyleMode()
-    let staticCandidates: [String?] = [
-      moduleMode?[keyPath: elementFg]?.fg,
-      moduleMode?.fg,
-      globalMode[keyPath: elementFg]?.fg,
-      globalMode.fg,
-    ]
-    return resolvedColor(staticCandidates.compactMap({ $0 }).first ?? "FFFFFF")
-  }
-
+  /// The colour of the module's value. A trigger's `fg` override, a raw
+  /// hex value, comes before every style.
   func textFgColor(for vm: ModuleViewModel) -> Color {
-    elementFgColor(for: vm, dynamicFg: \.textFg, elementFg: \.text)
+    if let override = vm.fgOverride { return Color(nsColor: NSColor(hex: override)) }
+    return swiftUIColor(styles.textFg(style: vm.moduleConfig.style, dynamic: vm.dynamicStyle))
   }
 
   /// The module's value, each of its segments in its own colour, or the
@@ -885,58 +825,38 @@ class ThemeProvider: ObservableObject {
   /// and the native appearance, colour it all alike.
   func valueText(for vm: ModuleViewModel) -> AttributedString {
     let fg = textFgColor(for: vm)
-    let colours = vm.fgOverride == nil && !isNative
+    let styles = styles
     let segments =
       vm.segments.isEmpty ? [ValueSegment(text: vm.displayValue ?? "", fg: nil)] : vm.segments
     return segments.reduce(into: AttributedString()) { text, segment in
       var part = AttributedString(segment.text)
       part.foregroundColor =
-        segment.fg.flatMap { colours && !isUnresolvableTemplate($0) ? resolvedColor($0) : nil }
-        ?? fg
+        (vm.fgOverride == nil ? styles.segmentFg(segment.fg) : nil).map(swiftUIColor) ?? fg
       text += part
     }
   }
 
+  /// The colour of the module's icon. A trigger's `fg` override comes
+  /// before every style.
   func iconFgColor(for vm: ModuleViewModel) -> Color {
-    elementFgColor(for: vm, dynamicFg: \.iconFg, elementFg: \.icon)
+    if let override = vm.fgOverride { return Color(nsColor: NSColor(hex: override)) }
+    return swiftUIColor(styles.iconFg(style: vm.moduleConfig.style, dynamic: vm.dynamicStyle))
   }
 
+  /// The colour of the module's shape. A trigger's `bg` override comes
+  /// before every style.
   func bgColor(for vm: ModuleViewModel) -> Color {
-    if let override = vm.bgOverride {
-      return Color(nsColor: NSColor(hex: override))
-    }
-    if let ds = vm.dynamicStyle, let bg = ds.bg, !bg.isEmpty, !isUnresolvableTemplate(bg) {
-      return Color(nsColor: NSColor(hex: resolveColor(bg)))
-    }
-    if isNative { return .clear }
-
-    let moduleMode = resolveModuleStyleMode(vm.moduleConfig.style)
-    let globalMode = resolveGlobalStyleMode()
-
-    if let bg = moduleMode?.bg { return Color(nsColor: NSColor(hex: resolveColor(bg))) }
-
-    // When a module has a shape but no explicit bg, use the theme's shape
-    // colour so the shape is visible against the bar background.
-    if shape(for: vm) != nil, let palette = activePalette, let shapeBg = palette.shape {
-      return Color(nsColor: NSColor(hex: shapeBg))
-    }
-
-    return Color(nsColor: NSColor(hex: resolveColor(globalMode.bg ?? "000000")))
+    if let override = vm.bgOverride { return Color(nsColor: NSColor(hex: override)) }
+    return swiftUIColor(styles.bg(style: vm.moduleConfig.style, dynamic: vm.dynamicStyle))
   }
 
   func barBgColor() -> Color {
-    if isNative { return .clear }
-    let mode = resolveGlobalStyleMode()
-    return Color(nsColor: NSColor(hex: resolveColor(mode.bg ?? "000000")))
+    swiftUIColor(styles.barBg)
   }
 
   /// The module's shape: a plugin's override, or the module's style's.
   func shape(for vm: ModuleViewModel) -> ModuleShape? {
-    switch vm.dynamicStyle?.shape {
-    case .unshaped: return nil
-    case .shaped(let shape): return shape
-    case nil: return resolveModuleStyleMode(vm.moduleConfig.style)?.shape
-    }
+    styles.shape(style: vm.moduleConfig.style, dynamic: vm.dynamicStyle)
   }
 
   // MARK: - Font Resolution

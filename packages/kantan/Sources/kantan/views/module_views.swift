@@ -370,17 +370,9 @@ struct ModuleContainerView: View {
   }
 
   private func resolveTemplateWith(_ template: String, viewModel: ModuleViewModel) -> String {
-    var result = template
-    if let value = viewModel.displayValue {
-      result = result.replacingOccurrences(of: "{value}", with: value)
-    }
-    if let icon = viewModel.displayIcon {
-      result = result.replacingOccurrences(of: "{icon}", with: icon)
-    }
-    for (key, val) in viewModel.templateVariables {
-      result = result.replacingOccurrences(of: "{\(key)}", with: val)
-    }
-    return result
+    plainTooltipText(
+      template, value: viewModel.displayValue, icon: viewModel.displayIcon,
+      variables: viewModel.templateVariables)
   }
 }
 
