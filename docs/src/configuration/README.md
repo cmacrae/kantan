@@ -2,6 +2,8 @@
 
 kantan is configured with YAML, in a single file or split across a `modules.d/` directory. It reloads the config when it changes.
 
+The [builder](https://kantan.bar/builder/) draws a bar in the browser as you pick its modules, and writes the config for it.
+
 ## Config File Locations
 
 kantan searches for configuration files in the following order (first found wins):

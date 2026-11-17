@@ -1,12 +1,13 @@
 # web
 
-The website, and kantan's bar drawn in the browser: the landing page, the docs' plugin previews and, later, the config and theme builders all draw from the one engine here.
+The website, and kantan's bar drawn in the browser: the landing page, the docs' plugin previews, the config builder and, later, the theme builder all draw from the one engine here.
 
 | Directory | What it holds |
 |-----------|---------------|
 | `engine/` | kantan's config, theme, style, template and View DSL semantics in plain JavaScript, with no React and no DOM. It turns a document into a bar ready to draw. |
+| `builder/` | What the builder does to a document, with no React and no DOM: its edits, the YAML files it writes, and share links. |
 | `components/` | React components that draw what the engine resolves: the bar, a module, its menu, popup and tooltip. |
-| `apps/` | The pages built from them: `landing/` and `docs-preview/`. |
+| `apps/` | The pages built from them: `landing/`, `docs-preview/` and `builder/`. |
 | `previews/` | Assembles preview documents from generators' output: each bundled plugin's, and a whole bar's such as the landing page's. |
 | `fixtures/` | The cases kantan's tests and the engine's tests both run. |
 | `static/` | Files served as they are: the pages' HTML, the favicon, the install script. |
@@ -24,7 +25,8 @@ Everything the engine draws is a document: a user's config files as parsed YAML,
   "themes": { "catppuccin": {} },
   "states": {
     "calendar": [{ "name": "Upcoming", "output": {}, "transitions": { "<command>": "Underway" } }]
-  }
+  },
+  "view": { "dark": true, "notch": false, "shown": { "calendar": "Underway" } }
 }
 ```
 
@@ -32,11 +34,35 @@ Everything the engine draws is a document: a user's config files as parsed YAML,
 
 A state's `output` is what its module would read. For a command module that is what its command printed. For a module that reads the system it is a sample of the reading: `{ "level": 78 }` for the battery, the list of workspaces, the time. Each file in `engine/modules/` describes its type's sample. `options.samples` gives a module a reading in place of its state's, which is how a page keeps a clock ticking or switches workspace.
 
+`view` says how the bar is being looked at: the appearance, whether the screen has a notch, and the state each module shows. A shared bar opens as its sharer saw it.
+
 `components/useBar.js` holds a bar as someone uses it. It follows the commands they run, the drawers they open and the workspace they switch to.
 
 ## The landing page's bar
 
 The landing page draws the config it shows, `apps/landing/content/config-example.yaml`. `nix/site.nix` assembles its document with `previews/bar.js`: the config, the built-in modules' samples in `apps/landing/content/states.json`, and the states of its plugins from their own generators. The build fails when the engine can't draw any of it. The README's images are drawn from the same bar.
+
+## The builder
+
+`apps/builder/` is the page at `/builder/`. It draws a document's bar live, lists its modules, edits whichever is picked, and shows the YAML that makes the bar.
+
+The bar has two ways of answering the pointer. While customising, a click on a module drops its quick settings and a drag moves it. While trying it out, the bar behaves as it does in kantan. Modules set over the menu bar can't be moved, because macOS decides where its own items sit.
+
+- **Settings** are forms made from `docs/schemas/module-config.schema.json`, so a key the schema gains appears in the builder. Any module can also be edited as YAML.
+- **Preview data** is the module's states. A built-in module's state is a sample of the system, set with controls for its type. A command module's is the output its command printed, edited as text, with the state each of its commands leads to.
+- **The example bar** it opens with is the landing page's, in the states shown there.
+- **What can be added** is each module type (`builder/catalog.js`), each bundled plugin, and a plugin of someone's own from output they paste. `nix/previews.nix` builds the catalogue of bundled plugins from their preview generators, and every Tabler icon with its scale.
+- **The YAML** is written by `builder/files.js` in either layout: one `config.yaml`, or a file for each module in `modules.d`. The builder itself works on a document with every module in `config.yaml`, in the order drawn.
+
+A bundled plugin's states are what its generator prints for its example settings. Changing the settings in the builder changes the YAML but not the states.
+
+### Share links
+
+A link holds a whole document in the address's fragment, so the site stores nothing. `builder/share.js` packs the document, deflates it and writes it as base64url after the codec's version: `/builder/#1.<data>`.
+
+Packing keeps links short. States a module starts with, or has in the example bar, are left out and restored from the catalogue when the link opens. The words nearly every config uses are written as tokens from the list in `builder/words.js`. That list only ever grows at its end, because a word's place is its token. The example bar's link is about 750 characters.
+
+A fragment can instead name a config file for the browser to fetch: `#from=<url>`, `#gh=<user>/<repo>/<path>` or `#gist=<id>`. Such a link is short and always shows the file as it is, with each module in the states it starts with.
 
 ## Staying faithful to kantan
 
@@ -44,8 +70,8 @@ The landing page draws the config it shows, `apps/landing/content/config-example
 
 Anything kantan draws that the engine or the components can't yet is drawn as a "not supported in preview" marker, never left out.
 
-One thing has no shared cases: where a masked module sits. kantan puts it over a menu bar item wherever macOS has put that item. `engine/menubar.js` holds the widths of the system's items as measured on a Mac. The engine lays masked modules out from those widths.
+One thing has no shared cases: where a masked module sits. kantan puts it over a menu bar item wherever macOS has put that item. `engine/menubar.js` holds the widths of the system's items as measured on a Mac. The engine lays masked modules out from those widths. The same file holds the size of a MacBook's notch, which the bar is drawn around on a screen that has one.
 
 ## Building
 
-Everything builds through Nix. `nix/web.nix` bundles the apps and runs the engine's tests, `nix/previews.nix` builds and runs the plugins' preview generators, and `nix/site.nix` and `nix/docs.nix` assemble the site and the docs from them.
+Everything builds through Nix. `nix/web.nix` bundles the apps and runs the engine's and the builder's tests, `nix/previews.nix` builds and runs the plugins' preview generators, and `nix/site.nix` and `nix/docs.nix` assemble the site and the docs from them.
