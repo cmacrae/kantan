@@ -11,7 +11,7 @@ let
 
   package = import ./wrap.nix {
     inherit pkgs lib;
-    package = cfg.package;
+    inherit (cfg) package;
     addFlags = cfg.extraArgs;
     pathPackages = cfg.extraPackages;
   };

@@ -13,7 +13,7 @@
   };
 
   settings = lib.mkOption {
-    type = yaml.type;
+    inherit (yaml) type;
     default = { };
     description = "Configuration for kantan, written as config.yaml.";
   };

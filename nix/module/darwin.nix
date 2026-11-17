@@ -11,7 +11,6 @@ let
 
   hasConfig = cfg.settings != { };
   hasThemes = cfg.themes != { };
-  hasExtraArgs = cfg.extraArgs != [ ];
 
   configFile = yaml.generate "kantan-config.yaml" cfg.settings;
 
@@ -30,7 +29,7 @@ let
 
   package = import ./wrap.nix {
     inherit pkgs lib;
-    package = cfg.package;
+    inherit (cfg) package;
     addFlags =
       lib.optionals hasConfig [
         "--config"

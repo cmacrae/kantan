@@ -72,6 +72,10 @@
         programs.gofmt.enable = true;
         programs.shfmt.enable = true;
         programs.actionlint.enable = true;
+        programs.deadnix.enable = true;
+        programs.deadnix.no-lambda-pattern-names = true;
+        programs.statix.enable = true;
+        programs.statix.disabled-lints = [ "repeated_keys" ];
       };
 
       mkKantan =
@@ -129,7 +133,7 @@
         };
 
       kantan = (kantanWithPlugins { }) // {
-        override = args: kantanWithPlugins args;
+        override = kantanWithPlugins;
         withoutPlugins = _kantan;
         withPlugins = kantanWithPlugins;
         plugins = pluginPackages;
