@@ -44,7 +44,7 @@
       };
 
       plugins = import ./nix/plugins.nix {
-        inherit pkgs discover;
+        inherit pkgs;
         inherit (go) buildGoPlugin;
         inherit (swift) buildSwiftPlugin;
         inherit (shell) buildShellPlugin;

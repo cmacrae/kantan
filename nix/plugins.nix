@@ -4,7 +4,6 @@
   buildGoPlugin,
   buildShellPlugin,
   pluginsDir,
-  discover,
 }:
 
 let
@@ -32,33 +31,64 @@ let
       cp -r ${sharedSwiftSrc}/. $out/Sources/${binName name}/_shared/
     '';
 
+  # The file marking how the plugin `name` is built.
+  markerOf =
+    name:
+    let
+      marker = pkgs.lib.findFirst (
+        m: builtins.hasAttr m (builtins.readDir (pluginsDir + "/${name}"))
+      ) null markers;
+    in
+    if marker == null then
+      throw "Plugin '${name}' has none of: ${pkgs.lib.concatStringsSep ", " markers}"
+    else
+      marker;
+
+  # The plugin `name`'s own sources: its directory, less the generator of
+  # its preview.
+  sourceOf =
+    name:
+    pkgs.lib.cleanSourceWith {
+      src = pluginsDir + "/${name}";
+      filter =
+        path: type:
+        path != toString (pluginsDir + "/${name}/preview") && pkgs.lib.cleanSourceFilter path type;
+    };
+
+  # Builds the plugin `name` from `src`, its sources or a tree made of them.
   buildPlugin =
     {
       name,
       src,
     }:
     let
-      dirContents = builtins.readDir (pluginsDir + "/${name}");
-      marker = pkgs.lib.findFirst (m: builtins.hasAttr m dirContents) null markers;
-      pluginSrc = if marker == "Package.swift" then composeSwiftSrc name src else src;
+      marker = markerOf name;
     in
-    if marker == null then
-      throw "Plugin '${name}' has none of: ${pkgs.lib.concatStringsSep ", " markers}"
-    else
-      builders.${marker} {
-        inherit name;
-        src = pluginSrc;
-      };
+    builders.${marker} {
+      inherit name;
+      src = if marker == "Package.swift" then composeSwiftSrc name src else src;
+    };
+
+  pluginNames = builtins.attrNames (
+    pkgs.lib.filterAttrs (name: type: type == "directory" && !pkgs.lib.hasPrefix "_" name) (
+      builtins.readDir pluginsDir
+    )
+  );
 in
 {
-  pluginPackages = discover {
-    dir = pluginsDir;
-    predicate = name: type: type == "directory" && !pkgs.lib.hasPrefix "_" name;
-    build =
-      name: _:
-      buildPlugin {
-        inherit name;
-        src = pkgs.lib.cleanSource (pluginsDir + "/${name}");
-      };
-  };
+  inherit
+    pluginNames
+    markerOf
+    sourceOf
+    buildPlugin
+    binName
+    ;
+
+  pluginPackages = pkgs.lib.genAttrs pluginNames (
+    name:
+    buildPlugin {
+      inherit name;
+      src = sourceOf name;
+    }
+  );
 }
