@@ -39,6 +39,8 @@ The pomodoro cycles through the following modes:
 3. **Short Break** — A short break between work sessions. The bar icon is `moon-filled`
 4. **Long Break** — A longer break after every N work sessions. The bar icon is `moon-filled`
 
+While a work session or break is paused, the bar icon is `player-pause-filled`.
+
 When a work session completes, the session counter increments. If `auto_start_breaks` is enabled, the appropriate break starts automatically; otherwise the timer returns to idle. When a break completes, if `auto_start_work` is enabled, a new work session starts automatically; otherwise the timer returns to idle.
 
 Long breaks occur every `long_break_interval` completed sessions (e.g. every 4th session by default); `0` disables long breaks.
@@ -124,6 +126,7 @@ Icons can be customized per state and action by providing an `icons` map in sett
 | `work`        | `hourglass`                | Bar icon during work     |
 | `short_break` | `moon-filled`              | Bar icon during short break |
 | `long_break`  | `moon-filled`              | Bar icon during long break |
+| `paused`      | `player-pause-filled`      | Bar icon while paused    |
 | `sessions`    | `trophy-filled`            | Sessions row in popup    |
 | `start`       | `player-play-filled`       | Start action in popup    |
 | `resume`      | `player-play-filled`       | Resume action in popup   |

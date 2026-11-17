@@ -27,6 +27,7 @@ var defaultIcons = map[string]string{
 	"work":        "hourglass",
 	"short_break": "moon-filled",
 	"long_break":  "moon-filled",
+	"paused":      "player-pause-filled",
 	"sessions":    "trophy-filled",
 	"start":       "player-play-filled",
 	"resume":      "player-play-filled",
@@ -347,6 +348,9 @@ func render(state State, now float64, settings Settings, pluginName string) map[
 	sessionsStr := fmt.Sprintf("%d", state.Sessions)
 
 	icon := settings.iconFor(state.Mode)
+	if isPaused {
+		icon = settings.iconFor("paused")
+	}
 
 	// Format display value
 	displayValue := settings.Format
