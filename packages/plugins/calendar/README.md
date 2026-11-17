@@ -92,7 +92,15 @@ config:
   output: json
   watch: kantan-plugin-calendar --watch
   settings:
-    format: "{next_title}{?upcoming: in} {next_countdown}"
+    format:
+      - text: "{next_title} "
+        fg: "{theme(blue)}"
+      - text: "in {next_countdown}"
+        fg: "{theme(overlay1)}"
+        when: upcoming
+      - text: now
+        fg: "{theme(red)}"
+        when: active
     upcoming: 1h
     calendars:
       include:
