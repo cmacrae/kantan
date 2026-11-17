@@ -52,13 +52,13 @@ Copy the example config into your kantan `modules.d/` directory:
 name: todo
 type: command
 placement: right
-icon: list-check
+icon: bell-filled
 style:
   fg: "{theme(text)}"
   bg: "{theme(surface0)}"
   shape: box
   icon:
-    fg: "{theme(mauve)}"
+    fg: "{theme(maroon)}"
 config:
   command: kantan-plugin-reminders
   output: json
@@ -67,7 +67,7 @@ config:
     format: "{title}"
     lists:
       - name: Reminders
-        icon: list-check
+        icon: bell-filled
         lookahead: 10m
         overdue: true
         undated: false

@@ -129,7 +129,7 @@ style:
 name: caffeine
 type: command
 placement: left
-icon: "coffee"
+icon: mug-filled
 config:
   command: kantan-plugin-caffeine
   output: json

@@ -32,9 +32,9 @@ Copy the example config into your kantan `modules.d/` directory:
 name: caffeine
 type: command
 placement: right
-icon: "coffee"
+icon: mug-filled
 style:
-  fg: "{theme(yellow)}"
+  fg: "{theme(rosewater)}"
 config:
   command: kantan-plugin-caffeine
   output: json
