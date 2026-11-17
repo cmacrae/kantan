@@ -1,3 +1,5 @@
+// YAML as coloured spans, a line at a time: comments, keys, and values by
+// their kind. `colors` names the colour of each.
 export function highlightYaml(code, colors) {
   return code.split('\n').map((line, i, arr) => {
     const nl = i < arr.length - 1 ? '\n' : '';

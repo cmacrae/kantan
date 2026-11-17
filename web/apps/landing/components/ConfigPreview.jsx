@@ -1,6 +1,6 @@
 import { I } from "./Icons.jsx";
 import { MOCK_WIDTH } from "./MockBar.jsx";
-import { highlightYaml } from "../lib/yaml-highlight.jsx";
+import { highlightYaml } from "../../../components/yaml-highlight.jsx";
 import CONFIG_YAML from "../content/config-example.yaml";
 
 export function ConfigToggle({ siteDark, open, onToggle }) {
