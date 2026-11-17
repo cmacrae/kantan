@@ -62,6 +62,17 @@ for kind, path in paths.items():
     data = io.BytesIO()
     font.flavor = "woff2"
     font.save(data)
+    # Saving measures each glyph's outline afresh. A glyph is drawn where
+    # its outline sits only while its left side bearing says the same as
+    # that measure, so each bearing is set to match and the font saved again.
+    font = TTFont(io.BytesIO(data.getvalue()))
+    for name in font.getGlyphOrder():
+        glyph = font["glyf"][name]
+        if glyph.numberOfContours:
+            font["hmtx"][name] = (font["hmtx"][name][0], glyph.xMin)
+    data = io.BytesIO()
+    font.flavor = "woff2"
+    font.save(data)
     encoded = base64.b64encode(data.getvalue()).decode()
     css.append(
         f'@font-face{{font-family:"{FAMILIES[kind]}";'
