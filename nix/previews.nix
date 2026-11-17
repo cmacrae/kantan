@@ -63,31 +63,59 @@ let
 
   example = name: pluginsDir + "/${name}/examples/00-${name}.yaml";
 
+  moduleSchema = ../docs/schemas/module-config.schema.json;
+
+  # The schema of the plugin's settings.
+  schema =
+    name:
+    let
+      file = pluginsDir + "/${name}/settings.schema.json";
+    in
+    if builtins.pathExists file then
+      file
+    else
+      throw "Plugin '${name}' has no settings schema: packages/plugins/${name}/settings.schema.json must describe its settings";
+
   # The states a plugin's generator prints for a module: the one the yq
   # expression `module` selects from the YAML file `config`. The generator
   # is given the module's settings as kantan gives a plugin its module's.
   # Theme templates in the settings stay as written, for the preview to
-  # resolve in either appearance.
+  # resolve in either appearance. With `named`, each colour and icon the
+  # plugin's schema describes is given as its own name, for the preview to
+  # follow the settings a module has.
   statesFor =
     {
       plugin,
       config,
       module ? ".",
+      named ? false,
     }:
-    pkgs.runCommand "kantan-preview-states-${plugin}.json" { nativeBuildInputs = [ pkgs.yq-go ]; } ''
-      KANTAN_SETTINGS=$(yq -o=json -I=0 '${module} | .config.settings // {}' ${config})
-      KANTAN_MODULE_NAME=$(yq '${module} | .name' ${config})
-      export KANTAN_SETTINGS KANTAN_MODULE_NAME KANTAN_APPEARANCE=dark TZ=UTC HOME=$TMPDIR
-      ${generate plugin} > $out
-    '';
+    pkgs.runCommand "kantan-preview-states-${plugin}.json"
+      {
+        nativeBuildInputs = [
+          pkgs.yq-go
+          pkgs.nodejs
+        ];
+      }
+      ''
+        KANTAN_SETTINGS=$(yq -o=json -I=0 '${module} | .config.settings // {}' ${config})
+        ${lib.optionalString named ''
+          KANTAN_SETTINGS=$(node ${assembler}/previews/name-settings.js ${schema plugin} ${moduleSchema} "$KANTAN_SETTINGS")
+        ''}
+        KANTAN_MODULE_NAME=$(yq '${module} | .name' ${config})
+        export KANTAN_SETTINGS KANTAN_MODULE_NAME KANTAN_APPEARANCE=dark TZ=UTC HOME=$TMPDIR
+        ${generate plugin} > $out
+      '';
 
-  # The states each plugin's generator prints for its example config.
-  states =
-    name:
-    statesFor {
-      plugin = name;
-      config = example name;
-    };
+  # What a preview is assembled from for a plugin's module: the states by
+  # setting name, the states as printed and the plugin's schema.
+  generated =
+    args:
+    lib.concatStringsSep "=" [
+      (statesFor (args // { named = true; }))
+      (statesFor args)
+      (schema args.plugin)
+    ];
 
   themes = pkgs.runCommand "kantan-preview-themes.json" { nativeBuildInputs = [ pkgs.yq-go ]; } ''
     yq -o=json '{"catppuccin": .}' ${themesDir + "/catppuccin.yaml"} > $out
@@ -97,6 +125,7 @@ let
   assembler = pkgs.runCommand "kantan-preview-assembler" { } ''
     mkdir $out
     cp -r ${../web/engine} $out/engine
+    cp -r ${../web/builder} $out/builder
     cp -r ${../web/previews} $out/previews
     cp ${../web/package.json} $out/package.json
   '';
@@ -141,9 +170,15 @@ let
         ${lib.concatMapStrings (name: ''
           yq -o=json ${example name} > ${name}.example.json
         '') plugins.pluginNames}
-        node ${assembler}/previews/assemble.js $out ${themes} \
+        node ${assembler}/previews/assemble.js $out ${themes} ${moduleSchema} \
           ${lib.concatMapStringsSep " " (
-            name: "${name}=${name}.example.json=${states name}"
+            name:
+            "${name}=${name}.example.json=${
+              generated {
+                plugin = name;
+                config = example name;
+              }
+            }"
           ) plugins.pluginNames}
       '';
 
@@ -153,21 +188,18 @@ let
   allIcons = iconFonts "all" "--all";
 
   # What the builder offers: each bundled plugin's example module with the
-  # states its generator printed, and the bundled themes.
+  # states its generator printed, by setting name, and the schema of its
+  # settings, and the bundled themes.
   catalog = pkgs.runCommand "kantan-preview-catalog.json" { nativeBuildInputs = [ pkgs.jq ]; } ''
-    jq -n --slurpfile themes ${themes} '
-      { themes: $themes[0],
-        plugins: (reduce inputs as $preview ({};
-          ($preview.modulesDir | to_entries[0].value) as $module
-          | .[input_filename | split("/")[-1] | rtrimstr(".json")] =
-              { module: $module, states: $preview.states[$module.name] })) }
-    ' ${lib.concatMapStringsSep " " (name: "${documents}/${name}.json") plugins.pluginNames} > $out
+    jq -n --slurpfile themes ${themes} --slurpfile plugins ${documents}/plugins.json \
+      '{ themes: $themes[0], plugins: $plugins[0] }' > $out
   '';
 
   # A whole bar's preview: `config` is its config.yaml, `states` a JSON
   # file of what its built-in modules read, and `plugins` names the plugin
   # behind each of its command modules. Gives the bar's `document`, a
-  # directory holding document.json, and its `icons`.
+  # directory holding document.json and named.json, the same document with
+  # its plugins' states by setting name, and its `icons`.
   bar =
     {
       name,
@@ -186,12 +218,12 @@ let
           }
           ''
             yq -o=json ${config} > config.json
-            node ${assembler}/previews/bar.js $out config.json ${themes} ${states} \
+            node ${assembler}/previews/bar.js $out config.json ${themes} ${states} ${moduleSchema} \
               ${lib.concatStringsSep " " (
                 lib.mapAttrsToList (
                   module: plugin:
                   "${module}=${
-                    statesFor {
+                    generated {
                       inherit plugin config;
                       module = ".modules[] | select(.name == \"${module}\")";
                     }
@@ -212,6 +244,7 @@ in
     ;
 
   # Every state of every preview holds output the plugin output schema
+  # accepts, and every plugin's example holds settings its own schema
   # accepts.
   check =
     pkgs.runCommand "kantan-previews-check"
@@ -223,11 +256,18 @@ in
       }
       ''
         for preview in ${documents}/*.json; do
+          [ "$(basename "$preview")" = plugins.json ] && continue
           jq -c '.states[][] | .output' "$preview" | while read -r output; do
             echo "$output" > output.json
             check-jsonschema --schemafile ${../docs/schemas/plugin-output.schema.json} output.json \
               || { echo "$preview holds a state that isn't valid plugin output: $output" >&2; exit 1; }
           done
+        done
+        for plugin in $(jq -r 'keys[]' ${documents}/plugins.json); do
+          jq --arg plugin "$plugin" '.[$plugin].settings' ${documents}/plugins.json > settings.schema.json
+          jq --arg plugin "$plugin" '.[$plugin].module.config.settings // {}' ${documents}/plugins.json > settings.json
+          check-jsonschema --schemafile settings.schema.json settings.json \
+            || { echo "$plugin's example holds settings its settings.schema.json rejects" >&2; exit 1; }
         done
         touch $out
       '';

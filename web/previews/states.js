@@ -6,8 +6,40 @@
 // name, the output the plugin prints in it, and `after`, the output each
 // command leads to when run from it. A command a state runs that leads to
 // another state's output becomes a transition to that state.
+import { readFileSync } from "node:fs";
 import { isDeepStrictEqual } from "node:util";
+import { bindSettings, bundleSchema, settingDefaults } from "../builder/settings.js";
 import { moduleCommands, resolveBar, validateDocument } from "../engine/index.js";
+
+const read = path => JSON.parse(readFileSync(path, "utf8"));
+
+// What a plugin's generator printed for one module, read from the files
+// `paths` names: the states `named`, printed from settings whose colours
+// and icons are their names, the states `plain`, printed from the
+// settings as written, and the plugin's settings `schema`. `shared` is
+// the module config schema and `settings` the module's.
+//
+// Returns the plugin's `schema` standing alone, the `named` states, and
+// the states `bound` to the settings. `problem` is told when the bound
+// states aren't the plain ones: the plugin doesn't print a colour or an
+// icon as it was given it, or the schema's default isn't the plugin's.
+export function readGenerated({ named, plain, schema }, shared, settings, problem) {
+  const bundled = bundleSchema(read(schema), shared);
+  const states = read(named).states;
+  const bound = bindSettings(states, settings ?? {}, settingDefaults(bundled));
+  const printed = read(plain).states;
+  if (!isDeepStrictEqual(bound, printed)) {
+    const at = Array.isArray(printed) && Array.isArray(bound) ? printed.findIndex((state, i) => !isDeepStrictEqual(state, bound[i])) : -1;
+    problem(`its preview doesn't follow its settings${at < 0 ? "" : `: in the state ${printed[at]?.name}, its generator printed\n${JSON.stringify(printed[at])}\nfor the settings as written, and for the settings by name\n${JSON.stringify(bound[at])}`}`);
+  }
+  return { schema: bundled, named: states, bound };
+}
+
+// `named` states with the transitions of the states at the same places in
+// `states`.
+export function withTransitions(named, states) {
+  return named.map(({ name, output }, i) => (states?.[i]?.transitions ? { name, output, transitions: states[i].transitions } : { name, output }));
+}
 
 // Everything within `value` the engine marked as something it can't draw.
 function unsupportedWithin(value) {
