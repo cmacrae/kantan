@@ -89,9 +89,11 @@ function ThemeColors({ value, onChange, palette, label }) {
 }
 
 // A colour: a hex colour or one of the theme's, by name. `fallback` is
-// the colour drawn while none is set here.
-export function ColorField({ value, onChange, label, fallback }) {
-  const { palette } = useBuilder();
+// the colour drawn while none is set here. A `plain` one is a hex colour
+// alone.
+export function ColorField({ value, onChange, label, fallback, plain }) {
+  const context = useBuilder();
+  const palette = plain ? undefined : context.palette;
   const text = typeof value === "string" ? value : "";
   const resolved = palette && text.startsWith("{theme(") ? resolveThemeTemplate(text, palette) : text;
   const hex = /^#?[0-9a-fA-F]{6}/.test(resolved) ? `#${resolved.replace(/^#/, "").slice(0, 6)}` : undefined;

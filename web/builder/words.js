@@ -36,4 +36,8 @@ export const WORDS = [
   "kantan-plugin-tailscale", "kantan-plugin-rift-indicator", "catppuccin", "catppuccin[latte]", "catppuccin[frappe]",
   "catppuccin[macchiato]", "catppuccin[mocha]",
   ...COLORS.map(color => `{theme(${color})}`),
+  // Theme files
+  "flavours", "defaults", "latte", "frappe", "macchiato", "mocha",
+  ...COLORS,
+  "accent", "warning", "success",
 ];

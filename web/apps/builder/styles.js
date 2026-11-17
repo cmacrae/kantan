@@ -148,6 +148,13 @@ export const STYLES = `
 .kb-theme-row { margin: 6px 0 10px; }
 .kb-theme-mode { font-weight: 600; padding: 2px 0 4px; }
 .kb-theme-set { display: flex; flex-wrap: wrap; gap: 4px; }
+.kb .kb-problem .kb-btn { color: var(--fg); }
+.kb-themes { list-style: none; margin-bottom: 8px; }
+.kb-themes li { display: flex; align-items: center; gap: 8px; padding: 2px 0; }
+.kb-themes li > span:first-child { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.kb-themes .tag { font-size: 11px; color: var(--faint); white-space: nowrap; }
+.kb-tc { display: grid; grid-template-columns: minmax(70px, 150px) minmax(0, 1fr) auto; gap: 4px 8px; align-items: start; padding: 3px 0; }
+.kb-note code, .kb-problem code { font-family: 'SF Mono', Menlo, Monaco, monospace; font-size: 11.5px; }
 
 .kb-quick { position: absolute; z-index: 400; background: var(--panel); color: var(--fg); border: 1px solid var(--line); border-radius: 12px; padding: 10px 12px; box-shadow: 0 12px 40px rgba(0,0,0,0.25); }
 .kb-quick .arrow { position: absolute; top: -7px; width: 12px; height: 12px; margin-left: -6px; background: var(--panel); border: 1px solid var(--line); border-right: none; border-bottom: none; transform: rotate(45deg); }

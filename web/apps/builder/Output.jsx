@@ -19,26 +19,32 @@ function download(name, data, type) {
   URL.revokeObjectURL(url);
 }
 
-// `files` are the config's files, each `{ path, text }`, and `layout`
-// which of the two layouts they're in.
-export function Output({ files, layout, onLayout }) {
-  const single = layout === "single";
+// The files that make something, to read, copy or download. `files` are
+// each `{ path, text }` from kantan's config directory. `layouts` are the
+// ways they can be laid out, each `[key, label]`, with `layout` the one
+// they're in. `note` says where they go, and `archive` names the ZIP file
+// that holds them when there are several.
+export function Output({ title, files, layouts = [], layout, onLayout, note, archive }) {
+  const single = files.length === 1;
   const save = () => (single
-    ? download("config.yaml", files[0].text, "text/yaml")
-    : download("kantan-config.zip", zip(files), "application/zip"));
+    ? download(files[0].path.split("/").pop(), files[0].text, "text/yaml")
+    : download(archive, zip(files), "application/zip"));
   return (
     <>
       <h2>
-        <span>Config</span>
+        <span>{title}</span>
         {single && <CopyButton kind="plain" text={files[0].text} />}
         <Button kind="plain" icon="download" onClick={save}>{single ? "Download" : "Download all"}</Button>
       </h2>
       <div className="kb-body" style={{ paddingBottom: 8 }}>
-        <div className="kb-chips" role="group" aria-label="Layout" style={{ padding: 0 }}>
-          <button type="button" className="kb-chip" aria-pressed={single} onClick={() => onLayout("single")}>One config.yaml</button>
-          <button type="button" className="kb-chip" aria-pressed={!single} onClick={() => onLayout("dir")}>A file per module in modules.d</button>
-        </div>
-        <div className="kb-note">{single ? "Save it as" : "Unpack them into"} <code>~/.config/kantan/</code> and kantan reloads.</div>
+        {layouts.length > 1 && (
+          <div className="kb-chips" role="group" aria-label="Layout" style={{ padding: 0 }}>
+            {layouts.map(([key, label]) => (
+              <button key={key} type="button" className="kb-chip" aria-pressed={layout === key} onClick={() => onLayout(key)}>{label}</button>
+            ))}
+          </div>
+        )}
+        <div className="kb-note">{note}</div>
       </div>
       {files.map(file => (
         <div key={file.path}>

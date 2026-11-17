@@ -1,7 +1,8 @@
 // Picks the theme the bar is drawn in, for each appearance, from swatches
-// of every theme's colours.
+// of every theme's colours, and lists the themes to edit, copy or add to.
 import { loadTheme } from "../../engine/index.js";
 import { dict } from "../../engine/values.js";
+import { Button } from "./ui.jsx";
 
 const titled = text => text.replace(/(^|[-_ ])(\p{L})/gu, (_, gap, letter) => (gap ? " " : "") + letter.toUpperCase());
 
@@ -63,9 +64,36 @@ function Swatch({ choice, picked, onPick }) {
   );
 }
 
+// The themes there are: the document's own to edit, kantan's to copy, and
+// the way to start one. `own` are the names of the document's own.
+function Themes({ themes, own, onNew, onEdit, onCopy }) {
+  return (
+    <>
+      <div className="kb-h">Themes</div>
+      <ul className="kb-themes">
+        {Object.keys(themes).map(name => (
+          <li key={name}>
+            <span>{titled(name)}</span>
+            <span className="tag">{own.includes(name) ? "Yours" : "Comes with kantan"}</span>
+            {own.includes(name)
+              ? <Button kind="plain" icon="pencil" aria-label={`Edit the theme ${name}`} onClick={() => onEdit(name)}>Edit</Button>
+              : <Button kind="plain" icon="copy" aria-label={`Customise a copy of the theme ${name}`} onClick={() => onCopy(name)}>Customise a copy</Button>}
+          </li>
+        ))}
+      </ul>
+      <div className="kb-row" style={{ flexWrap: "wrap" }}>
+        <Button icon="plus" onClick={onNew}>New theme</Button>
+      </div>
+    </>
+  );
+}
+
 // `theme` is the config's `theme`, `themes` every theme file it can name,
-// and `onChange` is given the `theme` to write, undefined for none.
-export function ThemePicker({ theme, themes, onChange }) {
+// `own` the names of those the document holds, and `onChange` is given the
+// `theme` to write, undefined for none. `onNew`, `onEdit(name)` and
+// `onCopy(name)` start a theme, open one of the document's own and copy
+// one of kantan's.
+export function ThemePicker({ theme, themes, own, onChange, onNew, onEdit, onCopy }) {
   const current = { light: chosen(theme, "light", themes), dark: chosen(theme, "dark", themes) };
   // A theme names both appearances or neither.
   const pick = (mode, ref) => {
@@ -114,6 +142,7 @@ export function ThemePicker({ theme, themes, onChange }) {
             The bar takes the menu bar's own material and colours, in light and dark alike. Pick a theme instead to give it colours of its own.
           </div>
         )}
+      <Themes themes={themes} own={own} onNew={onNew} onEdit={onEdit} onCopy={onCopy} />
     </div>
   );
 }

@@ -1,12 +1,13 @@
 // The builder's logic: document edits, YAML files and share links.
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { loadConfig, resolveBar, validateDocument } from "../../engine/index.js";
+import { loadConfig, loadTheme, resolveBar, validateDocument } from "../../engine/index.js";
 import { BUILT_INS, pluginOf } from "../catalog.js";
 import { addBuiltIn, addPasted, addPlugin, emptyDocument, inLayout, layoutOf, modulesOf, toDir, toSingle, updateModule } from "../edit.js";
-import { documentFiles, readYaml } from "../files.js";
+import { documentFiles, readYaml, themeFiles } from "../files.js";
 import { decodeLink, encodeLink, readFragment } from "../share.js";
 import { configSchema, deref } from "../schema.js";
+import { newTheme, paletteFor, palettesOf, previewRef, themeKind, themeProblems, toKind } from "../theme.js";
 import { WORDS } from "../words.js";
 import { zip } from "../zip.js";
 
@@ -164,4 +165,60 @@ test("the schema gives each type's config, with references followed", () => {
   assert.deepEqual(deref(schema, power.properties.tint), { type: "string", description: "Its tint", ref: "Color" });
   assert.equal(configSchema(schema, "text").requiredByType, true);
   assert.equal(configSchema(schema, "nonsense"), undefined);
+});
+
+const flavoured = () => ({
+  defaults: { light: "day", dark: "night" },
+  flavours: {
+    day: { fg: "#111111", bg: "#eeeeee", colors: { accent: "#0000ff" } },
+    night: { fg: "#eeeeee", bg: "#111111", shape: "#222222", colors: { accent: "#8888ff" } },
+  },
+});
+
+test("a new theme loads, and reads the same in each kind it is written as", () => {
+  const theme = newTheme();
+  assert.deepEqual(themeProblems(theme), []);
+  assert.equal(themeKind(theme), "modes");
+  const loaded = loadTheme("mine", { mine: theme });
+  assert.equal(loaded.light.colors.accent, "#3b6fd4");
+
+  const flavours = toKind(theme, "flavours");
+  assert.equal(themeKind(flavours), "flavours");
+  assert.deepEqual(loadTheme("mine", { mine: flavours }), loaded);
+  assert.deepEqual(loadTheme("mine", { mine: toKind(flavours, "modes") }), loaded);
+  assert.deepEqual(toKind(flavours, "single", true), theme.dark);
+  assert.deepEqual(toKind(flavours, "single"), theme.light);
+  assert.equal(toKind(flavours, "flavours"), flavours);
+  assert.deepEqual(palettesOf(toKind(theme, "single")), [{ key: "", path: [] }]);
+
+  assert.equal(paletteFor(theme, "light", true), "dark");
+  assert.equal(paletteFor(flavoured(), "gone", true), "night");
+  assert.equal(paletteFor(flavoured(), "day", true), "day");
+  assert.equal(paletteFor(toKind(theme, "single"), "day", true), "");
+  assert.equal(previewRef("mine", flavoured(), "day"), "mine[day]");
+  assert.equal(previewRef("mine", theme, "dark"), "mine");
+});
+
+test("a theme's files read back as the theme, in either layout", () => {
+  const theme = flavoured();
+  const [file, ...rest] = themeFiles("mine", theme);
+  assert.equal(file.path, "themes/mine.yaml");
+  assert.equal(rest.length, 0);
+  assert.deepEqual(readYaml(file.text).value, theme);
+  assert.equal(file.text, [
+    "defaults:", "  light: day", "  dark: night", "", "flavours:",
+    "  day:", '    fg: "#111111"', '    bg: "#eeeeee"', "    colors:", '      accent: "#0000ff"', "",
+    "  night:", '    fg: "#eeeeee"', '    bg: "#111111"', '    shape: "#222222"', "    colors:", '      accent: "#8888ff"', "",
+  ].join("\n"));
+
+  const dir = themeFiles("mine", theme, "dir");
+  assert.deepEqual(dir.map(each => each.path), ["themes/mine/defaults.yaml", "themes/mine/day.yaml", "themes/mine/night.yaml"]);
+  assert.deepEqual(readYaml(dir[0].text).value, theme.defaults);
+  assert.deepEqual(readYaml(dir[2].text).value, theme.flavours.night);
+
+  const modes = toKind(theme, "modes");
+  assert.deepEqual(readYaml(themeFiles("mine", modes)[0].text).value, modes);
+  assert.match(themeFiles("mine", modes)[0].text, /\n\ndark:\n/);
+  const single = toKind(theme, "single");
+  assert.equal(themeFiles("mine", single)[0].text, 'fg: "#111111"\nbg: "#eeeeee"\ncolors:\n  accent: "#0000ff"\n');
 });

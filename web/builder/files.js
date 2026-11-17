@@ -2,11 +2,14 @@
 // someone wrote as the value kantan would load from it.
 import { parse, stringify } from "yaml";
 import { dict, list } from "../engine/values.js";
+import { selectedThemes, themeKind } from "./theme.js";
 
 // The order keys are written in: a config's and a module's own keys as the
 // docs list them, and any others after, as they came.
 const CONFIG_KEYS = ["theme", "displays", "height", "padding", "iconTextSpacing", "cornerRadius", "blur", "autohide", "fonts", "style", "modules"];
 const MODULE_KEYS = ["name", "type", "placement", "displays", "icon", "fonts", "style", "mask", "config", "interaction"];
+const PALETTE_KEYS = ["fg", "bg", "shape", "colors"];
+const MODE_KEYS = ["light", "dark"];
 
 function ordered(value, keys) {
   if (!dict(value)) return value;
@@ -22,9 +25,37 @@ const orderedModule = module => ordered(module, MODULE_KEYS);
 // quoted wherever YAML 1.1 would read them as anything else.
 const write = value => stringify(value, { version: "1.1", lineWidth: 0, aliasDuplicateObjects: false });
 
+const orderedPalette = palette => ordered(palette, PALETTE_KEYS);
+
+// The files a theme called `name` is written as, each `{ path, text }`
+// from the config's directory: one file, or for a theme with flavours in
+// the "dir" layout, a directory with a file for each flavour and one for
+// its defaults.
+export function themeFiles(name, theme, layout = "file") {
+  const kind = themeKind(theme);
+  if (kind === "single") return [{ path: `themes/${name}.yaml`, text: write(orderedPalette(theme)) }];
+  if (kind === "modes") {
+    const modes = MODE_KEYS.filter(mode => dict(theme[mode])).map(mode => write({ [mode]: orderedPalette(theme[mode]) }));
+    return [{ path: `themes/${name}.yaml`, text: modes.join("\n") }];
+  }
+  const defaults = dict(theme.defaults) ? ordered(theme.defaults, MODE_KEYS) : undefined;
+  const flavours = Object.entries(theme.flavours).map(([flavour, palette]) => [flavour, orderedPalette(palette)]);
+  if (layout === "dir") {
+    return [
+      ...(defaults ? [{ path: `themes/${name}/defaults.yaml`, text: write(defaults) }] : []),
+      ...flavours.map(([flavour, palette]) => ({ path: `themes/${name}/${flavour}.yaml`, text: write(palette) })),
+    ];
+  }
+  // A blank line between the defaults and the flavours, and between each
+  // flavour, as theme files are written by hand.
+  const blocks = flavours.map(([flavour, palette]) => write({ [flavour]: palette }).replace(/^(?=.)/gm, "  "));
+  const text = `${defaults ? `${write({ defaults })}\n` : ""}flavours:\n${blocks.join("\n")}`;
+  return [{ path: `themes/${name}.yaml`, text }];
+}
+
 // The files a document's config is written as: `{ path, text }` for
 // config.yaml, then for each file of modules.d in the order kantan loads
-// them.
+// them, then for each theme of the document's own that the config selects.
 export function documentFiles(document) {
   const config = ordered(dict(document.config) ?? {}, CONFIG_KEYS);
   if (list(config.modules)?.length) config.modules = config.modules.map(orderedModule);
@@ -39,6 +70,9 @@ export function documentFiles(document) {
   const files = [{ path: "config.yaml", text: spaced }];
   for (const name of Object.keys(dict(document.modulesDir) ?? {}).sort()) {
     files.push({ path: `modules.d/${name}`, text: write(orderedModule(document.modulesDir[name])) });
+  }
+  for (const name of selectedThemes(document.config?.theme)) {
+    if (dict(document.themes?.[name])) files.push(...themeFiles(name, document.themes[name]));
   }
   return files;
 }

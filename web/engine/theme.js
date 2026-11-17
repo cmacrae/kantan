@@ -15,7 +15,7 @@ function parsePalette(value) {
 }
 
 // A theme reference: `name`, or `name[flavour]`.
-function parseThemeRef(raw) {
+export function parseThemeRef(raw) {
   const open = raw.indexOf("["), close = raw.lastIndexOf("]");
   if (open < 0 || close <= open) return { name: raw.trim() };
   return { name: raw.slice(0, open).trim(), flavour: raw.slice(open + 1, close).trim() || undefined };

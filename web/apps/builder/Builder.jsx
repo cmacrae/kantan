@@ -13,8 +13,12 @@ import {
   addBuiltIn, addPasted, addPlugin, documentFromConfig, emptyDocument, inLayout, layoutOf, modulesOf, placeAtEdge,
   placeModule, removeModule, setModuleStates, toSingle, updateModule,
 } from "../../builder/edit.js";
-import { documentFiles, readYaml } from "../../builder/files.js";
+import { documentFiles, readYaml, themeFiles } from "../../builder/files.js";
 import { configText, decodeLink, encodeLink, readFragment } from "../../builder/share.js";
+import {
+  freeThemeName, missingColors, newTheme, paletteFor, previewRef, removeTheme, renameColor, renameColorRefs, renameTheme,
+  renameThemeFlavour, selectedThemes, setTheme, themeKind,
+} from "../../builder/theme.js";
 import bundled from "../../generated/catalog.json";
 import example from "../../generated/example.json";
 import schema from "../../generated/module-config.schema.json";
@@ -24,6 +28,7 @@ import { ModuleEditor } from "./ModuleEditor.jsx";
 import { ModuleList } from "./ModuleList.jsx";
 import { Output, Share } from "./Output.jsx";
 import { QuickEdit } from "./QuickEdit.jsx";
+import { ThemeEditor } from "./ThemeEditor.jsx";
 import { STYLES } from "./styles.js";
 import { BuilderContext, Button, Ic, Modal } from "./ui.jsx";
 
@@ -191,7 +196,14 @@ function Workspace({ opened, iconSet, onStart }) {
   const systemDark = useSystemDark();
   const [history, setHistory] = useState(() => [toSingle(opened.document)]);
   const [layout, setLayout] = useState(() => layoutOf(opened.document));
-  const [selected, setSelected] = useState(-1);
+  // What the editor is on: `{ kind: "bar" }` for the bar's own settings,
+  // `{ kind: "module", index }` for a module, or `{ kind: "theme", name,
+  // palette }` for one of the document's themes and the palette of it
+  // being edited.
+  const [focus, setFocus] = useState({ kind: "bar" });
+  const selected = focus.kind === "module" ? focus.index : -1;
+  const setSelected = index => setFocus(index >= 0 ? { kind: "module", index } : { kind: "bar" });
+  const [themeLayout, setThemeLayout] = useState("file");
   const [dark, setDark] = useState(opened.document.view?.dark ?? systemDark);
   const [notch, setNotch] = useState(opened.document.view?.notch ?? false);
   const [pane, setPane] = useState("modules");
@@ -247,11 +259,27 @@ function Workspace({ opened, iconSet, onStart }) {
     setEdited(true);
     setHistory(past => (next === past[past.length - 1] ? past : [...past.slice(-HISTORY), next]));
   }, []);
-  const undo = () => { setHistory(past => (past.length > 1 ? past.slice(0, -1) : past)); setSelected(-1); setQuick(false); };
+  // Undoing a change to a theme leaves the editor on the theme.
+  const undo = () => {
+    setHistory(past => (past.length > 1 ? past.slice(0, -1) : past));
+    if (focus.kind !== "theme") setSelected(-1);
+    setQuick(false);
+  };
 
   const modules = useMemo(() => modulesOf(document), [document]);
   const themes = useMemo(() => ({ ...catalog.themes, ...document.themes }), [document.themes]);
-  const config = useMemo(() => loadConfig(document, catalog.themes), [document]);
+
+  // The theme being edited, while the document still has it, and the
+  // palette of it being edited.
+  const themeName = focus.kind === "theme" && dict(document.themes?.[focus.name]) ? focus.name : undefined;
+  const theme = themeName === undefined ? undefined : document.themes[themeName];
+  const themePalette = theme && paletteFor(theme, focus.palette, dark);
+  // The bar is drawn in the palette being edited, whatever the config
+  // selects.
+  const drawnDocument = useMemo(
+    () => (theme === undefined ? document : { ...document, config: { ...document.config, theme: previewRef(themeName, theme, themePalette) } }),
+    [document, themeName, theme, themePalette]);
+  const config = useMemo(() => loadConfig(drawnDocument, catalog.themes), [drawnDocument]);
   const accepted = useMemo(() => new Set(config.problem === undefined ? config.modules.map(module => module.name) : []), [config]);
 
   // While customising, every drawer is open, so what it holds can be
@@ -259,7 +287,7 @@ function Workspace({ opened, iconSet, onStart }) {
   const drawersOpen = useMemo(
     () => (trying ? undefined : Object.fromEntries(modules.filter(each => each?.type === "drawer").map(each => [each.name, { open: true }]))),
     [trying, modules]);
-  const { bar, run, toggleDrawer, switchWorkspace, states: shown, setState } = useBar(document, {
+  const { bar, run, toggleDrawer, switchWorkspace, states: shown, setState } = useBar(drawnDocument, {
     dark, notch, icons: iconSet.icons, themes: catalog.themes, states: opened.document.view?.shown, samples: drawersOpen,
   });
   const drawn = useMemo(() => Object.values(bar.placements).flat(), [bar]);
@@ -300,6 +328,43 @@ function Workspace({ opened, iconSet, onStart }) {
   };
   const remove = () => { change(removeModule(document, selected)); setSelected(-1); setQuick(false); };
 
+  // Opens a theme of the document's in the theme editor.
+  const editTheme = name => { setFocus({ kind: "theme", name }); setQuick(false); setPane("edit"); };
+  const selects = name => selectedThemes(document.config.theme).includes(name);
+  const theming = {
+    onEdit: editTheme,
+    // A new theme is the one the config selects.
+    onNew: () => {
+      const name = freeThemeName(themes, "my-theme");
+      const made = setTheme(document, name, newTheme());
+      change({ ...made, config: { ...made.config, theme: name } });
+      editTheme(name);
+    },
+    // A copy of one of kantan's themes takes its place in the config.
+    onCopy: from => {
+      const name = freeThemeName(themes, `my-${from}`);
+      change(renameTheme(setTheme(document, from, structuredClone(catalog.themes[from])), from, name));
+      editTheme(name);
+    },
+  };
+  const themeEdits = theme && {
+    onChange: next => change(setTheme(document, themeName, next)),
+    onRename: to => { change(renameTheme(document, themeName, to)); setFocus({ ...focus, name: to }); },
+    onRenameFlavour: (from, to) => { change(renameThemeFlavour(document, themeName, from, to)); setFocus({ ...focus, palette: to }); },
+    // The config's own uses of a colour follow its new name while the
+    // config selects the theme.
+    onRenameColor: (from, to) => {
+      const renamed = setTheme(document, themeName, renameColor(theme, from, to));
+      change(selects(themeName) ? renameColorRefs(renamed, from, to) : renamed);
+    },
+    // The two palettes of a theme with one for each appearance follow the
+    // appearance the bar is drawn in.
+    onPalette: key => { setFocus({ ...focus, palette: key }); if (themeKind(theme) === "modes") setDark(key === "dark"); },
+    onUse: () => { const { theme: _, ...rest } = document.config; change({ ...document, config: { theme: themeName, ...rest } }); },
+    onRemove: () => { change(removeTheme(document, themeName, catalog.themes)); setSelected(-1); },
+    onClose: () => setSelected(-1),
+  };
+
   // The document as shared: in the layout chosen, looked at as it is now.
   const makeLink = useCallback(async () => {
     const view = { dark, notch, shown: Object.fromEntries(Object.entries(shown).filter(([name, state]) => {
@@ -311,6 +376,7 @@ function Workspace({ opened, iconSet, onStart }) {
   }, [document, layout, dark, notch, shown]);
 
   const files = useMemo(() => documentFiles(inLayout(document, layout)), [document, layout]);
+  const themeOutput = useMemo(() => theme && themeFiles(themeName, theme, themeLayout), [themeName, theme, themeLayout]);
   const palette = config.theme?.[dark ? "dark" : "light"];
   const context = useMemo(() => ({ ...iconSet, catalog, schema, palette, dark }), [iconSet, palette, dark]);
 
@@ -352,6 +418,7 @@ function Workspace({ opened, iconSet, onStart }) {
   const pick = event => {
     if (trying) return;
     const index = indexOf(nameAt(event.target));
+    if (index < 0 && theme !== undefined) return undefined;
     setSelected(index);
     return setQuick(index >= 0);
   };
@@ -536,7 +603,7 @@ function Workspace({ opened, iconSet, onStart }) {
       </div>
       <main className="kb-panes" hidden={!editing}>
         <div className={`kb-col ${pane === "modules" ? "on" : ""}`}>
-          <button type="button" className={`kb-pane kb-barcard ${selected === -1 ? "on" : ""}`} onClick={() => select(-1)}>
+          <button type="button" className={`kb-pane kb-barcard ${selected === -1 && theme === undefined ? "on" : ""}`} onClick={() => select(-1)}>
             <Ic name="adjustments-horizontal" size={18} />
             <span><b>Bar Settings</b><span>Theme, size, fonts and colours</span></span>
           </button>
@@ -546,7 +613,13 @@ function Workspace({ opened, iconSet, onStart }) {
           </section>
         </div>
         <section className={`kb-pane ${pane === "edit" ? "on" : ""}`}>
-          {dict(module)
+          {theme !== undefined
+            ? (
+              <ThemeEditor key={themeName} name={themeName} theme={theme} taken={Object.keys(themes).filter(each => each !== themeName)}
+                used={selects(themeName)} palette={themePalette} dark={dark} problem={config.problem}
+                missing={config.theme ? missingColors(document, config.theme) : []} {...themeEdits} />
+            )
+            : dict(module)
             ? (
               <ModuleEditor key={selected} module={module} drawn={drawn.find(each => each.name === module.name)}
                 accepted={accepted.has(module.name)} masked={isMasked(module)} taken={modules.filter(each => each !== module).map(each => each?.name)}
@@ -556,12 +629,27 @@ function Workspace({ opened, iconSet, onStart }) {
                 onRemove={remove} />
             )
             : (
-              <BarSettings config={document.config} themes={themes} problem={config.problem}
+              <BarSettings config={document.config} themes={themes} own={Object.keys(document.themes ?? {})} problem={config.problem} theming={theming}
                 onChange={next => change({ ...document, config: { ...next, modules: document.config.modules } })} />
             )}
         </section>
         <section className={`kb-pane ${pane === "yaml" ? "on" : ""}`}>
-          <Output files={files} layout={layout} onLayout={setLayout} />
+          {theme !== undefined
+            ? (
+              <Output title={`Theme: ${themeName}`} files={themeOutput} layout={themeLayout} onLayout={setThemeLayout} archive={`kantan-theme-${themeName}.zip`}
+                layouts={themeKind(theme) === "flavours" ? [["file", "One file"], ["dir", "A file per flavour"]] : []}
+                note={(
+                  <>
+                    {themeOutput.length === 1 ? <>Save it as <code>~/.config/kantan/{themeOutput[0].path}</code></> : <>Unpack them into <code>~/.config/kantan/</code></>}
+                    {" "}and kantan reloads.
+                  </>
+                )} />
+            )
+            : (
+              <Output title="Config" files={files} layout={layout} onLayout={setLayout} archive="kantan-config.zip"
+                layouts={[["single", "One config.yaml"], ["dir", "A file per module in modules.d"]]}
+                note={<>{files.length === 1 ? "Save it as" : "Unpack them into"} <code>~/.config/kantan/</code> and kantan reloads.</>} />
+            )}
         </section>
       </main>
 

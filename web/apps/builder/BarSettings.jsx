@@ -33,9 +33,11 @@ const BAR_SCHEMA = {
 };
 
 // `config` is the config without its modules, `themes` every theme file it
-// can name, and `problem` why kantan can't load it, when it can't. Keys
-// the form has no field for stay as they are.
-export function BarSettings({ config, themes, problem, onChange }) {
+// can name, `own` the names of those the document holds, and `problem` why
+// kantan can't load it, when it can't. `theming` holds what the theme
+// picker starts: `onNew`, `onEdit` and `onCopy`. Keys the form has no
+// field for stay as they are.
+export function BarSettings({ config, themes, own, problem, onChange, theming }) {
   const theme = config.theme;
   const { theme: _, modules: __, ...rest } = config;
   return (
@@ -44,7 +46,7 @@ export function BarSettings({ config, themes, problem, onChange }) {
       <div className="kb-body">
         {problem !== undefined && <div className="kb-problem" style={{ paddingBottom: 8 }}>kantan can't load this config: {problem}</div>}
         <div className="kb-h">Appearance</div>
-        <ThemePicker theme={theme} themes={themes}
+        <ThemePicker theme={theme} themes={themes} own={own} {...theming}
           onChange={next => onChange(prune({ ...config, theme: next }) ?? {})} />
         <div className="kb-h">Size, fonts and colours</div>
         <Properties node={BAR_SCHEMA} value={rest} onChange={value => onChange({ ...(theme === undefined ? {} : { theme }), ...value })} />
