@@ -9,6 +9,23 @@ import { readYaml, writeYaml } from "../../builder/files.js";
 export const BuilderContext = createContext(null);
 export const useBuilder = () => useContext(BuilderContext);
 
+// What this browser keeps for the page, by key. A browser that keeps
+// nothing gives nothing back.
+export function remembered(key) {
+  try {
+    return window.localStorage.getItem(key);
+  } catch {
+    return null;
+  }
+}
+export function remember(key, value) {
+  try {
+    window.localStorage.setItem(key, value);
+  } catch {
+    // Nothing to do: the page works without it.
+  }
+}
+
 // A Tabler icon by name, at `size` points. A name the fonts lack, or any
 // name before the fonts' table has loaded, draws nothing.
 export function Ic({ name, size = 15, style }) {

@@ -7,12 +7,13 @@ import { wallpaper } from "../../components/Desk.jsx";
 import { cssColor, faded } from "../../components/system.js";
 import { useBar } from "../../components/useBar.js";
 import { useFitZoom } from "../../components/useFitZoom.js";
-import { loadConfig, resolveBar } from "../../engine/index.js";
+import { loadConfig, loadTheme, resolveBar } from "../../engine/index.js";
 import { dict } from "../../engine/values.js";
 import {
   addBuiltIn, addPasted, addPlugin, documentFromConfig, emptyDocument, inLayout, layoutOf, modulesOf, placeAtEdge,
   placeModule, removeModule, setModuleStates, toSingle, updateModule,
 } from "../../builder/edit.js";
+import { adoptSlots, importSchemes } from "../../builder/base16.js";
 import { documentFiles, readYaml, themeFiles } from "../../builder/files.js";
 import { configText, decodeLink, encodeLink, readFragment } from "../../builder/share.js";
 import {
@@ -30,25 +31,10 @@ import { Output, Share } from "./Output.jsx";
 import { QuickEdit } from "./QuickEdit.jsx";
 import { ThemeEditor } from "./ThemeEditor.jsx";
 import { STYLES } from "./styles.js";
-import { BuilderContext, Button, Ic, Modal } from "./ui.jsx";
+import { BuilderContext, Button, Ic, Modal, remember, remembered } from "./ui.jsx";
 
-// What this browser keeps of how the page was left. A browser that keeps
-// nothing gives nothing back.
+// Whether the editor was left open, as this browser keeps it.
 const EDITOR_KEY = "kantan-builder-editor";
-function remembered(key) {
-  try {
-    return window.localStorage.getItem(key);
-  } catch {
-    return null;
-  }
-}
-function remember(key, value) {
-  try {
-    window.localStorage.setItem(key, value);
-  } catch {
-    // Nothing to do: the page works without it.
-  }
-}
 
 // As many changes as can be undone.
 const HISTORY = 100;
@@ -345,6 +331,16 @@ function Workspace({ opened, iconSet, onStart }) {
       const name = freeThemeName(themes, `my-${from}`);
       change(renameTheme(setTheme(document, from, structuredClone(catalog.themes[from])), from, name));
       editTheme(name);
+    },
+    onImport: (name, imported) => { change(setTheme(document, name, imported)); editTheme(name); },
+    // The themes of the schemes picked are the ones the config selects,
+    // each for its appearance, and the Catppuccin colours the config
+    // names follow them. The editor stays on the bar's settings, where
+    // the bar is drawn as the config now has it in either appearance.
+    onImportSchemes: picks => {
+      const held = importSchemes(document, picks, themes);
+      const palettes = loadTheme(held.document.config.theme, { ...catalog.themes, ...held.document.themes });
+      change(palettes ? adoptSlots(held.document, palettes) : held.document);
     },
   };
   const themeEdits = theme && {

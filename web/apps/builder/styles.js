@@ -151,6 +151,22 @@ export const STYLES = `
 .kb-shot { display: flex; align-items: center; justify-content: center; min-height: 120px; border: 1px solid var(--line); border-radius: 8px; background: var(--code); overflow: hidden; }
 .kb-shot img { display: block; max-width: 100%; height: auto; }
 .kb .kb-problem .kb-btn { color: var(--fg); }
+.kb-gallery { display: grid; grid-template-columns: repeat(auto-fill, minmax(118px, 1fr)); gap: 2px; max-height: 300px; overflow: auto; padding: 4px; border: 1px solid var(--line); border-radius: 8px; }
+.kb-gallery .kb-theme .name { max-width: 104px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.kb-gallery .kb-theme:disabled { cursor: default; }
+.kb-gallery .kb-theme { position: relative; }
+.kb-theme .pills { position: absolute; top: 8px; right: 8px; display: flex; gap: 3px; }
+.kb-theme .pills i { font-style: normal; font-size: 10px; font-weight: 600; line-height: 1; padding: 3px 6px; border-radius: 999px; background: var(--accent); color: var(--accent-fg); text-transform: capitalize; }
+.kb-slots { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 8px; }
+.kb-slotcard { display: flex; align-items: center; border: 1.5px solid var(--line); border-radius: 10px; }
+.kb-slotcard.on { border-color: var(--accent); }
+.kb-slotcard > button:first-child { flex: 1; min-width: 0; display: flex; align-items: center; gap: 10px; padding: 6px; background: none; border: none; border-radius: 9px; cursor: pointer; text-align: left; }
+.kb-slotcard .face { display: flex; flex-direction: column; justify-content: space-between; flex-shrink: 0; width: 84px; height: 46px; padding: 6px 7px; border-radius: 7px; border: 1px solid var(--line); }
+.kb-slotcard .face b { font-size: 13px; line-height: 1; }
+.kb-slotcard .dots { display: flex; gap: 3px; }
+.kb-slotcard .dots i { width: 8px; height: 8px; border-radius: 50%; }
+.kb-slotcard > button > span:last-child { display: flex; flex-direction: column; min-width: 0; }
+.kb-slotcard > button > span:last-child > span { color: var(--muted); font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .kb-themes { list-style: none; margin-bottom: 8px; }
 .kb-themes li { display: flex; align-items: center; gap: 8px; padding: 2px 0; }
 .kb-themes li > span:first-child { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

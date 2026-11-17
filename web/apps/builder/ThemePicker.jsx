@@ -1,7 +1,9 @@
 // Picks the theme the bar is drawn in, for each appearance, from swatches
 // of every theme's colours, and lists the themes to edit, copy or add to.
+import { useState } from "react";
 import { loadTheme } from "../../engine/index.js";
 import { dict } from "../../engine/values.js";
+import { ThemeImport } from "./ThemeImport.jsx";
 import { Button } from "./ui.jsx";
 
 const titled = text => text.replace(/(^|[-_ ])(\p{L})/gu, (_, gap, letter) => (gap ? " " : "") + letter.toUpperCase());
@@ -65,8 +67,9 @@ function Swatch({ choice, picked, onPick }) {
 }
 
 // The themes there are: the document's own to edit, kantan's to copy, and
-// the way to start one. `own` are the names of the document's own.
-function Themes({ themes, own, onNew, onEdit, onCopy }) {
+// the ways to add one. `own` are the names of the document's own.
+function Themes({ themes, own, onNew, onEdit, onCopy, onImport, onImportSchemes }) {
+  const [importing, setImporting] = useState(false);
   return (
     <>
       <div className="kb-h">Themes</div>
@@ -83,17 +86,24 @@ function Themes({ themes, own, onNew, onEdit, onCopy }) {
       </ul>
       <div className="kb-row" style={{ flexWrap: "wrap" }}>
         <Button icon="plus" onClick={onNew}>New theme</Button>
+        <Button icon="file-import" onClick={() => setImporting(true)}>Import a theme</Button>
       </div>
+      {importing && (
+        <ThemeImport taken={Object.keys(themes)} onClose={() => setImporting(false)}
+          onImport={(name, theme) => { setImporting(false); onImport(name, theme); }}
+          onImportSchemes={picks => { setImporting(false); onImportSchemes(picks); }} />
+      )}
     </>
   );
 }
 
 // `theme` is the config's `theme`, `themes` every theme file it can name,
 // `own` the names of those the document holds, and `onChange` is given the
-// `theme` to write, undefined for none. `onNew`, `onEdit(name)` and
-// `onCopy(name)` start a theme, open one of the document's own and copy
-// one of kantan's.
-export function ThemePicker({ theme, themes, own, onChange, onNew, onEdit, onCopy }) {
+// `theme` to write, undefined for none. `onNew`, `onEdit(name)`,
+// `onCopy(name)`, `onImport(name, theme)` and `onImportSchemes(picks)`
+// start a theme, open one of the document's own, copy one of kantan's,
+// take in a file and take in schemes' themes.
+export function ThemePicker({ theme, themes, own, onChange, onNew, onEdit, onCopy, onImport, onImportSchemes }) {
   const current = { light: chosen(theme, "light", themes), dark: chosen(theme, "dark", themes) };
   // A theme names both appearances or neither.
   const pick = (mode, ref) => {
@@ -142,7 +152,7 @@ export function ThemePicker({ theme, themes, own, onChange, onNew, onEdit, onCop
             The bar takes the menu bar's own material and colours, in light and dark alike. Pick a theme instead to give it colours of its own.
           </div>
         )}
-      <Themes themes={themes} own={own} onNew={onNew} onEdit={onEdit} onCopy={onCopy} />
+      <Themes themes={themes} own={own} onNew={onNew} onEdit={onEdit} onCopy={onCopy} onImport={onImport} onImportSchemes={onImportSchemes} />
     </div>
   );
 }

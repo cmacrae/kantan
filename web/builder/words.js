@@ -1,6 +1,8 @@
 // The words share links write as tokens: the keys and values nearly every
 // config uses. A word's place in the list is its token, so the list only
 // ever grows at its end. The earliest words get the shortest tokens.
+const SLOTS = [..."0123456789ABCDEF"].map(digit => `base0${digit}`).concat([..."01234567"].map(digit => `base1${digit}`));
+
 const COLORS = [
   "rosewater", "flamingo", "pink", "mauve", "red", "maroon", "peach", "yellow", "green", "teal", "sky", "sapphire",
   "blue", "lavender", "text", "subtext1", "subtext0", "overlay2", "overlay1", "overlay0", "surface2", "surface1",
@@ -40,4 +42,6 @@ export const WORDS = [
   "flavours", "defaults", "latte", "frappe", "macchiato", "mocha",
   ...COLORS,
   "accent", "warning", "success",
+  // Base16 and Base24 schemes
+  ...SLOTS, ...SLOTS.map(slot => `{theme(${slot})}`),
 ];

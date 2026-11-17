@@ -2,6 +2,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { loadConfig, loadTheme, resolveBar, validateDocument } from "../../engine/index.js";
+import { SLOTS, readScheme, schemeFileName, schemeTheme } from "../base16.js";
 import { BUILT_INS, pluginOf } from "../catalog.js";
 import { addBuiltIn, addPasted, addPlugin, emptyDocument, inLayout, layoutOf, modulesOf, toDir, toSingle, updateModule } from "../edit.js";
 import { documentFiles, readYaml, themeFiles } from "../files.js";
@@ -221,4 +222,48 @@ test("a theme's files read back as the theme, in either layout", () => {
   assert.match(themeFiles("mine", modes)[0].text, /\n\ndark:\n/);
   const single = toKind(theme, "single");
   assert.equal(themeFiles("mine", single)[0].text, 'fg: "#111111"\nbg: "#eeeeee"\ncolors:\n  accent: "#0000ff"\n');
+});
+
+const mocha16 = () => ({
+  system: "base16", name: "Catppuccin Mocha", variant: "dark",
+  palette: {
+    base00: "#1e1e2e", base01: "#181825", base02: "#313244", base03: "#45475a", base04: "#585b70", base05: "#cdd6f4",
+    base06: "#f5e0dc", base07: "#b4befe", base08: "#f38ba8", base09: "#fab387", base0A: "#f9e2af", base0B: "#a6e3a1",
+    base0C: "#94e2d5", base0D: "#89b4fa", base0E: "#cba6f7", base0F: "#f2cdcd",
+  },
+});
+
+test("a Base16 or Base24 scheme is read, however it lists its slots", () => {
+  const scheme = readScheme(mocha16());
+  assert.equal(scheme.system, "base16");
+  assert.equal(scheme.variant, "dark");
+  assert.equal(scheme.palette.base0F, "#f2cdcd");
+  // A scheme as read is itself a scheme, as a browser keeps it.
+  assert.deepEqual(readScheme(JSON.parse(JSON.stringify(scheme))), scheme);
+
+  // An older scheme names itself with `scheme` and writes bare hex.
+  const older = { scheme: "Old One", author: "someone", ...Object.fromEntries(Object.entries(mocha16().palette).map(([slot, hex]) => [slot, hex.slice(1).toUpperCase()])) };
+  assert.deepEqual(readScheme(older), { name: "Old One", system: "base16", variant: undefined, palette: mocha16().palette });
+
+  const more = { ...mocha16(), system: "base24", palette: { ...mocha16().palette } };
+  for (const slot of SLOTS.slice(16)) more.palette[slot] = "#123456";
+  assert.equal(readScheme(more).system, "base24");
+  assert.equal(SLOTS.length, 24);
+
+  const { base0F: _, ...short } = mocha16().palette;
+  assert.equal(readScheme({ palette: short }), undefined);
+  assert.equal(readScheme({ palette: { ...mocha16().palette, base03: "blue" } }), undefined);
+  assert.equal(readScheme({ fg: "#111111", bg: "#eeeeee" }), undefined);
+  assert.equal(readScheme("text"), undefined);
+  assert.equal(schemeFileName("Catppuccin Mocha"), "catppuccin-mocha");
+  assert.equal(schemeFileName("Rosé Pine (Dawn)"), "rosé-pine-dawn");
+});
+
+test("a scheme makes a theme kantan loads", () => {
+  const theme = schemeTheme(readScheme(mocha16()));
+  assert.deepEqual(themeProblems(theme), []);
+  assert.equal(themeKind(theme), "single");
+  const loaded = loadTheme("mocha", { mocha: theme });
+  assert.deepEqual([loaded.dark.fg, loaded.dark.bg, loaded.dark.shape], ["#cdd6f4", "#1e1e2e", "#313244"]);
+  assert.equal(loaded.light.colors.base08, "#f38ba8");
 });

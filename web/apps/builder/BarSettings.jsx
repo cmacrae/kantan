@@ -35,8 +35,8 @@ const BAR_SCHEMA = {
 // `config` is the config without its modules, `themes` every theme file it
 // can name, `own` the names of those the document holds, and `problem` why
 // kantan can't load it, when it can't. `theming` holds what the theme
-// picker starts: `onNew`, `onEdit` and `onCopy`. Keys the form has no
-// field for stay as they are.
+// picker starts: `onNew`, `onEdit`, `onCopy`, `onImport` and
+// `onImportSchemes`. Keys the form has no field for stay as they are.
 export function BarSettings({ config, themes, own, problem, onChange, theming }) {
   const theme = config.theme;
   const { theme: _, modules: __, ...rest } = config;
