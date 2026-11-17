@@ -160,6 +160,8 @@ kantan searches for theme files in order of priority:
 
 `<config-dir>` is the directory containing your config file. `<prefix>` is kantan's installation prefix (the directory above the `bin/` holding the `kantan` binary).
 
+kantan [reloads](index.md#reloading) when a theme in the first two changes. A change to a bundled theme takes effect the next time the config loads.
+
 ## Using Theme Colours
 
 Once a theme is loaded, its named colours are available throughout your config via the `{theme(...)}` template syntax.

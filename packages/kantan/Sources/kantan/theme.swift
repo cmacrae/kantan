@@ -80,6 +80,21 @@ func bundledThemesDirectory() -> URL? {
   return themesDir
 }
 
+/// The directories a user keeps themes in, in the order they are searched:
+/// `<config-dir>/themes`, then `$XDG_CONFIG_HOME/kantan/themes` when that
+/// is another directory.
+func userThemeDirectories(
+  configDir: String?, environment: [String: String] = ProcessInfo.processInfo.environment
+) -> [String] {
+  let candidates =
+    [configDir, (xdgConfigHome(environment) as NSString).appendingPathComponent("kantan")]
+    .compactMap { $0 }
+    .map { (($0 as NSString).appendingPathComponent("themes") as NSString).standardizingPath }
+  return candidates.reduce(into: []) { dirs, dir in
+    if !dirs.contains(dir) { dirs.append(dir) }
+  }
+}
+
 /// Search for a theme file or directory by name using the priority chain:
 /// 1. <config-dir>/themes/<name>.yaml
 /// 2. <config-dir>/themes/<name>/
@@ -96,11 +111,9 @@ private func findThemeLocation(name: String, configDir: String?) -> URL? {
     searchPaths.append(base.appendingPathComponent(name))
   }
 
-  if let configDir = configDir {
-    addPaths(base: URL(fileURLWithPath: configDir).appendingPathComponent("themes"))
+  for dir in userThemeDirectories(configDir: configDir) {
+    addPaths(base: URL(fileURLWithPath: dir))
   }
-
-  addPaths(base: URL(fileURLWithPath: xdgConfigHome()).appendingPathComponent("kantan/themes"))
 
   if let bundled = bundledThemesDirectory() {
     addPaths(base: bundled)

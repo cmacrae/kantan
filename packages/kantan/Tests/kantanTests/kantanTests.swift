@@ -3649,3 +3649,69 @@ final class StatusTemplateVariableTests {
         == ["state": "Off", "devices": ""])
   }
 }
+
+// MARK: - Theme directory watching
+
+@MainActor
+final class ThemeWatchingTests {
+  private let dir: URL
+
+  init() throws {
+    // The path as the file system reports it, which a watched path is
+    // compared against.
+    dir = FileManager.default.temporaryDirectory.resolvingSymlinksInPath()
+      .appendingPathComponent(UUID().uuidString)
+    try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+  }
+
+  deinit {
+    try? FileManager.default.removeItem(at: dir)
+  }
+
+  private func write(_ contents: String, to name: String, atomically: Bool = false) throws {
+    let file = dir.appendingPathComponent(name)
+    try FileManager.default.createDirectory(
+      at: file.deletingLastPathComponent(), withIntermediateDirectories: true)
+    try contents.write(to: file, atomically: atomically, encoding: .utf8)
+  }
+
+  /// Whether a watcher of `path` reports a change within two seconds of
+  /// `change` being made.
+  private func reports(
+    watching path: String, retryInterval: TimeInterval = 0.05, _ change: () throws -> Void
+  ) async rethrows -> Bool {
+    let changed = Expectation()
+    let watcher = YamlTreeWatcher(path: path, retryInterval: retryInterval) { changed.fulfill() }
+    watcher.start()
+    defer { watcher.stop() }
+    try change()
+    let deadline = Date(timeIntervalSinceNow: 2)
+    while !changed.isFulfilled, Date() < deadline { await runMainLoop(for: 0.02) }
+    return changed.isFulfilled
+  }
+
+  @Test func testThemesAreSoughtBesideTheConfigThenInTheXDGDirectory() {
+    let environment = ["XDG_CONFIG_HOME": "/xdg"]
+    #expect(
+      userThemeDirectories(configDir: "/somewhere/kantan", environment: environment)
+        == ["/somewhere/kantan/themes", "/xdg/kantan/themes"])
+    #expect(
+      userThemeDirectories(configDir: "/xdg/kantan/", environment: environment)
+        == ["/xdg/kantan/themes"])
+    #expect(
+      userThemeDirectories(configDir: nil, environment: environment) == ["/xdg/kantan/themes"])
+  }
+
+  @Test func testAThemeWrittenInPlaceIsAChange() async throws {
+    try write("fg: '#000000'", to: "plain.yaml")
+    #expect(try await reports(watching: dir.path) { try write("fg: '#ffffff'", to: "plain.yaml") })
+  }
+
+  @Test func testAThemeReplacedByItsEditorIsAChange() async throws {
+    try write("fg: '#000000'", to: "plain.yaml")
+    #expect(
+      try await reports(watching: dir.path) {
+        try write("fg: '#ffffff'", to: "plain.yaml", atomically: true)
+      })
+  }
+}

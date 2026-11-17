@@ -1035,6 +1035,8 @@ class AppDelegate: NSObject, NSApplicationDelegate {
   /// was missing.
   var configWatchRetry: DispatchWorkItem?
   var modulesDirWatchRetry: DispatchWorkItem?
+  /// The watchers of the directories the user keeps themes in.
+  var themeWatchers: [YamlTreeWatcher] = []
 
   func applicationDidFinishLaunching(_ aNotification: Notification) {
     NSApp.setActivationPolicy(.accessory)
@@ -1076,6 +1078,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
     if let configPath = configFilePath {
       startWatchingConfig(path: configPath)
+      startWatchingThemes(configPath: configPath)
     } else {
       startPollingForConfig()
     }
@@ -1362,6 +1365,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         self.reloadConfig()
         self.startWatchingConfig(path: configPath)
         self.startWatchingModulesDir(path: modulesDirPath)
+        self.startWatchingThemes(configPath: configPath)
       }
     }
   }
@@ -1536,6 +1540,21 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     watchModuleFiles(in: path)
   }
 
+  /// Watches the directories the user keeps themes in, beside the config at
+  /// `configPath` and in the XDG config directory, and reloads the config
+  /// when a theme changes.
+  func startWatchingThemes(configPath: String) {
+    themeWatchers.forEach { $0.stop() }
+    let configDir = (configPath as NSString).deletingLastPathComponent
+    themeWatchers = userThemeDirectories(configDir: configDir).map { dir in
+      let watcher = YamlTreeWatcher(path: dir, retryInterval: Self.watchRetryInterval) {
+        [weak self] in self?.scheduleReload()
+      }
+      watcher.start()
+      return watcher
+    }
+  }
+
   private func cancelModuleFileWatchers() {
     for source in moduleFileSources {
       source.cancel()
@@ -1637,6 +1656,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
     if let configPath = configFilePath {
       startWatchingConfig(path: configPath)
+      startWatchingThemes(configPath: configPath)
     }
     if let dir = modulesDirPath {
       startWatchingModulesDir(path: dir)
@@ -1662,6 +1682,8 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     modulesDirSource?.cancel()
     modulesDirSource = nil
     cancelModuleFileWatchers()
+    themeWatchers.forEach { $0.stop() }
+    themeWatchers = []
   }
 
   func applicationWillTerminate(_ aNotification: Notification) {
