@@ -1,24 +1,22 @@
-import { useState, useEffect, useLayoutEffect, useCallback, useRef } from "react";
-import { latte, mocha, SPACES, WORKSPACE_COLORS } from "../lib/theme.js";
-import { Bar, MenuDivider, MenuPanel, Module as M, Shape, barColors } from "../../../components/Bar.jsx";
-import { I, ICON_SCALE } from "./Icons.jsx";
+// The landing page's desktop: kantan's bar as the engine draws it for the
+// example config, over a wallpaper with a terminal for each workspace.
+import { useLayoutEffect, useMemo, useRef, useState } from "react";
+import { BarView } from "../../../components/BarView.jsx";
+import { useBar } from "../../../components/useBar.js";
+import { iconTable } from "../../../engine/index.js";
+import barDocument from "../../../generated/landing-document.json";
+import iconGlyphs from "../../../generated/landing-icons.json";
 import { WorkspaceTerminals } from "./Terminal.jsx";
 
-function WiFi({ color, size = 15 }) {
-  const scale = ICON_SCALE["wifi"] || 1.0;
-  const s = Math.round(size * scale);
-  return (
-    <span style={{ position: "relative", display: "inline-flex", alignItems: "center", justifyContent: "center", width: s, height: s, flexShrink: 0 }}>
-      <span style={{ position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center" }}>
-        <I name="wifi" size={size} color={color} opacity={0.15} />
-      </span>
-      <I name="wifi" size={size} color={color} />
-    </span>
-  );
-}
+const icons = iconTable(iconGlyphs);
 
-// `children` replace the terminals on the desktop below the bar, and `clock`
-// stops the clock at a fixed time.
+// The example config without its theme, which kantan draws in the
+// system's own look.
+const nativeDocument = { ...barDocument, config: { ...barDocument.config, theme: undefined } };
+
+// The state each plugin's module starts in, where it isn't its first.
+const INITIAL_STATES = { caffeine: "Off" };
+
 // The mock's width on the landing page: 60% of the window, or the whole
 // column on narrow screens.
 export const MOCK_WIDTH = "max(60vw, min(100%, 640px))";
@@ -51,316 +49,46 @@ function useFitZoom(ref) {
   return zoom;
 }
 
-export default function KantanBarMock({ themed, dark, children, clock, desktopHeight = 200, maxWidth = MOCK_WIDTH }) {
-  const [drawerOpen, setDrawerOpen] = useState(false);
-  const [caffeineActive, setCaffeineActive] = useState(false);
-  const [remindersOpen, setRemindersOpen] = useState(false);
-  const [sysmonOpen, setSysmonOpen] = useState(false);
-  const [reminders, setReminders] = useState([
-    { id: 0, text: "Dentist", done: false },
-    { id: 1, text: "Haircut", done: false },
-    { id: 2, text: "Run 5k", done: false },
-  ]);
-  const pending = reminders.filter(r => !r.done);
-  const remindersRef = useRef(null);
-  const sysmonRef = useRef(null);
-  const [time, setTime] = useState(() => clock ?? fmt(new Date()));
-  const [date, setDate] = useState(() => fmtDate(new Date()));
+// The desktop, in the example config's theme when `themed` and the system's
+// look otherwise. `children` replace the terminals on the desktop below
+// the bar, and `time`, an ISO 8601 date, stops the clock at that moment.
+export default function KantanBarMock({ themed, dark, children, time, desktopHeight = 200, maxWidth = MOCK_WIDTH }) {
+  const samples = useMemo(
+    () => (time === undefined ? undefined : { clock: { time, timezone: "UTC", locale: "en_GB" } }),
+    [time]);
+  const { bar, run, toggleDrawer, switchWorkspace } = useBar(themed ? barDocument : nativeDocument, { dark, icons, samples, states: INITIAL_STATES });
 
-  function fmt(d) {
-    return `${String(d.getHours()).padStart(2,"0")}:${String(d.getMinutes()).padStart(2,"0")}`;
-  }
+  // The workspace the bar shows as active, for the terminals to follow.
+  const spaces = Object.values(bar.placements).flat().find(module => module.workspace)?.workspace.segments ?? [];
+  const activeSpace = Math.max(0, spaces.findIndex(segment => segment.active));
 
-  // The clock's `formats.date` ("E MMM do"), e.g. "Mon Nov 16th".
-  function fmtDate(d) {
-    const day = d.getDate();
-    const suffix = day % 100 >= 11 && day % 100 <= 13 ? "th"
-      : ({ 1: "st", 2: "nd", 3: "rd" })[day % 10] ?? "th";
-    const weekday = d.toLocaleDateString("en-GB", { weekday: "short" });
-    const month = d.toLocaleDateString("en-GB", { month: "short" });
-    return `${weekday} ${month} ${day}${suffix}`;
-  }
-
-  useEffect(() => {
-    const id = setInterval(() => {
-      const now = new Date();
-      if (!clock) setTime(fmt(now));
-      setDate(fmtDate(now));
-    }, 5000);
-    return () => clearInterval(id);
-  }, [clock]);
-
-  useEffect(() => {
-    if (!remindersOpen) return;
-    function handleClick(e) {
-      if (remindersRef.current && !remindersRef.current.contains(e.target)) {
-        setRemindersOpen(false);
-      }
-    }
-    document.addEventListener("mousedown", handleClick);
-    return () => document.removeEventListener("mousedown", handleClick);
-  }, [remindersOpen]);
-
-  useEffect(() => {
-    if (!sysmonOpen) return;
-    function handleClick(e) {
-      if (sysmonRef.current && !sysmonRef.current.contains(e.target)) {
-        setSysmonOpen(false);
-      }
-    }
-    document.addEventListener("mousedown", handleClick);
-    return () => document.removeEventListener("mousedown", handleClick);
-  }, [sysmonOpen]);
-
-  const isTheme = themed;
-  const isDark = dark;
-  const colors = barColors({ themed: isTheme, dark: isDark, p: isDark ? mocha : latte });
-  const { p, fg } = colors;
-
-  const c = useCallback((key) => isTheme ? p[key] : fg, [isTheme, p, fg]);
-
-  const wallpaper = isDark
+  const wallpaper = dark
     ? "radial-gradient(ellipse at 25% 25%, #1e3a5f 0%, #132740 35%, #162447 60%, #1a1a2e 100%)"
     : "linear-gradient(150deg, #91bdd6 0%, #6fa3c2 25%, #5d90ac 50%, #7fafc8 70%, #b0d4e6 100%)";
-
-  const [activeSpace, setActiveSpace] = useState(0);
 
   const frameRef = useRef(null);
   const zoom = useFitZoom(frameRef);
 
   return (
-    <>
-      {/* Desktop frame */}
-      <div ref={frameRef} style={{
-        // Grows to fit the bar, then shrinks as a whole when that's wider
-        // than the page.
-        width: "100%", maxWidth, minWidth: "max-content", borderRadius: 10, zoom,
-        boxShadow: dark
-          ? "0 16px 64px rgba(0,0,0,0.55), 0 2px 6px rgba(0,0,0,0.3)"
-          : "0 8px 40px rgba(0,0,0,0.12), 0 2px 6px rgba(0,0,0,0.06)",
-        position: "relative",
-        fontFamily: "'Helvetica Neue', Helvetica, sans-serif",
-      }}>
-        {/* Wallpaper */}
-        <div style={{ position: "absolute", inset: 0, background: wallpaper, zIndex: 0, borderRadius: 10, overflow: "hidden" }} />
+    <div ref={frameRef} style={{
+      // Grows to fit the bar, then shrinks as a whole when that's wider
+      // than the page.
+      width: "100%", maxWidth, minWidth: "max-content", borderRadius: 10, zoom,
+      boxShadow: dark
+        ? "0 16px 64px rgba(0,0,0,0.55), 0 2px 6px rgba(0,0,0,0.3)"
+        : "0 8px 40px rgba(0,0,0,0.12), 0 2px 6px rgba(0,0,0,0.06)",
+      position: "relative",
+    }}>
+      <div style={{ position: "absolute", inset: 0, background: wallpaper, zIndex: 0, borderRadius: 10, overflow: "hidden" }} />
 
-        {/* BAR */}
-        <Bar colors={colors} style={{ borderRadius: "10px 10px 0 0" }}>
+      {/* On the page a click on a workspace switches to it, standing in for
+          the window manager that does on a Mac. */}
+      <BarView bar={bar} dark={dark} run={run} toggleDrawer={toggleDrawer} switchWorkspace={switchWorkspace}
+        style={{ borderRadius: "10px 10px 0 0" }} />
 
-          {/* LEFT: Workspace dots */}
-          <M padOuter>
-            <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
-              {Array.from({ length: SPACES }).map((_, i) => {
-                const dotColor = isTheme ? p[WORKSPACE_COLORS[i % WORKSPACE_COLORS.length]] : fg;
-                return (
-                  <div key={i} onClick={() => setActiveSpace(i)}
-                    style={{ cursor: "pointer", display: "flex", alignItems: "center" }}>
-                    <I name="point-filled" size={13} color={dotColor}
-                      opacity={i === activeSpace ? 1 : 0.4} />
-                  </div>
-                );
-              })}
-            </div>
-          </M>
-
-          {/* Spacer */}
-          <div style={{ flex: 1 }} />
-
-          {/* RIGHT: Drawer content (animated) */}
-          <div style={{
-            display: "flex", alignItems: "center",
-            maxWidth: drawerOpen ? 500 : 0,
-            opacity: drawerOpen ? 1 : 0,
-            transition: "max-width 0.28s cubic-bezier(0.4,0,0.2,1), opacity 0.18s ease",
-            overflow: drawerOpen ? "visible" : "hidden",
-          }}>
-            {/* System Monitor */}
-            <div ref={sysmonRef} style={{ position: "relative" }}>
-              <M onClick={() => { setSysmonOpen(o => !o); setRemindersOpen(false); }}
-                tip={!sysmonOpen ? "CPU 29% \u00b7 Mem 58% \u00b7 Temp 46\u00b0C" : undefined}>
-                <I name="activity" size={14} color={c("fg")} />
-                <span style={{ color: c("fg") }}>29%</span>
-              </M>
-
-              {sysmonOpen && (
-                <MenuPanel themed={isTheme} dark={isDark} fg={fg} width={300}>
-                  <div style={{ padding: "4px 16px 2px", fontWeight: 600, fontSize: 13 }}>
-                    Overview
-                  </div>
-
-                  {[
-                    { icon: "cpu", label: "CPU", value: "29%" },
-                    { icon: "script", label: "Memory", value: "13.4/24 GB" },
-                    { icon: "device-floppy", label: "Disk", value: "379/460 GB" },
-                    { icon: "thermometer", label: "Thermal", value: "Nominal" },
-                    { icon: "clock", label: "Uptime", value: "1d 0h" },
-                    { icon: "graph", label: "Load", value: "2.45 2.49 2.53" },
-                  ].map(({ icon, label, value }) => (
-                    <div key={label} style={{
-                      display: "flex", alignItems: "center",
-                      minHeight: 22, padding: "2px 16px",
-                    }}>
-                      <I name={icon} size={13} color={fg} style={{ marginRight: 4 }} />
-                      <span>{label}</span>
-                      <span style={{ flex: 1, minWidth: 16 }} />
-                      <span style={{ opacity: 0.5 }}>{value}</span>
-                    </div>
-                  ))}
-
-                  <MenuDivider dark={isDark} />
-
-                  <div style={{ padding: "4px 16px 2px", fontWeight: 600, fontSize: 13 }}>
-                    Top Processes
-                  </div>
-
-                  {[
-                    ["WindowServer", "44.2%"],
-                    ["Emacs", "16.0%"],
-                    ["Finder", "13.2%"],
-                    ["Arc", "11.7%"],
-                    ["tccd", "11.0%"],
-                  ].map(([name, pct]) => (
-                    <div key={name} style={{
-                      display: "flex", alignItems: "center",
-                      minHeight: 22, padding: "2px 16px",
-                    }}>
-                      <span>{name}</span>
-                      <span style={{ flex: 1, minWidth: 16 }} />
-                      <span style={{ opacity: 0.5 }}>{pct}</span>
-                    </div>
-                  ))}
-
-                  <MenuDivider dark={isDark} />
-
-                  <div style={{
-                    display: "flex", alignItems: "center",
-                    minHeight: 22, padding: "2px 16px", cursor: "default",
-                  }}>
-                    <I name="dashboard" size={13} color={fg} style={{ marginRight: 4 }} />
-                    <span>Activity Monitor</span>
-                  </div>
-                </MenuPanel>
-              )}
-            </div>
-
-            {/* Reminders, hidden like the plugin once nothing is incomplete */}
-            {pending.length > 0 && (
-            <div ref={remindersRef} style={{ position: "relative", margin: "0 10px", flexShrink: 0 }}>
-              <Shape
-                onClick={() => { setRemindersOpen(o => !o); setSysmonOpen(false); }}
-                background={isTheme ? p.shape : isDark ? "rgba(255,255,255,0.1)" : "rgba(0,0,0,0.06)"}
-                style={{ cursor: "pointer" }}
-              >
-                <I name="bell-filled" size={14} color={c("maroon")} />
-                <span style={{ color: fg, whiteSpace: "nowrap" }}>{pending[0].text}</span>
-              </Shape>
-
-              {remindersOpen && (
-                <MenuPanel themed={isTheme} dark={isDark} fg={fg} width={280}>
-                  {pending.map(r => (
-                    <div
-                      key={r.id}
-                      onClick={() => setReminders(rs => rs.map(x => x.id === r.id ? { ...x, done: !x.done } : x))}
-                      style={{
-                        display: "flex", alignItems: "center", gap: 8,
-                        minHeight: 26, padding: "3px 12px", cursor: "default",
-                        borderRadius: 5, margin: "1px 5px",
-                      }}
-                    >
-                      <svg viewBox="0 0 20 20" width={15} height={15} style={{ flexShrink: 0 }}>
-                        <circle cx="10" cy="10" r="7.5" fill="none" stroke="currentColor" strokeWidth="1.4" />
-                      </svg>
-                      <span>{r.text}</span>
-                    </div>
-                  ))}
-                  {reminders.filter(r => r.done).map(r => (
-                    <div
-                      key={r.id}
-                      onClick={() => setReminders(rs => rs.map(x => x.id === r.id ? { ...x, done: !x.done } : x))}
-                      style={{
-                        display: "flex", alignItems: "center", gap: 8,
-                        minHeight: 26, padding: "3px 12px", cursor: "default",
-                        opacity: 0.4, borderRadius: 5, margin: "1px 5px",
-                      }}
-                    >
-                      <svg viewBox="0 0 20 20" width={15} height={15} style={{ flexShrink: 0 }}>
-                        <circle cx="10" cy="10" r="7.5" fill="currentColor" opacity="0.2" />
-                        <circle cx="10" cy="10" r="7.5" fill="none" stroke="currentColor" strokeWidth="1.4" />
-                        <path d="M6.5 10.5l2 2l5 -5" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
-                      </svg>
-                      <span style={{ textDecoration: "line-through" }}>{r.text}</span>
-                    </div>
-                  ))}
-                  <MenuDivider dark={isDark} />
-                  <div
-                    style={{
-                      display: "flex", alignItems: "center", gap: 6,
-                      minHeight: 26, padding: "3px 12px", cursor: "default",
-                      borderRadius: 5, margin: "1px 5px",
-                    }}
-                  >
-                    <I name="list-check" size={14} color="currentColor" />
-                    <span>Reminders</span>
-                  </div>
-                </MenuPanel>
-              )}
-            </div>
-            )}
-          </div>
-
-          {/* Drawer toggle */}
-          <M onClick={() => { setDrawerOpen(d => !d); setRemindersOpen(false); setSysmonOpen(false); }}
-            tip={drawerOpen ? "Collapse drawer" : "Expand drawer"}>
-            <I name={drawerOpen ? "box-align-left" : "box-align-right"}
-              size={14} color={c("overlay0")} />
-          </M>
-
-          {/* Always visible */}
-
-          <M tip={caffeineActive ? "Caffeine: On" : "Caffeine: Off"}
-            onClick={() => setCaffeineActive(a => !a)}
-            style={{ opacity: caffeineActive ? 1 : 0.4 }}>
-            <I name="mug-filled" size={14} color={c("rosewater")} />
-          </M>
-
-          <M tip="Mindfulness">
-            <I name="brain" size={14} color={c("pink")} />
-          </M>
-
-          <M tip="Connected">
-            <I name="bluetooth" size={14} color={c("blue")} />
-          </M>
-
-          <M tip="64%">
-            <I name="volume" size={14} color={c("lavender")} />
-          </M>
-
-          <M tip="Connected">
-            <WiFi color={c("sky")} />
-          </M>
-
-          <M tip="78%, Discharging">
-            <I name="battery-3-filled" size={14} color={c("subtext1")} />
-          </M>
-
-          <M tip="Control Centre">
-            <I name="adjustments-horizontal-filled" size={14} color={c("mauve")} />
-          </M>
-
-          <M tip={date}>
-            <span style={{
-              color: c("flamingo"),
-              fontVariantNumeric: "tabular-nums",
-              fontWeight: 400,
-            }}>{time}</span>
-          </M>
-        </Bar>
-
-        {/* Desktop peek */}
-        <div style={{ height: desktopHeight, position: "relative", zIndex: 0, borderRadius: "0 0 10px 10px", overflow: "hidden", background: wallpaper }}>
-          {children ?? <WorkspaceTerminals dark={dark} themed={isTheme} activeSpace={activeSpace} />}
-        </div>
+      <div style={{ height: desktopHeight, position: "relative", zIndex: 0, borderRadius: "0 0 10px 10px", overflow: "hidden", background: wallpaper }}>
+        {children ?? <WorkspaceTerminals dark={dark} themed={themed} activeSpace={activeSpace} />}
       </div>
-    </>
+    </div>
   );
 }

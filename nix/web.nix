@@ -59,15 +59,23 @@ in
   '';
 
   # The `entries`, paths within web/, each bundled with React into a
-  # minified script named after it. YAML files import as text.
+  # minified script named after it. YAML files import as text. `generated`
+  # are files built elsewhere, by the name the sources import each under
+  # from web/generated.
   bundle =
-    { name, entries }:
+    {
+      name,
+      entries,
+      generated ? { },
+    }:
     pkgs.stdenvNoCC.mkDerivation {
       name = "kantan-web-${name}";
       inherit src;
       nativeBuildInputs = [ pkgs.esbuild ];
       buildPhase = ''
         cp -r ${nodeModules} node_modules
+        mkdir generated
+        ${lib.concatStrings (lib.mapAttrsToList (file: path: "cp ${path} generated/${file}\n") generated)}
         esbuild ${lib.escapeShellArgs entries} --bundle --minify --format=iife --jsx=automatic \
           --define:process.env.NODE_ENV='"production"' \
           --loader:.yaml=text \

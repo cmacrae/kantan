@@ -41,6 +41,7 @@
         inherit
           pkgs
           web
+          previews
           docs
           buildSwiftPackage
           siteUrl

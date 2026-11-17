@@ -1,0 +1,25 @@
+{
+  "spaces": [
+    {
+      "name": "Six",
+      "output": {
+        "workspaces": [{ "active": true }, {}, {}, {}, {}, {}]
+      }
+    }
+  ],
+  "focus": [
+    {
+      "name": "Mindfulness",
+      "output": { "active": true, "mode": { "identifier": "com.apple.focus.mindfulness", "name": "Mindfulness" } }
+    }
+  ],
+  "bluetooth": [
+    {
+      "name": "Connected",
+      "output": { "on": true, "devices": [{ "name": "AirPods Pro", "connected": true }] }
+    }
+  ],
+  "volume": [{ "name": "64%", "output": { "volume": 0.64, "device": "MacBook Pro Speakers" } }],
+  "wifi": [{ "name": "Fair signal", "output": { "connected": true, "rssi": -62 } }],
+  "power": [{ "name": "Discharging", "output": { "level": 78 } }]
+}

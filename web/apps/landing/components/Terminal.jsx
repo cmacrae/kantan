@@ -35,7 +35,7 @@ const WORKSPACE_SCRIPTS = [
     ), speed: 60 },
   ],
   /* 2 */ [
-    { action: "type", tokens: tokenize("Try clicking the ", IC("box-align-right", "overlay0"), " icon to expand the drawer..."), speed: 50 },
+    { action: "type", tokens: tokenize("Try clicking the ", IC("box-align-right", "fg"), " icon to expand the drawer..."), speed: 50 },
   ],
   /* 3 */ [
       { action: "type", tokens: tokenize("What's in the Reminders list? ", IC("bell-filled", "maroon")), speed: 50 },

@@ -1,6 +1,7 @@
 {
   pkgs,
   web,
+  previews,
   docs,
   version,
   buildSwiftPackage,
@@ -54,6 +55,19 @@ let
         EOF
       '';
 
+  # The landing page's bar: the example config it shows, with the states
+  # of its plugins from their own generators.
+  landingBar = previews.bar {
+    name = "landing";
+    config = ../web/apps/landing/content/config-example.yaml;
+    states = ../web/apps/landing/content/states.json;
+    plugins = {
+      system-monitor = "system-monitor";
+      reminders = "reminders";
+      caffeine = "caffeine";
+    };
+  };
+
   # The landing page and the preview page, with their scripts and fonts.
   pages = pkgs.runCommand "kantan-site-pages-${version}" { } ''
     mkdir -p $out/fonts
@@ -64,9 +78,14 @@ let
           "apps/landing/main.jsx"
           "apps/landing/preview.jsx"
         ];
+        generated = {
+          "landing-document.json" = "${landingBar.document}/document.json";
+          "landing-icons.json" = "${landingBar.icons}/icons.json";
+        };
       }
     }/* $out/
     cp ${fonts}/* $out/fonts/
+    cp ${landingBar.icons}/icons.css $out/fonts/icons.css
   '';
 
   # Assembles the site in a directory from the landing page and the docs of

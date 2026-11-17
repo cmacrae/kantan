@@ -29,7 +29,7 @@ function Preview() {
       background: fill ? page.bg : "transparent",
     }}>
       <div style={{ width: num("width", 880), zoom: num("zoom", 1) }}>
-        <KantanBarMock themed dark={dark} clock="09:41"
+        <KantanBarMock themed dark={dark} time="2026-11-16T09:41:00Z"
           desktopHeight={num("desktop", 260)} maxWidth="none">
           <div style={{
             height: "100%", display: "flex", flexDirection: "column",

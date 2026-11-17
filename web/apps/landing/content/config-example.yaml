@@ -27,6 +27,12 @@ modules:
     config:
       command: kantan-plugin-system-monitor
       output: json
+    interaction:
+      hover:
+        type: tooltip
+        content: "CPU {cpu} | Mem {mem} | {thermal}"
+      click:
+        type: menu
 
   - name: reminders
     type: command
@@ -41,10 +47,19 @@ modules:
       output: json
       watch: kantan-plugin-reminders --watch
       interval: 0
+      settings:
+        lists:
+          - name: Reminders
+            completedRetention: 1h
+    interaction:
+      click:
+        type: menu
 
   - name: drawer
     type: drawer
     placement: right
+    style:
+      fg: "{theme(overlay0)}"
 
   # Always visible
   - name: caffeine
