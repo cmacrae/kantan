@@ -48,17 +48,44 @@ The landing page draws the config it shows, `apps/landing/content/config-example
 
 The bar has two ways of answering the pointer. While customising, a click on a module drops its quick settings and a drag moves it. While trying it out, the bar behaves as it does in kantan. Modules set over the menu bar can't be moved, because macOS decides where its own items sit.
 
-- **Settings** are forms made from `docs/schemas/module-config.schema.json`, so a key the schema gains appears in the builder. Any module can also be edited as YAML.
-- **Preview data** is the module's states. A built-in module's state is a sample of the system, set with controls for its type. A command module's is the output its command printed, edited as text, with the state each of its commands leads to.
+- **A module's design** is one form, in the order someone thinks about it: what it shows, how it looks, what a hover and a click do, and where it sits. Its sections are Content, Style, On hover, On click, and Name and placement. The settings few people change are folded under Advanced. The quick settings that drop from a module on the bar are the first two sections of the same form.
+- **Labels** are kantan's keys as words. `builder/labels.js` holds the few that differ, which show the key beside them, and says which keys are folded away. The fields themselves are made from `docs/schemas/module-config.schema.json`. A key the schema gains appears in the builder under its own name. Any module can also be edited as YAML.
+- **States** are what a module is previewed with. Wherever they appear they sit in a tinted box, apart from the config. A built-in module's state is a sample of the system, set with controls for its type. A command module's is the output its command printed: its value, variables and lists as fields (`builder/values.js`), or the whole of it as text, with the state each of its commands leads to.
 - **The example bar** it opens with is the landing page's, in the states shown there.
-- **What can be added** is each module type (`builder/catalog.js`), each bundled plugin, and a plugin of someone's own from output they paste. `nix/previews.nix` builds the catalogue of bundled plugins from their preview generators, and every Tabler icon with its scale.
+- **What can be added** is each module type (`builder/catalog.js`), each bundled plugin, a plugin someone is about to write, a plugin of someone's own from output they paste, and a module someone shared by link. Each type and plugin is drawn as the bar would draw it. A plugin about to be written opens in the view builder, on the popup it will print. `nix/previews.nix` builds the catalogue of bundled plugins from their preview generators, and every Tabler icon with its scale.
 - **The YAML** is written by `builder/files.js` in either layout: one `config.yaml`, or a file for each module in `modules.d`. The builder itself works on a document with every module in `config.yaml`, in the order drawn.
 
-A bundled plugin's states are what its generator prints for its example settings. Changing the settings in the builder changes the YAML but not the states.
+### Plugin settings
+
+Each bundled plugin describes its settings in `packages/plugins/<name>/settings.schema.json`, written as the module config schema is. It names that schema's `Color`, `Icon` and `StateStyle` definitions as `module-config.schema.json#/$defs/<name>`. The build copies those definitions in, so the schema the catalogue holds stands alone. The builder makes the plugin's settings form from it.
+
+A plugin's preview follows the colours and icons in its settings. A plugin prints a colour or an icon as it was given it. The build runs each generator on settings whose colours and icons are their own names, such as `{setting(style.cpu_low)}`. The catalogue holds the states that come out. `builder/settings.js` names the settings and binds the names: to what a module's settings hold, to the schema's default, or to nothing, which leaves the key out as the plugin would. The builder binds a document's states before the engine draws them (`boundDocument` in `builder/edit.js`). The docs' previews and the landing page's bar are bound when they are assembled. The engine never sees a name.
+
+The build also runs each generator on the settings as written. It fails when the bound states differ from those: for a plugin that changes a colour on its way through, or a schema whose default isn't the plugin's. A setting written one of several ways is named as written, and as the first of its alternatives when unset. The other settings change the YAML but not the states.
+
+### Views
+
+A fourth thing the editor can be on is one of a module's views: the menu or popup its click opens, its tooltip, or the view its command prints with a state. `apps/builder/ViewEditor.jsx` builds it in a dialog over the page, split in two with a divider that drags.
+
+On the left the module sits alone on a tall desktop, with the view held open under it (`pinned` on `BarView`). The engine gives each node and menu row it resolves a `source`: the path of the node it came from. The components write it to the page as `data-kantan-node`. A click on something drawn picks its node. The node picked is outlined wherever it is drawn.
+
+The module's form decides what is built: On hover opens a tooltip, and On click a menu or a popup. A view with nothing in it starts from a starting point, each drawn as it would look. Trigger switches between the click and the hover. Style switches a click between Native (`type: menu`) and Themed (`type: popup`). The starting points are the ones that style suits. A hover starts as the tooltip's line of text, with a layout as the other choice. A starting point shows a value the module has. One that repeats over a list comes with an example list (`startView` in `builder/view.js`).
+
+On the right, Design lists the view's nodes as written, under plain names, and edits the one picked in a form made from `docs/schemas/plugin-output.schema.json`. A node that came to nothing is marked: one a menu has no row for, a branch not taken, a repeat over nothing. `builder/view.js` holds the edits: nodes found by their path, added, moved, wrapped and removed.
+
+Nothing new is kept in the document. A view kantan builds from the config is the module's `interaction.click.view` or `interaction.hover.view`. A view a plugin prints is the `view` in a state's output. A view starts in the config. Data source moves a click's view between the two. A bundled plugin's view opens under one button, Copy to config. That copies the view to the config with the module's settings filled in. The plugin goes on printing its own, and kantan shows the config's in its place. The dialog warns when the plugin's view differs between states (`viewVaries`): the copy keeps one shape.
+
+Design also lists the values a view can show. They are the drawn module's (`placeholders` on a module the engine resolved). A command's are fields to change and add to, with a table for each list. A command that gains a value or a list prints JSON from then on: its config says `output: json`. The view follows a list or a field to its new name. The States tab holds the rest of what the preview is drawn with.
+
+Code hands over what to save. For a view in the config that is the module's YAML, and for a command of someone's own the JSON it prints for the view's values. For a view a plugin prints it is the JSON the plugin prints, the module that runs it, and a shell script that prints exactly that JSON to start a plugin from.
+
+### Sharing a module
+
+A module can be shared on its own: `/builder/#m1.<data>`, packed as a bar's link is. It holds the module's config and the states it shows. Opened, it is added to the example bar and picked. Pasted into Add a module, it is added to the bar that is open. A module of a bundled plugin leaves its untouched states to the site, as a bar's link does. A module running a command of someone's own carries its states as preview data. The dialog says the command itself isn't in the link.
 
 ### Themes
 
-The builder's editor is on one thing at a time: the bar's settings, a module, or a theme. Bar Settings lists the themes. One of kantan's can be copied, a new one started, or a theme file pasted in.
+The builder's editor is on one thing at a time: the bar's settings, a module, a theme, or one of a module's views. Bar Settings lists the themes. One of kantan's can be copied, a new one started, or a theme file pasted in.
 
 A theme being edited is a theme file in the document's `themes`, exactly as kantan would read it from `themes/<name>.yaml`. `builder/theme.js` holds its edits: the three kinds of file, colours added, renamed and removed in every palette at once, and flavours. While a theme is edited the bar is drawn in the palette being edited, whatever the config selects.
 
