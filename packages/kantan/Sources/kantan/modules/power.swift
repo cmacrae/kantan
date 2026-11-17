@@ -150,17 +150,25 @@ final class PowerConfig: ModuleConfiguration, EventDrivenModule {
   // MARK: - ModuleConfiguration
 
   func getValue(completion: @escaping @Sendable (String) -> Void) {
-    let status = cache.get()
-    guard status.isAvailable else {
-      completion("")
-      return
-    }
-    completion(showLevel ? "\(status.level)%" : "")
+    completion(value(for: cache.get()))
   }
 
   func getIcon() -> String {
     cache.set(Self.readBatteryStatus())
-    let status = cache.get()
+    return icon(for: cache.get())
+  }
+
+  func getDynamicStyle() -> DynamicStyleOverride? {
+    dynamicStyle(for: cache.get())
+  }
+
+  /// The level as a percentage when `showLevel` is set and there is a battery.
+  func value(for status: BatteryStatus) -> String {
+    status.isAvailable && showLevel ? "\(status.level)%" : ""
+  }
+
+  /// The icon for `status`: charging, plugged in, or its level.
+  func icon(for status: BatteryStatus) -> String {
     guard status.isAvailable else {
       return levelIcons.first ?? ""
     }
@@ -173,10 +181,10 @@ final class PowerConfig: ModuleConfiguration, EventDrivenModule {
     return iconForLevel(status.level, icons: levelIcons)
   }
 
-  func getDynamicStyle() -> DynamicStyleOverride? {
-    let status = cache.get()
+  /// The style configured for the first state `status` is in: charging,
+  /// plugged in, Low Power Mode, then a low level.
+  func dynamicStyle(for status: BatteryStatus) -> DynamicStyleOverride? {
     guard status.isAvailable else { return nil }
-    // Priority: charging > plugged > lowPower > low
     if status.isCharging, let style = chargingStyle {
       return style.toDynamicStyle()
     }

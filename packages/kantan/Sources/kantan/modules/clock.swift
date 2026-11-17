@@ -52,8 +52,11 @@ struct ClockConfig: ModuleConfiguration {
 
   /// `date` in `format`, a DateFormatter pattern in which `do` is the day of
   /// the month with its English ordinal suffix (`1st`, `2nd`, `16th`).
-  static func string(from date: Date, format: String, timezone: String?) -> String {
-    let formatter = cachedFormatter(format: format, timezone: timezone)
+  /// Names are written in `locale`, or the system's when it is nil.
+  static func string(
+    from date: Date, format: String, timezone: String?, locale: Locale? = nil
+  ) -> String {
+    let formatter = cachedFormatter(format: format, timezone: timezone, locale: locale)
     let text = formatter.string(from: date)
     guard text.contains(ordinalMarker) else { return text }
     let day = formatter.calendar.dateComponents(in: formatter.timeZone, from: date).day ?? 0
@@ -107,12 +110,15 @@ struct ClockConfig: ModuleConfiguration {
     return result
   }
 
-  private static func cachedFormatter(format: String, timezone: String?) -> DateFormatter {
-    let key = "\(format)|\(timezone ?? "system")"
+  private static func cachedFormatter(format: String, timezone: String?, locale: Locale?)
+    -> DateFormatter
+  {
+    let key = "\(format)|\(timezone ?? "system")|\(locale?.identifier ?? "system")"
     _lock.lock()
     defer { _lock.unlock() }
     if let formatter = _formatters[key] { return formatter }
     let formatter = DateFormatter()
+    if let locale { formatter.locale = locale }
     formatter.dateFormat = dateFormatterPattern(for: format)
     if let timeZone = timezone.flatMap(TimeZone.init(identifier:)) {
       formatter.timeZone = timeZone

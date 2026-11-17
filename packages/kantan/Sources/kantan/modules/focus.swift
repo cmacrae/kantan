@@ -106,15 +106,30 @@ final class FocusConfig: ModuleConfiguration, @unchecked Sendable {
   /// update). An empty result falls back to the module-level `icon`.
   func getIcon() -> String {
     refreshCache()
-    return Self.entry(for: cache.get().mode, in: icons) ?? ""
+    return icon(for: cache.get())
   }
 
   func getDynamicStyle() -> DynamicStyleOverride? {
-    Self.entry(for: cache.get().mode, in: styles)?.toDynamicStyle()
+    dynamicStyle(for: cache.get())
   }
 
   func getTemplateVariables() -> [String: String] {
-    ["mode": cache.get().mode?.name ?? ""]
+    Self.templateVariables(for: cache.get())
+  }
+
+  /// The icon configured for `status`'s mode, or "" for the module's own.
+  func icon(for status: FocusStatus) -> String {
+    Self.entry(for: status.mode, in: icons) ?? ""
+  }
+
+  /// The style configured for `status`'s mode.
+  func dynamicStyle(for status: FocusStatus) -> DynamicStyleOverride? {
+    Self.entry(for: status.mode, in: styles)?.toDynamicStyle()
+  }
+
+  /// `{mode}` names the active mode, and is empty when it isn't known.
+  static func templateVariables(for status: FocusStatus) -> [String: String] {
+    ["mode": status.mode?.name ?? ""]
   }
 
   // MARK: - Focus Indicator Detection

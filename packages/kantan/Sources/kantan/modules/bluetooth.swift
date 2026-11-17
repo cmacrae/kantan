@@ -64,8 +64,8 @@ final class BluetoothConfig: NSObject, ModuleConfiguration, EventDrivenModule,
   private let _notificationsLock = NSLock()
   private let readStatus: @Sendable () -> BluetoothStatus
   private let readQueue = DispatchQueue(label: "kantan.bluetooth.status")
-  private let cache = CachedStatus<(connected: [String], total: Int)>(
-    fallback: (connected: [], total: 0))
+  private let cache = CachedStatus<BluetoothStatus>(
+    fallback: BluetoothStatus(isPoweredOn: true, pairedDevices: []))
 
   init(
     icon: String, disabledIcon: String,
@@ -172,12 +172,7 @@ final class BluetoothConfig: NSObject, ModuleConfiguration, EventDrivenModule,
   func refresh(then: @escaping @Sendable () -> Void) {
     readQueue.async { [weak self] in
       guard let self else { return }
-      let status = self.readStatus()
-      self.cache.set(
-        (
-          connected: status.connectedDevices.map { $0.name },
-          total: status.isPoweredOn ? status.pairedDevices.count : -1
-        ))
+      self.cache.set(self.readStatus())
       DispatchQueue.main.async(execute: then)
     }
   }
@@ -238,23 +233,34 @@ final class BluetoothConfig: NSObject, ModuleConfiguration, EventDrivenModule,
   }
 
   func getIcon() -> String {
-    cache.get().total < 0 ? disabledIcon : icon
+    icon(for: cache.get())
   }
 
-  /// Returns false when Bluetooth is on but no devices are connected,
-  /// causing drawModule() to dim the icon (like inactive workspace indicators).
   func isActive() -> Bool {
-    let cached = cache.get()
-    if cached.total < 0 { return false }
-    return !cached.connected.isEmpty
+    Self.isActive(for: cache.get())
+  }
+
+  func getTemplateVariables() -> [String: String] {
+    Self.templateVariables(for: cache.get())
+  }
+
+  /// The disabled icon while Bluetooth is off, the module's icon otherwise.
+  func icon(for status: BluetoothStatus) -> String {
+    status.isPoweredOn ? icon : disabledIcon
+  }
+
+  /// Whether a device is connected. Without one, or with Bluetooth off, the
+  /// icon is dimmed.
+  static func isActive(for status: BluetoothStatus) -> Bool {
+    status.isPoweredOn && !status.connectedDevices.isEmpty
   }
 
   /// `{state}` is `Off`, `On` or `Connected`; `{devices}` lists the
   /// connected devices' names.
-  func getTemplateVariables() -> [String: String] {
-    let cached = cache.get()
-    let state = cached.total < 0 ? "Off" : cached.connected.isEmpty ? "On" : "Connected"
-    return ["state": state, "devices": cached.connected.joined(separator: ", ")]
+  static func templateVariables(for status: BluetoothStatus) -> [String: String] {
+    let connected = status.isPoweredOn ? status.connectedDevices.map(\.name) : []
+    let state = !status.isPoweredOn ? "Off" : connected.isEmpty ? "On" : "Connected"
+    return ["state": state, "devices": connected.joined(separator: ", ")]
   }
 
   // MARK: - IOBluetooth
