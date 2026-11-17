@@ -1,11 +1,18 @@
-# Cuts the Tabler icon fonts down to the icons the plugin previews draw, as
-# kantan resolves them: "bell" is the outline font's glyph named "bell", and
-# "bell-filled" the filled font's. Writes icons.css, with each font inlined,
-# and icons.json, mapping each icon to its font, character and the scale
-# kantan draws it at, so its height fills 85% of the em, at most 1.6 times
-# its size. Fails on an icon neither font has.
+# Prepares the Tabler icon fonts for the web, with icons named as kantan
+# resolves them: "bell" is the outline font's glyph named "bell", and
+# "bell-filled" the filled font's.
+#
+# Given icons, cuts the fonts down to them. Writes icons.css, with each
+# font inlined, and icons.json, mapping each icon to its font, character
+# and the scale kantan draws it at, so its height fills 85% of the em, at
+# most 1.6 times its size. Fails on an icon neither font has.
+#
+# Given --all, keeps every icon. Writes each font as a file beside
+# icons.css, and icons.json mapping each font to its icons, each icon to
+# its character's code and its scale.
 #
 # usage: preview-icons.py <outline.ttf> <filled.ttf> <out> <icon>...
+#        preview-icons.py <outline.ttf> <filled.ttf> <out> --all
 import base64
 import io
 import json
@@ -33,6 +40,14 @@ def scale(font, glyph):
     ratio = font["head"].unitsPerEm * TARGET_RATIO / height
     return round(min(ratio, MAX_SCALE), 4) if ratio > 1 else 1.0
 
+
+everything = names == ["--all"]
+if everything:
+    names = [
+        glyph + ("-filled" if kind == "filled" else "")
+        for kind, font in fonts.items()
+        for glyph in set(font.getBestCmap().values())
+    ]
 
 icons, wanted, missing = {}, {kind: set() for kind in fonts}, []
 for name in sorted(set(names)):
@@ -73,13 +88,24 @@ for kind, path in paths.items():
     data = io.BytesIO()
     font.flavor = "woff2"
     font.save(data)
-    encoded = base64.b64encode(data.getvalue()).decode()
+    if everything:
+        with open(f"{out}/{FAMILIES[kind]}.woff2", "wb") as f:
+            f.write(data.getvalue())
+        source = f"{FAMILIES[kind]}.woff2"
+    else:
+        source = "data:font/woff2;base64," + base64.b64encode(data.getvalue()).decode()
     css.append(
         f'@font-face{{font-family:"{FAMILIES[kind]}";'
-        f'src:url(data:font/woff2;base64,{encoded}) format("woff2");}}'
+        f'src:url({source}) format("woff2");}}'
     )
 
 with open(f"{out}/icons.css", "w") as f:
     f.write("\n".join(css) + "\n")
 with open(f"{out}/icons.json", "w") as f:
-    json.dump(icons, f, indent=2, ensure_ascii=False)
+    if everything:
+        by_font = {family: {} for family in FAMILIES.values()}
+        for name, icon in icons.items():
+            by_font[icon["font"]][name] = [ord(icon["char"]), icon["scale"]]
+        json.dump(by_font, f, separators=(",", ":"))
+    else:
+        json.dump(icons, f, indent=2, ensure_ascii=False)

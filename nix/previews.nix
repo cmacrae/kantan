@@ -101,11 +101,11 @@ let
     cp ${../web/package.json} $out/package.json
   '';
 
-  # The Tabler fonts cut down to the icons a file lists, one to a line:
-  # icons.css holding the fonts, and icons.json mapping each icon to its
-  # glyph.
-  iconsFor =
-    name: list:
+  # The Tabler fonts prepared for the web: icons.css holding the fonts or
+  # naming their files, and icons.json mapping each icon to its glyph.
+  # `icons` are arguments naming the icons to keep.
+  iconFonts =
+    name: icons:
     pkgs.runCommand "kantan-${name}-icons"
       {
         nativeBuildInputs = [
@@ -121,8 +121,11 @@ let
         python3 ${./preview-icons.py} \
           ${tabler-icons}/share/fonts/tabler-icons.ttf \
           ${tabler-icons}/share/fonts/tabler-icons-filled.ttf \
-          $out $(cat ${list})
+          $out ${icons}
       '';
+
+  # The fonts cut down to the icons a file lists, one to a line.
+  iconsFor = name: list: iconFonts name "$(cat ${list})";
 
   # Each plugin's preview as a document, <name>.json, drawn in the
   # Catppuccin theme, with the icons they draw listed in icons.txt.
@@ -145,6 +148,21 @@ let
       '';
 
   icons = iconsFor "preview" "${documents}/icons.txt";
+
+  # Every Tabler icon, for a page where any may be picked.
+  allIcons = iconFonts "all" "--all";
+
+  # What the builder offers: each bundled plugin's example module with the
+  # states its generator printed, and the bundled themes.
+  catalog = pkgs.runCommand "kantan-preview-catalog.json" { nativeBuildInputs = [ pkgs.jq ]; } ''
+    jq -n --slurpfile themes ${themes} '
+      { themes: $themes[0],
+        plugins: (reduce inputs as $preview ({};
+          ($preview.modulesDir | to_entries[0].value) as $module
+          | .[input_filename | split("/")[-1] | rtrimstr(".json")] =
+              { module: $module, states: $preview.states[$module.name] })) }
+    ' ${lib.concatMapStringsSep " " (name: "${documents}/${name}.json") plugins.pluginNames} > $out
+  '';
 
   # A whole bar's preview: `config` is its config.yaml, `states` a JSON
   # file of what its built-in modules read, and `plugins` names the plugin
@@ -185,7 +203,13 @@ let
     };
 in
 {
-  inherit documents icons bar;
+  inherit
+    documents
+    icons
+    bar
+    allIcons
+    catalog
+    ;
 
   # Every state of every preview holds output the plugin output schema
   # accepts.
