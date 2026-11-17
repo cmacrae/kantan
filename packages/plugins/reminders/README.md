@@ -3,6 +3,10 @@
 A native Apple Reminders plugin for [kantan](https://github.com/cmacrae/kantan) that tracks reminders in real time using EventKit,
 with complete/uncomplete support directly from the bar menu.
 
+<!-- github-only -->
+This page is also in the [kantan docs](https://kantan.bar/docs/plugins/reminders.html).
+<!-- /github-only -->
+
 ## Installation
 
 This plugin is bundled with kantan and requires no separate installation. It is included in both the [Nix flake](https://github.com/cmacrae/kantan) default package and the Homebrew `kantan` formula. The `kantan-without-plugins` variant (available via both Nix and Homebrew) does not include this plugin.

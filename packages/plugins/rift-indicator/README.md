@@ -2,6 +2,10 @@
 
 A layout indicator for the [Rift](https://github.com/acsandmann/rift) window manager, for [kantan](https://github.com/cmacrae/kantan). Shows a single icon for the layout mode of the active workspace, with an icon and style per layout. It is meant to sit over Rift's own menu bar icon, with clicks passed through to Rift's menu.
 
+<!-- github-only -->
+This page is also in the [kantan docs](https://kantan.bar/docs/plugins/rift-indicator.html).
+<!-- /github-only -->
+
 ## Installation
 
 This plugin is bundled with kantan and requires no separate installation. It is included in both the [Nix flake](https://github.com/cmacrae/kantan) default package and the Homebrew `kantan` formula. The `kantan-without-plugins` variant (available via both Nix and Homebrew) does not include this plugin.

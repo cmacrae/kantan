@@ -2,6 +2,10 @@
 
 A [Tailscale](https://tailscale.com/) connection indicator for [kantan](https://github.com/cmacrae/kantan). Shows a single icon that reflects whether the machine is connected to your tailnet, with an optional dimmed style when disconnected and a hover tooltip carrying the tailnet name.
 
+<!-- github-only -->
+This page is also in the [kantan docs](https://kantan.bar/docs/plugins/tailscale.html).
+<!-- /github-only -->
+
 ## Installation
 
 This plugin is bundled with kantan and requires no separate installation. It is included in both the [Nix flake](https://github.com/cmacrae/kantan) default package and the Homebrew `kantan` formula. The `kantan-without-plugins` variant (available via both Nix and Homebrew) does not include this plugin.

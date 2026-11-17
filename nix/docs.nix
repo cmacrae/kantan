@@ -5,20 +5,42 @@
   siteUrl,
 }:
 let
+  inherit (pkgs) lib;
+
   docsDir = ../docs;
 
   pluginNames = builtins.filter (name: builtins.pathExists (pluginsDir + "/${name}/README.md")) (
     builtins.attrNames (builtins.readDir pluginsDir)
   );
 
-  assembledSrc = pkgs.runCommand "kantan-docs-src" { } ''
+  # "system-monitor" → "System Monitor"
+  pluginTitle =
+    name:
+    lib.concatMapStringsSep " " (
+      word: lib.toUpper (lib.substring 0 1 word) + lib.substring 1 (-1) word
+    ) (lib.splitString "-" name);
+
+  pluginSummary = lib.concatMapStrings (
+    name: "  - [${pluginTitle name}](plugins/${name}.md)\\n"
+  ) pluginNames;
+
+  # Each plugin's README becomes its page, listed under Plugins. A README's
+  # github-only block links to that page, so the page drops it.
+  assembledSrc = pkgs.runCommand "kantan-docs-src" { nativeBuildInputs = [ pkgs.perl ]; } ''
     mkdir -p $out/src/plugins
     cp -r ${docsDir}/* $out/
-    chmod u+w $out/theme
+    chmod -R u+w $out
     cp ${../site/favicon.svg} $out/theme/favicon.svg
-    ${builtins.concatStringsSep "\n" (
-      map (name: "cp ${pluginsDir}/${name}/README.md $out/src/plugins/${name}.md") pluginNames
-    )}
+    ${lib.concatMapStringsSep "\n" (name: ''
+      grep -qF '${siteUrl}/docs/plugins/${name}.html' ${pluginsDir}/${name}/README.md \
+        || { echo "${name}'s README must link to ${siteUrl}/docs/plugins/${name}.html" >&2; exit 1; }
+      perl -0pe 's/<!-- github-only -->.*?<!-- \/github-only -->\n+//gs' \
+        ${pluginsDir}/${name}/README.md > $out/src/plugins/${name}.md
+      ! grep -q 'github-only' $out/src/plugins/${name}.md
+    '') pluginNames}
+    perl -0pi -e 's|(  - \[API Reference\]\(plugins/api-reference\.md\)\n)|$1${pluginSummary}|' \
+      $out/src/SUMMARY.md
+    grep -qF '](plugins/${lib.head pluginNames}.md)' $out/src/SUMMARY.md
   '';
 
   # The kantan logo, drawn in the menu bar icons' colour

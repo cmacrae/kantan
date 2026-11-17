@@ -2,6 +2,10 @@
 
 A native system monitor plugin for [kantan](https://github.com/cmacrae/kantan) that reports real-time CPU, memory, disk, thermal, and process information using macOS kernel APIs.
 
+<!-- github-only -->
+This page is also in the [kantan docs](https://kantan.bar/docs/plugins/system-monitor.html).
+<!-- /github-only -->
+
 ## Installation
 
 This plugin is bundled with kantan and requires no separate installation. It is included in both the [Nix flake](https://github.com/cmacrae/kantan) default package and the Homebrew `kantan` formula. The `kantan-without-plugins` variant (available via both Nix and Homebrew) does not include this plugin.

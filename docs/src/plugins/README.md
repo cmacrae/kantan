@@ -46,13 +46,13 @@ A plugin that responds to external events can run a long-lived watch process tha
 
 kantan ships with these plugins:
 
-- **reminders**: Shows due items from macOS Reminders and completes them from its view (Swift, event-driven)
-- **system-monitor**: Displays CPU, memory, disk, thermal, and uptime statistics (Swift, polling)
-- **caffeine**: Prevents system sleep, toggled by a click (shell script)
-- **calendar**: Integrates with macOS Calendar, shows upcoming events with countdowns (Swift, event-driven)
-- **pomodoro**: Pomodoro timer with work/break sessions, pause/resume/skip controls (Go, polling)
-- **tailscale**: Indicates Tailscale connection state via the LocalAPI, with tailnet tooltip (Go, polling)
-- **rift-indicator**: Shows the Rift window manager's active layout mode, with an icon and colour per layout (Go, event-driven)
+- **[reminders](reminders.md)**: Shows due items from macOS Reminders and completes them from its view (Swift, event-driven)
+- **[system-monitor](system-monitor.md)**: Displays CPU, memory, disk, thermal, and uptime statistics (Swift, polling)
+- **[caffeine](caffeine.md)**: Prevents system sleep, toggled by a click (shell script)
+- **[calendar](calendar.md)**: Integrates with macOS Calendar, shows upcoming events with countdowns (Swift, event-driven)
+- **[pomodoro](pomodoro.md)**: Pomodoro timer with work/break sessions, pause/resume/skip controls (Go, polling)
+- **[tailscale](tailscale.md)**: Indicates Tailscale connection state via the LocalAPI, with tailnet tooltip (Go, polling)
+- **[rift-indicator](rift-indicator.md)**: Shows the Rift window manager's active layout mode, with an icon and colour per layout (Go, event-driven)
 
 Their sources in `packages/plugins/` are reference implementations.
 
