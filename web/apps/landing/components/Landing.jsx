@@ -25,8 +25,9 @@ function Toggle({ icon, label, onClick, siteDark }) {
 }
 
 function NavIcon({ name, label, href, color }) {
+  const external = href.startsWith("http");
   return (
-    <a href={href} target="_blank" rel="noopener noreferrer" title={label}
+    <a href={href} target={external ? "_blank" : undefined} rel={external ? "noopener noreferrer" : undefined} title={label}
       style={{ color, display: "flex", alignItems: "center", gap: 6, textDecoration: "none", fontSize: 13, fontWeight: 450 }}
     >
       <I name={name} size={18} color={color} />
@@ -70,6 +71,7 @@ export default function KantanLanding() {
         display: "flex", justifyContent: "flex-end", alignItems: "center",
         padding: "20px 32px", gap: 24, maxWidth: 1400, margin: "0 auto",
       }}>
+        <NavIcon name="brush" label="Builder" href="/builder/" color={fgSub} />
         <NavIcon name="book" label="Docs" href="/docs/" color={fgSub} />
         <NavIcon name="brand-github" label="GitHub" href="https://github.com/cmacrae/kantan" color={fgSub} />
       </nav>
@@ -111,6 +113,16 @@ export default function KantanLanding() {
         </div>
 
         {configOpen && <ConfigCode siteDark={siteDark} />}
+
+        <a href="/builder/" style={{
+          marginTop: 28, display: "inline-flex", alignItems: "center", gap: 8,
+          padding: "9px 18px", borderRadius: 8, textDecoration: "none",
+          fontSize: 14, fontWeight: 600,
+          background: siteDark ? "#d97757" : "#c4593a", color: siteDark ? "#141413" : "#ffffff",
+        }}>
+          <I name="brush" size={16} color={siteDark ? "#141413" : "#ffffff"} />
+          Build your own bar
+        </a>
       </div>
 
       {/* Features */}
