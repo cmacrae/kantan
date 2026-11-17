@@ -39,7 +39,7 @@ Run `kantan` and a welcome bar appears. Check out the [quick start](https://kant
 
 ## Learn more
 
-The [website](https://kantan.bar) shows kantan in action, and the [docs](https://kantan.bar/docs/) cover configuration, every module, themes and writing plugins.
+The [website](https://kantan.bar) shows kantan in action, and the [docs](https://kantan.bar/docs/) cover configuration, every module, themes and writing plugins. Questions, ideas and setups to share are welcome in [Discussions](https://github.com/cmacrae/kantan/discussions).
 
 ## Contributing
 
