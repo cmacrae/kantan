@@ -1,0 +1,57 @@
+name: Bug report
+description: Something in kantan or a bundled plugin isn't working as it should.
+labels: [bug]
+body:
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened
+      description: What you saw, and what you expected to see instead. Screenshots help with anything visual.
+    validations:
+      required: true
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. Add the module below to the config
+        2. Hover over it
+        3. …
+    validations:
+      required: true
+  - type: textarea
+    id: config
+    attributes:
+      label: Config
+      description: The smallest part of `~/.config/kantan/config.yaml` that shows the problem.
+      render: yaml
+  - type: input
+    id: kantan-version
+    attributes:
+      label: kantan version
+      description: The output of `kantan --version`.
+    validations:
+      required: true
+  - type: input
+    id: macos-version
+    attributes:
+      label: macOS version
+      placeholder: macOS 26.1
+    validations:
+      required: true
+  - type: dropdown
+    id: install
+    attributes:
+      label: Installed with
+      options:
+        - Homebrew
+        - Nix
+        - Install script
+        - Built from source
+    validations:
+      required: true
+  - type: textarea
+    id: extra
+    attributes:
+      label: Anything else
+      description: Your display setup, other menu bar apps, or anything else that might matter.
