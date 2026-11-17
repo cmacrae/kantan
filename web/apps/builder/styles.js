@@ -121,7 +121,10 @@ export const STYLES = `
 
 .kb-code { margin: 0; padding: 12px 14px; background: var(--code); font: 12px/1.6 'SF Mono', Menlo, Monaco, monospace; overflow: auto; max-height: 70vh; border-radius: 0 0 10px 10px; }
 .kb-file { display: flex; align-items: center; gap: 8px; padding: 6px 12px; border-top: 1px solid var(--line); color: var(--muted); font: 12px 'SF Mono', Menlo, Monaco, monospace; }
-.kb-file span { flex: 1; }
+.kb-file > button:first-child { flex: 1; min-width: 0; display: flex; align-items: center; gap: 6px; padding: 2px 0; background: none; border: none; cursor: pointer; text-align: left; font: inherit; }
+.kb .kb-file > button:first-child { color: var(--muted); }
+.kb .kb-file > button:first-child:hover { color: var(--fg); }
+.kb-file > button:first-child > span:last-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .kb-file + .kb-code { border-radius: 0; max-height: none; }
 
 .kb-shade { position: fixed; inset: 0; z-index: 1000; background: rgba(0,0,0,0.4); display: flex; align-items: flex-start; justify-content: center; padding: 6vh 12px 12px; overflow: auto; }

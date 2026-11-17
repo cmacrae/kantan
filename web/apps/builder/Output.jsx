@@ -5,7 +5,7 @@ import { markdownLink } from "../../builder/share.js";
 import { zip } from "../../builder/zip.js";
 import { highlightYaml } from "../../components/yaml-highlight.jsx";
 import { ShareImage } from "./ShareImage.jsx";
-import { Button, CopyButton, Modal } from "./ui.jsx";
+import { Button, CopyButton, Ic, Modal } from "./ui.jsx";
 
 const YAML_COLORS = {
   comment: "var(--faint)", key: "var(--accent)", string: "var(--yaml-string)", bool: "var(--yaml-number)",
@@ -20,13 +20,20 @@ function download(name, data, type) {
   URL.revokeObjectURL(url);
 }
 
-// The files that make something, to read, copy or download. `files` are
-// each `{ path, text }` from kantan's config directory. `layouts` are the
-// ways they can be laid out, each `[key, label]`, with `layout` the one
-// they're in. `note` says where they go, and `archive` names the ZIP file
-// that holds them when there are several.
+// The files that make something, to read, copy or download, each folded
+// away under its name until opened. `files` are each `{ path, text }`
+// from kantan's config directory. `layouts` are the ways they can be laid
+// out, each `[key, label]`, with `layout` the one they're in. `note` says
+// where they go, and `archive` names the ZIP file that holds them when
+// there are several.
 export function Output({ title, files, layouts = [], layout, onLayout, note, archive }) {
   const single = files.length === 1;
+  const [open, setOpen] = useState(() => new Set());
+  const toggle = path => setOpen(now => {
+    const next = new Set(now);
+    if (!next.delete(path)) next.add(path);
+    return next;
+  });
   const save = () => (single
     ? download(files[0].path.split("/").pop(), files[0].text, "text/yaml")
     : download(archive, zip(files), "application/zip"));
@@ -34,7 +41,6 @@ export function Output({ title, files, layouts = [], layout, onLayout, note, arc
     <>
       <h2>
         <span>{title}</span>
-        {single && <CopyButton kind="plain" text={files[0].text} />}
         <Button kind="plain" icon="download" onClick={save}>{single ? "Download" : "Download all"}</Button>
       </h2>
       <div className="kb-body" style={{ paddingBottom: 8 }}>
@@ -49,8 +55,16 @@ export function Output({ title, files, layouts = [], layout, onLayout, note, arc
       </div>
       {files.map(file => (
         <div key={file.path}>
-          {!single && <div className="kb-file"><span>{file.path}</span><CopyButton kind="plain" text={file.text} /></div>}
-          <pre className="kb-code"><code>{file.text === "" ? <span style={{ color: "var(--faint)" }}># Nothing yet: kantan's defaults</span> : highlightYaml(file.text, YAML_COLORS)}</code></pre>
+          <div className="kb-file">
+            <button type="button" aria-expanded={open.has(file.path)} onClick={() => toggle(file.path)}>
+              <Ic name={open.has(file.path) ? "chevron-down" : "chevron-right"} size={14} />
+              <span>{file.path}</span>
+            </button>
+            <CopyButton kind="plain" text={file.text} />
+          </div>
+          {open.has(file.path) && (
+            <pre className="kb-code"><code>{file.text === "" ? <span style={{ color: "var(--faint)" }}># Nothing yet: kantan's defaults</span> : highlightYaml(file.text, YAML_COLORS)}</code></pre>
+          )}
         </div>
       ))}
     </>
