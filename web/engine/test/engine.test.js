@@ -193,4 +193,9 @@ test("a document is checked before it's drawn", () => {
     "b's state x leads to nowhere, which isn't a state, by go",
     "b's state 3 has no name",
   ]);
+  assert.deepEqual(validateDocument({ version: 1, config: {}, view: { dark: true, notch: false, shown: { a: "x" } } }), []);
+  assert.deepEqual(validateDocument({ version: 1, config: {}, view: { dark: "yes", shown: { a: 1 } } }), [
+    "view's dark isn't true or false",
+    "view shows a in a state that isn't a name",
+  ]);
 });

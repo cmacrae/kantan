@@ -8,6 +8,9 @@
 //   states      what each module shows, by module name: a list of named
 //               states, each holding the `output` its command printed and
 //               the `transitions` from it, the state each command leads to
+//   view        how the bar is being looked at: `dark` for the dark
+//               appearance, `notch` for a screen with one, and `shown`, the
+//               state each module shows, by module name
 import { dict, list } from "./values.js";
 
 export const DOCUMENT_VERSION = 1;
@@ -20,7 +23,7 @@ export function validateDocument(document) {
   if (document.version !== DOCUMENT_VERSION) problems.push(`The document's version isn't ${DOCUMENT_VERSION}`);
   if (!dict(document.config)) problems.push("config isn't a mapping");
 
-  for (const key of ["modulesDir", "themes", "states"]) {
+  for (const key of ["modulesDir", "themes", "states", "view"]) {
     if (document[key] !== undefined && !dict(document[key])) problems.push(`${key} isn't a mapping`);
   }
   for (const [file, module] of Object.entries(dict(document.modulesDir) ?? {})) {
@@ -28,6 +31,15 @@ export function validateDocument(document) {
   }
   for (const [name, theme] of Object.entries(dict(document.themes) ?? {})) {
     if (!dict(theme)) problems.push(`The theme ${name} isn't a mapping`);
+  }
+
+  const view = dict(document.view) ?? {};
+  for (const key of ["dark", "notch"]) {
+    if (view[key] !== undefined && typeof view[key] !== "boolean") problems.push(`view's ${key} isn't true or false`);
+  }
+  if (view.shown !== undefined && !dict(view.shown)) problems.push("view's shown isn't a mapping");
+  for (const [module, state] of Object.entries(dict(view.shown) ?? {})) {
+    if (typeof state !== "string") problems.push(`view shows ${module} in a state that isn't a name`);
   }
 
   for (const [module, states] of Object.entries(dict(document.states) ?? {})) {
