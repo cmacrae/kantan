@@ -85,7 +85,11 @@ in
 {
   formatting = treefmtEval.config.build.check self;
   kantan = _kantan;
-  kantan-tests = (swift.withSwiftTests _kantan).overrideAttrs { pname = "kantan-tests"; };
+  # kantan's tests, which run the shared cases the web engine's tests run too.
+  kantan-tests = (swift.withSwiftTests _kantan).overrideAttrs {
+    pname = "kantan-tests";
+    KANTAN_FIXTURES = web.fixtures;
+  };
   web-engine = web.engineTests;
   kantan-with-plugins = kantan;
   inherit tabler-icons;

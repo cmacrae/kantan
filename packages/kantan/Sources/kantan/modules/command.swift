@@ -238,7 +238,8 @@ struct CommandConfig: ModuleConfiguration {
 
   /// Where this module's output is cached: under its name, so modules
   /// running the same command keep their own output.
-  private var cacheKey: String { moduleName ?? command }
+  /// The key the command's latest output is cached under.
+  var cacheKey: String { moduleName ?? command }
 
   func getIcon() -> String {
     if outputMode == "json" {
@@ -308,7 +309,9 @@ struct CommandConfig: ModuleConfiguration {
 
   // MARK: - JSON Parsing
 
-  private static func parseJsonOutput(
+  /// Caches what `raw`, a command's output, parses to under `cacheKey`, and
+  /// completes with the value it shows.
+  static func parseJsonOutput(
     _ raw: String, cacheKey: String,
     completion: @escaping @Sendable (String) -> Void
   ) {
