@@ -193,8 +193,7 @@ private func isInteractiveNode(_ node: ViewNode) -> Bool {
 func buildNativeMenu(
   from rootNode: ViewNode, resolver: TemplateResolver, textColor: Color? = nil
 ) -> NSMenu {
-  let menu = NSMenu()
-  menu.autoenablesItems = false
+  let menu = NativeMenu()
   for row in nativeMenuRows(from: rootNode, resolver: resolver) {
     menu.addItem(
       menuItem(for: row, environment: resolver.commandEnvironment, textColor: textColor))
@@ -231,11 +230,117 @@ func refreshNativeMenu(
       continue
     }
     item.view = view
+    (view as? NativeMenuItemView)?.isHighlighted = item.isHighlighted
     item.attributedTitle = update.attributedTitle
     item.target = update.target
     item.action = update.action
     item.representedObject = update.representedObject
     item.isEnabled = update.isEnabled
+  }
+}
+
+/// A menu whose items drawn by a view of their own are told when they are
+/// highlighted, as macOS highlights only the items it draws itself.
+private final class NativeMenu: NSMenu, NSMenuDelegate {
+  init() {
+    super.init(title: "")
+    autoenablesItems = false
+    delegate = self
+  }
+
+  required init(coder: NSCoder) { fatalError() }
+
+  func menu(_ menu: NSMenu, willHighlight item: NSMenuItem?) {
+    for each in items {
+      (each.view as? NativeMenuItemView)?.isHighlighted = each === item
+    }
+  }
+
+  func menuDidClose(_ menu: NSMenu) {
+    for each in items {
+      (each.view as? NativeMenuItemView)?.isHighlighted = false
+    }
+  }
+}
+
+/// The view of a menu item a click acts on. It draws the system's highlight
+/// behind its content while its item is highlighted, and takes the clicks
+/// anywhere within it.
+class NativeMenuItemView: NSView {
+  /// How far the highlight sits in from the menu's sides, and how round
+  /// its corners are, as macOS draws it for its own items.
+  private static let highlightInset: CGFloat = 5
+  private static let highlightRadius: CGFloat = 4
+
+  private let highlight = NSVisualEffectView()
+
+  var isHighlighted = false {
+    didSet {
+      guard isHighlighted != oldValue else { return }
+      highlight.isHidden = !isHighlighted
+      highlightChanged()
+    }
+  }
+
+  /// The colour content takes while highlighted, in place of its own.
+  static var highlightedTextColor: Color { Color(nsColor: .selectedMenuItemTextColor) }
+
+  override init(frame: NSRect) {
+    super.init(frame: frame)
+    highlight.material = .selection
+    highlight.state = .active
+    highlight.isEmphasized = true
+    highlight.blendingMode = .behindWindow
+    highlight.wantsLayer = true
+    highlight.layer?.cornerRadius = Self.highlightRadius
+    highlight.layer?.masksToBounds = true
+    highlight.isHidden = true
+    highlight.frame = bounds.insetBy(dx: Self.highlightInset, dy: 0)
+    highlight.autoresizingMask = [.width, .height]
+    addSubview(highlight)
+  }
+
+  required init?(coder: NSCoder) { fatalError() }
+
+  /// Shows `content` over the highlight, filling the view.
+  func host(_ content: NSView) {
+    content.frame = bounds
+    content.autoresizingMask = [.width, .height]
+    addSubview(content)
+  }
+
+  /// Called when the item gains or loses its highlight, to redraw content.
+  func highlightChanged() {}
+
+  override func hitTest(_ point: NSPoint) -> NSView? {
+    frame.contains(point) ? self : nil
+  }
+}
+
+/// A menu item's view showing a SwiftUI row that runs the item's command
+/// when clicked, closing the menu as choosing any item does.
+private final class NativeMenuCommandItemView: NativeMenuItemView {
+  private let content: (Bool) -> AnyView
+  private let hosting: NSHostingView<AnyView>
+
+  /// `content` draws the row, highlighted or not.
+  init(height: CGFloat = 22, content: @escaping (Bool) -> AnyView) {
+    self.content = content
+    self.hosting = NSHostingView(rootView: content(false))
+    super.init(frame: NSRect(x: 0, y: 0, width: 280, height: height))
+    host(hosting)
+  }
+
+  required init?(coder: NSCoder) { fatalError() }
+
+  override func highlightChanged() {
+    hosting.rootView = content(isHighlighted)
+  }
+
+  override func mouseUp(with event: NSEvent) {
+    guard let item = enclosingMenuItem, let action = item.action else { return }
+    item.menu?.cancelTracking()
+    NSApp.sendAction(action, to: item.target, from: item)
   }
 }
 
@@ -316,17 +421,23 @@ private func menuItem(
   switch row {
   case .row(let label, let detail, let indicator, let command):
     let labelParts = label.map(HStackTextPart.init)
-    let item =
-      detail.isEmpty
-      ? hostedItem(
-        NativeMenuLabelView(parts: labelParts, indicatorColor: indicator, textColor: textColor))
-      : hostedItem(
-        NativeMenuRowView(
-          labelParts: labelParts, detailParts: detail.map(HStackTextPart.init),
-          indicatorColor: indicator, textColor: textColor))
-    if let command {
-      setCommand(command, environment: environment, on: item)
+    let detailParts = detail.map(HStackTextPart.init)
+    let row = { (textColor: Color?) -> AnyView in
+      detailParts.isEmpty
+        ? AnyView(
+          NativeMenuLabelView(parts: labelParts, indicatorColor: indicator, textColor: textColor))
+        : AnyView(
+          NativeMenuRowView(
+            labelParts: labelParts, detailParts: detailParts,
+            indicatorColor: indicator, textColor: textColor))
     }
+    guard let command else { return hostedItem(row(textColor)) }
+    // A row with a command is chosen like any item, so it highlights.
+    let item = NSMenuItem(title: "", action: nil, keyEquivalent: "")
+    item.view = NativeMenuCommandItemView { highlighted in
+      row(highlighted ? NativeMenuItemView.highlightedTextColor : textColor)
+    }
+    setCommand(command, environment: environment, on: item)
     return item
 
   case .action(let label, let icon, let command):
@@ -528,7 +639,7 @@ struct NativeMenuTextView: View {
 /// dismiss the menu, allowing multiple items to be checked/unchecked.
 /// Handles mouseUp at the AppKit level (SwiftUI gesture recognizers don't
 /// reliably receive events inside NSMenuItem custom views).
-class NativeMenuCheckItemView: NSView {
+class NativeMenuCheckItemView: NativeMenuItemView {
   private var isChecked: Bool
   /// The checked value the item was built with.
   private let reported: Bool
@@ -551,12 +662,20 @@ class NativeMenuCheckItemView: NSView {
     self.environment = environment
     self.textColor = textColor
     super.init(frame: NSRect(x: 0, y: 0, width: 280, height: 26))
-    let content = NativeMenuCheckContent(label: label, isChecked: isChecked, textColor: textColor)
     let hosting = NSHostingView(rootView: content)
-    hosting.frame = bounds
-    hosting.autoresizingMask = [.width, .height]
-    addSubview(hosting)
+    host(hosting)
     self.hostingView = hosting
+  }
+
+  /// The check as it stands, in the highlight's text colour while highlighted.
+  private var content: NativeMenuCheckContent {
+    NativeMenuCheckContent(
+      label: label, isChecked: isChecked,
+      textColor: isHighlighted ? Self.highlightedTextColor : textColor)
+  }
+
+  override func highlightChanged() {
+    hostingView?.rootView = content
   }
 
   required init?(coder: NSCoder) { fatalError() }
@@ -574,10 +693,7 @@ class NativeMenuCheckItemView: NSView {
     // If currently checked, we're unchecking it → use uncheckedCommand (falling back to checkedCommand)
     let command = isChecked ? (uncheckedCommand ?? checkedCommand) : checkedCommand
     isChecked.toggle()
-    if let hosting = hostingView {
-      hosting.rootView = NativeMenuCheckContent(
-        label: label, isChecked: isChecked, textColor: textColor)
-    }
+    hostingView?.rootView = content
     if let command = command, !command.isEmpty {
       runCommand(command, environment: environment)
     }
