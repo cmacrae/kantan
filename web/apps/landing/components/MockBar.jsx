@@ -1,7 +1,7 @@
 // The landing page's desktop: kantan's bar as the engine draws it for the
 // example config, over a wallpaper with a terminal for each workspace.
 import { useMemo, useRef } from "react";
-import { BarView } from "../../../components/BarView.jsx";
+import { Desk } from "../../../components/Desk.jsx";
 import { useBar } from "../../../components/useBar.js";
 import { useFitZoom } from "../../../components/useFitZoom.js";
 import { iconTable } from "../../../engine/index.js";
@@ -35,33 +35,16 @@ export default function KantanBarMock({ themed, dark, children, time, desktopHei
   const spaces = Object.values(bar.placements).flat().find(module => module.workspace)?.workspace.segments ?? [];
   const activeSpace = Math.max(0, spaces.findIndex(segment => segment.active));
 
-  const wallpaper = dark
-    ? "radial-gradient(ellipse at 25% 25%, #1e3a5f 0%, #132740 35%, #162447 60%, #1a1a2e 100%)"
-    : "linear-gradient(150deg, #91bdd6 0%, #6fa3c2 25%, #5d90ac 50%, #7fafc8 70%, #b0d4e6 100%)";
-
   const frameRef = useRef(null);
   const zoom = useFitZoom(frameRef);
 
+  // The desktop grows to fit the bar, then shrinks as a whole when that's
+  // wider than the page. On the page a click on a workspace switches to
+  // it, standing in for the window manager that does on a Mac.
   return (
-    <div ref={frameRef} style={{
-      // Grows to fit the bar, then shrinks as a whole when that's wider
-      // than the page.
-      width: "100%", maxWidth, minWidth: "max-content", borderRadius: 10, zoom,
-      boxShadow: dark
-        ? "0 16px 64px rgba(0,0,0,0.55), 0 2px 6px rgba(0,0,0,0.3)"
-        : "0 8px 40px rgba(0,0,0,0.12), 0 2px 6px rgba(0,0,0,0.06)",
-      position: "relative",
-    }}>
-      <div style={{ position: "absolute", inset: 0, background: wallpaper, zIndex: 0, borderRadius: 10, overflow: "hidden" }} />
-
-      {/* On the page a click on a workspace switches to it, standing in for
-          the window manager that does on a Mac. */}
-      <BarView bar={bar} dark={dark} run={run} toggleDrawer={toggleDrawer} switchWorkspace={switchWorkspace}
-        style={{ borderRadius: "10px 10px 0 0" }} />
-
-      <div style={{ height: desktopHeight, position: "relative", zIndex: 0, borderRadius: "0 0 10px 10px", overflow: "hidden", background: wallpaper }}>
-        {children ?? <WorkspaceTerminals dark={dark} themed={themed} activeSpace={activeSpace} />}
-      </div>
-    </div>
+    <Desk bar={bar} dark={dark} height={desktopHeight} frameRef={frameRef} style={{ width: "100%", maxWidth, minWidth: "max-content", zoom }}
+      run={run} toggleDrawer={toggleDrawer} switchWorkspace={switchWorkspace}>
+      {children ?? <WorkspaceTerminals dark={dark} themed={themed} activeSpace={activeSpace} />}
+    </Desk>
   );
 }

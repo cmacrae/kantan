@@ -3,7 +3,7 @@ import { I } from "./Icons.jsx";
 import KantanBarMock, { MOCK_WIDTH } from "./MockBar.jsx";
 import { ConfigToggle, ConfigCode } from "./ConfigPreview.jsx";
 import InstallTabs from "./InstallTabs.jsx";
-import Wordmark from "./Wordmark.jsx";
+import Wordmark from "../../../components/Wordmark.jsx";
 import features from "../content/features.json";
 
 function Toggle({ icon, label, onClick, siteDark }) {

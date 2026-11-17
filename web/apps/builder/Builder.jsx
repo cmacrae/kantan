@@ -3,6 +3,7 @@
 // makes it, to copy, download or share as a link.
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { BarView } from "../../components/BarView.jsx";
+import { wallpaper } from "../../components/Desk.jsx";
 import { cssColor, faded } from "../../components/system.js";
 import { useBar } from "../../components/useBar.js";
 import { useFitZoom } from "../../components/useFitZoom.js";
@@ -147,11 +148,6 @@ function Start({ onClose, onOpen }) {
     </Modal>
   );
 }
-
-const WALLPAPER = [
-  "linear-gradient(150deg, #91bdd6 0%, #6fa3c2 25%, #5d90ac 50%, #7fafc8 70%, #b0d4e6 100%)",
-  "radial-gradient(ellipse at 25% 25%, #1e3a5f 0%, #132740 35%, #162447 60%, #1a1a2e 100%)",
-];
 
 // Whether a module's config sets it over a menu bar item.
 const isMasked = module => dict(module?.mask) !== undefined && (typeof module.mask.name === "string" || Number.isInteger(module.mask.index));
@@ -482,7 +478,7 @@ function Workspace({ opened, iconSet, onStart }) {
       <div className="kb-stage" ref={stage}>
         <div className="kb-stage-inner">
           <div ref={frame} className="kb-desk" style={{ zoom }} onClick={pick} {...dragging} {...hovering}>
-            <div className="kb-desk-paper" style={{ background: WALLPAPER[dark ? 1 : 0] }} />
+            <div className="kb-desk-paper" style={{ background: wallpaper(dark) }} />
             <BarView bar={bar} dark={dark} run={run} toggleDrawer={toggleDrawer} switchWorkspace={switchWorkspace}
               interactive={trying} moduleProps={moduleProps} style={{ borderRadius: "10px 10px 0 0" }} />
             {slot && (
