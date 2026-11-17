@@ -25,7 +25,7 @@ func event(_ title: String, _ start: Date, _ end: Date, calendar: String = "Work
 
 let events = [
   event("Standup", at(9), at(9, 15)),
-  event("Design review", at(11), at(12)),
+  event("Event", at(11), at(12)),
   event("Climbing", at(18, 30), at(20), calendar: "Personal"),
   event("Planning", at(10, days: 1), at(11, days: 1)),
 ]
