@@ -64,6 +64,20 @@ final class ReminderRenderTests {
         == "kantan-plugin-reminders --complete '1' && kantan trigger 'chores' refresh")
   }
 
+  @Test func testWithoutPersistTheModuleHidesOnceNoneAreIncomplete() throws {
+    let settings: Settings = try decode(
+      #"{"lists":[{"name":"todo","completedRetention":"1h"}],"persist":false}"#)
+    let post = reminder("1", "Post", completed: true)
+    let done = render(
+      incomplete: [], completed: [post], settings: settings, module: "todo", now: now)
+    #expect(done.hidden == true)
+    let left = render(
+      incomplete: [reminder("2", "Call")], completed: [post], settings: settings, module: "todo",
+      now: now)
+    #expect(left.hidden == false)
+    #expect((left.data["completed_todo"]?.map { $0["title"] }) == ["Post"])
+  }
+
   @Test func testHiddenWithoutIncompleteReminders() throws {
     let settings: Settings = try decode(#"{"lists":[{"name":"todo"}]}"#)
     let output = render(incomplete: [], completed: [], settings: settings, module: "todo", now: now)

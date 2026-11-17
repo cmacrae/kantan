@@ -21,7 +21,7 @@ This plugin is bundled with kantan and requires no separate installation. It is 
 - **Completed retention** — Show recently completed reminders for a configurable duration
 - **Complete/Uncomplete** — Toggle reminder completion directly from the bar menu
 - **Format string** — Customise the bar display with template variables and conditional sections
-- **Auto-hide** — Module hides automatically when there are no incomplete reminders, and no completed ones it keeps
+- **Auto-hide** — Module hides automatically when there are no incomplete reminders, and, unless `persist` is off, no completed ones it keeps
 - **Dynamic bar icon** — Bar icon changes to match the displayed reminder's list icon
 - **Permissions** — Automatically requests Reminders access on first run
 
@@ -65,6 +65,7 @@ config:
   watch: kantan-plugin-reminders --watch
   settings:
     format: "{title}"
+    persist: true
     lists:
       - name: Reminders
         icon: bell-filled
@@ -90,6 +91,8 @@ Settings are passed to the plugin via the `config.settings` block. At least one 
 | `format` | `{title}` | Format string for the bar display value. Unlike the calendar plugin, it must be a string; a list of segments is not supported |
 | `lists`  | `[]`      | Reminders lists to monitor (see [List Settings](#list-settings) below) |
 | `icons`  | —         | Icon overrides (see [Icon Settings](#icon-settings) below)             |
+| `persist` | `true`   | Keep the module in the bar while its only reminders are completed ones it keeps (see `completedRetention`), so they can be unticked from its menu. It then shows its icon alone, dimmed. `false` hides it once none are incomplete |
+| `persistShape` | `none` | The module's shape while it persists with nothing incomplete: `pill`, `box`, `underline`, `overline`, or `none` for just the icon |
 
 #### Icon Settings
 

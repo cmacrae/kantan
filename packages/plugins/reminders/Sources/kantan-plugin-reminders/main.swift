@@ -65,15 +65,23 @@ struct Settings: Decodable {
   var lists: [ListConfig]
   var format: String
   var icons: IconConfig
+  /// Whether the module stays in the bar while its only reminders are
+  /// completed ones it keeps, so they can be unticked from its menu.
+  var persist: Bool
+  /// The module's shape while it persists with nothing incomplete: a shape
+  /// such as `box`, or `none`.
+  var persistShape: String
 
   private enum CodingKeys: String, CodingKey {
-    case lists, format, icons
+    case lists, format, icons, persist, persistShape
   }
 
   init() {
     self.lists = []
     self.format = "{title}"
     self.icons = .defaults
+    self.persist = true
+    self.persistShape = "none"
   }
 
   init(from decoder: Decoder) throws {
@@ -81,6 +89,8 @@ struct Settings: Decodable {
     self.lists = container.setting([ListConfig].self, forKey: .lists) ?? []
     self.format = container.setting(String.self, forKey: .format) ?? "{title}"
     self.icons = container.setting(IconConfig.self, forKey: .icons) ?? .defaults
+    self.persist = container.setting(Bool.self, forKey: .persist) ?? true
+    self.persistShape = container.setting(String.self, forKey: .persistShape) ?? "none"
   }
 }
 
@@ -462,13 +472,19 @@ func render(
   // Apply format string to produce the displayed value
   let value = applyFormat(settings.format, variables: variables)
 
+  // Persisting with nothing incomplete, the module shows its icon alone,
+  // dimmed, in its persisting shape.
+  let persisting = !hasReminders && !completed.isEmpty && settings.persist
+
   return PluginOutput(
     value: value,
     icon: iconName,
-    hidden: !hasReminders && completed.isEmpty,
+    hidden: !hasReminders && !persisting,
+    active: persisting ? false : nil,
     variables: variables,
     data: dataCollections,
-    view: view
+    view: view,
+    style: persisting ? .object(["shape": .string(settings.persistShape)]) : nil
   )
 }
 
