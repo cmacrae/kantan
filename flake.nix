@@ -197,6 +197,7 @@
         docs = docs.app;
         site = site.app;
         render-site-images = site.renderImagesApp;
+        snapshot = site.snapshotApp;
         assemble-site = site.assembleApp;
         generate-homebrew-formulae = homebrew.generateApp;
         check-commits = commits.app;

@@ -186,6 +186,12 @@ in
     program = lib.getExe assemble;
   };
 
+  # Draws a page to a PNG, to check how it looks.
+  snapshotApp = {
+    type = "app";
+    program = "${snapshot}/bin/kantan-site-snapshot";
+  };
+
   renderImagesApp = {
     type = "app";
     program = lib.getExe renderImages;

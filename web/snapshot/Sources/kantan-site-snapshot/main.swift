@@ -1,10 +1,12 @@
 // Renders a web page to a PNG with WebKit.
 //
-//   kantan-site-snapshot <page> <width> <height> <scale> <out.png>
+//   kantan-site-snapshot <page> <width> <height> <scale> <out.png> [script]
 //
 // The page is a file path or an http(s) URL, either with a query string.
 // The page is drawn at `width` by `height` points, `scale` pixels to the point.
-// Its transparent areas stay transparent.
+// Its transparent areas stay transparent. The script, JavaScript that may
+// await, runs in the page once it has loaded, before the page is drawn: to
+// scroll it, or to click or hover over something.
 import AppKit
 import WebKit
 
@@ -18,12 +20,14 @@ struct Options {
   let size: NSSize
   let scale: Double
   let output: URL
+  let script: String?
 
   init(_ args: [String]) {
-    guard args.count == 6, let width = Double(args[2]), let height = Double(args[3]),
+    guard args.count == 6 || args.count == 7, let width = Double(args[2]),
+      let height = Double(args[3]),
       let scale = Double(args[4])
     else {
-      fail("usage: kantan-site-snapshot <page> <width> <height> <scale> <out.png>")
+      fail("usage: kantan-site-snapshot <page> <width> <height> <scale> <out.png> [script]")
     }
     if args[1].hasPrefix("http://") || args[1].hasPrefix("https://"), let url = URL(string: args[1])
     {
@@ -38,6 +42,7 @@ struct Options {
     self.size = NSSize(width: width, height: height)
     self.scale = scale
     self.output = URL(fileURLWithPath: args[5])
+    self.script = args.count == 7 ? args[6] : nil
   }
 }
 
@@ -76,9 +81,15 @@ final class Snapshotter: NSObject, WKNavigationDelegate {
   func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
     Task { @MainActor in
       // Waits for the fonts, then a moment for React to paint with them.
-      _ = try? await webView.callAsyncJavaScript(
-        "await document.fonts.ready; await new Promise(r => setTimeout(r, 300));",
-        contentWorld: .page)
+      let settle = "await document.fonts.ready; await new Promise(r => setTimeout(r, 300));"
+      _ = try? await webView.callAsyncJavaScript(settle, contentWorld: .page)
+      if let script = options.script {
+        do {
+          _ = try await webView.callAsyncJavaScript(script + "\n" + settle, contentWorld: .page)
+        } catch {
+          fail("the script failed: \(error.localizedDescription)")
+        }
+      }
       let config = WKSnapshotConfiguration()
       config.rect = webView.bounds
       config.afterScreenUpdates = true

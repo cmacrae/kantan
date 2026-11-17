@@ -24,6 +24,7 @@ The dev shell also installs a pre-push hook that checks your commits before they
 | `nix flake check` | Builds everything and runs the tests and checks |
 | `nix run .#docs` | Serves the docs at http://localhost:3000 |
 | `nix run .#site` | Serves the website and docs at http://localhost:3000 |
+| `nix run .#snapshot -- <page> <width> <height> <scale> <out.png> [script]` | Draws a page to a PNG with WebKit, after running a script in it |
 
 Run `nix fmt` and `nix flake check` before you push. New files must be added with `git add` before Nix can see them.
 
