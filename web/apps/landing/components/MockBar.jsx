@@ -1,37 +1,8 @@
 import { useState, useEffect, useLayoutEffect, useCallback, useRef } from "react";
 import { latte, mocha, SPACES, WORKSPACE_COLORS } from "../lib/theme.js";
+import { Bar, MenuDivider, MenuPanel, Module as M, Shape, barColors } from "../../../components/Bar.jsx";
 import { I, ICON_SCALE } from "./Icons.jsx";
 import { WorkspaceTerminals } from "./Terminal.jsx";
-
-function M({ children, style, onClick, tip, padOuter = true }) {
-  const [hov, setHov] = useState(false);
-  return (
-    <div
-      style={{
-        display: "flex", alignItems: "center",
-        padding: padOuter ? "0 10px" : 0,
-        gap: 5, whiteSpace: "nowrap", height: 33, boxSizing: "border-box",
-        cursor: onClick ? "pointer" : "default", position: "relative",
-        ...style,
-      }}
-      onClick={onClick}
-      onMouseEnter={() => setHov(true)}
-      onMouseLeave={() => setHov(false)}
-    >
-      {children}
-      {tip && hov && (
-        <div style={{
-          position: "absolute", top: 35, left: "50%", transform: "translateX(-50%)",
-          padding: "5px 10px", borderRadius: 6, fontSize: 11, fontWeight: 400,
-          whiteSpace: "nowrap", zIndex: 200, pointerEvents: "none",
-          backdropFilter: "blur(20px)", WebkitBackdropFilter: "blur(20px)",
-          background: "var(--tip-bg)", color: "var(--fg)",
-          boxShadow: "0 2px 12px rgba(0,0,0,0.2)", letterSpacing: 0,
-        }}>{tip}</div>
-      )}
-    </div>
-  );
-}
 
 function WiFi({ color, size = 15 }) {
   const scale = ICON_SCALE["wifi"] || 1.0;
@@ -143,22 +114,14 @@ export default function KantanBarMock({ themed, dark, children, clock, desktopHe
 
   const isTheme = themed;
   const isDark = dark;
-  const p = isDark ? mocha : latte;
-
-  const fg = isTheme ? p.fg : isDark ? "rgba(255,255,255,0.92)" : "rgba(0,0,0,0.85)";
-  const bg = isTheme ? p.bg : isDark ? "rgba(28,28,32,0.68)" : "rgba(253,253,255,0.68)";
-  const tipBg = isTheme
-    ? isDark ? "rgba(30,30,46,0.9)" : "rgba(239,241,245,0.9)"
-    : isDark ? "rgba(42,42,48,0.9)" : "rgba(255,255,255,0.9)";
-  const blur = isTheme ? "none" : "blur(24px) saturate(1.5)";
+  const colors = barColors({ themed: isTheme, dark: isDark, p: isDark ? mocha : latte });
+  const { p, fg } = colors;
 
   const c = useCallback((key) => isTheme ? p[key] : fg, [isTheme, p, fg]);
 
   const wallpaper = isDark
     ? "radial-gradient(ellipse at 25% 25%, #1e3a5f 0%, #132740 35%, #162447 60%, #1a1a2e 100%)"
     : "linear-gradient(150deg, #91bdd6 0%, #6fa3c2 25%, #5d90ac 50%, #7fafc8 70%, #b0d4e6 100%)";
-
-  const cssVars = { "--fg": fg, "--tip-bg": tipBg };
 
   const [activeSpace, setActiveSpace] = useState(0);
 
@@ -182,14 +145,7 @@ export default function KantanBarMock({ themed, dark, children, clock, desktopHe
         <div style={{ position: "absolute", inset: 0, background: wallpaper, zIndex: 0, borderRadius: 10, overflow: "hidden" }} />
 
         {/* BAR */}
-        <div style={{
-          height: 33, display: "flex", alignItems: "center",
-          position: "relative", zIndex: 1,
-          fontSize: 13, fontWeight: 400, color: fg,
-          background: bg, backdropFilter: blur, WebkitBackdropFilter: blur,
-          borderRadius: "10px 10px 0 0", overflow: "visible",
-          ...cssVars,
-        }}>
+        <Bar colors={colors} style={{ borderRadius: "10px 10px 0 0" }}>
 
           {/* LEFT: Workspace dots */}
           <M padOuter>
@@ -227,18 +183,7 @@ export default function KantanBarMock({ themed, dark, children, clock, desktopHe
               </M>
 
               {sysmonOpen && (
-                <div style={{
-                  position: "absolute", top: 37, left: 0, zIndex: 300,
-                  width: 300, borderRadius: 10, padding: "5px 0",
-                  backdropFilter: "blur(50px) saturate(1.6)",
-                  WebkitBackdropFilter: "blur(50px) saturate(1.6)",
-                  background: isTheme
-                    ? isDark ? "rgba(40,40,55,0.97)" : "rgba(244,245,249,0.97)"
-                    : isDark ? "rgba(50,50,56,0.97)" : "rgba(255,255,255,0.97)",
-                  boxShadow: "0 8px 32px rgba(0,0,0,0.22), 0 0 0 0.5px " + (isDark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.08)"),
-                  color: fg, fontSize: 13,
-                  fontFamily: "'Helvetica Neue', Helvetica, sans-serif",
-                }}>
+                <MenuPanel themed={isTheme} dark={isDark} fg={fg} width={300}>
                   <div style={{ padding: "4px 16px 2px", fontWeight: 600, fontSize: 13 }}>
                     Overview
                   </div>
@@ -262,10 +207,7 @@ export default function KantanBarMock({ themed, dark, children, clock, desktopHe
                     </div>
                   ))}
 
-                  <div style={{
-                    height: 1, margin: "4px 12px",
-                    background: isDark ? "rgba(255,255,255,0.1)" : "rgba(0,0,0,0.08)",
-                  }} />
+                  <MenuDivider dark={isDark} />
 
                   <div style={{ padding: "4px 16px 2px", fontWeight: 600, fontSize: 13 }}>
                     Top Processes
@@ -288,10 +230,7 @@ export default function KantanBarMock({ themed, dark, children, clock, desktopHe
                     </div>
                   ))}
 
-                  <div style={{
-                    height: 1, margin: "4px 12px",
-                    background: isDark ? "rgba(255,255,255,0.1)" : "rgba(0,0,0,0.08)",
-                  }} />
+                  <MenuDivider dark={isDark} />
 
                   <div style={{
                     display: "flex", alignItems: "center",
@@ -300,40 +239,24 @@ export default function KantanBarMock({ themed, dark, children, clock, desktopHe
                     <I name="dashboard" size={13} color={fg} style={{ marginRight: 4 }} />
                     <span>Activity Monitor</span>
                   </div>
-                </div>
+                </MenuPanel>
               )}
             </div>
 
             {/* Reminders, hidden like the plugin once nothing is incomplete */}
             {pending.length > 0 && (
             <div ref={remindersRef} style={{ position: "relative", margin: "0 10px", flexShrink: 0 }}>
-              <div
+              <Shape
                 onClick={() => { setRemindersOpen(o => !o); setSysmonOpen(false); }}
-                style={{
-                  display: "flex", alignItems: "center", gap: 5, cursor: "pointer",
-                  background: isTheme ? p.shape : isDark ? "rgba(255,255,255,0.1)" : "rgba(0,0,0,0.06)",
-                  borderRadius: 4, padding: "3px 6px",
-                }}
+                background={isTheme ? p.shape : isDark ? "rgba(255,255,255,0.1)" : "rgba(0,0,0,0.06)"}
+                style={{ cursor: "pointer" }}
               >
                 <I name="bell-filled" size={14} color={c("maroon")} />
                 <span style={{ color: fg, whiteSpace: "nowrap" }}>{pending[0].text}</span>
-              </div>
+              </Shape>
 
               {remindersOpen && (
-                <div style={{
-                  position: "absolute", top: 37, left: 0, zIndex: 300,
-                  width: 280, borderRadius: 10,
-                  padding: "5px 0",
-                  backdropFilter: "blur(50px) saturate(1.6)",
-                  WebkitBackdropFilter: "blur(50px) saturate(1.6)",
-                  background: isTheme
-                    ? isDark ? "rgba(40,40,55,0.97)" : "rgba(244,245,249,0.97)"
-                    : isDark ? "rgba(50,50,56,0.97)" : "rgba(255,255,255,0.97)",
-                  boxShadow: "0 8px 32px rgba(0,0,0,0.22), 0 0 0 0.5px " + (isDark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.08)"),
-                  color: fg,
-                  fontSize: 13,
-                  fontFamily: "'Helvetica Neue', Helvetica, sans-serif",
-                }}>
+                <MenuPanel themed={isTheme} dark={isDark} fg={fg} width={280}>
                   {pending.map(r => (
                     <div
                       key={r.id}
@@ -368,10 +291,7 @@ export default function KantanBarMock({ themed, dark, children, clock, desktopHe
                       <span style={{ textDecoration: "line-through" }}>{r.text}</span>
                     </div>
                   ))}
-                  <div style={{
-                    height: 1, margin: "4px 12px",
-                    background: isDark ? "rgba(255,255,255,0.1)" : "rgba(0,0,0,0.08)",
-                  }} />
+                  <MenuDivider dark={isDark} />
                   <div
                     style={{
                       display: "flex", alignItems: "center", gap: 6,
@@ -382,7 +302,7 @@ export default function KantanBarMock({ themed, dark, children, clock, desktopHe
                     <I name="list-check" size={14} color="currentColor" />
                     <span>Reminders</span>
                   </div>
-                </div>
+                </MenuPanel>
               )}
             </div>
             )}
@@ -434,7 +354,7 @@ export default function KantanBarMock({ themed, dark, children, clock, desktopHe
               fontWeight: 400,
             }}>{time}</span>
           </M>
-        </div>
+        </Bar>
 
         {/* Desktop peek */}
         <div style={{ height: desktopHeight, position: "relative", zIndex: 0, borderRadius: "0 0 10px 10px", overflow: "hidden", background: wallpaper }}>

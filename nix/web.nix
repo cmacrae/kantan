@@ -30,10 +30,13 @@ let
       ]
   );
 
-  # The apps: everything a bundle is made of.
+  # The components and the apps: everything a bundle is made of.
   src = lib.fileset.toSource {
     root = ../web;
-    fileset = ../web/apps;
+    fileset = lib.fileset.unions [
+      ../web/components
+      ../web/apps
+    ];
   };
 in
 {
