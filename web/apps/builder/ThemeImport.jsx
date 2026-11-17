@@ -143,7 +143,7 @@ function Gallery({ slots, onPick }) {
       </div>
       <div className="kb-note">
         {matches.length === 0 ? "No scheme has that name. " : ""}
-        Your browser fetches these from the <a href="https://github.com/tinted-theming/schemes" target="_blank" rel="noreferrer">tinted-theming schemes</a> on GitHub.
+        From <a href="https://github.com/tinted-theming/schemes" target="_blank" rel="noreferrer">tinted-theming/schemes</a> on GitHub.
       </div>
     </>
   );

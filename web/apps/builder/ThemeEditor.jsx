@@ -10,9 +10,9 @@ import { ColorField, Row } from "./Fields.jsx";
 import { Button, Ic } from "./ui.jsx";
 
 const KINDS = [
-  ["single", "One palette", "The same colours while the Mac is light and dark."],
+  ["single", "One palette", "The same colours in light and dark."],
   ["modes", "Light and dark", "A palette for each appearance."],
-  ["flavours", "Flavours", "Any number of named palettes, with one each for light and dark by default."],
+  ["flavours", "Flavours", "Named palettes, with a light and a dark default."],
 ];
 
 // A name changed in place, once it is one that can be used and none of
@@ -81,12 +81,12 @@ export function ThemeEditor({
         <Button kind="plain" icon="arrow-left" onClick={onClose}>Bar Settings</Button>
       </h2>
       <div className="kb-body">
-        <Row label="name" description="What the config's theme key calls it, and its file's name.">
+        <Row label="name" description="The theme key's value, and the file's name.">
           <NameInput value={name} taken={taken} what="theme" onRename={onRename} />
         </Row>
         {!used && (
           <div className="kb-row" style={{ padding: "6px 0" }}>
-            <span className="kb-note" style={{ flex: 1 }}>The bar above is drawn in this theme while you edit it. The config doesn't select it.</span>
+            <span className="kb-note" style={{ flex: 1 }}>Previewed above. The config doesn't select it.</span>
             <Button kind="primary" onClick={onUse}>Use it</Button>
           </div>
         )}
@@ -117,7 +117,7 @@ export function ThemeEditor({
               </div>
             </Row>
             {["light", "dark"].map(mode => (
-              <Row key={mode} label={`${mode} default`} description={`The flavour a config gets while the Mac is ${mode}, when it names the theme alone.`}>
+              <Row key={mode} label={`${mode} default`} description={`The ${mode} flavour of a config that names the theme alone.`}>
                 <select aria-label={`The default flavour for ${mode}`} value={flavours.includes(theme.defaults?.[mode]) ? theme.defaults[mode] : ""}
                   onChange={event => onChange({ ...theme, defaults: { ...theme.defaults, [mode]: event.target.value } })}>
                   {!flavours.includes(theme.defaults?.[mode]) && <option value="">None</option>}
@@ -135,13 +135,13 @@ export function ThemeEditor({
         <Row label="bg" description="The bar's background.">
           <ColorField plain label="bg" value={values.bg} onChange={value => set(["bg"], value)} />
         </Row>
-        <Row label="shape" description="Behind a module with a shape and no background of its own. Optional.">
+        <Row label="shape" description="Default shape background. Optional.">
           <ColorField plain label="shape" value={values.shape} onChange={value => set(["shape"], value)} />
         </Row>
 
         <div className="kb-h">Named colours</div>
         <div className="kb-note" style={{ paddingTop: 0 }}>
-          A config uses one as <code>{"{theme(name)}"}</code>. {kind === "single" ? "" : "Every palette has the same names, each with its own colour."}
+          A config uses one as <code>{"{theme(name)}"}</code>.
         </div>
         {colors.map(color => (
           <div className="kb-tc" key={color}>

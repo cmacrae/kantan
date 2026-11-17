@@ -10,17 +10,17 @@ const BAR_SCHEMA = {
   type: "object",
   properties: {
     height: { type: "integer", default: 33, minimum: 1, description: "The bar's height in points." },
-    padding: { type: "integer", default: 10, minimum: 0, description: "The space on either side of each module, in points. Two modules side by side sit twice this far apart." },
-    iconTextSpacing: { type: "integer", default: 5, minimum: 0, description: "The space between a module's icon and its text, in points." },
-    cornerRadius: { type: "number", default: 0, minimum: 0, description: "How round the corners of the bar's background are, in points." },
-    blur: { type: "integer", default: 0, minimum: 0, maximum: 6, description: "Lets what is behind the bar show through, blurred: 1 the most, 6 the least, 0 not at all." },
+    padding: { type: "integer", default: 10, minimum: 0, description: "Horizontal padding per module, in points." },
+    iconTextSpacing: { type: "integer", default: 5, minimum: 0, description: "Icon to text spacing, in points." },
+    cornerRadius: { type: "number", default: 0, minimum: 0, description: "Corner radius, in points." },
+    blur: { type: "integer", default: 0, minimum: 0, maximum: 6, description: "Background blur: 1 strongest, 6 weakest, 0 off." },
     gaps: {
       type: "object",
-      description: "The room left between the bar and the screen's edges, in points.",
+      description: "Gaps to the screen's edges, in points.",
       properties: {
-        top: { type: "integer", default: 0, minimum: 0, description: "How far the bar sits below the top of the screen." },
-        left: { type: "integer", default: 0, minimum: 0, description: "How far the bar's left end sits from the screen's left edge." },
-        right: { type: "integer", default: 0, minimum: 0, description: "How far the bar's right end sits from the screen's right edge." },
+        top: { type: "integer", default: 0, minimum: 0, description: "Top gap." },
+        left: { type: "integer", default: 0, minimum: 0, description: "Left gap." },
+        right: { type: "integer", default: 0, minimum: 0, description: "Right gap." },
       },
     },
     fonts: {
@@ -49,7 +49,7 @@ export function BarSettings({ config, themes, own, problem, onChange, theming })
         <ThemePicker theme={theme} themes={themes} own={own} {...theming}
           onChange={next => onChange(prune({ ...config, theme: next }) ?? {})} />
         <div className="kb-h">Size, fonts and colours</div>
-        <Properties node={BAR_SCHEMA} value={rest} onChange={value => onChange({ ...(theme === undefined ? {} : { theme }), ...value })} />
+        <Properties node={BAR_SCHEMA} value={rest} name="bar" onChange={value => onChange({ ...(theme === undefined ? {} : { theme }), ...value })} />
       </div>
     </>
   );

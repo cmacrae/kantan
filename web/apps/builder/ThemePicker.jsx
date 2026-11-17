@@ -77,7 +77,7 @@ function Themes({ themes, own, onNew, onEdit, onCopy, onImport, onImportSchemes 
         {Object.keys(themes).map(name => (
           <li key={name}>
             <span>{titled(name)}</span>
-            <span className="tag">{own.includes(name) ? "Yours" : "Comes with kantan"}</span>
+            <span className="tag">{own.includes(name) ? "Yours" : "Bundled"}</span>
             {own.includes(name)
               ? <Button kind="plain" icon="pencil" aria-label={`Edit the theme ${name}`} onClick={() => onEdit(name)}>Edit</Button>
               : <Button kind="plain" icon="copy" aria-label={`Customise a copy of the theme ${name}`} onClick={() => onCopy(name)}>Customise a copy</Button>}
@@ -146,10 +146,10 @@ export function ThemePicker({ theme, themes, own, onChange, onNew, onEdit, onCop
         <button type="button" className="kb-chip" aria-pressed={themed} onClick={() => themed || onChange(first())}>Theme</button>
       </div>
       {themed
-        ? <>{row("light", "While the Mac is light")}{row("dark", "While the Mac is dark")}</>
+        ? <>{row("light", "Light")}{row("dark", "Dark")}</>
         : (
           <div className="kb-note">
-            The bar takes the menu bar's own material and colours, in light and dark alike. Pick a theme instead to give it colours of its own.
+            Uses the menu bar's material and colours.
           </div>
         )}
       <Themes themes={themes} own={own} onNew={onNew} onEdit={onEdit} onCopy={onCopy} onImport={onImport} onImportSchemes={onImportSchemes} />
