@@ -60,6 +60,33 @@ The scope names the part of kantan a commit changes. It's optional, but it must 
 
 A new module or plugin needs its scope added to `cog.toml`. `nix flake check` fails until it is.
 
+## Plugin previews
+
+Each bundled plugin's docs page shows the plugin in an interactive bar. The preview is generated when the docs are built, from two things in the plugin's directory:
+
+- `examples/00-<name>.yaml`, the module the preview draws.
+- `preview/`, a generator that prints the states the preview moves between.
+
+The generator is built from the plugin's own code. Its `main.swift` or `main.go` takes the place of the plugin's, so keep the plugin's own `main` file to its entry point and put everything else in other files. A shell plugin's `preview/main.sh` is given the path of the plugin's `main.sh` to run. The generator gets the example config's settings in `KANTAN_SETTINGS`, as kantan gives them to the plugin.
+
+It prints one JSON object:
+
+```json
+{
+  "states": [
+    {
+      "name": "Idle",
+      "output": { "value": "25:00" },
+      "after": { "kantan-plugin-pomodoro --start": { "value": "24:59" } }
+    }
+  ]
+}
+```
+
+`output` is exactly what the plugin prints in that state. `after` is optional: for each command the state's menu, popup or toggle runs, the output the plugin prints once it has run. A command that leads to another state's output moves the preview to that state.
+
+`nix flake check` fails for a plugin without a generator, for output the [plugin output schema](docs/schemas/plugin-output.schema.json) rejects, for an `after` command no state runs, and for a preview holding something the web preview can't draw. [`web/README.md`](web/README.md) covers the web side.
+
 ### Checks
 
 The pre-push hook and CI both check every new commit. They reject a message that isn't a conventional commit, a type or scope that isn't in `cog.toml`, and a `feat` or `fix` commit that changes nothing a release ships. To check your commits by hand:
