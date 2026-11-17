@@ -1,21 +1,204 @@
 import AppKit
 import SwiftUI
 
+// MARK: - Menu Rows
+
+/// A piece of a menu row's label or detail.
+enum NativeMenuPart: Equatable {
+  case text(String, secondary: Bool, strikethrough: Bool)
+  /// An icon by name, `size` points tall, or the menu font's size.
+  case icon(name: String, size: Double?)
+}
+
+/// A row of the native menu a view makes.
+enum NativeMenuRow: Equatable {
+  /// An hstack: a label, a right-aligned detail, the colour of an indicator
+  /// bar before them, and the command a click runs.
+  case row(label: [NativeMenuPart], detail: [NativeMenuPart], indicator: String?, command: String?)
+  /// An action, disabled without a command.
+  case action(label: String, icon: String?, command: String?)
+  case check(label: String, checked: Bool, command: String?, uncheckedCommand: String?)
+  case toggle(label: String, on: Bool, command: String?)
+  case header(String)
+  case divider
+  case text(String, bold: Bool, secondary: Bool, strikethrough: Bool)
+}
+
+/// The rows of the native menu `node` makes, with their placeholders and
+/// commands resolved.
+///
+/// A menu is a flat list, so layout containers (vstack, zstack, scroll,
+/// group, grid) flatten into their children, and an hstack with no
+/// interactive child becomes one row. Nodes a menu has no row for (shapes,
+/// images, progress, gauge, badge, spacer, a lone icon) are left out.
+func nativeMenuRows(from node: ViewNode, resolver: TemplateResolver) -> [NativeMenuRow] {
+  switch node {
+  case .vstack(_, _, let children, _),
+    .zstack(_, let children, _),
+    .scroll(_, let children, _),
+    .group(let children, _),
+    .grid(_, _, let children, _):
+    return children.flatMap { nativeMenuRows(from: $0, resolver: resolver) }
+
+  case .hstack(_, _, let children, let command, _):
+    if children.contains(where: isInteractiveNode) {
+      return children.flatMap { nativeMenuRows(from: $0, resolver: resolver) }
+    }
+    return hstackRow(children: children, command: command, resolver: resolver).map { [$0] } ?? []
+
+  case .action(let label, let icon, let command, _, _):
+    let iconName = icon.map { resolver.resolve($0) }
+    return [
+      .action(
+        label: resolver.resolve(label ?? ""),
+        icon: iconName?.isEmpty == false ? iconName : nil,
+        command: command.map { resolver.resolveCommand($0) })
+    ]
+
+  case .check(let label, let checked, let command, let uncheckedCommand, _):
+    return [
+      .check(
+        label: resolver.resolve(label ?? ""),
+        checked: checked.map { resolver.resolveBool($0) } ?? false,
+        command: command.map { resolver.resolveCommand($0) },
+        uncheckedCommand: uncheckedCommand.map { resolver.resolveCommand($0) })
+    ]
+
+  case .toggle(let label, let on, let command, _):
+    return [
+      .toggle(
+        label: resolver.resolve(label ?? ""),
+        on: on.map { resolver.resolveBool($0) } ?? false,
+        command: command.map { resolver.resolveCommand($0) })
+    ]
+
+  case .header(let content, _):
+    return [.header(resolver.resolve(content))]
+
+  case .divider:
+    return [.divider]
+
+  case .text(let content, _, let weight, let style, _, _, let strikethrough, _):
+    return [
+      .text(
+        resolver.resolve(content),
+        bold: weight == .bold || weight == .semibold || weight == .heavy || weight == .black,
+        secondary: style == .secondary, strikethrough: strikethrough == true)
+    ]
+
+  case .foreach(let items, let child, _):
+    return (resolver.data[items] ?? []).flatMap {
+      nativeMenuRows(from: child, resolver: resolver.scoped(with: $0))
+    }
+
+  case .if(let condition, let thenNode, let elseNode, _):
+    if dslEvaluateTruthy(condition, resolver: resolver) {
+      return nativeMenuRows(from: thenNode, resolver: resolver)
+    }
+    return elseNode.map { nativeMenuRows(from: $0, resolver: resolver) } ?? []
+
+  case .spacer, .icon, .image, .rect, .circle, .capsule, .button, .progress, .gauge, .badge:
+    return []
+  }
+}
+
+/// An hstack's children as one row: the pattern `icon + text + spacer +
+/// text` becomes a label on the left with a secondary detail on the right.
+/// The children split at the first `spacer`, and the first coloured `rect`
+/// gives the indicator. Nil when no child has anything to show.
+private func hstackRow(children: [ViewNode], command: String?, resolver: TemplateResolver)
+  -> NativeMenuRow?
+{
+  var label: [NativeMenuPart] = []
+  var detail: [NativeMenuPart] = []
+  var hitSpacer = false
+  var indicator: String?
+
+  func add(_ parts: [NativeMenuPart]) {
+    if hitSpacer {
+      detail += parts
+    } else {
+      label += parts
+    }
+  }
+
+  for child in children {
+    switch child {
+    case .spacer:
+      hitSpacer = true
+    case .text(let content, _, _, let style, _, _, let strikethrough, _):
+      add([
+        .text(
+          resolver.resolve(content), secondary: style == .secondary,
+          strikethrough: strikethrough == true)
+      ])
+    case .icon(let name, let size, _, _, _):
+      let resolved = resolver.resolve(name)
+      if !resolved.isEmpty {
+        add([.icon(name: resolved, size: size)])
+      }
+    case .rect(_, _, let color, _, _, _, _):
+      if let color, indicator == nil {
+        let resolved = resolver.resolve(color)
+        if !resolved.isEmpty {
+          indicator = resolved
+        }
+      }
+    case .progress:
+      break
+    default:
+      add(nestedParts(of: child, resolver: resolver))
+    }
+  }
+
+  guard !label.isEmpty || !detail.isEmpty else { return nil }
+  return .row(
+    label: label, detail: detail, indicator: indicator,
+    command: command.map { resolver.resolveCommand($0) })
+}
+
+/// The text and icon parts nested within `node`, leaving out empty ones.
+private func nestedParts(of node: ViewNode, resolver: TemplateResolver) -> [NativeMenuPart] {
+  switch node {
+  case .text(let content, _, _, let style, _, _, let strikethrough, _):
+    let resolved = resolver.resolve(content)
+    guard !resolved.isEmpty else { return [] }
+    return [.text(resolved, secondary: style == .secondary, strikethrough: strikethrough == true)]
+  case .icon(let name, let size, _, _, _):
+    let resolved = resolver.resolve(name)
+    return resolved.isEmpty ? [] : [.icon(name: resolved, size: size)]
+  case .vstack(_, _, let children, _),
+    .hstack(_, _, let children, _, _),
+    .group(let children, _):
+    return children.flatMap { nestedParts(of: $0, resolver: resolver) }
+  default:
+    return []
+  }
+}
+
+/// Whether the node is an interactive type that gets a menu item of its own.
+private func isInteractiveNode(_ node: ViewNode) -> Bool {
+  switch node {
+  case .action, .check, .toggle, .button:
+    return true
+  default:
+    return false
+  }
+}
+
 // MARK: - Build Native Menu
 
-/// Convert a `ViewNode` tree into a native `NSMenu`.
-///
-/// Layout containers (vstack, hstack, zstack, scroll, group) are flattened -- their
-/// children are extracted in order. NSMenu is inherently a flat list, so nesting
-/// is collapsed. Unsupported node types (shapes, images, progress, gauge, badge,
-/// grid, spacer) are silently skipped.
+/// Convert a `ViewNode` tree into a native `NSMenu` of its rows.
 @MainActor
 func buildNativeMenu(
   from rootNode: ViewNode, resolver: TemplateResolver, textColor: Color? = nil
 ) -> NSMenu {
   let menu = NSMenu()
   menu.autoenablesItems = false
-  addItems(from: rootNode, to: menu, resolver: resolver, textColor: textColor)
+  for row in nativeMenuRows(from: rootNode, resolver: resolver) {
+    menu.addItem(
+      menuItem(for: row, environment: resolver.commandEnvironment, textColor: textColor))
+  }
   return menu
 }
 
@@ -56,9 +239,9 @@ func refreshNativeMenu(
   }
 }
 
-// MARK: - HStack Composition
+// MARK: - Menu Items
 
-/// Styling metadata extracted from text/icon children when composing hstack items.
+/// A row part ready to draw: its text, or an icon's glyph with its font.
 private struct HStackTextPart {
   let text: String
   let isSecondary: Bool
@@ -73,377 +256,145 @@ private struct HStackTextPart {
     self.isStrikethrough = isStrikethrough
     self.iconFont = iconFont
   }
+
+  /// `part` as the menu draws it: an icon the bundled fonts have is its
+  /// glyph in its font, scaled, and any other is its name as text.
+  init(_ part: NativeMenuPart) {
+    switch part {
+    case .text(let text, let secondary, let strikethrough):
+      self.init(text: text, isSecondary: secondary, isStrikethrough: strikethrough)
+    case .icon(let name, let size):
+      guard iconFontsAvailable else {
+        self.init(text: name, isSecondary: false, isStrikethrough: false)
+        return
+      }
+      let resolved = resolveIconName(name)
+      guard let fontOverride = resolved.fontNameOverride else {
+        self.init(text: resolved.glyph, isSecondary: false, isStrikethrough: false)
+        return
+      }
+      let fontSize = size ?? Double(NSFont.menuFont(ofSize: 0).pointSize)
+      let scaledSize = dslScaledFontSize(fontSize, scale: resolved.scaleFactor)
+      self.init(
+        text: resolved.glyph, isSecondary: false, isStrikethrough: false,
+        iconFont: FontConfig(descriptor: "\(fontOverride):\(scaledSize)", source: .bundled)
+          .swiftUIFont)
+    }
+  }
 }
 
-/// Collect the visible text content from an hstack's children into a single
-/// NSMenuItem. The pattern `icon + text + spacer + text` becomes a menu item
-/// with a bold label on the left and right-aligned secondary detail on the right.
-///
-/// Children are split at the first `spacer` node:
-/// - Before spacer: label text (bold unless all children are secondary/strikethrough)
-/// - After spacer: secondary detail text (right-aligned)
-///
-/// Text styling (secondary, strikethrough) is propagated from the child nodes
-/// so past events etc. render correctly in native menus.
+/// A menu item running `command` with `environment` when chosen.
 @MainActor
-private func addHStackItem(
-  children: [ViewNode], command: String? = nil, to menu: NSMenu, resolver: TemplateResolver,
-  textColor: Color? = nil
-) {
-  // Separate children at the first spacer, preserving style metadata
-  var labelParts: [HStackTextPart] = []
-  var detailParts: [HStackTextPart] = []
-  var hitSpacer = false
-  var indicatorColor: String?
-
-  for child in children {
-    switch child {
-    case .spacer:
-      hitSpacer = true
-    case .text(let content, _, _, let style, _, _, let strikethrough, _):
-      let resolved = resolver.resolve(content)
-      let part = HStackTextPart(
-        text: resolved,
-        isSecondary: style == .secondary,
-        isStrikethrough: strikethrough == true)
-      if hitSpacer {
-        detailParts.append(part)
-      } else {
-        labelParts.append(part)
-      }
-    case .icon(let name, let size, _, _, _):
-      let templateResolved = resolver.resolve(name)
-      if !templateResolved.isEmpty {
-        let part: HStackTextPart
-        if iconFontsAvailable {
-          let resolved = resolveIconName(templateResolved)
-          if let fontOverride = resolved.fontNameOverride {
-            let fontSize = size ?? Double(NSFont.menuFont(ofSize: 0).pointSize)
-            let scaledSize = dslScaledFontSize(fontSize, scale: resolved.scaleFactor)
-            let font = FontConfig(
-              descriptor: "\(fontOverride):\(scaledSize)", source: .bundled
-            ).swiftUIFont
-            part = HStackTextPart(
-              text: resolved.glyph, isSecondary: false, isStrikethrough: false, iconFont: font)
-          } else {
-            part = HStackTextPart(
-              text: resolved.glyph, isSecondary: false, isStrikethrough: false)
-          }
-        } else {
-          part = HStackTextPart(
-            text: templateResolved, isSecondary: false, isStrikethrough: false)
-        }
-        if hitSpacer {
-          detailParts.append(part)
-        } else {
-          labelParts.append(part)
-        }
-      }
-    case .rect(_, _, let color, _, _, _, _):
-      // Extract color from rect nodes (e.g. calendar color indicators)
-      if let color = color, indicatorColor == nil {
-        let resolved = resolver.resolve(color)
-        if !resolved.isEmpty {
-          indicatorColor = resolved
-        }
-      }
-    case .progress:
-      // Skip progress bars in native menus — not representable
-      break
-    default:
-      // Recursively extract text and style from nested layout nodes
-      let extracted = extractStyledParts(from: child, resolver: resolver)
-      if hitSpacer {
-        detailParts.append(contentsOf: extracted)
-      } else {
-        labelParts.append(contentsOf: extracted)
-      }
-    }
+private func setCommand(_ command: String, environment: [String: String], on item: NSMenuItem) {
+  let target = NativeMenuTarget {
+    runCommand(command, environment: environment)
   }
-
-  guard !labelParts.isEmpty || !detailParts.isEmpty else { return }
-
-  let item = NSMenuItem(title: "", action: nil, keyEquivalent: "")
-
-  // Use a custom NSHostingView so macOS doesn't apply disabled muting.
-  let rowView: NSView
-  if !detailParts.isEmpty {
-    let view = NativeMenuRowView(
-      labelParts: labelParts, detailParts: detailParts, indicatorColor: indicatorColor,
-      textColor: textColor)
-    let hosting = NSHostingView(rootView: view)
-    hosting.frame = NSRect(x: 0, y: 0, width: 280, height: 22)
-    rowView = hosting
-  } else {
-    let view = NativeMenuLabelView(
-      parts: labelParts, indicatorColor: indicatorColor, textColor: textColor)
-    let hosting = NSHostingView(rootView: view)
-    hosting.frame = NSRect(x: 0, y: 0, width: 280, height: 22)
-    rowView = hosting
-  }
-  item.view = rowView
-  if let command = command {
-    let resolvedCommand = resolver.resolveCommand(command)
-    let target = NativeMenuTarget {
-      runCommand(resolvedCommand, environment: resolver.commandEnvironment)
-    }
-    item.target = target
-    item.action = #selector(NativeMenuTarget.menuAction(_:))
-    item.representedObject = target
-  }
-  menu.addItem(item)
+  item.target = target
+  item.action = #selector(NativeMenuTarget.menuAction(_:))
+  item.representedObject = target
 }
 
-/// Recursively extract styled text parts from a node (for composing hstack items).
-private func extractStyledParts(from node: ViewNode, resolver: TemplateResolver)
-  -> [HStackTextPart]
+/// A menu item showing `view` in place of a title, so macOS doesn't mute it
+/// as it does a disabled item.
+@MainActor
+private func hostedItem<Content: View>(_ view: Content, width: CGFloat = 280, height: CGFloat = 22)
+  -> NSMenuItem
 {
-  switch node {
-  case .text(let content, _, _, let style, _, _, let strikethrough, _):
-    let resolved = resolver.resolve(content)
-    guard !resolved.isEmpty else { return [] }
-    return [
-      HStackTextPart(
-        text: resolved, isSecondary: style == .secondary, isStrikethrough: strikethrough == true)
-    ]
-  case .icon(let name, let size, _, _, _):
-    let templateResolved = resolver.resolve(name)
-    guard !templateResolved.isEmpty else { return [] }
-    if iconFontsAvailable {
-      let resolved = resolveIconName(templateResolved)
-      if let fontOverride = resolved.fontNameOverride {
-        let fontSize = size ?? Double(NSFont.menuFont(ofSize: 0).pointSize)
-        let scaledSize = dslScaledFontSize(fontSize, scale: resolved.scaleFactor)
-        let font = FontConfig(
-          descriptor: "\(fontOverride):\(scaledSize)", source: .bundled
-        ).swiftUIFont
-        return [
-          HStackTextPart(
-            text: resolved.glyph, isSecondary: false, isStrikethrough: false, iconFont: font)
-        ]
-      }
-      return [HStackTextPart(text: resolved.glyph, isSecondary: false, isStrikethrough: false)]
-    }
-    return [HStackTextPart(text: templateResolved, isSecondary: false, isStrikethrough: false)]
-  case .vstack(_, _, let children, _),
-    .hstack(_, _, let children, _, _),
-    .group(let children, _):
-    return children.flatMap { extractStyledParts(from: $0, resolver: resolver) }
-  default:
-    return []
-  }
+  let item = NSMenuItem(title: "", action: nil, keyEquivalent: "")
+  let hosting = NSHostingView(rootView: view)
+  hosting.frame = NSRect(x: 0, y: 0, width: width, height: height)
+  item.view = hosting
+  return item
 }
 
-// MARK: - Node Classification
-
-/// Returns true if the node is an interactive type that should be its own NSMenuItem.
-private func isInteractiveNode(_ node: ViewNode) -> Bool {
-  switch node {
-  case .action, .check, .toggle, .button:
-    return true
-  default:
-    return false
-  }
-}
-
-// MARK: - Recursive Item Builder
-
-/// Recursively walk the ViewNode tree and append NSMenuItems to the menu.
+/// The menu item for `row`, its commands run with `environment`, drawn in
+/// the theme's `textColor` when there is one.
 @MainActor
-private func addItems(
-  from node: ViewNode, to menu: NSMenu, resolver: TemplateResolver, textColor: Color? = nil
-) {
-  switch node {
-  // MARK: Layout nodes -- flatten children (except hstack)
-
-  case .vstack(_, _, let children, _),
-    .zstack(_, let children, _),
-    .scroll(_, let children, _),
-    .group(let children, _),
-    .grid(_, _, let children, _):
-    for child in children {
-      addItems(from: child, to: menu, resolver: resolver, textColor: textColor)
+private func menuItem(
+  for row: NativeMenuRow, environment: [String: String], textColor: Color?
+) -> NSMenuItem {
+  switch row {
+  case .row(let label, let detail, let indicator, let command):
+    let labelParts = label.map(HStackTextPart.init)
+    let item =
+      detail.isEmpty
+      ? hostedItem(
+        NativeMenuLabelView(parts: labelParts, indicatorColor: indicator, textColor: textColor))
+      : hostedItem(
+        NativeMenuRowView(
+          labelParts: labelParts, detailParts: detail.map(HStackTextPart.init),
+          indicatorColor: indicator, textColor: textColor))
+    if let command {
+      setCommand(command, environment: environment, on: item)
     }
+    return item
 
-  // MARK: HStack -- compose into a single menu item
-
-  case .hstack(_, _, let children, let command, _):
-    // Check if hstack contains any interactive nodes — if so, flatten normally
-    if children.contains(where: { isInteractiveNode($0) }) {
-      for child in children {
-        addItems(from: child, to: menu, resolver: resolver, textColor: textColor)
-      }
-    } else {
-      addHStackItem(
-        children: children, command: command, to: menu, resolver: resolver, textColor: textColor)
-    }
-
-  // MARK: Action
-
-  case .action(let label, let iconGlyph, let command, _, _):
-    let resolvedLabel = resolver.resolve(label ?? "")
+  case .action(let label, let icon, let command):
     let menuFontSize = NSFont.menuFont(ofSize: 0).pointSize
     let title = NSMutableAttributedString()
-    if let glyph = iconGlyph {
-      let templateResolved = resolver.resolve(glyph)
-      if !templateResolved.isEmpty {
-        if iconFontsAvailable {
-          let resolved = resolveIconName(templateResolved)
-          if let fontOverride = resolved.fontNameOverride {
-            let scaledSize = CGFloat(round(Double(menuFontSize) * resolved.scaleFactor))
-            let fc = FontConfig(descriptor: "\(fontOverride):\(Int(scaledSize))", source: .bundled)
-            let nsFont =
-              NSFont(name: fc.name, size: scaledSize) ?? NSFont.menuFont(ofSize: menuFontSize)
-            title.append(
-              NSAttributedString(string: resolved.glyph, attributes: [.font: nsFont]))
-          } else {
-            title.append(NSAttributedString(string: resolved.glyph))
-          }
+    if let icon {
+      if iconFontsAvailable {
+        let resolved = resolveIconName(icon)
+        if let fontOverride = resolved.fontNameOverride {
+          let scaledSize = CGFloat(round(Double(menuFontSize) * resolved.scaleFactor))
+          let fc = FontConfig(descriptor: "\(fontOverride):\(Int(scaledSize))", source: .bundled)
+          let nsFont =
+            NSFont(name: fc.name, size: scaledSize) ?? NSFont.menuFont(ofSize: menuFontSize)
+          title.append(NSAttributedString(string: resolved.glyph, attributes: [.font: nsFont]))
         } else {
-          title.append(NSAttributedString(string: templateResolved))
+          title.append(NSAttributedString(string: resolved.glyph))
         }
-        title.append(NSAttributedString(string: " "))
+      } else {
+        title.append(NSAttributedString(string: icon))
       }
+      title.append(NSAttributedString(string: " "))
     }
-    title.append(NSAttributedString(string: resolvedLabel))
+    title.append(NSAttributedString(string: label))
 
     // Apply theme foreground color when set.
-    if let textColor = textColor {
-      let nsColor = NSColor(textColor)
+    if let textColor {
       title.addAttribute(
-        .foregroundColor, value: nsColor,
+        .foregroundColor, value: NSColor(textColor),
         range: NSRange(location: 0, length: title.length))
     }
 
     let item = NSMenuItem(title: "", action: nil, keyEquivalent: "")
     item.attributedTitle = title
-    if let command = command {
-      let resolvedCommand = resolver.resolveCommand(command)
-      let target = NativeMenuTarget {
-        runCommand(resolvedCommand, environment: resolver.commandEnvironment)
-      }
-      item.target = target
-      item.action = #selector(NativeMenuTarget.menuAction(_:))
-      item.representedObject = target
+    if let command {
+      setCommand(command, environment: environment, on: item)
     } else {
       item.isEnabled = false
     }
-    menu.addItem(item)
+    return item
 
-  // MARK: Check
-
-  case .check(let label, let checked, let command, let uncheckedCommand, _):
-    let resolvedLabel = resolver.resolve(label ?? "")
-    let isChecked = checked.map { resolver.resolveBool($0) } ?? false
-    let resolvedCommand = command.map { resolver.resolveCommand($0) }
-    let resolvedUncheckedCommand = uncheckedCommand.map { resolver.resolveCommand($0) }
-
+  case .check(let label, let checked, let command, let uncheckedCommand):
+    // A custom NSView, so a click doesn't dismiss the menu and several
+    // items can be checked or unchecked in one visit.
     let item = NSMenuItem(title: "", action: nil, keyEquivalent: "")
+    item.view = NativeMenuCheckItemView(
+      label: label, isChecked: checked, command: command, uncheckedCommand: uncheckedCommand,
+      environment: environment, textColor: textColor)
+    return item
 
-    // Use a custom NSView so clicking doesn't dismiss the menu.
-    // This allows the user to check/uncheck multiple items without
-    // the menu closing after each interaction.
-    let checkView = NativeMenuCheckItemView(
-      label: resolvedLabel, isChecked: isChecked, command: resolvedCommand,
-      uncheckedCommand: resolvedUncheckedCommand, environment: resolver.commandEnvironment,
-      textColor: textColor)
-    item.view = checkView
-    menu.addItem(item)
+  case .toggle(let label, let on, let command):
+    return hostedItem(
+      NativeMenuToggleView(label: label, isOn: on, textColor: textColor) {
+        if let command {
+          runCommand(command, environment: environment)
+        }
+      }, width: 220, height: 28)
 
-  // MARK: Toggle
-
-  case .toggle(let label, let on, let command, _):
-    let resolvedLabel = resolver.resolve(label ?? "")
-    let isOn = on.map { resolver.resolveBool($0) } ?? false
-
-    let item = NSMenuItem(title: "", action: nil, keyEquivalent: "")
-
-    // Resolved now, while any foreach item is still in scope.
-    let resolvedCommand = command.map { resolver.resolveCommand($0) }
-    let environment = resolver.commandEnvironment
-    let toggleView = NativeMenuToggleView(label: resolvedLabel, isOn: isOn, textColor: textColor) {
-      if let resolvedCommand {
-        runCommand(resolvedCommand, environment: environment)
-      }
-    }
-    let hostingView = NSHostingView(rootView: toggleView)
-    hostingView.frame = NSRect(x: 0, y: 0, width: 220, height: 28)
-    item.view = hostingView
-    menu.addItem(item)
-
-  // MARK: Header
-
-  case .header(let content, _):
-    let resolvedContent = resolver.resolve(content)
-    let item = NSMenuItem(title: "", action: nil, keyEquivalent: "")
-    let view = NativeMenuHeaderView(content: resolvedContent, textColor: textColor ?? .primary)
-    let hosting = NSHostingView(rootView: view)
-    hosting.frame = NSRect(x: 0, y: 0, width: 280, height: 22)
-    item.view = hosting
-    menu.addItem(item)
-
-  // MARK: Divider
+  case .header(let content):
+    return hostedItem(NativeMenuHeaderView(content: content, textColor: textColor ?? .primary))
 
   case .divider:
-    menu.addItem(NSMenuItem.separator())
+    return NSMenuItem.separator()
 
-  // MARK: Text (read-only display)
-
-  case .text(let content, _, let weight, let style, _, _, let strikethrough, _):
-    let resolvedContent = resolver.resolve(content)
-    let item = NSMenuItem(title: "", action: nil, keyEquivalent: "")
-
-    let isSecondary = style == .secondary
-    let isBold = weight == .bold || weight == .semibold || weight == .heavy || weight == .black
-    let view = NativeMenuTextView(
-      content: resolvedContent, isBold: isBold, isSecondary: isSecondary,
-      isStrikethrough: strikethrough == true, textColor: textColor)
-    let hosting = NSHostingView(rootView: view)
-    hosting.frame = NSRect(x: 0, y: 0, width: 280, height: 22)
-    item.view = hosting
-    menu.addItem(item)
-
-  // MARK: Foreach
-
-  case .foreach(let items, let child, _):
-    guard let dataArray = resolver.data[items] else { break }
-    for element in dataArray {
-      resolver.pushScope(element)
-      defer { resolver.popScope() }
-      addItems(from: child, to: menu, resolver: resolver, textColor: textColor)
-    }
-
-  // MARK: If
-
-  case .if(let condition, let thenNode, let elseNode, _):
-    if dslEvaluateTruthy(condition, resolver: resolver) {
-      addItems(from: thenNode, to: menu, resolver: resolver, textColor: textColor)
-    } else if let elseNode = elseNode {
-      addItems(from: elseNode, to: menu, resolver: resolver, textColor: textColor)
-    }
-
-  // MARK: Unsupported nodes -- silently skip
-
-  case .spacer:
-    break
-  case .icon:
-    break
-  case .image:
-    break
-  case .rect:
-    break
-  case .circle:
-    break
-  case .capsule:
-    break
-  case .button:
-    break
-  case .progress:
-    break
-  case .gauge:
-    break
-  case .badge:
-    break
+  case .text(let content, let bold, let secondary, let strikethrough):
+    return hostedItem(
+      NativeMenuTextView(
+        content: content, isBold: bold, isSecondary: secondary, isStrikethrough: strikethrough,
+        textColor: textColor))
   }
 }
 
