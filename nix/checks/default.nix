@@ -4,6 +4,7 @@
   version,
   swift,
   web,
+  previews,
   docs,
   site,
   pluginPackages,
@@ -91,6 +92,7 @@ in
     KANTAN_FIXTURES = web.fixtures;
   };
   web-engine = web.engineTests;
+  previews = previews.check;
   kantan-with-plugins = kantan;
   inherit tabler-icons;
   release = release.full;

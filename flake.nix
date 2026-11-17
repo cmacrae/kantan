@@ -51,6 +51,12 @@
         pluginsDir = ./packages/plugins;
       };
 
+      previews = import ./nix/previews.nix {
+        inherit pkgs plugins tabler-icons;
+        pluginsDir = ./packages/plugins;
+        themesDir = ./packages/themes;
+      };
+
       themes = import ./nix/themes.nix {
         inherit pkgs discover;
         themesDir = ./packages/themes;
@@ -225,6 +231,7 @@
           version
           swift
           web
+          previews
           docs
           site
           pluginPackages

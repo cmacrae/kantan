@@ -7,8 +7,8 @@ let
   # Checks the commits in a revision range with `cog check`, then fails when a
   # feat or fix commit changes none of what a release ships: kantan, its
   # bundled plugins and themes, and its icon font, or kantan's sources from
-  # before they moved under packages/. Their tests and the plugins' READMEs
-  # don't count. A single revision checks every commit before it.
+  # before they moved under packages/. Their tests, and the plugins' READMEs
+  # and preview generators, don't count. A single revision checks every commit before it.
   #
   # With --pre-push it reads the refs being pushed from standard input, as a
   # pre-push hook gets them, and checks the commits each one adds.
@@ -32,7 +32,7 @@ let
           fi
           files=$(git diff-tree --no-commit-id --name-only -r --root "$commit")
           shipped=$(grep -E '^(packages/(kantan|plugins|themes|tabler-icons)/|Sources/|Package\.(swift|resolved)$)' <<<"$files" \
-            | grep -vE '(^|/)Tests/|_test\.go$|^packages/plugins/[^/]+/README\.md$' || true)
+            | grep -vE '(^|/)Tests/|_test\.go$|^packages/plugins/[^/]+/(README\.md$|preview/)' || true)
           if [ -z "$shipped" ]; then
             git log -1 --format='%h %s' "$commit"
             status=1
