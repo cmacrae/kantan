@@ -10,6 +10,10 @@
 //
 // A fragment may instead name a config file to fetch: `from=<url>`,
 // `gh=<user>/<repo>/<path>` or `gist=<id>`.
+//
+// A link can also share one module on its own, to add to any bar: its
+// config and the states it shows, packed the same way, after `m` and the
+// module codec's version.
 import { sameValue } from "./equal.js";
 import { DOCUMENT_VERSION } from "../engine/document.js";
 import { dict, str } from "../engine/values.js";
@@ -18,6 +22,7 @@ import { modulesOf } from "./edit.js";
 import { WORDS } from "./words.js";
 
 export const CODEC_VERSION = "1";
+export const MODULE_CODEC_VERSION = "m1";
 
 // Tokens count in base 62 from the start of the word list.
 const DIGITS = "0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ";
@@ -120,31 +125,69 @@ function fromBase64Url(text) {
   return Uint8Array.from(binary, char => char.charCodeAt(0));
 }
 
-// The fragment, without its `#`, that shares `document`.
-export async function encodeLink(document, catalog) {
-  const json = JSON.stringify(packDocument(document, catalog));
-  const deflated = await pipe(new TextEncoder().encode(json), new CompressionStream("deflate-raw"));
-  return `${CODEC_VERSION}.${toBase64Url(deflated)}`;
+// The fragment that holds the packed form `packed`, after `version`.
+async function encodeFragment(version, packed) {
+  const deflated = await pipe(new TextEncoder().encode(JSON.stringify(packed)), new CompressionStream("deflate-raw"));
+  return `${version}.${toBase64Url(deflated)}`;
 }
 
-// The document a fragment made by `encodeLink` shares. Throws an error
-// saying what's wrong with a fragment that isn't one.
-export async function decodeLink(fragment, catalog) {
+// The packed form a fragment of `version` holds. Throws an error saying
+// what's wrong with a fragment that isn't one.
+async function decodeFragment(version, fragment) {
   const dot = fragment.indexOf(".");
-  if (dot < 0 || fragment.slice(0, dot) !== CODEC_VERSION) throw new Error("The link is in a format this site doesn't read");
-  let json;
+  if (dot < 0 || fragment.slice(0, dot) !== version) throw new Error("The link is in a format this site doesn't read");
   try {
     const inflated = await pipe(fromBase64Url(fragment.slice(dot + 1)), new DecompressionStream("deflate-raw"));
-    json = JSON.parse(new TextDecoder().decode(inflated));
+    return JSON.parse(new TextDecoder().decode(inflated));
   } catch {
     throw new Error("The link is damaged");
   }
-  return unpackDocument(json, catalog);
 }
 
+// The fragment, without its `#`, that shares `document`.
+export const encodeLink = async (document, catalog) => encodeFragment(CODEC_VERSION, packDocument(document, catalog));
+
+// The document a fragment made by `encodeLink` shares. Throws an error
+// saying what's wrong with a fragment that isn't one.
+export const decodeLink = async (fragment, catalog) => unpackDocument(await decodeFragment(CODEC_VERSION, fragment), catalog);
+
+// The packed form of one module: `o` the module, `s` its states when they
+// are its own, `b` set when they are the ones it starts with, and `h` the
+// name of the state it is shown in when that isn't its first.
+export function packModule(module, states, shown, catalog) {
+  const packed = { o: module };
+  const starting = defaultStates(module, catalog);
+  if (states !== undefined && starting !== undefined && sameValue(states, starting)) packed.b = 1;
+  else if (states !== undefined) packed.s = states;
+  if (shown !== undefined && states?.some(state => state.name === shown) && states[0].name !== shown) packed.h = shown;
+  return mapStrings(packed, packString);
+}
+
+// The module a packed form holds, as `{ module, states, shown }`. A
+// module whose starting states the site no longer has shows none.
+export function unpackModule(packed, catalog) {
+  if (!dict(packed)) throw new Error("The link doesn't hold a module");
+  const { o, s, b, h } = mapStrings(packed, unpackString);
+  if (!dict(o) || str(o.name) === undefined) throw new Error("The link doesn't hold a module");
+  const shared = { module: o };
+  const states = b ? defaultStates(o, catalog) : Array.isArray(s) ? s : undefined;
+  if (states !== undefined) shared.states = states;
+  if (typeof h === "string") shared.shown = h;
+  return shared;
+}
+
+// The fragment, without its `#`, that shares one module with the states
+// it shows.
+export const encodeModuleLink = async (module, states, shown, catalog) =>
+  encodeFragment(MODULE_CODEC_VERSION, packModule(module, states, shown, catalog));
+
+// The module a fragment made by `encodeModuleLink` shares.
+export const decodeModuleLink = async (fragment, catalog) => unpackModule(await decodeFragment(MODULE_CODEC_VERSION, fragment), catalog);
+
 // What a fragment asks the builder to open: `{ link }` for a shared
-// document, `{ url }` for a config file to fetch, with `gist` when the
-// file is a gist's first YAML file, or undefined for anything else.
+// document, `{ module }` for a shared module, `{ url }` for a config file
+// to fetch, with `gist` when the file is a gist's first YAML file, or
+// undefined for anything else.
 export function readFragment(fragment) {
   const text = fragment.replace(/^#/, "");
   if (text === "") return undefined;
@@ -159,6 +202,7 @@ export function readFragment(fragment) {
   }
   if (key === "gist" && /^[0-9a-f]+$/i.test(value)) return { url: `https://api.github.com/gists/${value}`, gist: true };
   if (/^[0-9]+\./.test(text)) return { link: text };
+  if (/^m[0-9]+\./.test(text)) return { module: text };
   return undefined;
 }
 

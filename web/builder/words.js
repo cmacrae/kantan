@@ -44,4 +44,10 @@ export const WORDS = [
   "accent", "warning", "success",
   // Base16 and Base24 schemes
   ...SLOTS, ...SLOTS.map(slot => `{theme(${slot})}`),
+  // The rest of a view's nodes and fields
+  "zstack", "group", "grid", "foreach", "if", "button", "circle", "capsule", "gauge", "image", "items", "child",
+  "condition", "then", "else", "frame", "background", "opacity", "visible", "strikethrough", "columns", "minLength",
+  "align", "axis", "url", "top", "bottom", "w", "h", "maxW", "maxH", "minW", "minH", "medium", "regular", "italic",
+  "monospaced", "normal", "filled", "bordered", "borderless", "plain", "ring", "bar", "vertical", "horizontal",
+  "strokeWidth", "textColor", "min",
 ];
