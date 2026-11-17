@@ -178,6 +178,11 @@ func mutateState(fn func(*State)) {
 
 // Compute seconds remaining in the current segment.
 func remaining(s State) float64 {
+	return remainingAt(s, float64(time.Now().Unix()))
+}
+
+// Compute seconds remaining in the current segment at unix time `now`.
+func remainingAt(s State, now float64) float64 {
 	if s.Mode == "idle" {
 		return 0
 	}
@@ -186,7 +191,7 @@ func remaining(s State) float64 {
 	if s.PausedAt > 0 {
 		elapsed = s.PausedAt - s.StartedAt
 	} else {
-		elapsed = float64(time.Now().Unix()) - s.StartedAt
+		elapsed = now - s.StartedAt
 	}
 	rem := totalSecs - elapsed
 	if rem < 0 {
@@ -322,7 +327,19 @@ func buildOutput(settings Settings) {
 		state = *s
 	})
 
-	rem := remaining(state)
+	pluginName := os.Getenv("KANTAN_MODULE_NAME")
+	if pluginName == "" {
+		pluginName = "pomodoro"
+	}
+
+	enc := json.NewEncoder(os.Stdout)
+	enc.SetIndent("", "  ")
+	_ = enc.Encode(render(state, float64(time.Now().Unix()), settings, pluginName))
+}
+
+// The output for `state` at unix time `now`, for the module `pluginName`.
+func render(state State, now float64, settings Settings, pluginName string) map[string]interface{} {
+	rem := remainingAt(state, now)
 	remainStr := formatDuration(rem)
 	isPaused := state.PausedAt > 0
 	isActive := state.Mode != "idle"
@@ -344,11 +361,6 @@ func buildOutput(settings Settings) {
 	}
 
 	// Build view tree
-	pluginName := os.Getenv("KANTAN_MODULE_NAME")
-	if pluginName == "" {
-		pluginName = "pomodoro"
-	}
-
 	var viewChildren []interface{}
 
 	// Header
@@ -422,10 +434,7 @@ func buildOutput(settings Settings) {
 		"variables": variables,
 		"view":      view,
 	}
-
-	enc := json.NewEncoder(os.Stdout)
-	enc.SetIndent("", "  ")
-	_ = enc.Encode(output)
+	return output
 }
 
 // --- View tree helpers ---
