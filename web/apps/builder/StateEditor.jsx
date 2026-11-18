@@ -69,6 +69,8 @@ const FIRST_STATE = {
 
 function SampleFields({ fields, value, onChange, label = "" }) {
   const set = (key, next) => onChange(prune(setIn(value ?? {}, key, next)) ?? {});
+  // A list keeps an item that says nothing: a workspace with no windows.
+  const setList = (key, next) => onChange(setIn(value ?? {}, key, next));
   return fields.map(field => {
     const current = getIn(value, field.key);
     const name = `${label}${field.label}`;
@@ -100,12 +102,12 @@ function SampleFields({ fields, value, onChange, label = "" }) {
             <div key={i} className="kb-group">
               <div style={{ paddingTop: 6 }}>
                 <SampleFields fields={field.fields} value={item} label={`${field.label} ${i + 1}: `}
-                  onChange={next => set(field.key, items.map((other, j) => (j === i ? next : other)))} />
-                <Button kind="plain" icon="trash" onClick={() => set(field.key, items.filter((_, j) => j !== i))}>Remove</Button>
+                  onChange={next => setList(field.key, items.map((other, j) => (j === i ? next : other)))} />
+                <Button kind="plain" icon="trash" onClick={() => setList(field.key, items.filter((_, j) => j !== i))}>Remove</Button>
               </div>
             </div>
           ))}
-          <Button kind="plain" icon="plus" onClick={() => set(field.key, [...items, field.item])}>Add</Button>
+          <Button kind="plain" icon="plus" onClick={() => setList(field.key, [...items, field.item])}>Add</Button>
         </div>
       );
     }
