@@ -9,15 +9,15 @@ import { useFitZoom } from "../../components/useFitZoom.js";
 import { schemeFileName } from "../../builder/base16.js";
 import { sameValue } from "../../builder/equal.js";
 import { themeFiles, writeYaml } from "../../builder/files.js";
-import { openDrawers, themeDocument } from "../../builder/shared.js";
+import { openDrawers, themeDocument, themeVariants } from "../../builder/shared.js";
 import { selectedThemes } from "../../builder/theme.js";
-import { loadTheme } from "../../engine/index.js";
 import { Output } from "./Output.jsx";
 import { Button, CopyButton, useBuilder } from "./ui.jsx";
 
 // A palette's colours, each with its name: the bar's own, then the rest.
-// A click on one copies it, and it says so for a moment.
-function Palette({ label, palette }) {
+// A click on one copies it, and it says so for a moment. `uses` are the
+// appearances the theme uses the palette for, each a pill by its label.
+function Palette({ label, palette, uses = [] }) {
   const colors = [["fg", palette.fg], ["bg", palette.bg], ...(palette.shape === undefined ? [] : [["shape", palette.shape]]), ...Object.entries(palette.colors)];
   const [copied, setCopied] = useState();
   const copy = async (name, color) => {
@@ -27,7 +27,10 @@ function Palette({ label, palette }) {
   };
   return (
     <div>
-      <div className="kb-h">{label}</div>
+      <div className="kb-h">
+        {label}
+        {uses.map(mode => <span key={mode} className="kb-pill">{mode === "dark" ? "Dark" : "Light"}</span>)}
+      </div>
       <ul className="kb-swatches">
         {colors.map(([name, color]) => (
           <li key={name}>
@@ -47,12 +50,17 @@ function Palette({ label, palette }) {
 // the example bar in the builder, drawn in the theme.
 export function SharedTheme({ shared, systemDark, onBuild }) {
   const { catalog, icons } = useBuilder();
-  const [dark, setDark] = useState(systemDark);
   const names = selectedThemes(shared.selection);
-  const palettes = useMemo(() => loadTheme(shared.selection, { ...catalog.themes, ...shared.themes }), [shared]);
+  // What the theme can be drawn as: its flavours, or its light and its
+  // dark. It starts as the one it uses in the system's appearance.
+  const variants = useMemo(() => themeVariants(shared, catalog.themes), [shared]);
+  const flavoured = variants.some(each => each.key !== "light" && each.key !== "dark");
+  const [picked, setPicked] = useState(() => variants.find(each => each.uses.includes(systemDark ? "dark" : "light"))?.key);
+  const variant = variants.find(each => each.key === picked) ?? variants[0];
+  const dark = variant?.dark ?? systemDark;
 
   // The example bar in the theme, in the states the landing page shows.
-  const document = useMemo(() => themeDocument(shared, catalog), [shared]);
+  const document = useMemo(() => themeDocument(variant ? { ...shared, selection: variant.selection } : shared, catalog), [shared, variant?.selection]);
   // Every drawer is open, so the theme shows on every module.
   const samples = useMemo(() => openDrawers(document), [document]);
   const { bar, run, toggleDrawer, switchWorkspace } = useBar(document, { dark, icons, themes: catalog.themes, samples });
@@ -85,18 +93,30 @@ export function SharedTheme({ shared, systemDark, onBuild }) {
             <div className="kb-desk-room" style={{ marginTop: -Math.min(bar.gaps.top, 40) }} />
           </div>
           <div className="kb-stage-controls" style={{ justifyContent: "flex-end" }}>
-            <Button kind="plain" icon={dark ? "moon" : "sun"} onClick={() => setDark(!dark)}>{dark ? "Dark" : "Light"}</Button>
+            {flavoured
+              ? (
+                <div className="kb-chips" role="group" aria-label="The flavour shown" style={{ padding: 0 }}>
+                  {variants.map(each => (
+                    <button key={each.key} type="button" className="kb-chip" aria-pressed={each === variant} onClick={() => setPicked(each.key)}>{each.label}</button>
+                  ))}
+                </div>
+              )
+              : variants.length > 0 && (
+                <Button kind="plain" icon={dark ? "moon" : "sun"} onClick={() => setPicked(dark ? "light" : "dark")}>{dark ? "Dark" : "Light"}</Button>
+              )}
           </div>
         </div>
       </div>
 
       <main className="kb-shared">
 
-        {palettes === undefined
+        {variants.length === 0
           ? <div className="kb-problem">kantan can't load this theme.</div>
-          : sameValue(palettes.light, palettes.dark)
-          ? <Palette label="Its colours" palette={palettes.light} />
-          : <><Palette label="Light" palette={palettes.light} /><Palette label="Dark" palette={palettes.dark} /></>}
+          : !flavoured && sameValue(variants[0].palette, variants[1].palette)
+          ? <Palette label="Its colours" palette={variants[0].palette} />
+          : variants.map(each => (
+            <Palette key={each.key} palette={each.palette} label={each.label} uses={flavoured ? each.uses : []} />
+          ))}
 
         {files.length > 0 && (
           <section className="kb-pane kb-files">

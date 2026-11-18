@@ -8,7 +8,8 @@ import { BUILT_INS, pluginOf } from "../catalog.js";
 import {
   addBuiltIn, addPasted, addPlugin, addShared, boundDocument, emptyDocument, inLayout, layoutOf, modulesOf, toDir, toSingle, updateModule,
 } from "../edit.js";
-import { documentFiles, readYaml, themeFiles } from "../files.js";
+import { documentFiles, readYaml, themeFiles, variantsYaml } from "../files.js";
+import { themeVariants } from "../shared.js";
 import { decodeLink, decodeModuleLink, decodeThemeLink, encodeLink, encodeModuleLink, encodeThemeLink, packModule, readFragment } from "../share.js";
 import { configSchema, deref } from "../schema.js";
 import { newTheme, paletteFor, palettesOf, previewRef, themeKind, themeProblems, toKind } from "../theme.js";
@@ -404,6 +405,25 @@ test("a module is shared on its own, with the states it shows", async () => {
   await assert.rejects(decodeModuleLink("1.abc", catalog), /format/);
   await assert.rejects(decodeModuleLink("m1.!!!", catalog), /damaged/);
   await assert.rejects(decodeModuleLink(await encodeLink(emptyDocument(), catalog).then(link => `m${link}`), catalog), /module/);
+});
+
+test("a shared theme with flavours is drawn as each of them", () => {
+  const paper = { fg: "#000000", bg: "#ffffff", colors: {} }, ink = { fg: "#ffffff", bg: "#000000", colors: {} }, dusk = { fg: "#eeeeee", bg: "#222244", colors: {} };
+  const themes = { mine: { defaults: { light: "paper", dark: "ink" }, flavours: { paper, ink, dusk } } };
+  const variants = themeVariants({ selection: { light: "mine[paper]", dark: "mine[dusk]" }, themes });
+  assert.deepEqual(variants.map(each => [each.label, each.selection, each.dark, each.uses]), [
+    ["paper", "mine[paper]", false, ["light"]], ["ink", "mine[ink]", true, []], ["dusk", "mine[dusk]", true, ["dark"]],
+  ]);
+  // One file holds them all, with the two the bar uses as its defaults.
+  const whole = readYaml(variantsYaml(variants, "all")).value;
+  assert.deepEqual(whole.defaults, { light: "paper", dark: "dusk" });
+  assert.deepEqual(Object.keys(whole.flavours), ["paper", "ink", "dusk"]);
+  assert.equal(readYaml(variantsYaml(variants, variants[1].key)).value.bg, ink.bg);
+
+  // A theme without flavours is its light and its dark.
+  const plain = themeVariants({ selection: "day", themes: { day: { light: paper, dark: ink } } });
+  assert.deepEqual(plain.map(each => [each.key, each.dark]), [["light", false], ["dark", true]]);
+  assert.deepEqual(Object.keys(readYaml(variantsYaml(plain, "all")).value), ["light", "dark"]);
 });
 
 test("a bar's theme is shared on its own, and another bar takes it", async () => {

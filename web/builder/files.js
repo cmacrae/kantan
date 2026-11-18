@@ -53,13 +53,21 @@ export function themeFiles(name, theme, layout = "file") {
   return [{ path: `themes/${name}.yaml`, text }];
 }
 
-// A theme file's text for `palettes`, the light and dark palettes a theme
-// loads to: one file with a palette for each appearance when `mode` is
-// "both", or the palette of the appearance it names alone.
-export function paletteYaml(palettes, mode) {
+// A theme file's text for `variants`, what a shared theme can be drawn
+// as, each `{ key, label, palette, uses }`. `key` names one of them, for
+// its palette alone. "all" is for one file that holds them all: a palette
+// for light and one for dark, or for a theme with flavours, each flavour
+// by its label with the two the theme uses as its defaults.
+export function variantsYaml(variants, key) {
   const own = ({ fg, bg, shape, colors }) => ({ fg, bg, ...(shape === undefined ? {} : { shape }), colors });
-  const theme = mode === "both" ? { light: own(palettes.light), dark: own(palettes.dark) } : own(palettes[mode]);
-  return themeFiles("theme", theme)[0].text;
+  const file = theme => themeFiles("theme", theme)[0].text;
+  if (key !== "all") return file(own(variants.find(each => each.key === key).palette));
+  const used = mode => variants.find(each => each.uses.includes(mode));
+  if (variants.every(each => each.key === "light" || each.key === "dark")) return file({ light: own(used("light").palette), dark: own(used("dark").palette) });
+  return file({
+    defaults: { light: used("light").label, dark: used("dark").label },
+    flavours: Object.fromEntries(variants.map(each => [each.label, own(each.palette)])),
+  });
 }
 
 // The files a document's config is written as: `{ path, text }` for

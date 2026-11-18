@@ -9,11 +9,12 @@ import { Button } from "./ui.jsx";
 
 // The desktop's width and the height below its bar, and the room around
 // it for its shadow, as the README's images have them.
-const DESK = { width: 880, height: 260, margin: "44px 40px" };
+const DESK = { width: 880, height: 260, margin: "44px 40px", close: "20px 40px" };
 // The image's pixels to the point.
 const SCALE = 2;
 
-const MODES = [["light", "Light"], ["dark", "Dark"], ["both", "Both"]];
+// The appearances an image is made in, unless it is given others.
+const APPEARANCES = [["light", "Light"], ["dark", "Dark"]];
 
 // The fonts the page declares, each `{ family, format, url }`.
 function pageFonts() {
@@ -89,23 +90,25 @@ function save(name, blob) {
 // What the image of a bar shows: the bar on a desktop, over the wordmark.
 // `barFor(dark)` gives the bar as it is looked at now, in an appearance.
 export function barCard(barFor) {
-  const bars = { false: barFor(false), true: barFor(true) };
-  return (dark, width) => (
-    <Desk bar={bars[dark]} dark={dark} height={DESK.height} interactive={false} style={{ width, minWidth: "max-content" }}>
-      <DeskWordmark dark={dark} />
+  const bars = { light: barFor(false), dark: barFor(true) };
+  return (appearance, width) => (
+    <Desk bar={bars[appearance]} dark={appearance === "dark"} height={DESK.height} interactive={false} style={{ width, minWidth: "max-content" }}>
+      <DeskWordmark dark={appearance === "dark"} />
     </Desk>
   );
 }
 
-// `draw(dark, width)` gives what the image shows in an appearance, `width`
-// wide. It starts in both, light above dark. `width` is how wide it
-// starts, `file` what its download is called, and `alt` what it shows, in
-// words. `onImage` is given the image each time one is made, and
-// undefined while the next is. `actions(mode)` gives buttons of the
-// caller's own, set after the image's: `mode` is the appearance picked,
-// "light", "dark" or "both".
-export function ShareImage({ draw, width: base = DESK.width, file = "kantan-bar", alt = "The bar on a desktop", onImage, actions }) {
-  const [mode, setMode] = useState("both");
+// `variants` are what the image can show, each `[key, label]`: light and
+// dark, unless it is given others. `draw(key, width, brief)` gives what it
+// shows for one of them, `width` wide. It starts with them all, one above
+// the next: more than two are each asked for `brief`, and set closer.
+// `width` is how wide it starts, `file` what its download is called, and
+// `alt` what it shows, in words. `onImage` is given the image each time
+// one is made, and undefined while the next is. `actions(mode)` gives
+// buttons of the caller's own, set after the image's: `mode` is the key
+// of the variant picked, or "all".
+export function ShareImage({ draw, variants = APPEARANCES, width: base = DESK.width, file = "kantan-bar", alt = "The bar on a desktop", onImage, actions }) {
+  const [mode, setMode] = useState("all");
   const [width, setWidth] = useState(base);
   const [image, setImage] = useState();
   const [problem, setProblem] = useState();
@@ -142,11 +145,14 @@ export function ShareImage({ draw, width: base = DESK.width, file = "kantan-bar"
     }
   };
 
-  const shown = mode === "both" ? ["light", "dark"] : [mode];
+  const shown = mode === "all" ? variants.map(([key]) => key) : [mode];
+  const brief = shown.length > 2;
+  const modes = [...variants, ["all", variants.length === 2 ? "Both" : "All"]];
+  const saved = mode === "all" ? file : `${file}-${modes.find(([key]) => key === mode)[1].toLowerCase().replace(/[^\p{L}\p{N}]+/gu, "-")}`;
   return (
     <div>
       <div className="kb-chips" role="group" aria-label="The image's appearance">
-        {MODES.map(([key, label]) => (
+        {modes.map(([key, label]) => (
           <button key={key} type="button" className="kb-chip" aria-pressed={mode === key} onClick={() => setMode(key)}>{label}</button>
         ))}
       </div>
@@ -156,15 +162,15 @@ export function ShareImage({ draw, width: base = DESK.width, file = "kantan-bar"
       {image && problem !== undefined && <div className="kb-problem">{problem}</div>}
       <div className="kb-row" style={{ marginTop: 8, flexWrap: "wrap" }}>
         <Button icon={copied ? "check" : "copy"} disabled={!image} onClick={copy}>{copied ? "Copied" : "Copy image"}</Button>
-        <Button icon="download" disabled={!image} onClick={() => save(mode === "both" ? `${file}.png` : `${file}-${mode}.png`, image.blob)}>Download</Button>
+        <Button icon="download" disabled={!image} onClick={() => save(`${saved}.png`, image.blob)}>Download</Button>
         {actions?.(mode)}
       </div>
       {/* The desktop the image is made from, drawn off the page with none
           of the page's styles. */}
       <div aria-hidden="true" style={{ position: "fixed", left: -100000, top: 0, pointerEvents: "none" }}>
-        <div ref={card} data-kantan-card style={{ all: "initial", display: "block", width: "max-content" }}>
+        <div ref={card} data-kantan-card style={{ all: "initial", display: "block", width: "max-content", padding: brief ? "24px 0" : 0 }}>
           {shown.map(each => (
-            <div key={each} style={{ padding: DESK.margin }}>{draw(each === "dark", width)}</div>
+            <div key={each} style={{ padding: brief ? DESK.close : DESK.margin }}>{draw(each, width, brief)}</div>
           ))}
         </div>
       </div>

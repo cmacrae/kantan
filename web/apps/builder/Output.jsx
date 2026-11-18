@@ -1,7 +1,7 @@
 // The config as kantan reads it: the YAML files, in one file or with a
 // file for each module, to copy or download, and the link that shares it.
 import { useEffect, useMemo, useState } from "react";
-import { paletteYaml } from "../../builder/files.js";
+import { variantsYaml } from "../../builder/files.js";
 import { draftUrl, markdownLink } from "../../builder/share.js";
 import { panelSlots } from "../../builder/shared.js";
 import { zip } from "../../builder/zip.js";
@@ -167,8 +167,8 @@ function Post({ link, kind, title, onTitle, config, image }) {
 // gives the bar in an appearance, and `config()` its config.yaml.
 // `theme` is there when the bar has a theme: `names`, the themes it
 // selects, `makeLink(name)`, which resolves to the link holding them
-// under a name, `barFor(dark)`, the example bar in them, and `palettes`,
-// their light and dark colours.
+// under a name, `variants`, what the theme can be drawn as, and
+// `barFor(variant)`, the example bar in one of them.
 export function Share({ makeLink, source, barFor, config, theme, onClose }) {
   const [what, setWhat] = useState("bar");
   const [title, setTitle] = useState("My kantan bar");
@@ -176,7 +176,9 @@ export function Share({ makeLink, source, barFor, config, theme, onClose }) {
   const link = useLink(makeLink, [makeLink]);
   const themeLink = useLink(theme && (() => theme.makeLink(themeName.trim())), [theme?.makeLink, themeName]);
   const [drawBar] = useState(() => barCard(barFor));
-  const [themeBars] = useState(() => theme && { false: theme.barFor(false), true: theme.barFor(true) });
+  const [themeBars] = useState(() => theme && Object.fromEntries(theme.variants.map(each => [each.key, theme.barFor(each)])));
+  // A theme with flavours says which is which in its image.
+  const flavoured = theme?.variants.some(each => each.key !== "light" && each.key !== "dark");
   const themeTitle = themeName.trim() || theme?.names.join(" and ");
 
   return (
@@ -215,11 +217,13 @@ export function Share({ makeLink, source, barFor, config, theme, onClose }) {
           </div>
           <LinkRow label="A link to the theme" url={themeLink} />
           <div className="kb-note">Opens on a page of its own, under that name, for another bar to take.</div>
-          <Post link={themeLink} kind="Theme" title={themeTitle} config={mode => <CopyButton text={() => paletteYaml(theme.palettes, mode)}>Theme config</CopyButton>} image={(onImage, actions) => (
+          <Post link={themeLink} kind="Theme" title={themeTitle} config={mode => <CopyButton text={() => variantsYaml(theme.variants, mode)}>Theme config</CopyButton>} image={(onImage, actions) => (
             <ShareImage file="kantan-theme" alt="The example bar in the theme, over its colours" onImage={onImage} actions={actions}
-              draw={(appearance, width) => (
-                <ThemeCard bar={themeBars[appearance]} palette={appearance ? theme.palettes.dark : theme.palettes.light} dark={appearance} width={width} />
-              )} />
+              variants={theme.variants.map(each => [each.key, each.label])}
+              draw={(key, width, brief) => {
+                const variant = theme.variants.find(each => each.key === key);
+                return <ThemeCard bar={themeBars[key]} palette={variant.palette} dark={variant.dark} width={width} label={flavoured ? variant.label : undefined} brief={brief} />;
+              }} />
           )} />
         </>
       ))}
@@ -239,7 +243,7 @@ export function ShareModule({ makeLink, module, plugin, printed, yaml, theme, ba
   const [themed, setThemed] = useState(theme?.named === true);
   const [title, setTitle] = useState(module.name);
   const link = useLink(() => makeLink(themed), [makeLink, themed]);
-  const bars = useMemo(() => ({ false: barFor(false, themed), true: barFor(true, themed) }), [themed]);
+  const bars = useMemo(() => ({ light: barFor(false, themed), dark: barFor(true, themed) }), [themed]);
   const command = module.type === "command" ? module.config?.command : undefined;
   return (
     <Modal title={`Share ${module.name}`} onClose={onClose} wide>
@@ -277,7 +281,7 @@ export function ShareModule({ makeLink, module, plugin, printed, yaml, theme, ba
               draw={(appearance, width) => {
                 const bar = bars[appearance];
                 const slot = panelSlots(Object.values(bar.placements).flat()[0])[0];
-                return <ModuleCard bar={bar} dark={appearance} width={width} pinned={slot && { module: module.name, slot }} />;
+                return <ModuleCard bar={bar} dark={appearance === "dark"} width={width} pinned={slot && { module: module.name, slot }} />;
               }} />
           )} />
         </>

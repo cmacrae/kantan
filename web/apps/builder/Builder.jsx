@@ -19,7 +19,7 @@ import { documentFiles, readYaml, themeFiles, writeYaml } from "../../builder/fi
 import {
   WITH_THEME, configText, decodeLink, decodeModuleLink, decodeThemeLink, encodeLink, encodeModuleLink, encodeThemeLink, readFragment,
 } from "../../builder/share.js";
-import { moduleDocument, openDrawers, themeDocument } from "../../builder/shared.js";
+import { moduleDocument, openDrawers, themeDocument, themeVariants } from "../../builder/shared.js";
 import {
   freeThemeName, missingColors, newTheme, paletteFor, previewRef, removeTheme, renameColor, renameColorRefs, renameTheme,
   renameThemeFlavour, selectedThemes, setTheme, themeKind,
@@ -548,13 +548,14 @@ function Workspace({ opened, iconSet, onStart }) {
   // What the dialog that shares the bar needs to share its theme alone,
   // drawn as the theme's page draws it: on the example bar.
   const themeShare = () => {
-    const palettes = loadTheme(ownTheme.selection, themes);
-    if (!palettes) return undefined;
-    const drawn = themeDocument(ownTheme, catalog);
-    const open = openDrawers(drawn);
+    const variants = themeVariants(ownTheme, catalog.themes);
+    if (variants.length === 0) return undefined;
     return {
-      names: themeNames, makeLink: makeThemeLink, palettes,
-      barFor: appearance => resolveBar(drawn, { dark: appearance, icons: iconSet.icons, themes: catalog.themes, samples: open }),
+      names: themeNames, makeLink: makeThemeLink, variants,
+      barFor: variant => {
+        const drawn = themeDocument({ ...ownTheme, selection: variant.selection }, catalog);
+        return resolveBar(drawn, { dark: variant.dark, icons: iconSet.icons, themes: catalog.themes, samples: openDrawers(drawn) });
+      },
     };
   };
   // A bar holding the picked module alone, as its page draws it, in an

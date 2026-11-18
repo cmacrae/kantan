@@ -259,6 +259,7 @@ export const STYLES = `
 .kb-snippet > .kb-btn { position: absolute; top: 6px; right: 6px; }
 .kb-files > h2 { border-bottom: 0; padding-bottom: 0; }
 .kb-files > .kb-body { padding-top: 0; }
+.kb-pill { margin-left: 8px; padding: 1px 7px; border-radius: 999px; border: 1px solid var(--line); color: var(--muted); font-size: 10.5px; }
 .kb-swatches { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 8px; }
 .kb-swatches li { min-width: 0; }
 .kb-swatches button { display: flex; align-items: center; gap: 8px; width: 100%; min-width: 0; padding: 4px; border: 0; border-radius: 9px; background: none; text-align: left; cursor: pointer; }
