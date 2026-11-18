@@ -52,6 +52,8 @@ const WORKSPACE_SCRIPTS = [
       ...LN("#install", "Install ", IC("app-window-filled")),
       ...tokenize("\n• "),
       ...LN("/docs/getting-started/", "Read the docs ", IC("book-filled")),
+      ...tokenize("\n• "),
+      ...LN("/builder/", "Build your bar ", IC("brush")),
     ], speed: 50 },
   ],
 ];
