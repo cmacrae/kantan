@@ -40,6 +40,11 @@ import { moveView, startView, viewOf, withStateView, withView } from "../../buil
 // Whether the editor was left open, as this browser keeps it.
 const EDITOR_KEY = "kantan-builder-editor";
 
+// What the desktop's hint asks its reader to try, and where this browser
+// keeps the ones they have.
+const HINT_KEY = "kantan-builder-hint";
+const HINTED = ["edit", "move", "add"];
+
 // As many changes as can be undone.
 const HISTORY = 100;
 
@@ -223,6 +228,17 @@ function Workspace({ opened, iconSet, onStart }) {
   // kantan. Otherwise a click picks a module and a drag moves it.
   const [trying, setTrying] = useState(false);
   const [quick, setQuick] = useState(false);
+  // The desktop says what can be done to the bar until each has been
+  // done once, in this visit or an earlier one.
+  const [learned, setLearned] = useState(() => (remembered(HINT_KEY) ?? "").split(",").filter(Boolean));
+  const learn = action => {
+    if (learned.includes(action)) return;
+    const next = [...learned, action];
+    setLearned(next);
+    remember(HINT_KEY, next.join(","));
+  };
+  const [hinting] = useState(() => HINTED.some(action => !learned.includes(action)));
+  const hinted = trying || HINTED.every(action => learned.includes(action));
   // Whether the editor below the bar is showing: the settings, the
   // modules and the config. It starts folded away, and stays as it was
   // last left. A module the address asked for opens it.
@@ -532,6 +548,7 @@ function Workspace({ opened, iconSet, onStart }) {
     if (trying) return;
     const index = indexOf(nameAt(event.target));
     if (index < 0 && theme !== undefined) return undefined;
+    if (index >= 0) learn("edit");
     setSelected(index);
     return setQuick(index >= 0);
   };
@@ -616,6 +633,7 @@ function Workspace({ opened, iconSet, onStart }) {
       const from = indexOf(drag);
       if (slot?.name !== undefined) place(from, indexOf(slot.name), slot.after);
       else if (slot) placeIn(from, slot.placement, slot.start);
+      if (slot) learn("move");
       setDrag(undefined);
       setSlot(undefined);
     },
@@ -686,7 +704,7 @@ function Workspace({ opened, iconSet, onStart }) {
               <button type="button" className={`kb-slot ${slot.add ? "add" : ""}`} tabIndex={slot.add ? 0 : -1}
                 aria-label="Add a module here"
                 style={{ left: slot.x, top: 4 + bar.gaps.top, width: slot.width, height: bar.height - 8, color: tint, background: faded(tint, slot.name === undefined ? 0.16 : 0.28) }}
-                onClick={event => { event.stopPropagation(); setAdding({ placement: slot.placement, start: slot.start }); setSlot(undefined); }}>
+                onClick={event => { event.stopPropagation(); learn("add"); setAdding({ placement: slot.placement, start: slot.start }); setSlot(undefined); }}>
                 {slot.add && <Ic name="plus" size={14} />}
               </button>
             )}
@@ -697,7 +715,13 @@ function Workspace({ opened, iconSet, onStart }) {
                 <span><b>Not enough room beside the notch</b>Window too narrow: some modules are under the notch.</span>
               </div>
             )}
-            <div className="kb-desk-room" style={{ marginTop: -Math.min(bar.gaps.top, 40) }} />
+            <div className="kb-desk-room" style={{ marginTop: -Math.min(bar.gaps.top, 40) }}>
+              {hinting && (
+                <div className={`kb-hint ${hinted ? "gone" : ""}`} aria-hidden={hinted} style={{ color: dark ? "#cdd6f4" : "#11111b" }}>
+                  Click a module to edit it, drag them to move them around, or click a gap to add a new one
+                </div>
+              )}
+            </div>
             <style>{marks}</style>
           </div>
           <div className="kb-stage-controls">

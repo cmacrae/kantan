@@ -47,6 +47,8 @@ export const STYLES = `
 .kb-desk { position: relative; width: 100%; min-width: max-content; border-radius: 10px; box-shadow: 0 6px 30px rgba(0,0,0,0.14), 0 1px 4px rgba(0,0,0,0.08); }
 .kb-desk-paper { position: absolute; inset: 0; border-radius: 10px; }
 .kb-desk-room { position: relative; height: 84px; }
+.kb-hint { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; padding: 0 20px; text-align: center; font-size: 13px; pointer-events: none; user-select: none; transition: opacity 0.6s ease; }
+.kb-hint.gone { opacity: 0; }
 .kb-stage-controls { display: flex; flex-wrap: wrap; gap: 6px 14px; align-items: center; justify-content: space-between; width: 100%; margin-top: 10px; color: var(--muted); }
 .kb-stage-controls > div { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
 
