@@ -52,7 +52,9 @@ struct ModuleGroupView: View {
     .frame(maxWidth: isMasked ? .infinity : nil)
     .fixedSize(horizontal: !isMasked, vertical: false)
     .frame(height: CGFloat(themeProvider.config.height))
-    .frame(maxWidth: .infinity, alignment: anchor)
+    // No minimum width, so a panel still catching up with content that has
+    // grown keeps the content at its anchor rather than widening at once.
+    .frame(minWidth: 0, maxWidth: .infinity, alignment: anchor)
     .environmentObject(themeProvider)
   }
 }
