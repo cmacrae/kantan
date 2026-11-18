@@ -382,7 +382,7 @@
     },
     "ImageNode": {
       "type": "object",
-      "description": "Remote image loaded from a URL.",
+      "description": "Image loaded from a URL: one on the web, or a file:// URL of a file on this Mac.",
       "properties": {
         "type": { "const": "image" },
         "url": { "type": "string", "format": "uri", "description": "URL of the image to load." },

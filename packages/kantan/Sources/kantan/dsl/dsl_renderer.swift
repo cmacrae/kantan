@@ -433,7 +433,19 @@ struct DSLRendererView: View {
     let resolvedURL = resolver.resolve(url)
     let radius = cornerRadius ?? 0
 
-    if let parsedURL = URL(string: resolvedURL) {
+    if let parsedURL = URL(string: resolvedURL), parsedURL.isFileURL,
+      let local = NSImage(contentsOf: parsedURL)
+    {
+      // A file on this Mac is read at once, with nothing to wait for.
+      Image(nsImage: local)
+        .resizable()
+        .aspectRatio(contentMode: .fill)
+        .frame(
+          width: width.map { CGFloat($0) },
+          height: height.map { CGFloat($0) }
+        )
+        .clipShape(RoundedRectangle(cornerRadius: CGFloat(radius)))
+    } else if let parsedURL = URL(string: resolvedURL) {
       AsyncImage(url: parsedURL) { phase in
         switch phase {
         case .success(let image):
