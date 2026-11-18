@@ -3,7 +3,9 @@
 // document itself.
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { createResolver, decodeJsonView, formatDate, iconTable, ordinalSuffix, resolveBar, resolveView, validateDocument } from "../index.js";
+import {
+  createResolver, decodeJsonView, formatDate, iconTable, ordinalSuffix, resolveBar, resolveOverlap, resolveView, validateDocument,
+} from "../index.js";
 
 const icons = iconTable({
   bell: { font: "icons", char: "", scale: 1.1333 },
@@ -198,4 +200,16 @@ test("a document is checked before it's drawn", () => {
     "view's dark isn't true or false",
     "view shows a in a state that isn't a name",
   ]);
+});
+
+test("where a drawer and the notch's modules meet, whichever is in use keeps its place", () => {
+  const resolve = state => resolveOverlap({ collides: true, drawerOpen: true, engaged: false, displaced: false, yielded: false, ...state });
+  assert.equal(resolve({}), "displace");
+  assert.equal(resolve({ collides: false }), "none");
+  assert.equal(resolve({ displaced: true }), "none");
+  assert.equal(resolve({ drawerOpen: false, displaced: true }), "restore");
+  assert.equal(resolve({ collides: false, displaced: true }), "restore");
+  assert.equal(resolve({ engaged: true }), "closeDrawer");
+  assert.equal(resolve({ drawerOpen: false, engaged: true, yielded: true }), "none");
+  assert.equal(resolve({ drawerOpen: false, yielded: true }), "reopenDrawer");
 });

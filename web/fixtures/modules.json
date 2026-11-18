@@ -5039,5 +5039,471 @@
     }
    }
   ]
+ },
+ {
+  "name": "waveform shows while there is sound, or always when it never hides",
+  "document": {
+   "version": 1,
+   "config": {
+    "modules": [
+     {
+      "name": "m",
+      "placement": "left",
+      "type": "waveform",
+      "interaction": {
+       "hover": {
+        "type": "tooltip",
+        "content": "{state}"
+       }
+      },
+      "config": {}
+     },
+     {
+      "name": "always",
+      "placement": "left",
+      "type": "waveform",
+      "interaction": {
+       "hover": {
+        "type": "tooltip",
+        "content": "{state}"
+       }
+      },
+      "config": {
+       "hide": "never"
+      }
+     }
+    ]
+   },
+   "states": {
+    "m": [
+     {
+      "name": "no reading"
+     },
+     {
+      "name": "sound",
+      "output": {
+       "levels": [
+        0,
+        0.4,
+        0.9
+       ]
+      }
+     },
+     {
+      "name": "quiet",
+      "output": {
+       "levels": [
+        0,
+        0
+       ]
+      }
+     }
+    ],
+    "always": [
+     {
+      "name": "no reading"
+     },
+     {
+      "name": "sound",
+      "output": {
+       "levels": [
+        0,
+        0.4,
+        0.9
+       ]
+      }
+     },
+     {
+      "name": "quiet",
+      "output": {
+       "levels": [
+        0,
+        0
+       ]
+      }
+     }
+    ]
+   }
+  },
+  "checks": [
+   {
+    "dark": false,
+    "states": {
+     "m": "no reading"
+    },
+    "expect": {
+     "placements": {
+      "left": [
+       {
+        "name": "m",
+        "hidden": true,
+        "tooltip": {
+         "text": "Silent"
+        }
+       },
+       {
+        "name": "always",
+        "hidden": false
+       }
+      ]
+     }
+    }
+   },
+   {
+    "dark": false,
+    "states": {
+     "m": "sound"
+    },
+    "expect": {
+     "placements": {
+      "left": [
+       {
+        "name": "m",
+        "hidden": false,
+        "tooltip": {
+         "text": "Playing"
+        }
+       },
+       {
+        "name": "always",
+        "hidden": false
+       }
+      ]
+     }
+    }
+   },
+   {
+    "dark": false,
+    "states": {
+     "m": "quiet"
+    },
+    "expect": {
+     "placements": {
+      "left": [
+       {
+        "name": "m",
+        "hidden": true,
+        "tooltip": {
+         "text": "Silent"
+        }
+       },
+       {
+        "name": "always",
+        "hidden": false
+       }
+      ]
+     }
+    }
+   },
+   {
+    "dark": false,
+    "states": {
+     "always": "quiet"
+    },
+    "expect": {
+     "placements": {
+      "left": [
+       {
+        "name": "m"
+       },
+       {
+        "name": "always",
+        "hidden": false,
+        "tooltip": {
+         "text": "Silent"
+        }
+       }
+      ]
+     }
+    }
+   }
+  ]
+ },
+ {
+  "name": "a reveal hover marks the module as showing its text on hover",
+  "document": {
+   "version": 1,
+   "config": {
+    "modules": [
+     {
+      "name": "m",
+      "placement": "left",
+      "type": "text",
+      "icon": "music",
+      "config": {
+       "value": "Title"
+      },
+      "interaction": {
+       "hover": {
+        "type": "reveal"
+       }
+      }
+     }
+    ]
+   }
+  },
+  "checks": [
+   {
+    "dark": false,
+    "expect": {
+     "placements": {
+      "left": [
+       {
+        "name": "m",
+        "reveal": true,
+        "tooltip": null
+       }
+      ]
+     }
+    }
+   }
+  ]
+ },
+ {
+  "name": "a reveal hover hides the parts it lists, or those the output marks",
+  "document": {
+   "version": 1,
+   "config": {
+    "modules": [
+     {
+      "name": "marked",
+      "placement": "left",
+      "type": "command",
+      "config": {
+       "command": "true",
+       "output": "json"
+      },
+      "interaction": {
+       "hover": {
+        "type": "reveal",
+        "persist": true
+       }
+      }
+     },
+     {
+      "name": "listed",
+      "placement": "left",
+      "type": "command",
+      "config": {
+       "command": "true",
+       "output": "json"
+      },
+      "interaction": {
+       "hover": {
+        "type": "reveal",
+        "reveal": "text"
+       }
+      }
+     },
+     {
+      "name": "tooltip",
+      "placement": "left",
+      "type": "command",
+      "config": {
+       "command": "true",
+       "output": "json"
+      },
+      "interaction": {
+       "hover": {
+        "type": "tooltip"
+       }
+      }
+     }
+    ]
+   },
+   "states": {
+    "marked": [
+     {
+      "name": "s",
+      "output": {
+       "value": "Artist · Title",
+       "icon": "music",
+       "reveal": [
+        "icon"
+       ],
+       "segments": [
+        {
+         "text": "Artist · ",
+         "reveal": true
+        },
+        {
+         "text": "Title"
+        }
+       ]
+      }
+     }
+    ],
+    "listed": [
+     {
+      "name": "s",
+      "output": {
+       "value": "Artist · Title",
+       "icon": "music",
+       "reveal": [
+        "icon"
+       ],
+       "segments": [
+        {
+         "text": "Artist · ",
+         "reveal": true
+        },
+        {
+         "text": "Title"
+        }
+       ]
+      }
+     }
+    ],
+    "tooltip": [
+     {
+      "name": "s",
+      "output": {
+       "value": "Artist · Title",
+       "icon": "music",
+       "reveal": [
+        "icon"
+       ],
+       "segments": [
+        {
+         "text": "Artist · ",
+         "reveal": true
+        },
+        {
+         "text": "Title"
+        }
+       ]
+      }
+     }
+    ]
+   }
+  },
+  "checks": [
+   {
+    "dark": false,
+    "expect": {
+     "placements": {
+      "left": [
+       {
+        "name": "marked",
+        "reveal": true,
+        "persist": true,
+        "icon": {
+         "name": "music",
+         "reveal": true
+        },
+        "text": [
+         {
+          "text": "Artist · ",
+          "reveal": true
+         },
+         {
+          "text": "Title",
+          "reveal": null
+         }
+        ]
+       },
+       {
+        "name": "listed",
+        "reveal": true,
+        "persist": null,
+        "icon": {
+         "name": "music",
+         "reveal": null
+        },
+        "text": [
+         {
+          "text": "Artist · ",
+          "reveal": true
+         },
+         {
+          "text": "Title",
+          "reveal": true
+         }
+        ]
+       },
+       {
+        "name": "tooltip",
+        "reveal": null,
+        "icon": {
+         "name": "music",
+         "reveal": null
+        },
+        "text": [
+         {
+          "text": "Artist · ",
+          "reveal": null
+         },
+         {
+          "text": "Title",
+          "reveal": null
+         }
+        ]
+       }
+      ]
+     }
+    }
+   }
+  ]
+ },
+ {
+  "name": "a reveal hover hides nothing of an output whose reveal is empty",
+  "document": {
+   "version": 1,
+   "config": {
+    "modules": [
+     {
+      "name": "m",
+      "placement": "left",
+      "type": "command",
+      "config": {
+       "command": "true",
+       "output": "json"
+      },
+      "interaction": {
+       "hover": {
+        "type": "reveal"
+       }
+      }
+     }
+    ]
+   },
+   "states": {
+    "m": [
+     {
+      "name": "s",
+      "output": {
+       "value": "Title",
+       "icon": "music",
+       "reveal": []
+      }
+     }
+    ]
+   }
+  },
+  "checks": [
+   {
+    "dark": false,
+    "expect": {
+     "placements": {
+      "left": [
+       {
+        "name": "m",
+        "reveal": true,
+        "icon": {
+         "name": "music",
+         "reveal": null
+        },
+        "text": [
+         {
+          "text": "Title",
+          "reveal": null
+         }
+        ]
+       }
+      ]
+     }
+    }
+   }
+  ]
  }
 ]

@@ -11,6 +11,7 @@ export { MENU_BAR, NOTCH } from "./menubar.js";
 export { MODULE_TYPES } from "./modules/index.js";
 export { formatDate, ordinalSuffix } from "./dates.js";
 export { shuffledRainbow } from "./modules/workspace.js";
+export { OVERLAP_MARGIN, resolveOverlap } from "./overlap.js";
 export { parseOutput } from "./output.js";
 export { createStyler, parseStyle } from "./style.js";
 export { createResolver, fillTooltip, isURLCommand } from "./template.js";

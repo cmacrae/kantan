@@ -74,6 +74,29 @@ function resolveWorkspace(module, display, config, styler, icons, dark) {
   return workspace;
 }
 
+// The colour between the hex colours `low` and `high`, `fraction` of the
+// way from the first.
+function blend(low, high, fraction) {
+  const channels = hex => [0, 2, 4].map(at => parseInt(hex.replace(/^#/, "").slice(at, at + 2), 16) / 255);
+  const [from, to] = [channels(low), channels(high)];
+  return from.map((channel, i) => Math.round(Math.min(Math.max(channel + (to[i] - channel) * fraction, 0), 1) * 255)
+    .toString(16).padStart(2, "0").toUpperCase()).join("").replace(/^/, "#");
+}
+
+// The colour of each of a waveform's `count` bars, or undefined for the
+// module's: its palette in order, going round again, or its gradient from
+// the first bar to the last. `resolve` turns a colour as written into one
+// to draw, or undefined for one it can't, which leaves the bars the module's.
+function waveformColors(colors, count, resolve) {
+  if (!colors) return undefined;
+  const written = colors.palette ?? [colors.low, colors.high];
+  const drawn = written.map(resolve);
+  if (drawn.some(color => color === undefined || !color.startsWith("#"))) return undefined;
+  if (colors.palette) return Array.from({ length: count }, (_, i) => drawn[i % drawn.length]);
+  const [low, high] = drawn;
+  return Array.from({ length: count }, (_, i) => blend(low, high, count > 1 ? i / (count - 1) : 0));
+}
+
 function resolveModule(module, state, config, styler, icons, dark) {
   const model = { name: module.name, type: module.type, hidden: state.hidden };
   if (module.masked) model.masked = true;
@@ -82,8 +105,16 @@ function resolveModule(module, state, config, styler, icons, dark) {
   if (state.workspace) model.workspace = resolveWorkspace(module, state.workspace, config, styler, icons, dark);
 
   const dynamic = state.style;
+  // A waveform is drawn in the colour of the module's icon, in its place.
+  if (state.waveform) {
+    model.waveform = {
+      ...state.waveform, color: styler.iconFg(module, dynamic),
+      colors: waveformColors(state.waveform.colors, state.waveform.bars, styler.segmentFg),
+    };
+  }
+
   const rawIcon = state.icon === "" ? module.icon : state.icon;
-  if (rawIcon !== undefined && rawIcon !== "" && !state.workspace) {
+  if (rawIcon !== undefined && rawIcon !== "" && !state.workspace && !state.waveform) {
     const base = module.iconFont ?? config.iconFont ?? DEFAULT_ICON_FONT;
     const entry = icons(rawIcon);
     // An icon the fonts have is drawn in its own font, scaled. Anything else
@@ -107,11 +138,14 @@ function resolveModule(module, state, config, styler, icons, dark) {
   if (state.value !== "" && !state.workspace) {
     const fg = styler.textFg(module, dynamic);
     const segments = state.segments.length ? state.segments : [{ text: state.value }];
-    model.text = segments.map(segment => ({ text: segment.text, color: styler.segmentFg(segment.fg) ?? fg }));
+    model.text = segments.map(segment => ({
+      text: segment.text, color: styler.segmentFg(segment.fg) ?? fg,
+      ...(segment.reveal && module.interaction?.hover?.type === "reveal" ? { reveal: true } : {}),
+    }));
     model.textFont = module.textFont ?? config.textFont ?? DEFAULT_TEXT_FONT;
   }
 
-  const shape = state.workspace ? undefined : styler.shape(module, dynamic);
+  const shape = state.workspace || state.waveform ? undefined : styler.shape(module, dynamic);
   if (shape !== undefined) {
     model.shape = shape;
     model.bg = styler.bg(module, dynamic);
@@ -126,6 +160,18 @@ function resolveModule(module, state, config, styler, icons, dark) {
   model.placeholders = { variables, data: state.data };
 
   const { hover, click } = module.interaction ?? {};
+  // A module that keeps some of itself hidden until the pointer is over
+  // it: the parts its hover lists, or without a list, those its output
+  // marks, and its text when the output says nothing of them.
+  if (hover?.type === "reveal") {
+    // An output that says nothing of what a hover reveals marks nothing.
+    const marked = state.revealsIcon !== undefined || state.segments.some(segment => segment.reveal);
+    const hides = part => (hover.reveal ? hover.reveal.includes(part) : part === "icon" ? state.revealsIcon === true : !marked);
+    model.reveal = true;
+    if (hover.persist) model.persist = true;
+    if (model.icon && hides("icon")) model.icon.reveal = true;
+    if (model.text && hides("text")) model.text = model.text.map(segment => ({ ...segment, reveal: true }));
+  }
   if (hover?.type === "tooltip") {
     model.tooltip = hover.view
       ? { view: resolveView(hover.view, context) }
@@ -174,8 +220,15 @@ export function resolveBar(document, { dark = false, states = {}, samples = {}, 
   for (const module of config.modules) {
     const placement = resolvePlacement(module.placement, notch);
     if (!Object.hasOwn(placements, placement ?? "")) continue;
-    placements[placement].push(
-      resolveModule(module, moduleState(module, document, states[module.name], samples[module.name]), config, styler, icons, dark));
+    const model = resolveModule(module, moduleState(module, document, states[module.name], samples[module.name]), config, styler, icons, dark);
+    // A module slides in and out as it shows and hides when its transition
+    // says so, or without one, when it sits beside the notch.
+    if ((module.transition ?? (placement.startsWith("notch") ? "slide" : "none")) === "slide") model.transition = "slide";
+    // The icon is at the module's left unless its `iconPosition` says
+    // otherwise, or it reveals on hover left of the notch, where the icon
+    // stays beside the notch as the rest slides out.
+    if ((module.iconPosition ?? (model.reveal && placement === "notchleft" ? "right" : "left")) === "right") model.iconPosition = "right";
+    placements[placement].push(model);
   }
 
   // Each side of the screen has one drawer, the first drawer module placed

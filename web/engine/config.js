@@ -3,7 +3,7 @@
 import { moduleType } from "./modules/index.js";
 import { parseStyle } from "./style.js";
 import { loadTheme } from "./theme.js";
-import { dict, int, list, num, str } from "./values.js";
+import { bool, dict, int, list, num, str } from "./values.js";
 import { decodeYamlView } from "./view.js";
 
 // A font descriptor, `Name:Size` or `Name:Weight:Size`, with `system:` in
@@ -37,6 +37,10 @@ function parseHover(value) {
   return {
     type: str(value.type) ?? "tooltip",
     content: str(value.content),
+    // The parts a `reveal` hover hides until then: a list of them, or one.
+    reveal: (list(value.reveal)?.filter(part => typeof part === "string") ?? (str(value.reveal) === undefined ? undefined : [value.reveal]))
+      ?.filter(part => part === "icon" || part === "text"),
+    persist: bool(value.persist) ?? false,
     view: value.view == null ? undefined : decodeYamlView(value.view),
   };
 }
@@ -56,6 +60,8 @@ function parseModule(yaml) {
     textFont: str(yaml.fonts?.text) === undefined ? undefined : parseFont(yaml.fonts.text),
     iconFont: str(yaml.fonts?.icon) === undefined ? undefined : parseFont(yaml.fonts.icon),
     style: parseStyle(yaml.style),
+    transition: ["slide", "none"].includes(yaml.transition) ? yaml.transition : undefined,
+    iconPosition: ["left", "right"].includes(yaml.iconPosition) ? yaml.iconPosition : undefined,
   };
 
   const clickType = str(yaml.interaction?.click?.type);

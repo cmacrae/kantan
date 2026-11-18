@@ -38,8 +38,11 @@ export function parseOutput(json, raw) {
   if (list(json.segments)?.every(dict)) {
     state.segments = json.segments
       .filter(segment => typeof segment.text === "string")
-      .map(segment => ({ text: segment.text, fg: str(segment.fg) }));
+      .map(segment => ({ text: segment.text, fg: str(segment.fg), ...(segment.reveal === true ? { reveal: true } : {}) }));
   }
+
+  // The parts the output marks as hidden until a hover reveals them.
+  if (list(json.reveal)?.every(part => typeof part === "string")) state.revealsIcon = json.reveal.includes("icon");
 
   if (json.view != null) {
     const { node, problem } = decodeJsonView(json.view);

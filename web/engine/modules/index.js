@@ -11,10 +11,11 @@ import icon from "./icon.js";
 import power from "./power.js";
 import text from "./text.js";
 import volume from "./volume.js";
+import waveform from "./waveform.js";
 import wifi from "./wifi.js";
 import workspace from "./workspace.js";
 
-const implemented = { bluetooth, clock, command, drawer, focus, icon, power, text, volume, wifi, workspace };
+const implemented = { bluetooth, clock, command, drawer, focus, icon, power, text, volume, waveform, wifi, workspace };
 
 export const MODULE_TYPES = Object.keys(implemented);
 

@@ -72,6 +72,15 @@ export const BUILT_INS = {
       { name: "Inactive", output: { active: false } },
     ],
   },
+  waveform: {
+    label: "Waveform",
+    icon: "wave-sine",
+    module: { placement: "right" },
+    states: [
+      { name: "Playing", output: { levels: [0.5, 0.8, 0.65, 0.9, 0.55, 0.7, 0.4, 0.3] } },
+      { name: "Silent", output: { levels: [] } },
+    ],
+  },
   drawer: {
     label: "Drawer",
     icon: "box-align-right",
