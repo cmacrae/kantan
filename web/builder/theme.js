@@ -161,7 +161,7 @@ const written = ({ name, flavour }) => (flavour === undefined ? name : `${name}[
 
 // A config's `theme` with each reference in it replaced by what `each`
 // makes of its `{ name, flavour }`.
-function mapSelection(selection, each) {
+export function mapSelection(selection, each) {
   const one = raw => (typeof raw === "string" ? written(each(parseThemeRef(raw))) : raw);
   if (typeof selection === "string") return one(selection);
   if (!dict(selection)) return selection;

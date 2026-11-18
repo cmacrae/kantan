@@ -3,13 +3,13 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { test } from "node:test";
 import { NODE_FIELDS, NODE_TYPES, decodeJsonView, loadConfig, loadTheme, resolveBar, validateDocument } from "../../engine/index.js";
-import { SLOTS, readScheme, schemeFileName, schemeTheme } from "../base16.js";
+import { SLOTS, readScheme, schemeFileName, schemeTheme, withSharedTheme } from "../base16.js";
 import { BUILT_INS, pluginOf } from "../catalog.js";
 import {
   addBuiltIn, addPasted, addPlugin, addShared, boundDocument, emptyDocument, inLayout, layoutOf, modulesOf, toDir, toSingle, updateModule,
 } from "../edit.js";
 import { documentFiles, readYaml, themeFiles } from "../files.js";
-import { decodeLink, decodeModuleLink, encodeLink, encodeModuleLink, packModule, readFragment } from "../share.js";
+import { decodeLink, decodeModuleLink, decodeThemeLink, encodeLink, encodeModuleLink, encodeThemeLink, packModule, readFragment } from "../share.js";
 import { configSchema, deref } from "../schema.js";
 import { newTheme, paletteFor, palettesOf, previewRef, themeKind, themeProblems, toKind } from "../theme.js";
 import {
@@ -404,6 +404,23 @@ test("a module is shared on its own, with the states it shows", async () => {
   await assert.rejects(decodeModuleLink("1.abc", catalog), /format/);
   await assert.rejects(decodeModuleLink("m1.!!!", catalog), /damaged/);
   await assert.rejects(decodeModuleLink(await encodeLink(emptyDocument(), catalog).then(link => `m${link}`), catalog), /module/);
+});
+
+test("a bar's theme is shared on its own, and another bar takes it", async () => {
+  const day = { fg: "#000000", bg: "#ffffff", colors: { red: "#ff0000" } };
+  const selection = { light: "day", dark: "catppuccin[mocha]" };
+  const document = { ...emptyDocument(), config: { modules: [], theme: selection }, themes: { day, spare: { fg: "#111111", bg: "#eeeeee" } } };
+  const fragment = await encodeThemeLink(document);
+  assert.deepEqual(readFragment(`#${fragment}`), { theme: fragment });
+  const shared = await decodeThemeLink(fragment);
+  assert.deepEqual(shared, { selection, themes: { day } });
+
+  // A bar with another theme of that name keeps it.
+  const other = { ...emptyDocument(), themes: { day: { fg: "#222222", bg: "#dddddd" } } };
+  const taken = withSharedTheme(other, shared);
+  assert.deepEqual(taken.config.theme, { light: "day-2", dark: "catppuccin[mocha]" });
+  assert.deepEqual(taken.themes, { ...other.themes, "day-2": day });
+  await assert.rejects(decodeThemeLink(await encodeLink(emptyDocument(), catalog).then(link => `t${link}`)), /theme/);
 });
 
 test("a click's view moves between the config and what the command prints", () => {

@@ -4,7 +4,9 @@
 // Catppuccin's names brought over to a scheme's.
 import { parseHex } from "../engine/color.js";
 import { dict, list, str } from "../engine/values.js";
-import { freeThemeName, missingColors, renameColorRefs, setTheme } from "./theme.js";
+import { loadTheme } from "../engine/theme.js";
+import { sameValue } from "./equal.js";
+import { freeThemeName, mapSelection, missingColors, renameColorRefs, setTheme } from "./theme.js";
 
 // A scheme's slots, in order: sixteen, and Base24's eight more.
 const hexDigits = "0123456789ABCDEF";
@@ -108,6 +110,23 @@ export function adoptSlots(document, palettes) {
     const slot = (CATPPUCCIN_SLOTS[name] ?? []).find(has);
     return slot === undefined ? next : renameColorRefs(next, name, slot);
   }, document);
+}
+
+// The document drawn in a theme someone shared, `{ selection, themes }`:
+// it holds the theme's files, its config selects them, and the Catppuccin
+// colours its config names follow them. A file whose name a different
+// theme has, among the document's or those `bundled`, takes a free one.
+export function withSharedTheme(document, shared, bundled = {}) {
+  let next = document, selection = shared.selection;
+  for (const [name, theme] of Object.entries(shared.themes)) {
+    const held = sameValue(next.themes?.[name], theme);
+    const to = held ? name : freeThemeName({ ...bundled, ...next.themes }, name);
+    next = setTheme(next, to, theme);
+    if (to !== name) selection = mapSelection(selection, ref => (ref.name === name ? { ...ref, name: to } : ref));
+  }
+  next = { ...next, config: { ...next.config, theme: selection } };
+  const palettes = loadTheme(selection, { ...bundled, ...next.themes });
+  return palettes ? adoptSlots(next, palettes) : next;
 }
 
 // Where the tinted-theming project lists its schemes: GitHub's listing of

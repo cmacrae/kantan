@@ -83,6 +83,8 @@ Code hands over what to save. For a view in the config that is the module's YAML
 
 A module can be shared on its own: `/builder/#m1.<data>`, packed as a bar's link is. It holds the module's config and the states it shows. Opened, it shows on a page of its own. The page draws the module alone on a bar and holds its menu, popup or tooltip open, on a desktop as large as that needs. It lists the module's states and its YAML. From there the module opens in the builder, on the example bar. Pasted into Add a module, it is added to the bar that is open. A module of a bundled plugin leaves its untouched states to the site, as a bar's link does. A module running a command of someone's own carries its states as preview data. The dialog says the command itself isn't in the link.
 
+A bar's theme can be shared on its own too: `/builder/#t1.<data>`. It holds what the config's `theme` selects and the theme files of the bar's own that names. A theme kantan bundles goes by its name alone. Opened, it shows on a page of its own: the example bar drawn in the theme, the colours it names in each appearance, and its files. Pasted into Import a theme, the bar that is open takes it for light and dark. The bar's Share dialog gives that link beside the bar's own.
+
 ### Themes
 
 The builder's editor is on one thing at a time: the bar's settings, a module, a theme, or one of a module's views. Bar Settings lists the themes. One of kantan's can be copied, a new one started, or a theme file pasted in.

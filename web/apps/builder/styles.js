@@ -253,6 +253,13 @@ export const STYLES = `
 .kb-shared-under .kb-chips { padding: 0; }
 .kb-shared-under > .kb-btn { margin-left: auto; }
 .kb-shared .kb-code { max-height: none; }
+.kb-shared-fit .kb-shared-desk { min-height: 150px; }
+.kb-swatches { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 8px; }
+.kb-swatches li { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.kb-swatches i { flex: none; width: 28px; height: 28px; border-radius: 7px; border: 1px solid var(--line); }
+.kb-swatches li > span { display: flex; flex-direction: column; min-width: 0; line-height: 1.3; }
+.kb-swatches b { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.kb-swatches li > span > span { color: var(--muted); font: 11.5px 'SF Mono', Menlo, Monaco, monospace; }
 .kb-view-under { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; }
 .kb-view-under .kb-chips { padding: 0; }
 .kb-view-grip { cursor: col-resize; background: var(--line); background-clip: content-box; padding: 0 4px; touch-action: none; }

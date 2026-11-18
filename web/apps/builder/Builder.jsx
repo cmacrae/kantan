@@ -14,9 +14,11 @@ import {
   addBuiltIn, addOwnPlugin, addPasted, addPlugin, addShared, boundDocument, documentFromConfig, emptyDocument, inLayout, layoutOf, modulesOf, placeAtEdge,
   placeModule, removeModule, setModuleStates, toSingle, updateModule,
 } from "../../builder/edit.js";
-import { adoptSlots, importSchemes } from "../../builder/base16.js";
+import { adoptSlots, importSchemes, withSharedTheme } from "../../builder/base16.js";
 import { documentFiles, readYaml, themeFiles, writeYaml } from "../../builder/files.js";
-import { configText, decodeLink, decodeModuleLink, encodeLink, encodeModuleLink, readFragment } from "../../builder/share.js";
+import {
+  configText, decodeLink, decodeModuleLink, decodeThemeLink, encodeLink, encodeModuleLink, encodeThemeLink, readFragment,
+} from "../../builder/share.js";
 import {
   freeThemeName, missingColors, newTheme, paletteFor, previewRef, removeTheme, renameColor, renameColorRefs, renameTheme,
   renameThemeFlavour, selectedThemes, setTheme, themeKind,
@@ -32,6 +34,7 @@ import { ModuleList } from "./ModuleList.jsx";
 import { Output, Share, ShareModule } from "./Output.jsx";
 import { QuickEdit } from "./QuickEdit.jsx";
 import { SharedModule } from "./SharedModule.jsx";
+import { SharedTheme } from "./SharedTheme.jsx";
 import { ThemeEditor } from "./ThemeEditor.jsx";
 import { STYLES } from "./styles.js";
 import { BuilderContext, Button, Ic, Modal, remember, remembered } from "./ui.jsx";
@@ -77,15 +80,24 @@ function onExample(shared) {
   };
 }
 
+// The example bar drawn in a theme someone shared.
+function inTheme(shared) {
+  return {
+    document: withSharedTheme(exampleDocument(), shared, catalog.themes),
+    note: `${selectedThemes(shared.selection).join(" and ")} is a theme shared by a link, shown here on the example bar. To use it on a bar of your own, open that bar and paste the link into Import a theme.`,
+  };
+}
+
 // What the page's address asks for: `{ document }` from a shared link,
-// `{ shared }` from a link to one module, `{ document, source }` from a
-// config file fetched from elsewhere, or undefined when it asks for
-// nothing.
+// `{ shared }` from a link to one module, `{ sharedTheme }` from a link
+// to a theme, `{ document, source }` from a config file fetched from
+// elsewhere, or undefined when it asks for nothing.
 async function fromAddress() {
   const asked = readFragment(window.location.hash);
   if (asked === undefined) return undefined;
   if (asked.link !== undefined) return { document: await decodeLink(asked.link, catalog) };
   if (asked.module !== undefined) return { shared: await decodeModuleLink(asked.module, catalog) };
+  if (asked.theme !== undefined) return { sharedTheme: await decodeThemeLink(asked.theme) };
   const response = await fetch(asked.url);
   if (!response.ok) throw new Error(`The config couldn't be fetched: ${asked.url} answered ${response.status}`);
   return { document: documentFromText(configText(await response.text(), asked)), source: window.location.href };
@@ -469,6 +481,9 @@ function Workspace({ opened, iconSet, onStart }) {
       const palettes = loadTheme(held.document.config.theme, { ...catalog.themes, ...held.document.themes });
       change(palettes ? adoptSlots(held.document, palettes) : held.document);
     },
+    // A theme from a link is the one the config selects, as its sharer's
+    // did.
+    onImportShared: shared => change(withSharedTheme(document, shared, catalog.themes)),
   };
   const themeEdits = theme && {
     onChange: next => change(setTheme(document, themeName, next)),
@@ -503,6 +518,13 @@ function Workspace({ opened, iconSet, onStart }) {
     const fragment = await encodeModuleLink(module, document.states?.[module.name], shown[module.name], catalog);
     return `${window.location.origin}${window.location.pathname}#${fragment}`;
   }, [document, module, shown]);
+  const themeNames = selectedThemes(document.config.theme);
+
+  // The theme the bar is drawn in, shared on its own.
+  const makeThemeLink = useCallback(async () => {
+    const fragment = await encodeThemeLink(document);
+    return `${window.location.origin}${window.location.pathname}#${fragment}`;
+  }, [document]);
 
   // The bar as it is looked at now, in an appearance, for a picture of
   // it: its drawers as they were last left.
@@ -832,7 +854,7 @@ function Workspace({ opened, iconSet, onStart }) {
             && (document.states?.[module.name] ?? []).some(state => dict(dict(state.output)?.view))}
           onClose={() => setSharingModule(false)} />
       )}
-      {sharing && <Share makeLink={makeLink} source={edited ? undefined : opened.source} barFor={barFor} dark={dark} onClose={() => setSharing(false)} />}
+      {sharing && <Share makeLink={makeLink} makeThemeLink={themeNames.length ? makeThemeLink : undefined} source={edited ? undefined : opened.source} barFor={barFor} dark={dark} onClose={() => setSharing(false)} />}
     </BuilderContext.Provider>
   );
 }
@@ -877,6 +899,11 @@ export default function Builder() {
       {opened?.shared && (
         <BuilderContext.Provider value={{ ...iconSet, catalog, schema }}>
           <SharedModule key={session} shared={opened.shared} systemDark={systemDark} onBuild={() => open(onExample(opened.shared))} />
+        </BuilderContext.Provider>
+      )}
+      {opened?.sharedTheme && (
+        <BuilderContext.Provider value={{ ...iconSet, catalog, schema }}>
+          <SharedTheme key={session} shared={opened.sharedTheme} systemDark={systemDark} onBuild={() => open(inTheme(opened.sharedTheme))} />
         </BuilderContext.Provider>
       )}
       {opened?.document && <Workspace key={session} opened={opened} iconSet={iconSet} onStart={() => setStarting(true)} />}

@@ -68,7 +68,7 @@ function Swatch({ choice, picked, onPick }) {
 
 // The themes there are: the document's own to edit, kantan's to copy, and
 // the ways to add one. `own` are the names of the document's own.
-function Themes({ themes, own, onNew, onEdit, onCopy, onImport, onImportSchemes }) {
+function Themes({ themes, own, onNew, onEdit, onCopy, onImport, onImportSchemes, onImportShared }) {
   const [importing, setImporting] = useState(false);
   return (
     <>
@@ -91,7 +91,8 @@ function Themes({ themes, own, onNew, onEdit, onCopy, onImport, onImportSchemes 
       {importing && (
         <ThemeImport taken={Object.keys(themes)} onClose={() => setImporting(false)}
           onImport={(name, theme) => { setImporting(false); onImport(name, theme); }}
-          onImportSchemes={picks => { setImporting(false); onImportSchemes(picks); }} />
+          onImportSchemes={picks => { setImporting(false); onImportSchemes(picks); }}
+          onImportShared={shared => { setImporting(false); onImportShared(shared); }} />
       )}
     </>
   );
@@ -100,10 +101,11 @@ function Themes({ themes, own, onNew, onEdit, onCopy, onImport, onImportSchemes 
 // `theme` is the config's `theme`, `themes` every theme file it can name,
 // `own` the names of those the document holds, and `onChange` is given the
 // `theme` to write, undefined for none. `onNew`, `onEdit(name)`,
-// `onCopy(name)`, `onImport(name, theme)` and `onImportSchemes(picks)`
-// start a theme, open one of the document's own, copy one of kantan's,
-// take in a file and take in schemes' themes.
-export function ThemePicker({ theme, themes, own, onChange, onNew, onEdit, onCopy, onImport, onImportSchemes }) {
+// `onCopy(name)`, `onImport(name, theme)`, `onImportSchemes(picks)` and
+// `onImportShared(shared)` start a theme, open one of the document's own,
+// copy one of kantan's, take in a file, take in schemes' themes and take
+// in a theme from a link.
+export function ThemePicker({ theme, themes, own, onChange, onNew, onEdit, onCopy, onImport, onImportSchemes, onImportShared }) {
   const current = { light: chosen(theme, "light", themes), dark: chosen(theme, "dark", themes) };
   // A theme names both appearances or neither.
   const pick = (mode, ref) => {
@@ -152,7 +154,8 @@ export function ThemePicker({ theme, themes, own, onChange, onNew, onEdit, onCop
             Uses the menu bar's material and colours.
           </div>
         )}
-      <Themes themes={themes} own={own} onNew={onNew} onEdit={onEdit} onCopy={onCopy} onImport={onImport} onImportSchemes={onImportSchemes} />
+      <Themes themes={themes} own={own} onNew={onNew} onEdit={onEdit} onCopy={onCopy} onImport={onImport} onImportSchemes={onImportSchemes}
+        onImportShared={onImportShared} />
     </div>
   );
 }

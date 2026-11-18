@@ -79,9 +79,16 @@ const GITHUB_LIMIT = 65536;
 
 // The dialog that shares the bar. `makeLink` resolves to the link holding
 // it, and `source` is the link to the file it was opened from, while it is
-// still as that file has it. `barFor` and `dark` are `ShareImage`'s.
-export function Share({ makeLink, source, barFor, dark, onClose }) {
+// still as that file has it. `makeThemeLink` resolves to the link holding
+// its theme alone, when it has one. `barFor` and `dark` are `ShareImage`'s.
+export function Share({ makeLink, makeThemeLink, source, barFor, dark, onClose }) {
   const [link, setLink] = useState();
+  const [themeLink, setThemeLink] = useState();
+  useEffect(() => {
+    let current = true;
+    makeThemeLink?.().then(made => current && setThemeLink(made));
+    return () => { current = false; };
+  }, [makeThemeLink]);
   const [title, setTitle] = useState("My kantan bar");
   useEffect(() => {
     let current = true;
@@ -123,6 +130,12 @@ export function Share({ makeLink, source, barFor, dark, onClose }) {
             <div style={{ marginTop: 14 }}>
               {row("A short link to the file this bar was opened from", source)}
               <div className="kb-note">It always shows the file as it is now, with each module in the states it starts with.</div>
+            </div>
+          )}
+          {themeLink !== undefined && (
+            <div style={{ marginTop: 14 }}>
+              {row(`A link to its theme alone · ${themeLink.length.toLocaleString()} characters`, themeLink)}
+              <div className="kb-note">Opens on a page of its own, for another bar to take.</div>
             </div>
           )}
         </>

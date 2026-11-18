@@ -17,7 +17,9 @@
 //
 // A link can also share one module on its own, to add to any bar: its
 // config and the states it shows, packed the same way, after `m` and the
-// module codec's version.
+// module codec's version. And one a bar's theme: what its config selects
+// and the theme files of its own that names, after `t` and the theme
+// codec's version.
 import { deflateSync, inflateSync } from "fflate";
 import { DICTIONARY } from "./dictionary.js";
 import { sameValue } from "./equal.js";
@@ -25,10 +27,12 @@ import { DOCUMENT_VERSION } from "../engine/document.js";
 import { dict, str } from "../engine/values.js";
 import { defaultStates } from "./catalog.js";
 import { modulesOf } from "./edit.js";
+import { selectedThemes } from "./theme.js";
 import { WORDS } from "./words.js";
 
 export const CODEC_VERSION = "1";
 export const MODULE_CODEC_VERSION = "m1";
+export const THEME_CODEC_VERSION = "t1";
 
 const DICTIONARY_BYTES = new TextEncoder().encode(DICTIONARY);
 
@@ -187,10 +191,34 @@ export const encodeModuleLink = async (module, states, shown, catalog) =>
 // The module a fragment made by `encodeModuleLink` shares.
 export const decodeModuleLink = async (fragment, catalog) => unpackModule(await decodeFragment(MODULE_CODEC_VERSION, fragment), catalog);
 
+// The packed form of the theme a document is drawn in: `k` what its
+// config's `theme` selects, and `t` the theme files of its own that
+// names. A theme kantan bundles goes by its name alone.
+export function packTheme(document) {
+  const selection = document.config?.theme;
+  const themes = Object.fromEntries(selectedThemes(selection).filter(name => dict(document.themes?.[name])).map(name => [name, document.themes[name]]));
+  return mapStrings({ k: selection, ...(present(themes) ? { t: themes } : {}) }, packString);
+}
+
+// The theme a packed form holds, as `{ selection, themes }`.
+export function unpackTheme(packed) {
+  if (!dict(packed)) throw new Error("The link doesn't hold a theme");
+  const { k, t } = mapStrings(packed, unpackString);
+  if (selectedThemes(k).length === 0) throw new Error("The link doesn't hold a theme");
+  return { selection: k, themes: dict(t) ?? {} };
+}
+
+// The fragment, without its `#`, that shares the theme `document` is
+// drawn in.
+export const encodeThemeLink = async document => encodeFragment(THEME_CODEC_VERSION, packTheme(document));
+
+// The theme a fragment made by `encodeThemeLink` shares.
+export const decodeThemeLink = async fragment => unpackTheme(await decodeFragment(THEME_CODEC_VERSION, fragment));
+
 // What a fragment asks the builder to open: `{ link }` for a shared
-// document, `{ module }` for a shared module, `{ url }` for a config file
-// to fetch, with `gist` when the file is a gist's first YAML file, or
-// undefined for anything else.
+// document, `{ module }` for a shared module, `{ theme }` for a shared
+// theme, `{ url }` for a config file to fetch, with `gist` when the file
+// is a gist's first YAML file, or undefined for anything else.
 export function readFragment(fragment) {
   const text = fragment.replace(/^#/, "");
   if (text === "") return undefined;
@@ -206,6 +234,7 @@ export function readFragment(fragment) {
   if (key === "gist" && /^[0-9a-f]+$/i.test(value)) return { url: `https://api.github.com/gists/${value}`, gist: true };
   if (/^[0-9]+\./.test(text)) return { link: text };
   if (/^m[0-9]+\./.test(text)) return { module: text };
+  if (/^t[0-9]+\./.test(text)) return { theme: text };
   return undefined;
 }
 

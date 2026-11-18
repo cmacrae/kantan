@@ -4,6 +4,7 @@
 import { useEffect, useRef, useState } from "react";
 import { GALLERY, readListing, readScheme, schemeFileName, schemeTheme } from "../../builder/base16.js";
 import { readYaml } from "../../builder/files.js";
+import { decodeThemeLink, readFragment } from "../../builder/share.js";
 import { nameProblem } from "../../builder/theme.js";
 import { loadTheme } from "../../engine/index.js";
 import { dict } from "../../engine/values.js";
@@ -153,8 +154,21 @@ function Gallery({ slots, onPick }) {
 // takes in a kantan theme file. `onImportSchemes(picks)` takes in the
 // themes of the schemes picked: `picks` holds `{ name, theme }` for
 // `light`, for `dark` or for both, and an appearance it leaves out keeps
-// the theme the config has for it.
-export function ThemeImport({ taken, onImport, onImportSchemes, onClose }) {
+// the theme the config has for it. `onImportShared(shared)` takes in the
+// theme a link holds.
+export function ThemeImport({ taken, onImport, onImportSchemes, onImportShared, onClose }) {
+  const [link, setLink] = useState("");
+  const [linkProblem, setLinkProblem] = useState();
+  // A theme someone shared, from its link or the part of it after the #.
+  const openLink = async () => {
+    const asked = readFragment(link.trim().slice(link.indexOf("#") + 1));
+    if (asked?.theme === undefined) return setLinkProblem("Not a theme link.");
+    try {
+      return onImportShared(await decodeThemeLink(asked.theme));
+    } catch (error) {
+      return setLinkProblem(error.message);
+    }
+  };
   // The scheme picked for each appearance, each `{ name, scheme }`, and
   // the appearance the next pick is for. A scheme that says which
   // appearance it suits goes there first, until a slot is asked for.
@@ -241,6 +255,15 @@ export function ThemeImport({ taken, onImport, onImportSchemes, onClose }) {
       </div>
       {problem !== undefined && <div className="kb-problem">{problem}</div>}
       <div className="kb-note">A kantan theme kept as a directory goes in as one file: its flavours under <code>flavours</code>, beside its <code>defaults</code>.</div>
+
+      <div className="kb-h">Or paste a link to a theme</div>
+      <div className="kb-row">
+        <input type="text" aria-label="A link to a theme" value={link} placeholder="A link someone shared" spellCheck={false}
+          onChange={event => { setLink(event.target.value); setLinkProblem(undefined); }} />
+        <Button disabled={link.trim() === ""} onClick={openLink}>Use it</Button>
+      </div>
+      {linkProblem !== undefined && <div className="kb-problem">{linkProblem}</div>}
+      <div className="kb-note">The bar takes the theme for light and dark.</div>
     </Modal>
   );
 }
