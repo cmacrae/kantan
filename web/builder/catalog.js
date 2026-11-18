@@ -108,6 +108,7 @@ export const BUILT_INS = {
 export const PLUGIN_ABOUT = {
   caffeine: "Keep-awake toggle",
   calendar: "Upcoming events",
+  "now-playing": "Track playing now",
   pomodoro: "Pomodoro timer",
   reminders: "Due reminders",
   "rift-indicator": "Rift layout",

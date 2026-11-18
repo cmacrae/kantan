@@ -1,7 +1,8 @@
 // Draws a bar the engine resolved, as kantan draws it: each module's icon,
 // value and shape, the tooltip it shows under the pointer, and the menu or
 // popup a click opens.
-import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useEffect, useId, useLayoutEffect, useRef, useState } from "react";
+import { OVERLAP_MARGIN, resolveOverlap } from "../engine/index.js";
 import { Glyph } from "./Glyph.jsx";
 import { Menu } from "./Menu.jsx";
 import { Unsupported } from "./Unsupported.jsx";
@@ -34,6 +35,26 @@ function useWithinBar(ref, deps) {
     setShift(right > screen.right ? Math.max(screen.right - right, screen.left - left) : left < screen.left ? screen.left - left : 0);
   }, deps);
   return shift;
+}
+
+// How far to move `ref`'s element sideways to keep it where it opened,
+// as kantan keeps a popup in place while its module changes width under
+// it. The place is kept along the bar, so it holds as the page scrolls.
+function useHeldInPlace(ref, holds, deps) {
+  const opened = useRef(null);
+  const [hold, setHold] = useState(0);
+  useLayoutEffect(() => {
+    const bar = ref.current?.closest("[data-kantan-bar]");
+    const module = ref.current?.offsetParent;
+    if (!holds || !bar || !module) return;
+    const screen = bar.getBoundingClientRect(), under = module.getBoundingClientRect();
+    // The page may draw the bar scaled, which the move is made within.
+    const scale = bar.offsetWidth ? screen.width / bar.offsetWidth : 1;
+    const centre = (under.left + under.width / 2 - screen.left) / (scale || 1);
+    opened.current ??= centre;
+    setHold(opened.current - centre);
+  }, deps);
+  return hold;
 }
 
 // What a menu, popup or tooltip is drawn on: its corners, material,
@@ -69,6 +90,7 @@ export function PanelView({ kind, nodes, context }) {
 function Panel({ kind, bar, dark, align, gap, style, deps, children }) {
   const ref = useRef(null);
   const shift = useWithinBar(ref, deps);
+  const hold = useHeldInPlace(ref, kind === "popup", deps);
   return (
     <div
       ref={ref}
@@ -76,7 +98,7 @@ function Panel({ kind, bar, dark, align, gap, style, deps, children }) {
       style={{
         position: "absolute", top: `calc(100% + ${gap}px)`, zIndex: 300,
         left: align === "center" ? "50%" : 0,
-        transform: `translateX(calc(${align === "center" ? "-50%" : "0px"} + ${shift}px))`,
+        transform: `translateX(calc(${align === "center" ? "-50%" : "0px"} + ${shift + hold}px))`,
         ...panelSurface(kind, bar, dark),
         ...style,
       }}
@@ -119,6 +141,50 @@ function ModuleIcon({ icon, dark }) {
       </span>
       <span style={{ gridArea: "1 / 1" }}>{glyph}</span>
     </span>
+  );
+}
+
+// A waveform module: a bar for each level, or the levels joined as a wave.
+function WaveformView({ waveform, dark }) {
+  const { style, levels, height } = waveform;
+  const color = cssColor(waveform.color, dark);
+  const gradient = useId();
+  if (style === "wave") {
+    // A wave made of a tone for each level, the lowest the slowest, drawn
+    // a point every point and a half as kantan draws the sound's own.
+    const count = Math.max(Math.round(waveform.width / 1.5), 2);
+    const loudest = levels.reduce((sum, level) => sum + level, 0) || 1;
+    const points = Array.from({ length: count }, (_, index) => {
+      const along = index / (count - 1);
+      const swing = levels.reduce((sum, level, tone) => sum + level * Math.sin(2 * Math.PI * (tone + 1) * 0.75 * along + tone * 1.7), 0) / loudest;
+      return `${(waveform.width * along).toFixed(2)},${(height / 2 * (1 - swing)).toFixed(2)}`;
+    });
+    const stroke = waveform.colors ? `url(#${gradient})` : color;
+    return (
+      <svg width={waveform.width} height={height}
+        style={{ flexShrink: 0, maskImage: "linear-gradient(to right, transparent, #000 20%, #000 80%, transparent)" }}>
+        {waveform.colors && (
+          <defs>
+            <linearGradient id={gradient} x1="0" x2="1" y1="0" y2="0">
+              {waveform.colors.map((stop, index) => (
+                <stop key={index} offset={waveform.colors.length > 1 ? index / (waveform.colors.length - 1) : 0} stopColor={cssColor(stop, dark)} />
+              ))}
+            </linearGradient>
+          </defs>
+        )}
+        <polyline points={points.join(" ")} fill="none" stroke={stroke} strokeWidth={1.2} strokeLinejoin="round" strokeLinecap="round" />
+      </svg>
+    );
+  }
+  return (
+    <div style={{ display: "flex", alignItems: "center", gap: 2, height }}>
+      {levels.map((level, index) => (
+        <span key={index} style={{
+          width: 2, height: Math.max(2, level * height), borderRadius: 1,
+          background: waveform.colors ? cssColor(waveform.colors[index % waveform.colors.length], dark) : color,
+        }} />
+      ))}
+    </div>
   );
 }
 
@@ -173,10 +239,20 @@ function WorkspaceView({ workspace, bar, dark, activate }) {
   );
 }
 
-function ModuleView({ module, bar, dark, run, toggleDrawer, switchWorkspace, interactive, moduleProps, pinned }) {
+function ModuleView({ module, bar, dark, run, toggleDrawer, switchWorkspace, interactive, moduleProps, pinned, onEngaged }) {
   const [hover, setHover] = useState(false);
   const [open, setOpen] = useState(false);
+  // Whether a click has left the popup open until the pointer leaves it.
+  const [lingering, setLingering] = useState(false);
   const ref = useRef(null);
+
+  // A module that reveals on hover is in use while it shows what it
+  // reveals, which the bar makes room for.
+  const engaged = module.reveal === true && !module.hidden && (hover || (module.persist === true && open));
+  useEffect(() => {
+    onEngaged?.(module.name, engaged);
+    return () => onEngaged?.(module.name, false);
+  }, [engaged, module.name]);
 
   useEffect(() => {
     if (!open) return undefined;
@@ -215,18 +291,48 @@ function ModuleView({ module, bar, dark, run, toggleDrawer, switchWorkspace, int
   const mark = held !== undefined;
   const fg = bar.native ? "primary" : bar.fg;
 
+  // What a hover reveals is showing: under the pointer, or while the
+  // module's menu or popup is open when its hover persists.
+  const revealed = hover || held === "hover" || (module.persist === true && showing);
+  // A part that waits for a hover takes no room until then, and slides out.
+  const waiting = (part, key) => (
+    <span key={key} style={{
+      display: "inline-flex", overflow: "hidden", maxWidth: revealed ? 600 : 0, opacity: revealed ? 1 : 0,
+      transition: `max-width ${WORKSPACE_TIMING}, opacity ${WORKSPACE_TIMING}`,
+    }}>{part}</span>
+  );
+  const text = module.text && (
+    <span style={{ display: "inline-flex", whiteSpace: "pre", fontFamily: fontFamily(module.textFont.name), fontSize: module.textFont.size, fontWeight: module.textFont.weight }}>
+      {module.text.map((segment, i) => {
+        const words = <span key={i} style={{ color: cssColor(segment.color, dark) }}>{segment.text}</span>;
+        return segment.reveal ? waiting(words, i) : words;
+      })}
+    </span>
+  );
+  const icon = module.icon && (module.icon.reveal
+    ? waiting(<ModuleIcon icon={module.icon} dark={dark} />)
+    : <ModuleIcon icon={module.icon} dark={dark} />);
+  // The text comes before an icon at the module's right. The room between
+  // them, in a revealing module, is there while both are.
+  const textLeads = module.iconPosition === "right";
+  const showsIcon = module.icon && (!module.icon.reveal || revealed);
+  const showsText = module.text?.some(segment => !segment.reveal || revealed);
+  const room = module.reveal && (
+    <span style={{ width: showsIcon && showsText ? bar.iconTextSpacing : 0, transition: `width ${WORKSPACE_TIMING}` }} />
+  );
+
   const content = (
     <>
       {module.workspace && (
         <WorkspaceView workspace={module.workspace} bar={bar} dark={dark}
           activate={interactive && switchWorkspace && (target => switchWorkspace(module.name, target))} />
       )}
-      {module.icon && <ModuleIcon icon={module.icon} dark={dark} />}
-      {module.text && (
-        <span style={{ whiteSpace: "pre", fontFamily: fontFamily(module.textFont.name), fontSize: module.textFont.size, fontWeight: module.textFont.weight }}>
-          {module.text.map((segment, i) => <span key={i} style={{ color: cssColor(segment.color, dark) }}>{segment.text}</span>)}
-        </span>
-      )}
+      {module.waveform && <WaveformView waveform={module.waveform} dark={dark} />}
+      {textLeads && text}
+      {textLeads && room}
+      {icon}
+      {!textLeads && room}
+      {!textLeads && text}
     </>
   );
 
@@ -250,10 +356,10 @@ function ModuleView({ module, bar, dark, run, toggleDrawer, switchWorkspace, int
       <div
         ref={ref}
         onMouseEnter={() => setHover(interactive)}
-        onMouseLeave={() => setHover(false)}
+        onMouseLeave={() => { setHover(false); if (lingering) { setLingering(false); setOpen(false); } }}
         style={{ position: "relative", display: "flex", alignItems: "center", gap: bar.iconTextSpacing, cursor: onClick ? "pointer" : "default" }}
       >
-        <div data-kantan-content onClick={onClick} style={{ display: "flex", alignItems: "center", gap: "inherit" }}>
+        <div data-kantan-content onClick={onClick} style={{ display: "flex", alignItems: "center", gap: module.reveal ? 0 : "inherit" }}>
           {module.shape
             ? <Shaped shape={module.shape} color={cssColor(module.bg, dark)} height={bar.height}>{content}</Shaped>
             : content}
@@ -276,7 +382,8 @@ function ModuleView({ module, bar, dark, run, toggleDrawer, switchWorkspace, int
 
         {showing && click.type === "popup" && (
           <Panel kind="popup" bar={bar} dark={dark} align="center" gap={4} deps={[click]}>
-            <PanelView kind="popup" nodes={click.view} context={{ dark, native: bar.native, fg, run: runFrom, dismiss: close, mark }} />
+            <PanelView kind="popup" nodes={click.view}
+              context={{ dark, native: bar.native, fg, run: runFrom, dismiss: close, linger: () => setLingering(true), mark }} />
           </Panel>
         )}
       </div>
@@ -318,16 +425,100 @@ function Notch({ notch, gaps }) {
 // popup open for the slot `click`, or its tooltip for `hover`: it runs
 // nothing, and each node it draws carries `data-kantan-node`, the path of
 // the node it came from in the view as written.
+const group = { display: "flex", alignItems: "center" };
+
+// The placement beside the notch on each side of the screen.
+const BESIDE_NOTCH = { left: "notchleft", right: "notchright" };
+
+// Settles what shares each side of the notch, as kantan does: the modules
+// beside it and an open drawer's contents further out. Gives the placements
+// slid behind the notch, the bar's element to measure, what a module tells
+// of being in use, and the drawer's toggle for a click to call.
+function useOverlaps(bar, toggleDrawer) {
+  const element = useRef(null);
+  const [displaced, setDisplaced] = useState({});
+  const [engaged, setEngaged] = useState({});
+  // The width a displaced placement's modules had, and the sides whose
+  // drawer is closed for now.
+  const widths = useRef({});
+  const yielded = useRef({});
+  // Measured again once a drawer has finished opening or closing.
+  const [settled, setSettled] = useState(0);
+  useEffect(() => {
+    const timer = setTimeout(() => setSettled(count => count + 1), 320);
+    return () => clearTimeout(timer);
+  }, [bar]);
+
+  useLayoutEffect(() => {
+    const root = element.current;
+    if (!root || !bar.notch) return;
+    const next = { ...displaced };
+    for (const side of ["left", "right"]) {
+      const inner = BESIDE_NOTCH[side];
+      const outerModules = bar.placements[side].filter(module => !module.slot);
+      const drawer = outerModules.find(module => module.type === "drawer");
+      if (!drawer || !outerModules.some(module => module.inDrawer) || !bar.placements[inner].length) continue;
+
+      const modules = placement => [...root.querySelectorAll(`[data-kantan-placement="${placement}"] > [data-kantan-module]`)];
+      const total = elements => elements.reduce((sum, each) => sum + each, 0);
+      // A drawer's contents are measured at the width they open to.
+      const drawerOpen = drawer.open === true;
+      const outerWidth = total(modules(side).map(each => {
+        const module = outerModules.find(candidate => candidate.name === each.dataset.kantanModule);
+        return module?.inDrawer ? (drawerOpen ? each.scrollWidth : 0) : each.offsetWidth;
+      }));
+      const innerWidth = displaced[inner] ? widths.current[inner] ?? 0 : total(modules(inner).map(each => each.offsetWidth));
+      const half = root.querySelectorAll("[data-kantan-half]")[side === "left" ? 0 : 1];
+      const span = (half?.offsetWidth ?? 0) - (side === "right" ? root.querySelector("[data-kantan-masked]")?.offsetWidth ?? 0 : 0);
+      const using = bar.placements[inner].some(module => engaged[module.name]);
+
+      const action = resolveOverlap({
+        collides: span - innerWidth - outerWidth < OVERLAP_MARGIN, drawerOpen, engaged: using,
+        displaced: displaced[inner] === true, yielded: yielded.current[side] === true,
+      });
+      if (action === "displace") {
+        widths.current[inner] = innerWidth;
+        next[inner] = true;
+      } else if (action === "restore") {
+        next[inner] = false;
+      } else if ((action === "closeDrawer" || action === "reopenDrawer") && toggleDrawer) {
+        yielded.current[side] = action === "closeDrawer";
+        toggleDrawer(drawer.name);
+      }
+    }
+    if (Object.keys(next).some(placement => next[placement] !== (displaced[placement] ?? false))) setDisplaced(next);
+  }, [bar, engaged, displaced, settled]);
+
+  return {
+    element, displaced,
+    onEngaged: (name, using) => setEngaged(current => (Boolean(current[name]) === using ? current : { ...current, [name]: using })),
+    // A drawer the user sets is no longer one waiting to open again.
+    toggle: toggleDrawer && (name => {
+      for (const side of ["left", "right"]) {
+        if (bar.placements[side].some(module => module.name === name)) yielded.current[side] = false;
+      }
+      toggleDrawer(name);
+    }),
+  };
+}
+
 export function BarView({ bar, dark, run, toggleDrawer, switchWorkspace, style, interactive = true, moduleProps, pinned }) {
+  const overlaps = useOverlaps(bar, toggleDrawer);
   const view = module => (
-    <ModuleView key={module.name} module={module} bar={bar} dark={dark} run={run} pinned={pinned}
-      toggleDrawer={toggleDrawer} switchWorkspace={switchWorkspace} interactive={interactive} moduleProps={moduleProps} />
+    <ModuleView key={module.name} module={module} bar={bar} dark={dark} run={run} pinned={pinned} onEngaged={overlaps.onEngaged}
+      toggleDrawer={overlaps.toggle} switchWorkspace={switchWorkspace} interactive={interactive} moduleProps={moduleProps} />
   );
+  // The modules beside the notch slide behind it while a drawer has their room.
+  const besideNotch = placement => ({
+    ...group, overflow: overlaps.displaced[placement] ? "hidden" : undefined,
+    maxWidth: overlaps.displaced[placement] ? 0 : 2000, opacity: overlaps.displaced[placement] ? 0 : 1,
+    pointerEvents: overlaps.displaced[placement] ? "none" : undefined,
+    transition: `max-width ${WORKSPACE_TIMING}, opacity ${WORKSPACE_TIMING}`,
+  });
   // Masked modules sit together over the system's menu bar items.
   const modules = placement => bar.placements[placement].filter(module => !module.slot).map(view);
   const all = Object.values(bar.placements).flat();
   const masked = bar.menuBar.modules.map(name => all.find(module => module.name === name));
-  const group = { display: "flex", alignItems: "center" };
   const gaps = bar.gaps ?? { top: 0, left: 0, right: 0 };
   // With a blur the bar is a tint of its background colour, or of black in
   // the native appearance, over a blur of what is behind it: the lower the
@@ -345,7 +536,7 @@ export function BarView({ bar, dark, run, toggleDrawer, switchWorkspace, style, 
   return (
     // The gaps are room within the screen, between its edges and the bar.
     <div style={{ padding: `${gaps.top}px ${gaps.right}px 0 ${gaps.left}px` }}>
-      <div data-kantan-bar style={{
+      <div data-kantan-bar ref={overlaps.element} style={{
         display: "flex", alignItems: "center", height: bar.height, position: "relative", zIndex: 1,
         color: cssColor(bar.fg, dark),
         background,
@@ -357,13 +548,13 @@ export function BarView({ bar, dark, run, toggleDrawer, switchWorkspace, style, 
       }}>
         <div data-kantan-half style={half}>
           <div data-kantan-placement="left" style={group}>{modules("left")}</div>
-          <div data-kantan-placement="notchleft" style={{ ...group, marginLeft: "auto" }}>{modules("notchleft")}</div>
+          <div data-kantan-placement="notchleft" style={{ ...besideNotch("notchleft"), marginLeft: "auto", justifyContent: "flex-end" }}>{modules("notchleft")}</div>
         </div>
         {bar.notch && <Notch notch={bar.notch} gaps={gaps} />}
         <div data-kantan-half style={{ ...half, justifyContent: "flex-end" }}>
-          <div data-kantan-placement="notchright" style={group}>{modules("notchright")}</div>
+          <div data-kantan-placement="notchright" style={besideNotch("notchright")}>{modules("notchright")}</div>
           <div data-kantan-placement="right" style={{ ...group, marginLeft: "auto" }}>{modules("right")}</div>
-          <div style={{ ...group, paddingRight: Math.max(0, bar.menuBar.trailing - gaps.right) }}>{masked.map(view)}</div>
+          <div data-kantan-masked style={{ ...group, paddingRight: Math.max(0, bar.menuBar.trailing - gaps.right) }}>{masked.map(view)}</div>
         </div>
       </div>
     </div>

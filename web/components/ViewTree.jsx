@@ -109,12 +109,14 @@ export function Switch({ on }) {
 }
 
 function Node({ node, context }) {
-  const { dark, native, fg, run, dismiss } = context;
+  const { dark, native, fg, run, dismiss, linger } = context;
   const color = value => cssColor(value, dark);
   const children = (node.children ?? []).map((child, i) => <ViewNode key={i} node={child} context={context} />);
   // Runs a command the node holds. Most close the popup as they do.
+  // One that doesn't leaves it open until the pointer leaves it.
   const runs = (command, closes = true) => () => {
     if (closes) dismiss();
+    else linger?.();
     if (command) run(command);
   };
 
@@ -216,7 +218,7 @@ function Node({ node, context }) {
       );
     case "button":
       return (
-        <span onClick={runs(node.command)} style={{ display: "inline-flex", alignItems: "center", gap: 6, cursor: "pointer", fontSize: 13, color: color("accent") }}>
+        <span onClick={runs(node.command, node.dismiss !== false)} style={{ display: "inline-flex", alignItems: "center", gap: 6, cursor: "pointer", fontSize: 13, color: color("accent") }}>
           {node.icon && (node.icon.type === "unsupported"
             ? <Unsupported what={node.icon.what} />
             : <Glyph icon={node.icon} dark={dark} fallbackFont="inherit" />)}
