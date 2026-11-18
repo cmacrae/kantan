@@ -2,6 +2,8 @@
 
 kantan includes a variety of built-in modules for displaying system information and custom content in your status bar.
 
+The [builder](https://kantan.bar/builder/) draws each of them on a bar in the browser, to add, arrange and configure.
+
 ## Available Modules
 
 | Type | Description |

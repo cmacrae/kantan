@@ -2,6 +2,8 @@
 
 This guide walks through creating a minimal kantan configuration and running it.
 
+To start without writing YAML, use the [builder](https://kantan.bar/builder/). It draws a bar in the browser as you pick its modules, and writes the config files for it.
+
 ## Step 0: Run Without Config
 
 You can run kantan immediately with no config file. It shows a welcome bar with a setup hint:
@@ -79,6 +81,8 @@ modules:
 ```
 
 Modules with the same placement appear left to right in the order they're listed. Here the battery sits at the far right with the clock to its left. See the [Configuration](../configuration/index.md) and [Built-in Modules](../modules/index.md) sections for every module and its options.
+
+The [builder](https://kantan.bar/builder/) adds, arranges and edits modules on a bar drawn live. It can open a config you paste, to carry on from the one written here.
 
 ## Reference Configuration
 

@@ -2,7 +2,7 @@
 
 A theme is a set of named colour palettes, kept apart from your config. Switching colour schemes means changing the theme. A theme can be shared between setups.
 
-The [builder](https://kantan.bar/builder/) makes and edits themes in the browser with the bar drawn live, and writes the file described here. It also converts a [Base16 or Base24](https://github.com/tinted-theming/home) scheme into a theme.
+The [builder](https://kantan.bar/builder/) makes and edits themes in the browser with the bar drawn live, and writes the file described here. It also converts a [Base16 or Base24](https://github.com/tinted-theming/home) scheme into a theme. A theme can be shared from it as a link.
 
 ## How Themes Work
 

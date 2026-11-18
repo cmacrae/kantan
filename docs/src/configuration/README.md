@@ -2,7 +2,7 @@
 
 kantan is configured with YAML, in a single file or split across a `modules.d/` directory. It reloads the config when it changes.
 
-The [builder](https://kantan.bar/builder/) draws a bar in the browser as you pick its modules, and writes the config for it.
+The [builder](https://kantan.bar/builder/) draws a bar in the browser as you pick its modules, and writes the config for it. A bar, a theme or a single module can be shared from it as a link.
 
 ## Config File Locations
 

@@ -2,6 +2,8 @@
 
 Modules are the individual components displayed in the status bar. Each module appears in the `modules:` array in the configuration file, or as a standalone file in the `modules.d/` directory.
 
+The [builder](https://kantan.bar/builder/) edits a module's fields in a form and draws the module as they change. It writes the YAML described here, and can share a module on its own as a link.
+
 ## Common Module Fields
 
 All modules support these configuration fields:

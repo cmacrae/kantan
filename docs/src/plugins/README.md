@@ -67,6 +67,8 @@ A plugin's `view` output field holds a View DSL tree, shown by the module's clic
 
 See the [View DSL documentation](../view-dsl/index.md) for details on building interactive plugin UIs.
 
+The [builder](https://kantan.bar/builder/) adds each bundled plugin to a bar with its settings in a form. It also draws a plugin of your own from output you paste, to design its view before writing the plugin.
+
 ## Documentation Structure
 
 This section contains detailed guides for plugin development:

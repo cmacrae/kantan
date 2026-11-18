@@ -2,6 +2,8 @@
 
 The View DSL is a declarative, JSON-based language for describing views in kantan. Plugins and YAML configuration both use it to lay out tooltips, popups and menus.
 
+The [builder](https://kantan.bar/builder/) has a view editor that builds a tooltip, popup or menu node by node. It draws the view as kantan would, and writes the YAML or JSON for it.
+
 ## Overview
 
 The View DSL is a tree-structured format where each node represents a UI component. These nodes are rendered natively as SwiftUI views, providing native performance and appearance.

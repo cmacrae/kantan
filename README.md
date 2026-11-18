@@ -11,6 +11,7 @@
 
 <p align="center">
   <a href="https://kantan.bar">Website</a> ·
+  <a href="https://kantan.bar/builder/">Builder</a> ·
   <a href="https://kantan.bar/docs/">Docs</a> ·
   <a href="#install">Install</a>
 </p>
@@ -20,6 +21,7 @@
 - **Rich popups and menus.** Build them from a view DSL in your config or a plugin's output.
 - **Themes with light and dark mode.** Bring your own palettes or use the bundled [Catppuccin](https://catppuccin.com).
 - **Menu bar masking.** Restyle native indicators. Their menus keep working underneath.
+- **A builder in the browser.** Build a bar, a theme or a module in the [builder](https://kantan.bar/builder/), then download the config or share it as a link.
 - **Tidy by design.** Drawers, notch-aware placement and every display covered.
 
 ## Install
@@ -37,11 +39,11 @@ nix run github:cmacrae/kantan
 curl -fsSL https://kantan.bar/install.sh | sh
 ```
 
-Run `kantan` and a welcome bar appears. Check out the [quick start](https://kantan.bar/docs/getting-started/quick-start.html) guide.
+Run `kantan` and a welcome bar appears. Check out the [quick start](https://kantan.bar/docs/getting-started/quick-start.html) guide, or build your bar in the [builder](https://kantan.bar/builder/).
 
 ## Learn more
 
-The [website](https://kantan.bar) shows kantan in action, and the [docs](https://kantan.bar/docs/) cover configuration, every module, themes and writing plugins. Questions, ideas and setups to share are welcome in [Discussions](https://github.com/cmacrae/kantan/discussions).
+The [website](https://kantan.bar) shows kantan in action, and the [docs](https://kantan.bar/docs/) cover configuration, every module, themes and writing plugins. The [builder](https://kantan.bar/builder/) draws a bar in the browser as you pick its modules, and writes the config for it. Questions, ideas and setups to share are welcome in [Discussions](https://github.com/cmacrae/kantan/discussions).
 
 ## Contributing
 
