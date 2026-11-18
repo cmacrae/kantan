@@ -7,7 +7,8 @@ import { highlightYaml } from "../../components/yaml-highlight.jsx";
 import { ShareImage } from "./ShareImage.jsx";
 import { Button, CopyButton, Ic, Modal } from "./ui.jsx";
 
-const YAML_COLORS = {
+// The colours YAML is written in.
+export const YAML_COLORS = {
   comment: "var(--faint)", key: "var(--accent)", string: "var(--yaml-string)", bool: "var(--yaml-number)",
   number: "var(--yaml-number)", value: "var(--fg)", punct: "var(--faint)",
 };
@@ -150,7 +151,7 @@ export function ShareModule({ makeLink, module, plugin, printed, yaml, onClose }
       {link === undefined ? <div className="kb-note">Making the link…</div> : (
         <>
           <div className="kb-note" style={{ paddingBottom: 10 }}>
-            Holds the module's config, views and states. It opens on the example bar.
+            Holds the module's config, views and states. It opens on a page of its own.
           </div>
           <div className="kb-h">A link to this module · {link.length.toLocaleString()} characters</div>
           <div className="kb-row" style={{ marginBottom: 12 }}>

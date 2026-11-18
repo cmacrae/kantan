@@ -245,6 +245,14 @@ export const STYLES = `
 .kb-view-stage { display: flex; flex-direction: column; gap: 8px; padding: 14px; min-width: 0; min-height: 0; overflow: auto; background: var(--bg); }
 .kb-view-desk { position: relative; flex: 1 0 auto; min-height: 320px; border-radius: 10px; box-shadow: 0 6px 30px rgba(0,0,0,0.14), 0 1px 4px rgba(0,0,0,0.08); }
 .kb-view-desk .empty { position: absolute; left: 0; right: 0; top: 46%; padding: 0 18px; text-align: center; color: rgba(255,255,255,0.75); font-size: 12.5px; text-shadow: 0 1px 3px rgba(0,0,0,0.5); }
+.kb-shared { max-width: 900px; margin: 0 auto; padding: 4px 20px 48px; display: flex; flex-direction: column; gap: 14px; }
+.kb-shared h1 { margin: 0; font-size: 20px; font-weight: 600; }
+.kb-shared-desk { position: relative; min-height: 120px; border-radius: 10px; box-shadow: 0 6px 30px rgba(0,0,0,0.14), 0 1px 4px rgba(0,0,0,0.08); }
+.kb-shared-desk .empty { position: absolute; left: 0; right: 0; top: 58%; text-align: center; color: rgba(255,255,255,0.75); font-size: 12.5px; text-shadow: 0 1px 3px rgba(0,0,0,0.5); }
+.kb-shared-under { display: flex; align-items: center; gap: 8px 16px; flex-wrap: wrap; }
+.kb-shared-under .kb-chips { padding: 0; }
+.kb-shared-under > .kb-btn { margin-left: auto; }
+.kb-shared .kb-code { max-height: none; }
 .kb-view-under { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; }
 .kb-view-under .kb-chips { padding: 0; }
 .kb-view-grip { cursor: col-resize; background: var(--line); background-clip: content-box; padding: 0 4px; touch-action: none; }

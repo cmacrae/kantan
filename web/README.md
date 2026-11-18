@@ -81,7 +81,7 @@ Code hands over what to save. For a view in the config that is the module's YAML
 
 ### Sharing a module
 
-A module can be shared on its own: `/builder/#m1.<data>`, packed as a bar's link is. It holds the module's config and the states it shows. Opened, it is added to the example bar and picked. Pasted into Add a module, it is added to the bar that is open. A module of a bundled plugin leaves its untouched states to the site, as a bar's link does. A module running a command of someone's own carries its states as preview data. The dialog says the command itself isn't in the link.
+A module can be shared on its own: `/builder/#m1.<data>`, packed as a bar's link is. It holds the module's config and the states it shows. Opened, it shows on a page of its own. The page draws the module alone on a bar and holds its menu, popup or tooltip open, on a desktop as large as that needs. It lists the module's states and its YAML. From there the module opens in the builder, on the example bar. Pasted into Add a module, it is added to the bar that is open. A module of a bundled plugin leaves its untouched states to the site, as a bar's link does. A module running a command of someone's own carries its states as preview data. The dialog says the command itself isn't in the link.
 
 ### Themes
 

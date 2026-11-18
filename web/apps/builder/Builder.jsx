@@ -31,6 +31,7 @@ import { ModuleEditor } from "./ModuleEditor.jsx";
 import { ModuleList } from "./ModuleList.jsx";
 import { Output, Share, ShareModule } from "./Output.jsx";
 import { QuickEdit } from "./QuickEdit.jsx";
+import { SharedModule } from "./SharedModule.jsx";
 import { ThemeEditor } from "./ThemeEditor.jsx";
 import { STYLES } from "./styles.js";
 import { BuilderContext, Button, Ic, Modal, remember, remembered } from "./ui.jsx";
@@ -64,24 +65,27 @@ function documentFromText(text) {
   return documentFromConfig(value, catalog);
 }
 
+// The example bar with a module someone shared added to it and picked,
+// in the state it was shared in.
+function onExample(shared) {
+  const { document, name } = addShared(exampleDocument(), shared);
+  const shown = { ...document.view?.shown, ...(shared.shown === undefined ? {} : { [name]: shared.shown }) };
+  return {
+    document: { ...document, view: { ...document.view, shown } },
+    pick: name,
+    note: `${name} is a module shared by a link, added here to the example bar. To put it on a bar of your own, open that bar and paste the link into Add a module.`,
+  };
+}
+
 // What the page's address asks for: `{ document }` from a shared link,
-// `{ document, pick, note }` from a link to one module, which is added to
-// the example bar and picked, `{ document, source }` from a config file
-// fetched from elsewhere, or undefined when it asks for nothing.
+// `{ shared }` from a link to one module, `{ document, source }` from a
+// config file fetched from elsewhere, or undefined when it asks for
+// nothing.
 async function fromAddress() {
   const asked = readFragment(window.location.hash);
   if (asked === undefined) return undefined;
   if (asked.link !== undefined) return { document: await decodeLink(asked.link, catalog) };
-  if (asked.module !== undefined) {
-    const shared = await decodeModuleLink(asked.module, catalog);
-    const { document, name } = addShared(exampleDocument(), shared);
-    const shown = { ...document.view?.shown, ...(shared.shown === undefined ? {} : { [name]: shared.shown }) };
-    return {
-      document: { ...document, view: { ...document.view, shown } },
-      pick: name,
-      note: `This link shares one module, ${name}, shown here on the example bar. Its YAML is in its editor. To put it on a bar of your own, open that bar and paste the link into Add a module.`,
-    };
-  }
+  if (asked.module !== undefined) return { shared: await decodeModuleLink(asked.module, catalog) };
   const response = await fetch(asked.url);
   if (!response.ok) throw new Error(`The config couldn't be fetched: ${asked.url} answered ${response.status}`);
   return { document: documentFromText(configText(await response.text(), asked)), source: window.location.href };
@@ -837,6 +841,7 @@ function Workspace({ opened, iconSet, onStart }) {
 // again whenever the address changes or the bar is started over.
 export default function Builder() {
   const iconSet = useIcons();
+  const systemDark = useSystemDark();
   const [opened, setOpened] = useState();
   const [session, setSession] = useState(0);
   const [starting, setStarting] = useState(false);
@@ -869,7 +874,12 @@ export default function Builder() {
   return (
     <div className="kb">
       <style>{STYLES}</style>
-      {opened && <Workspace key={session} opened={opened} iconSet={iconSet} onStart={() => setStarting(true)} />}
+      {opened?.shared && (
+        <BuilderContext.Provider value={{ ...iconSet, catalog, schema }}>
+          <SharedModule key={session} shared={opened.shared} systemDark={systemDark} onBuild={() => open(onExample(opened.shared))} />
+        </BuilderContext.Provider>
+      )}
+      {opened?.document && <Workspace key={session} opened={opened} iconSet={iconSet} onStart={() => setStarting(true)} />}
       {starting && (
         <BuilderContext.Provider value={{ ...iconSet, catalog, schema }}>
           <Start onClose={() => setStarting(false)} onOpen={start} />

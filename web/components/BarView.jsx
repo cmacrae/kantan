@@ -72,6 +72,7 @@ function Panel({ kind, bar, dark, align, gap, style, deps, children }) {
   return (
     <div
       ref={ref}
+      data-kantan-panel={kind}
       style={{
         position: "absolute", top: `calc(100% + ${gap}px)`, zIndex: 300,
         left: align === "center" ? "50%" : 0,
