@@ -85,6 +85,8 @@ A module can be shared on its own: `/builder/#m1.<data>`, packed as a bar's link
 
 A bar's theme can be shared on its own too: `/builder/#t1.<data>`. It holds what the config's `theme` selects and the theme files of the bar's own that names. A theme kantan bundles goes by its name alone. Opened, it shows on a page of its own: the example bar drawn in the theme, the colours it names in each appearance, and its files. Pasted into Import a theme, the bar that is open takes it for light and dark. The bar's Share dialog gives that link beside the bar's own.
 
+A module's link can carry the theme its bar is drawn in: a theme's link after the module's, joined by `~`. The dialog that shares a module offers it, and includes it unasked when the module names the theme's colours. The module's page then draws it in that theme. Pasted into Add a module, such a link asks whether the bar takes the theme too.
+
 ### Themes
 
 The builder's editor is on one thing at a time: the bar's settings, a module, a theme, or one of a module's views. Bar Settings lists the themes. One of kantan's can be copied, a new one started, or a theme file pasted in.

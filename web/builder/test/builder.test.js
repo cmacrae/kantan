@@ -412,6 +412,7 @@ test("a bar's theme is shared on its own, and another bar takes it", async () =>
   const document = { ...emptyDocument(), config: { modules: [], theme: selection }, themes: { day, spare: { fg: "#111111", bg: "#eeeeee" } } };
   const fragment = await encodeThemeLink(document);
   assert.deepEqual(readFragment(`#${fragment}`), { theme: fragment });
+  assert.deepEqual(readFragment(`#m1.abc~${fragment}`), { module: "m1.abc", theme: fragment });
   const shared = await decodeThemeLink(fragment);
   assert.deepEqual(shared, { selection, themes: { day } });
 

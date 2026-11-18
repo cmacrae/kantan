@@ -7,33 +7,44 @@ import { wallpaper } from "../../components/Desk.jsx";
 import { useBar } from "../../components/useBar.js";
 import { highlightYaml } from "../../components/yaml-highlight.jsx";
 import { BUILT_INS, PLUGIN_ABOUT, pluginOf } from "../../builder/catalog.js";
+import { withSharedTheme } from "../../builder/base16.js";
 import { boundDocument } from "../../builder/edit.js";
 import { writeYaml } from "../../builder/files.js";
+import { missingColors, selectedThemes } from "../../builder/theme.js";
+import { loadTheme } from "../../engine/index.js";
 import { YAML_COLORS } from "./Output.jsx";
 import { Button, CopyButton, useBuilder } from "./ui.jsx";
 
 // What a held panel is called, by the slot that opens it.
 const HELD = { click: "On click", hover: "On hover" };
 
-// `shared` is the module a link holds, `{ module, states, shown }`, and
-// `systemDark` whether the system's appearance is dark. `onBuild` opens
-// the module in the builder.
+// `shared` is the module a link holds, `{ module, states, shown }`, with
+// `theme`, the theme that came with it, and `themeLink`, the fragment
+// that holds that theme alone. `systemDark` is whether the system's
+// appearance is dark. `onBuild` opens the module in the builder.
 export function SharedModule({ shared, systemDark, onBuild }) {
   const { catalog, icons } = useBuilder();
   const { module, states = [] } = shared;
   const [dark, setDark] = useState(systemDark);
 
   // The module alone at the left of the example's bar, where a panel has
-  // the most room, in the example's theme.
+  // the most room, in the theme that came with it or the example's.
   const document = useMemo(() => {
     const { modules: _, ...settings } = catalog.example.config;
     const { mask: __, ...unmasked } = module;
-    return boundDocument({
+    const alone = {
       version: catalog.example.version,
       config: { ...settings, modules: [{ ...unmasked, placement: "left" }] },
       ...(states.length ? { states: { [module.name]: states } } : {}),
-    }, catalog);
-  }, [module, states]);
+    };
+    return boundDocument(shared.theme === undefined ? alone : withSharedTheme(alone, shared.theme, catalog.themes), catalog);
+  }, [shared]);
+  // The colours the module names that the theme it is drawn in lacks.
+  const missing = useMemo(() => {
+    const palettes = loadTheme(document.config.theme, { ...catalog.themes, ...document.themes });
+    return palettes ? missingColors(document, palettes) : [];
+  }, [document]);
+  const themeNames = shared.theme && selectedThemes(shared.theme.selection).join(" and ");
   const { bar, run, toggleDrawer, switchWorkspace, states: showing, setState } = useBar(document, {
     dark, icons, themes: catalog.themes, states: shared.shown === undefined ? undefined : { [module.name]: shared.shown },
   });
@@ -84,8 +95,17 @@ export function SharedModule({ shared, systemDark, onBuild }) {
       <main className="kb-shared">
         <div>
           <h1>{module.name}</h1>
-          <div className="kb-note">A shared module{about ? ` · ${about}` : ""}</div>
+          <div className="kb-note">
+            A shared module{about ? ` · ${about}` : ""}
+            {themeNames && <> · in its theme, <a href={`#${shared.themeLink}`}>{themeNames}</a></>}
+          </div>
         </div>
+        {missing.length > 0 && (
+          <div className="kb-problem">
+            {themeNames ? "Its theme lacks" : "The link holds no theme, and the example bar's lacks"} {missing.length === 1 ? "a colour" : "colours"} the
+            module names: {missing.join(", ")}.
+          </div>
+        )}
 
         <div className="kb-shared-desk" ref={desk} style={{ background: wallpaper(dark), ...room }}>
           <BarView bar={bar} dark={dark} run={run} toggleDrawer={toggleDrawer} switchWorkspace={switchWorkspace}

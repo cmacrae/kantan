@@ -19,7 +19,8 @@
 // config and the states it shows, packed the same way, after `m` and the
 // module codec's version. And one a bar's theme: what its config selects
 // and the theme files of its own that names, after `t` and the theme
-// codec's version.
+// codec's version. A module's link carries the theme it is drawn in as a
+// theme's link after it, the two joined by `~`.
 import { deflateSync, inflateSync } from "fflate";
 import { DICTIONARY } from "./dictionary.js";
 import { sameValue } from "./equal.js";
@@ -215,10 +216,14 @@ export const encodeThemeLink = async document => encodeFragment(THEME_CODEC_VERS
 // The theme a fragment made by `encodeThemeLink` shares.
 export const decodeThemeLink = async fragment => unpackTheme(await decodeFragment(THEME_CODEC_VERSION, fragment));
 
+// What joins a module's link to the link of the theme it is drawn in.
+export const WITH_THEME = "~";
+
 // What a fragment asks the builder to open: `{ link }` for a shared
-// document, `{ module }` for a shared module, `{ theme }` for a shared
-// theme, `{ url }` for a config file to fetch, with `gist` when the file
-// is a gist's first YAML file, or undefined for anything else.
+// document, `{ module }` for a shared module, with `theme` when the theme
+// it is drawn in comes with it, `{ theme }` for a shared theme, `{ url }`
+// for a config file to fetch, with `gist` when the file is a gist's first
+// YAML file, or undefined for anything else.
 export function readFragment(fragment) {
   const text = fragment.replace(/^#/, "");
   if (text === "") return undefined;
@@ -233,7 +238,8 @@ export function readFragment(fragment) {
   }
   if (key === "gist" && /^[0-9a-f]+$/i.test(value)) return { url: `https://api.github.com/gists/${value}`, gist: true };
   if (/^[0-9]+\./.test(text)) return { link: text };
-  if (/^m[0-9]+\./.test(text)) return { module: text };
+  const [first, second] = text.split(WITH_THEME);
+  if (/^m[0-9]+\./.test(first)) return { module: first, ...(/^t[0-9]+\./.test(second ?? "") ? { theme: second } : {}) };
   if (/^t[0-9]+\./.test(text)) return { theme: text };
   return undefined;
 }

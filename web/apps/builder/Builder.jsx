@@ -17,7 +17,7 @@ import {
 import { adoptSlots, importSchemes, withSharedTheme } from "../../builder/base16.js";
 import { documentFiles, readYaml, themeFiles, writeYaml } from "../../builder/files.js";
 import {
-  configText, decodeLink, decodeModuleLink, decodeThemeLink, encodeLink, encodeModuleLink, encodeThemeLink, readFragment,
+  WITH_THEME, configText, decodeLink, decodeModuleLink, decodeThemeLink, encodeLink, encodeModuleLink, encodeThemeLink, readFragment,
 } from "../../builder/share.js";
 import {
   freeThemeName, missingColors, newTheme, paletteFor, previewRef, removeTheme, renameColor, renameColorRefs, renameTheme,
@@ -69,9 +69,10 @@ function documentFromText(text) {
 }
 
 // The example bar with a module someone shared added to it and picked,
-// in the state it was shared in.
+// in the state it was shared in, and in the theme that came with it.
 function onExample(shared) {
-  const { document, name } = addShared(exampleDocument(), shared);
+  const { document: added, name } = addShared(exampleDocument(), shared);
+  const document = shared.theme === undefined ? added : withSharedTheme(added, shared.theme, catalog.themes);
   const shown = { ...document.view?.shown, ...(shared.shown === undefined ? {} : { [name]: shared.shown }) };
   return {
     document: { ...document, view: { ...document.view, shown } },
@@ -89,14 +90,19 @@ function inTheme(shared) {
 }
 
 // What the page's address asks for: `{ document }` from a shared link,
-// `{ shared }` from a link to one module, `{ sharedTheme }` from a link
-// to a theme, `{ document, source }` from a config file fetched from
-// elsewhere, or undefined when it asks for nothing.
+// `{ shared }` from a link to one module, with the `theme` that came with
+// it and `themeLink`, the fragment that holds that theme alone,
+// `{ sharedTheme }` from a link to a theme, `{ document, source }` from a
+// config file fetched from elsewhere, or undefined when it asks for
+// nothing.
 async function fromAddress() {
   const asked = readFragment(window.location.hash);
   if (asked === undefined) return undefined;
   if (asked.link !== undefined) return { document: await decodeLink(asked.link, catalog) };
-  if (asked.module !== undefined) return { shared: await decodeModuleLink(asked.module, catalog) };
+  if (asked.module !== undefined) {
+    const shared = await decodeModuleLink(asked.module, catalog);
+    return asked.theme === undefined ? { shared } : { shared: { ...shared, theme: await decodeThemeLink(asked.theme), themeLink: asked.theme } };
+  }
   if (asked.theme !== undefined) return { sharedTheme: await decodeThemeLink(asked.theme) };
   const response = await fetch(asked.url);
   if (!response.ok) throw new Error(`The config couldn't be fetched: ${asked.url} answered ${response.status}`);
@@ -346,8 +352,8 @@ function Workspace({ opened, iconSet, onStart }) {
   // where the module is among the others.
   const add = make => {
     const made = make(document);
-    const before = new Set(modules);
-    const fresh = modulesOf(made).find(each => !before.has(each));
+    const before = new Set(modules.map(each => each?.name));
+    const fresh = modulesOf(made).find(each => !before.has(each?.name));
     const next = placeAtEdge(made, modulesOf(made).indexOf(fresh), adding.placement ?? fresh.placement, adding.start);
     change(next);
     setAdding(undefined);
@@ -513,10 +519,12 @@ function Workspace({ opened, iconSet, onStart }) {
     return `${window.location.origin}${window.location.pathname}#${fragment}`;
   }, [document, layout, dark, notch, shown]);
 
-  // The picked module as shared on its own, in the state it shows now.
-  const makeModuleLink = useCallback(async () => {
+  // The picked module as shared on its own, in the state it shows now,
+  // with the bar's theme when `themed`.
+  const makeModuleLink = useCallback(async themed => {
     const fragment = await encodeModuleLink(module, document.states?.[module.name], shown[module.name], catalog);
-    return `${window.location.origin}${window.location.pathname}#${fragment}`;
+    const theme = themed ? `${WITH_THEME}${await encodeThemeLink(document)}` : "";
+    return `${window.location.origin}${window.location.pathname}#${fragment}${theme}`;
   }, [document, module, shown]);
   const themeNames = selectedThemes(document.config.theme);
 
@@ -842,7 +850,10 @@ function Workspace({ opened, iconSet, onStart }) {
         <AddModule onClose={() => setAdding(undefined)} taken={modules.map(each => each?.name)} draw={barOf} dark={dark} onOwn={addOwn}
           onBuiltIn={type => add(doc => addBuiltIn(doc, type))} onPlugin={plugin => add(doc => addPlugin(doc, plugin, catalog))}
           onPasted={(name, pasted) => add(doc => addPasted(doc, name, pasted))}
-          onShared={shared => add(doc => addShared(doc, shared).document)} />
+          onShared={(shared, theme) => add(doc => {
+            const added = addShared(doc, shared).document;
+            return theme === undefined ? added : withSharedTheme(added, theme, catalog.themes);
+          })} />
       )}
       {viewing && (
         <ViewBuilder module={module} bar={viewBar} drawn={viewDrawn} states={ownStates} shown={shown[module.name]} printedOutput={printedNow}
@@ -852,6 +863,7 @@ function Workspace({ opened, iconSet, onStart }) {
         <ShareModule makeLink={makeModuleLink} module={module} plugin={pluginOf(module, catalog)} yaml={() => writeYaml(module)}
           printed={["menu", "popup"].includes(module.interaction?.click?.type) && dict(module.interaction.click.view) === undefined
             && (document.states?.[module.name] ?? []).some(state => dict(dict(state.output)?.view))}
+          theme={themeNames.length ? { names: themeNames, named: JSON.stringify([module, document.states?.[module.name]]).includes("{theme(") } : undefined}
           onClose={() => setSharingModule(false)} />
       )}
       {sharing && <Share makeLink={makeLink} makeThemeLink={themeNames.length ? makeThemeLink : undefined} source={edited ? undefined : opened.source} barFor={barFor} dark={dark} onClose={() => setSharing(false)} />}

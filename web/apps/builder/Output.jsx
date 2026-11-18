@@ -149,15 +149,19 @@ export function Share({ makeLink, makeThemeLink, source, barFor, dark, onClose }
 // The dialog that shares one module. `makeLink` resolves to the link
 // holding it, `module` is its config, `plugin` the bundled plugin it runs,
 // if any, and `printed` says whether its menu or popup is one its command
-// prints. `yaml` is the module as written to a config.
-export function ShareModule({ makeLink, module, plugin, printed, yaml, onClose }) {
+// prints. `yaml` is the module as written to a config. `theme` is
+// `{ names, named }` when the bar has a theme: the themes it selects, and
+// whether the module names their colours. `makeLink(themed)` makes the
+// link with that theme or without.
+export function ShareModule({ makeLink, module, plugin, printed, yaml, theme, onClose }) {
+  const [themed, setThemed] = useState(theme?.named === true);
   const [link, setLink] = useState();
   const [title, setTitle] = useState(`My kantan ${module.name} module`);
   useEffect(() => {
     let current = true;
-    makeLink().then(made => current && setLink(made));
+    makeLink(themed).then(made => current && setLink(made));
     return () => { current = false; };
-  }, [makeLink]);
+  }, [makeLink, themed]);
   const command = module.type === "command" ? module.config?.command : undefined;
   return (
     <Modal title={`Share ${module.name}`} onClose={onClose} wide>
@@ -171,6 +175,19 @@ export function ShareModule({ makeLink, module, plugin, printed, yaml, onClose }
             <input type="text" readOnly aria-label="A link to this module" value={link} onFocus={event => event.target.select()} />
             <CopyButton text={link}>Copy link</CopyButton>
           </div>
+          {theme !== undefined && (
+            <div style={{ marginBottom: 12 }}>
+              <label className="kb-row">
+                <input type="checkbox" checked={themed} onChange={event => setThemed(event.target.checked)} />
+                <span>With the bar's theme, {theme.names.join(" and ")}</span>
+              </label>
+              <div className="kb-note">
+                {theme.named
+                  ? "The module names the theme's colours. Without the theme it is drawn in the example bar's, which may lack them."
+                  : "The module is drawn in the theme where the link opens. Without it, in the example bar's."}
+              </div>
+            </div>
+          )}
           <div className="kb-h">For a GitHub post</div>
           <div className="kb-row">
             <input type="text" aria-label="The link's title" value={title} onChange={event => setTitle(event.target.value)} />

@@ -5,7 +5,8 @@ import { useMemo, useState } from "react";
 import { BarView } from "../../components/BarView.jsx";
 import { BUILT_INS, PLUGIN_ABOUT } from "../../builder/catalog.js";
 import { bindStates, settingDefaults } from "../../builder/settings.js";
-import { decodeModuleLink, readFragment } from "../../builder/share.js";
+import { decodeModuleLink, decodeThemeLink, readFragment } from "../../builder/share.js";
+import { selectedThemes } from "../../builder/theme.js";
 import { dict } from "../../engine/values.js";
 import { Button, Modal, useBuilder } from "./ui.jsx";
 
@@ -22,16 +23,23 @@ function Card({ bar, dark, label, about, onClick }) {
 
 // `draw(module, states)` gives a bar holding one module alone, in `dark`
 // or light. `taken` are the names the bar's modules have.
+// `onShared(shared, theme)` adds a module from a link, with the theme
+// that came with it when the bar is to take that too.
 export function AddModule({ onClose, onBuiltIn, onPlugin, onPasted, onShared, onOwn, taken, draw, dark }) {
   const { catalog } = useBuilder();
   const [link, setLink] = useState("");
   const [problem, setProblem] = useState();
   // A module someone shared, from its link or the part of it after the #.
+  // One that came with its theme waits to hear whether the bar takes the
+  // theme too.
+  const [themed, setThemed] = useState();
   const open = async () => {
     const asked = readFragment(link.trim().slice(link.indexOf("#") + 1));
     if (asked?.module === undefined) return setProblem("Not a module link.");
     try {
-      return onShared(await decodeModuleLink(asked.module, catalog));
+      const shared = await decodeModuleLink(asked.module, catalog);
+      if (asked.theme === undefined) return onShared(shared);
+      return setThemed({ shared, theme: await decodeThemeLink(asked.theme) });
     } catch (error) {
       return setProblem(error.message);
     }
@@ -87,10 +95,22 @@ export function AddModule({ onClose, onBuiltIn, onPlugin, onPasted, onShared, on
       <div className="kb-h">A module someone shared</div>
       <div className="kb-row" style={{ padding: "4px 0" }}>
         <input type="text" aria-label="A link to a module" value={link} spellCheck={false} placeholder="Paste a link to a module"
-          onChange={event => { setLink(event.target.value); setProblem(undefined); }} onKeyDown={event => event.key === "Enter" && link.trim() !== "" && open()} />
+          onChange={event => { setLink(event.target.value); setProblem(undefined); setThemed(undefined); }} onKeyDown={event => event.key === "Enter" && link.trim() !== "" && open()} />
         <Button icon="plus" disabled={link.trim() === ""} onClick={open}>Add it</Button>
       </div>
       {problem !== undefined && <div className="kb-problem">{problem}</div>}
+      {themed && (
+        <>
+          <div className="kb-note">
+            {themed.shared.module.name} came with the theme it was drawn in, {selectedThemes(themed.theme.selection).join(" and ")}. Taking the theme
+            changes the whole bar to it.
+          </div>
+          <div className="kb-row" style={{ flexWrap: "wrap" }}>
+            <Button kind="primary" onClick={() => onShared(themed.shared)}>Add the module only</Button>
+            <Button onClick={() => onShared(themed.shared, themed.theme)}>Add it and take its theme</Button>
+          </div>
+        </>
+      )}
     </Modal>
   );
 }
