@@ -42,6 +42,7 @@ The following module types are available:
 | `icon` | Icon-only display |
 | `drawer` | Collapsible section toggle |
 | `focus` | Focus mode status |
+| `waveform` | The sound the Mac is playing, drawn as it plays |
 
 ## Placement
 
@@ -487,6 +488,38 @@ These keys go under a focus module's `config` key:
 | `style` | object | — | Focus mode name or identifier mapped to a style override (a colour for `fg`, or an object with `fg`, `bg`, `icon.fg`, `text.fg`) |
 
 The module-level `icon` defaults to `brain`. State is checked every 2 seconds. With Full Disk Access, kantan reads the active mode from the Do Not Disturb database for `icons`, `style` and the `{mode}` variable to follow. Without it, kantan only detects whether the menu bar's Focus indicator is shown. See [Focus](../modules/focus.md).
+
+**Waveform module** (hidden while there is no sound):
+```yaml
+- name: waveform
+  type: waveform
+  placement: notchleft
+  config:
+    style: bars
+    bars: 8
+  interaction:
+    click:
+      type: toggle   # brings the app making the sound to the front
+```
+
+These keys go under a waveform module's `config` key:
+
+| Key | Type | Default | Description |
+|-----|------|---------|-------------|
+| `style` | string | `bars` | `bars` draws the level of each band of frequencies; `wave` draws the sound's wave as a line |
+| `bars` | number | `8` | How many bars the `bars` style draws, up to 256 |
+| `width` | number | `40` | Width of the `wave` style's line in points |
+| `height` | number | `14` | Height in points |
+| `hide` | string | `silent` | `silent` hides the module while there is no sound; `never` keeps it |
+| `silenceDelay` | number | `0.3` | Seconds of quiet before the sound counts as stopped. `0` follows it at once |
+| `matchWidth` | string | — | Name of a module whose width this one follows, with `bars` and `width` as the least it draws |
+| `sensitivity` | number | follows the bars | How much taller than measured the sound is drawn: 1 as it is, 2 twice as tall |
+| `sources` | string | `apps` | `apps` draws the sound of apps in the Dock and their helpers, leaving out the system's own; `all` draws every sound |
+| `exclude` | array | — | Apps whose sound isn't drawn, by name or bundle identifier |
+| `rainbow` | object | — | Colours the bars from a palette: `enabled`, `random`, `colors` |
+| `gradient` | object | — | Colours the bars from `low` to `high` |
+
+See [Waveform](../modules/waveform.md).
 
 **Text module:**
 ```yaml

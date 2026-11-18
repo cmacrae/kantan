@@ -24,6 +24,7 @@
   - [Bluetooth](modules/bluetooth.md)
   - [Workspace](modules/workspace.md)
   - [Focus](modules/focus.md)
+  - [Waveform](modules/waveform.md)
   - [Text](modules/text.md)
   - [Icon](modules/icon.md)
   - [Drawer](modules/drawer.md)
