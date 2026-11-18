@@ -143,7 +143,7 @@ in
           mkdir staging
           tar -xzf $tarball -C staging
           checked=0
-          for binary in staging/bin/*; do
+          for binary in staging/bin/* staging/share/*/*.dylib; do
             otool -h "$binary" >/dev/null 2>&1 || continue
             if otool -L -l "$binary" | grep /nix/store; then
               echo "$binary refers to the Nix store" >&2
@@ -203,6 +203,8 @@ in
     done
     test -x kantan/${version.release}/bin/kantan-plugin-calendar
     test ! -e kantan-without-plugins/${version.release}/bin/kantan-plugin-calendar
+    # The now-playing plugin loads its library from beside its keg's bin.
+    test -f kantan/${version.release}/share/kantan-plugin-now-playing/libKantanNowPlayingHost.dylib
     touch $out
   '';
 
