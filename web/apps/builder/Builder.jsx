@@ -19,6 +19,7 @@ import { documentFiles, readYaml, themeFiles, writeYaml } from "../../builder/fi
 import {
   WITH_THEME, configText, decodeLink, decodeModuleLink, decodeThemeLink, encodeLink, encodeModuleLink, encodeThemeLink, readFragment,
 } from "../../builder/share.js";
+import { moduleDocument, openDrawers, themeDocument } from "../../builder/shared.js";
 import {
   freeThemeName, missingColors, newTheme, paletteFor, previewRef, removeTheme, renameColor, renameColorRefs, renameTheme,
   renameThemeFlavour, selectedThemes, setTheme, themeKind,
@@ -541,6 +542,26 @@ function Workspace({ opened, iconSet, onStart }) {
     const fragment = await encodeThemeLink(document, name);
     return `${window.location.origin}${window.location.pathname}#${fragment}`;
   }, [document]);
+  // The bar's theme as others take it: what the config selects, with the
+  // document's own theme files.
+  const ownTheme = { selection: document.config.theme, themes: document.themes ?? {} };
+  // What the dialog that shares the bar needs to share its theme alone,
+  // drawn as the theme's page draws it: on the example bar.
+  const themeShare = () => {
+    const palettes = loadTheme(ownTheme.selection, themes);
+    if (!palettes) return undefined;
+    const drawn = themeDocument(ownTheme, catalog);
+    const open = openDrawers(drawn);
+    return {
+      names: themeNames, makeLink: makeThemeLink, palettes,
+      barFor: appearance => resolveBar(drawn, { dark: appearance, icons: iconSet.icons, themes: catalog.themes, samples: open }),
+    };
+  };
+  // A bar holding the picked module alone, as its page draws it, in an
+  // appearance: in the bar's theme when `themed`, or the example's.
+  const moduleBarFor = (appearance, themed) => resolveBar(
+    moduleDocument({ module, states: document.states?.[module.name], theme: themed ? ownTheme : undefined }, catalog),
+    { dark: appearance, icons: iconSet.icons, themes: catalog.themes, states: shown });
 
   // The bar as it is looked at now, in an appearance, for a picture of
   // it: its drawers as they were last left.
@@ -874,9 +895,12 @@ function Workspace({ opened, iconSet, onStart }) {
           printed={["menu", "popup"].includes(module.interaction?.click?.type) && dict(module.interaction.click.view) === undefined
             && (document.states?.[module.name] ?? []).some(state => dict(dict(state.output)?.view))}
           theme={themeNames.length ? { names: themeNames, named: JSON.stringify([module, document.states?.[module.name]]).includes("{theme(") } : undefined}
-          onClose={() => setSharingModule(false)} />
+          barFor={moduleBarFor} onClose={() => setSharingModule(false)} />
       )}
-      {sharing && <Share makeLink={makeLink} makeThemeLink={themeNames.length ? makeThemeLink : undefined} themeNames={themeNames} source={edited ? undefined : opened.source} barFor={barFor} dark={dark} onClose={() => setSharing(false)} />}
+      {sharing && (
+        <Share makeLink={makeLink} source={edited ? undefined : opened.source} barFor={barFor} config={() => documentFiles(toSingle(document))[0].text} theme={themeNames.length ? themeShare() : undefined}
+          onClose={() => setSharing(false)} />
+      )}
     </BuilderContext.Provider>
   );
 }

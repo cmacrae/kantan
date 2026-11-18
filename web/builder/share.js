@@ -257,5 +257,24 @@ export function configText(body, { gist } = {}) {
   return file.content;
 }
 
+// Where bars, themes and modules are posted: kantan's discussions, the
+// category they go in, and the field of that category's form, in
+// .github/DISCUSSION_TEMPLATE, that takes an image and its link.
+const DISCUSSIONS = "https://github.com/cmacrae/kantan/discussions";
+const CATEGORY = "show-and-tell";
+const FIELD = "preview";
+// The longest address GitHub is asked to open.
+const LONGEST_DRAFT = 6000;
+
+// The address that opens a new discussion with `title` filled in and a
+// link to `url` in the form's preview, for whoever opens it to paste the
+// image over and post. Undefined when they make an address too long to
+// open.
+export function draftUrl(title, url) {
+  const preview = `\n\n${markdownLink("Open in the builder", url)}\n`;
+  const draft = `${DISCUSSIONS}/new?${new URLSearchParams({ category: CATEGORY, title, [FIELD]: preview })}`;
+  return draft.length > LONGEST_DRAFT ? undefined : draft;
+}
+
 // The Markdown that links `url` under `title`, for a GitHub post.
 export const markdownLink = (title, url) => `[${title.replace(/([\\[\]])/g, "\\$1")}](${url})`;

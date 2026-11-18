@@ -111,6 +111,10 @@ A fragment can instead name a config file for the browser to fetch: `#from=<url>
 
 The Share dialog makes a PNG of the bar on the mock desktop, in light, dark or both, laid out as the README's images are. `apps/builder/ShareImage.jsx` draws the desktop off the page with `components/Desk.jsx`, the same component the landing page and the README's images use. It serialises that into an SVG image as a foreign object with its fonts held within (`builder/image.js`), then draws the SVG onto a canvas. The image is made by the browser's own renderer from the builder's own components. No second renderer has to be kept in step.
 
+A theme and a module have images too, made the same way from `apps/builder/ShareCards.jsx`. A theme's shows the example bar in the theme over its colours. A module's shows the module alone with its menu, popup or tooltip open. `builder/shared.js` gives the documents these draw, which the theme's and the module's pages draw as well.
+
+Each share dialog has a Post to Discussions button. It copies the image and opens a new discussion on kantan's repository with the title filled in and the link in the form's Preview field (`draftUrl` in `builder/share.js`, which names that field as `.github/DISCUSSION_TEMPLATE/show-and-tell.yml` does). The title starts with what is shared: Bar, Theme or Module. The image is pasted into that field, where GitHub uploads it. GitHub gives an image its address only once it is pasted, so the draft can't hold it from the start. The image and the Markdown link can each be copied alone as well, for a post anywhere else.
+
 ## Staying faithful to kantan
 
 `fixtures/` holds inputs with the results kantan gives for them. kantan's tests (`packages/kantan/Tests/kantanTests/ConformanceTests.swift`) and the engine's (`engine/test/conformance.test.js`) both run every case, so a difference between kantan and the engine fails `nix flake check`. When kantan's behaviour changes, change the case with it.

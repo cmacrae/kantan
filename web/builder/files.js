@@ -53,6 +53,15 @@ export function themeFiles(name, theme, layout = "file") {
   return [{ path: `themes/${name}.yaml`, text }];
 }
 
+// A theme file's text for `palettes`, the light and dark palettes a theme
+// loads to: one file with a palette for each appearance when `mode` is
+// "both", or the palette of the appearance it names alone.
+export function paletteYaml(palettes, mode) {
+  const own = ({ fg, bg, shape, colors }) => ({ fg, bg, ...(shape === undefined ? {} : { shape }), colors });
+  const theme = mode === "both" ? { light: own(palettes.light), dark: own(palettes.dark) } : own(palettes[mode]);
+  return themeFiles("theme", theme)[0].text;
+}
+
 // The files a document's config is written as: `{ path, text }` for
 // config.yaml, then for each file of modules.d in the order kantan loads
 // them, then for each theme of the document's own that the config selects.

@@ -1,6 +1,7 @@
-// An image of the bar on the mock desktop, in either appearance or both,
-// to copy or download: the desktop is drawn off the page as the builder
-// draws it, and the browser makes the image from that.
+// An image of the bar on the mock desktop, or of a theme or a module, in
+// either appearance or both, to copy or download: what it shows is drawn
+// off the page as the builder draws it, and the browser makes the image
+// from that.
 import { useEffect, useRef, useState } from "react";
 import { base64, fontFaces, fontsUsed, imageSvg, svgUrl } from "../../builder/image.js";
 import { Desk, DeskWordmark } from "../../components/Desk.jsx";
@@ -85,12 +86,27 @@ function save(name, blob) {
   URL.revokeObjectURL(url);
 }
 
-// `barFor(dark)` gives the bar as it is looked at now, in an appearance,
-// and `dark` is the appearance the builder shows it in.
-export function ShareImage({ barFor, dark }) {
-  const [mode, setMode] = useState(dark ? "dark" : "light");
-  const [bars] = useState(() => ({ light: barFor(false), dark: barFor(true) }));
-  const [width, setWidth] = useState(DESK.width);
+// What the image of a bar shows: the bar on a desktop, over the wordmark.
+// `barFor(dark)` gives the bar as it is looked at now, in an appearance.
+export function barCard(barFor) {
+  const bars = { false: barFor(false), true: barFor(true) };
+  return (dark, width) => (
+    <Desk bar={bars[dark]} dark={dark} height={DESK.height} interactive={false} style={{ width, minWidth: "max-content" }}>
+      <DeskWordmark dark={dark} />
+    </Desk>
+  );
+}
+
+// `draw(dark, width)` gives what the image shows in an appearance, `width`
+// wide. It starts in both, light above dark. `width` is how wide it
+// starts, `file` what its download is called, and `alt` what it shows, in
+// words. `onImage` is given the image each time one is made, and
+// undefined while the next is. `actions(mode)` gives buttons of the
+// caller's own, set after the image's: `mode` is the appearance picked,
+// "light", "dark" or "both".
+export function ShareImage({ draw, width: base = DESK.width, file = "kantan-bar", alt = "The bar on a desktop", onImage, actions }) {
+  const [mode, setMode] = useState("both");
+  const [width, setWidth] = useState(base);
   const [image, setImage] = useState();
   const [problem, setProblem] = useState();
   const [copied, setCopied] = useState(false);
@@ -99,6 +115,7 @@ export function ShareImage({ barFor, dark }) {
   useEffect(() => {
     let current = true;
     setImage(undefined);
+    onImage?.(undefined);
     setProblem(undefined);
     const draw = async () => {
       await window.document.fonts.ready;
@@ -106,7 +123,9 @@ export function ShareImage({ barFor, dark }) {
       const more = shortfall(card.current);
       if (more > 0) return setWidth(width + more);
       const blob = await picture(card.current, SCALE);
-      if (current) setImage({ blob, url: URL.createObjectURL(blob) });
+      if (!current) return;
+      setImage({ blob, url: URL.createObjectURL(blob) });
+      onImage?.(blob);
     };
     draw().catch(error => current && setProblem(error.message));
     return () => { current = false; };
@@ -132,26 +151,20 @@ export function ShareImage({ barFor, dark }) {
         ))}
       </div>
       <div className="kb-shot">
-        {image ? <img src={image.url} alt="The bar on a desktop" /> : <span className="kb-note">{problem ?? "Drawing the image…"}</span>}
+        {image ? <img src={image.url} alt={alt} /> : <span className="kb-note">{problem ?? "Drawing the image…"}</span>}
       </div>
       {image && problem !== undefined && <div className="kb-problem">{problem}</div>}
-      <div className="kb-row" style={{ marginTop: 8 }}>
-        <Button kind="primary" icon={copied ? "check" : "copy"} disabled={!image} onClick={copy}>{copied ? "Copied" : "Copy image"}</Button>
-        <Button icon="download" disabled={!image} onClick={() => save(mode === "both" ? "kantan-bar.png" : `kantan-bar-${mode}.png`, image.blob)}>Download</Button>
-      </div>
-      <div className="kb-note">
-        A PNG with nothing behind the desktop{mode === "both" ? ", light above dark" : ""}. Paste it into a GitHub post beside the link.
+      <div className="kb-row" style={{ marginTop: 8, flexWrap: "wrap" }}>
+        <Button icon={copied ? "check" : "copy"} disabled={!image} onClick={copy}>{copied ? "Copied" : "Copy image"}</Button>
+        <Button icon="download" disabled={!image} onClick={() => save(mode === "both" ? `${file}.png` : `${file}-${mode}.png`, image.blob)}>Download</Button>
+        {actions?.(mode)}
       </div>
       {/* The desktop the image is made from, drawn off the page with none
           of the page's styles. */}
       <div aria-hidden="true" style={{ position: "fixed", left: -100000, top: 0, pointerEvents: "none" }}>
         <div ref={card} data-kantan-card style={{ all: "initial", display: "block", width: "max-content" }}>
           {shown.map(each => (
-            <div key={each} style={{ padding: DESK.margin }}>
-              <Desk bar={bars[each]} dark={each === "dark"} height={DESK.height} interactive={false} style={{ width, minWidth: "max-content" }}>
-                <DeskWordmark dark={each === "dark"} />
-              </Desk>
-            </div>
+            <div key={each} style={{ padding: DESK.margin }}>{draw(each === "dark", width)}</div>
           ))}
         </div>
       </div>

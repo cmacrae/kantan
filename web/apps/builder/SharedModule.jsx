@@ -7,9 +7,8 @@ import { wallpaper } from "../../components/Desk.jsx";
 import { useBar } from "../../components/useBar.js";
 import { highlightYaml } from "../../components/yaml-highlight.jsx";
 import { BUILT_INS, PLUGIN_ABOUT, pluginOf } from "../../builder/catalog.js";
-import { withSharedTheme } from "../../builder/base16.js";
-import { boundDocument } from "../../builder/edit.js";
 import { writeYaml } from "../../builder/files.js";
+import { moduleDocument, panelSlots } from "../../builder/shared.js";
 import { missingColors, selectedThemes } from "../../builder/theme.js";
 import { loadTheme } from "../../engine/index.js";
 import { YAML_COLORS } from "./Output.jsx";
@@ -29,16 +28,7 @@ export function SharedModule({ shared, systemDark, onBuild }) {
 
   // The module alone at the left of the example's bar, where a panel has
   // the most room, in the theme that came with it or the example's.
-  const document = useMemo(() => {
-    const { modules: _, ...settings } = catalog.example.config;
-    const { mask: __, ...unmasked } = module;
-    const alone = {
-      version: catalog.example.version,
-      config: { ...settings, modules: [{ ...unmasked, placement: "left" }] },
-      ...(states.length ? { states: { [module.name]: states } } : {}),
-    };
-    return boundDocument(shared.theme === undefined ? alone : withSharedTheme(alone, shared.theme, catalog.themes), catalog);
-  }, [shared]);
+  const document = useMemo(() => moduleDocument(shared, catalog), [shared]);
   // The colours the module names that the theme it is drawn in lacks.
   const missing = useMemo(() => {
     const palettes = loadTheme(document.config.theme, { ...catalog.themes, ...document.themes });
@@ -53,10 +43,7 @@ export function SharedModule({ shared, systemDark, onBuild }) {
 
   // The panels the module opens. One is held open, and a module with
   // none answers clicks as it does in kantan.
-  const slots = [
-    ["menu", "popup"].includes(drawn?.click?.type) && "click",
-    drawn?.tooltip && "hover",
-  ].filter(Boolean);
+  const slots = panelSlots(drawn);
   const [wanted, setWanted] = useState();
   const slot = slots.includes(wanted) ? wanted : slots[0];
 

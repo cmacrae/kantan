@@ -6,12 +6,12 @@ import { BarView } from "../../components/BarView.jsx";
 import { wallpaper } from "../../components/Desk.jsx";
 import { useBar } from "../../components/useBar.js";
 import { useFitZoom } from "../../components/useFitZoom.js";
-import { loadTheme } from "../../engine/index.js";
-import { schemeFileName, withSharedTheme } from "../../builder/base16.js";
-import { boundDocument, modulesOf } from "../../builder/edit.js";
+import { schemeFileName } from "../../builder/base16.js";
 import { sameValue } from "../../builder/equal.js";
 import { themeFiles, writeYaml } from "../../builder/files.js";
+import { openDrawers, themeDocument } from "../../builder/shared.js";
 import { selectedThemes } from "../../builder/theme.js";
+import { loadTheme } from "../../engine/index.js";
 import { Output } from "./Output.jsx";
 import { Button, CopyButton, useBuilder } from "./ui.jsx";
 
@@ -52,9 +52,9 @@ export function SharedTheme({ shared, systemDark, onBuild }) {
   const palettes = useMemo(() => loadTheme(shared.selection, { ...catalog.themes, ...shared.themes }), [shared]);
 
   // The example bar in the theme, in the states the landing page shows.
-  const document = useMemo(() => boundDocument(withSharedTheme(catalog.example, shared, catalog.themes), catalog), [shared]);
+  const document = useMemo(() => themeDocument(shared, catalog), [shared]);
   // Every drawer is open, so the theme shows on every module.
-  const samples = useMemo(() => Object.fromEntries(modulesOf(document).filter(each => each?.type === "drawer").map(each => [each.name, { open: true }])), [document]);
+  const samples = useMemo(() => openDrawers(document), [document]);
   const { bar, run, toggleDrawer, switchWorkspace } = useBar(document, { dark, icons, themes: catalog.themes, samples });
   const frame = useRef(null);
   const zoom = useFitZoom(frame, 0.6);
