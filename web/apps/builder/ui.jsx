@@ -37,6 +37,19 @@ export function Ic({ name, size = 15, style }) {
   );
 }
 
+// The links out of the builder that end each page's header, as the
+// landing page has them: the docs and kantan's repository.
+export function SiteLinks() {
+  return (
+    <>
+      <a className="kb-nav" href="/docs/" title="Docs"><Ic name="book" size={18} /><span>Docs</span></a>
+      <a className="kb-nav" href="https://github.com/cmacrae/kantan" target="_blank" rel="noopener noreferrer" title="GitHub">
+        <Ic name="brand-github" size={18} /><span>GitHub</span>
+      </a>
+    </>
+  );
+}
+
 export function Button({ icon, children, kind = "", on, ...rest }) {
   return (
     <button type="button" className={`kb-btn ${kind} ${on ? "on" : ""}`} {...rest}>

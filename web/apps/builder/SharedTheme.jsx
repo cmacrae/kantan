@@ -12,7 +12,7 @@ import { themeFiles, writeYaml } from "../../builder/files.js";
 import { openDrawers, themeDocument, themeVariants } from "../../builder/shared.js";
 import { selectedThemes } from "../../builder/theme.js";
 import { Output } from "./Output.jsx";
-import { Button, CopyButton, useBuilder } from "./ui.jsx";
+import { Button, CopyButton, SiteLinks, useBuilder } from "./ui.jsx";
 
 // A palette's colours, each with its name: the bar's own, then the rest.
 // A click on one copies it, and it says so for a moment. `uses` are the
@@ -80,7 +80,7 @@ export function SharedTheme({ shared, systemDark, onBuild }) {
         <a className="kb-brand" href="/"><b>kantan</b><span>builder</span></a>
         <div className="kb-actions">
           <Button kind="primary" icon="pencil" onClick={onBuild}>Open in the builder</Button>
-          <a className="kb-btn plain" href="/docs/">Docs</a>
+          <SiteLinks />
         </div>
       </header>
 

@@ -21,6 +21,8 @@ export const STYLES = `
 .kb button, .kb input, .kb select, .kb textarea { font: inherit; color: inherit; }
 .kb-top { display: flex; align-items: center; gap: 8px 16px; flex-wrap: wrap; padding: 14px 20px; max-width: 1500px; margin: 0 auto; }
 .kb-brand { display: flex; align-items: baseline; gap: 8px; text-decoration: none; margin-right: auto; }
+.kb .kb-nav { display: flex; align-items: center; gap: 6px; margin-left: 10px; color: var(--muted); text-decoration: none; font-size: 13px; font-weight: 450; }
+.kb .kb-nav:hover { color: var(--fg); }
 .kb-brand b { font: 400 26px/1 'Single Day', sans-serif; }
 .kb-brand span { color: var(--muted); font: 400 22px/1 'Single Day', sans-serif; }
 .kb-actions { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }

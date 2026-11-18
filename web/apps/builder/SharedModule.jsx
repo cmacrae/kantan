@@ -12,7 +12,7 @@ import { moduleDocument, panelSlots } from "../../builder/shared.js";
 import { missingColors, selectedThemes } from "../../builder/theme.js";
 import { loadTheme } from "../../engine/index.js";
 import { YAML_COLORS } from "./Output.jsx";
-import { Button, CopyButton, useBuilder } from "./ui.jsx";
+import { Button, CopyButton, SiteLinks, useBuilder } from "./ui.jsx";
 
 // What a held panel is called, by the slot that opens it.
 const HELD = { click: "On click", hover: "On hover" };
@@ -75,7 +75,7 @@ export function SharedModule({ shared, systemDark, onBuild }) {
         <a className="kb-brand" href="/"><b>kantan</b><span>builder</span></a>
         <div className="kb-actions">
           <Button kind="primary" icon="pencil" onClick={onBuild}>Open in the builder</Button>
-          <a className="kb-btn plain" href="/docs/">Docs</a>
+          <SiteLinks />
         </div>
       </header>
 

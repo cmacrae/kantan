@@ -38,7 +38,7 @@ import { SharedModule } from "./SharedModule.jsx";
 import { SharedTheme } from "./SharedTheme.jsx";
 import { ThemeEditor } from "./ThemeEditor.jsx";
 import { STYLES } from "./styles.js";
-import { BuilderContext, Button, Ic, Modal, remember, remembered } from "./ui.jsx";
+import { BuilderContext, Button, Ic, Modal, SiteLinks, remember, remembered } from "./ui.jsx";
 import { ViewBuilder } from "./ViewEditor.jsx";
 import { moveView, startView, viewOf, withStateView, withView } from "../../builder/view.js";
 
@@ -756,7 +756,7 @@ function Workspace({ opened, iconSet, onStart }) {
           <Button icon="file-text" onClick={onStart}>Start over</Button>
           <Button icon="arrow-back-up" disabled={history.length < 2} onClick={undo}>Undo</Button>
           <Button kind="primary" icon="share" onClick={() => setSharing(true)}>Share</Button>
-          <a className="kb-btn plain" href="/docs/">Docs</a>
+          <SiteLinks />
         </div>
       </header>
 
