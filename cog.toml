@@ -12,7 +12,7 @@ scopes = [
   # The app
   "bar", "config", "cli", "display", "events", "interaction", "masking", "dsl", "theme", "icons",
   # Built-in modules
-  "bluetooth", "clock", "command", "drawer", "focus", "icon", "power", "text", "volume", "wifi", "workspace", "modules",
+  "bluetooth", "clock", "command", "drawer", "focus", "icon", "power", "text", "volume", "waveform", "wifi", "workspace", "modules",
   # Bundled plugins
   "plugins", "caffeine", "calendar", "pomodoro", "reminders", "rift-indicator", "system-monitor", "tailscale",
   # Packaging and tooling, for types that don't bump

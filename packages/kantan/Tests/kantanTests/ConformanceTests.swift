@@ -335,6 +335,12 @@ private func sampledState(of config: ModuleConfiguration, sample: [String: Any]?
     state.dynamicStyle = focus.dynamicStyle(for: status)
     state.variables = FocusConfig.templateVariables(for: status)
 
+  case let waveform as WaveformConfig:
+    let silent = !(sample?["levels"] as? [Double] ?? []).contains { $0 > 0 }
+    state.shouldDisplay = WaveformConfig.shouldDisplay(
+      silent: silent, hidesWhenSilent: waveform.hidesWhenSilent)
+    state.variables = WaveformConfig.templateVariables(silent: silent)
+
   case let drawer as DrawerConfig:
     state.drawerOpen = flag("open")
     state.icon = drawer.icon(open: flag("open"))

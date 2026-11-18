@@ -26,6 +26,10 @@ private struct ModuleVisibilityView: View {
       ModuleContainerView(viewModel: viewModel, popupManager: popupManager)
         .padding(.horizontal, viewModel.moduleConfig.type == "drawer" ? 0 : horizontalPadding)
         .transition(transition)
+    } else {
+      // Out of the bar, the module has no width for another to follow.
+      Color.clear.frame(width: 0, height: 0)
+        .onAppear { ModuleWidths.shared.set(0, for: viewModel.id) }
     }
   }
 }

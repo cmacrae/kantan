@@ -1133,6 +1133,22 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         .store(in: &visibilityCancellables)
     }
 
+    // A module following another's width takes its panel with it as that
+    // module's width changes.
+    let followed = Set(
+      bar.allModules.compactMap { ($0.moduleConfig.config as? WaveformConfig)?.matchWidth })
+    if !followed.isEmpty {
+      ModuleWidths.shared.$widths
+        .map { widths in followed.sorted().map { widths[$0] ?? 0 } }
+        .removeDuplicates().dropFirst()
+        .debounce(for: .milliseconds(0), scheduler: RunLoop.main)
+        .sink { [weak self] _ in
+          self?.repositionAllDisplays(
+            animated: !NSWorkspace.shared.accessibilityDisplayShouldReduceMotion)
+        }
+        .store(in: &visibilityCancellables)
+    }
+
     // Subscribe to drawer state changes and animate panels per-side
     bar.$leftDrawerOpen
       .removeDuplicates()

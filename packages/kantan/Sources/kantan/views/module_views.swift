@@ -238,6 +238,8 @@ struct ModuleContainerView: View {
     Group {
       if viewModel.moduleConfig.type == "workspace" {
         WorkspaceModuleView(viewModel: viewModel)
+      } else if viewModel.moduleConfig.type == "waveform" {
+        WaveformModuleView(viewModel: viewModel)
       } else {
         StandardModuleView(viewModel: viewModel)
       }
@@ -247,9 +249,11 @@ struct ModuleContainerView: View {
         Color.clear
           .onAppear {
             moduleFrame = geo.frame(in: .global)
+            ModuleWidths.shared.set(moduleFrame.width, for: viewModel.id)
           }
           .onChange(of: geo.frame(in: .global)) { _, newValue in
             moduleFrame = newValue
+            ModuleWidths.shared.set(newValue.width, for: viewModel.id)
           }
       }
     )

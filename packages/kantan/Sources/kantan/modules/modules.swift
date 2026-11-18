@@ -251,6 +251,7 @@ nonisolated(unsafe) let moduleFactories: [String: ModuleConfigurationFactory] = 
   "icon": IconConfigFactory(),
   "drawer": DrawerConfigFactory(),
   "focus": FocusConfigFactory(),
+  "waveform": WaveformConfigFactory(),
 ]
 
 // MARK: - Module Config Builder

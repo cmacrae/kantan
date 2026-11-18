@@ -13,7 +13,7 @@
     },
     "type": {
       "type": "string",
-      "enum": ["text", "clock", "power", "command", "workspace", "volume", "wifi", "bluetooth", "icon", "drawer", "focus"],
+      "enum": ["text", "clock", "power", "command", "workspace", "volume", "wifi", "bluetooth", "icon", "drawer", "focus", "waveform"],
       "description": "Module type. Determines which configuration factory is used and what 'config:' fields are available. Plugin authors use 'command' type."
     },
     "placement": {
@@ -84,7 +84,8 @@
     { "if": { "properties": { "type": { "const": "workspace" } } }, "then": { "properties": { "config": { "$ref": "#/$defs/WorkspaceConfig" } } } },
     { "if": { "properties": { "type": { "const": "drawer" } } }, "then": { "properties": { "config": { "$ref": "#/$defs/DrawerConfig" } } } },
     { "if": { "properties": { "type": { "const": "icon" } } }, "then": { "properties": { "config": { "$ref": "#/$defs/IconConfig" } } } },
-    { "if": { "properties": { "type": { "const": "focus" } } }, "then": { "properties": { "config": { "$ref": "#/$defs/FocusConfig" } } } }
+    { "if": { "properties": { "type": { "const": "focus" } } }, "then": { "properties": { "config": { "$ref": "#/$defs/FocusConfig" } } } },
+    { "if": { "properties": { "type": { "const": "waveform" } } }, "then": { "properties": { "config": { "$ref": "#/$defs/WaveformConfig" } } } }
   ],
   "$defs": {
     "PlacementSpec": {
@@ -596,6 +597,90 @@
           "type": "object",
           "additionalProperties": { "$ref": "#/$defs/StateStyle" },
           "description": "Focus mode → style overrides, keyed like 'icons'. Each can be a colour string (applied as fg) or an object with fg/bg/icon.fg/text.fg. Unmatched modes use the module style."
+        }
+      }
+    },
+    "WaveformConfig": {
+      "type": "object",
+      "title": "Waveform Module Config",
+      "description": "Configuration for the waveform module, which draws the sound the Mac is playing, from any app, in the colour of the module's icon. Hidden while there is no sound unless 'hide' is 'never'. A click of type 'toggle' brings the app making the sound to the front. Exposes the {state} template variable ('Playing' or 'Silent').",
+      "properties": {
+        "style": {
+          "type": "string",
+          "enum": ["bars", "wave"],
+          "default": "bars",
+          "description": "What is drawn: 'bars' for the level of each band of frequencies, lowest first, or 'wave' for the sound's wave as a line."
+        },
+        "bars": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 256,
+          "default": 8,
+          "description": "How many bars the 'bars' style draws."
+        },
+        "width": {
+          "type": "number",
+          "minimum": 4,
+          "default": 40,
+          "description": "Width of the 'wave' style's line in points."
+        },
+        "height": {
+          "type": "number",
+          "minimum": 2,
+          "default": 14,
+          "description": "Height in points."
+        },
+        "hide": {
+          "type": "string",
+          "enum": ["silent", "never"],
+          "default": "silent",
+          "description": "When the module leaves the bar: 'silent' while there is no sound, or 'never'."
+        },
+        "sources": {
+          "type": "string",
+          "enum": ["apps", "all"],
+          "default": "apps",
+          "description": "Whose sound is drawn. 'apps' is the apps in the Dock and the helpers that play for them, such as a browser's, leaving out the system's own sounds, a notification's among them, and apps that live in the menu bar alone. 'all' is every sound the Mac plays."
+        },
+        "exclude": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Apps whose sound isn't drawn, by name (such as 'Spotify') or bundle identifier (such as 'com.spotify.client'), in any case."
+        },
+        "sensitivity": {
+          "type": "number",
+          "minimum": 0,
+          "description": "How much taller than measured the sound is drawn, up to the module's height: 1 as it is, 2 twice as tall. Left out, it follows the number of bars drawn, as each bar of a wider waveform holds less of the sound: 1 up to 8 bars, and a quarter more for each doubling past that (1.5 at 32 bars, 2 at 128). The 'wave' style draws at 1."
+        },
+        "matchWidth": {
+          "type": "string",
+          "description": "The name of a module whose width this one follows, such as a now-playing module on the other side of the notch: the waveform draws as many bars, or as wide a wave, as fit that module's width, growing and shrinking with it. 'bars' and 'width' are then the least it draws, and what it draws while that module is out of the bar or isn't in the config."
+        },
+        "silenceDelay": {
+          "type": "number",
+          "minimum": 0,
+          "default": 0.3,
+          "description": "How long the output stays quiet, in seconds, before the module counts it silent. 0 follows the sound as it stops, hiding the module the moment playback pauses, and at any gap within the sound too."
+        },
+        "rainbow": {
+          "type": "object",
+          "additionalProperties": false,
+          "description": "Colours the bars from a palette, as the workspace module's rainbow colours its workspaces. Needs 'enabled' and a non-empty 'colors'. Not applied with the native appearance.",
+          "properties": {
+            "enabled": { "type": "boolean", "default": false },
+            "random": { "type": "boolean", "default": true, "description": "Shuffles the colours, the same way each time and with no two alike side by side. When false, the bars take the colours in the order listed, going round again past the last." },
+            "colors": { "type": "array", "items": { "$ref": "#/$defs/Color" }, "description": "The palette: hex colours or {theme(name)} templates." }
+          }
+        },
+        "gradient": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["low", "high"],
+          "description": "Colours the bars from 'low' to 'high': the lowest frequency's bar is 'low', the highest's 'high', and those between pass from one to the other. Comes before 'rainbow'. Not applied with the native appearance.",
+          "properties": {
+            "low": { "$ref": "#/$defs/Color" },
+            "high": { "$ref": "#/$defs/Color" }
+          }
         }
       }
     }

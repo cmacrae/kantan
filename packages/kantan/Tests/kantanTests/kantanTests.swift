@@ -146,6 +146,22 @@ final class ModuleMergeTests {
   }
 }
 
+final class AudioAnalysisTests {
+  @Test func testATonesBandIsTheLoudest() {
+    let rate = 48000.0
+    let tone = (0..<AudioAnalysis.window).map {
+      Float(0.5 * sin(2 * Double.pi * 1000 * Double($0) / rate))
+    }
+    let bands = AudioAnalysis.bands(of: tone, sampleRate: rate)
+    // 1 kHz lies in band 132 of the 256 spanning 50 Hz to 16 kHz.
+    #expect(bands.firstIndex(of: bands.max()!) == 132)
+    #expect(bands[132] > 0.9)
+    #expect(bands[20] == 0 && bands[240] == 0)
+    let silence = [Float](repeating: 0, count: AudioAnalysis.window)
+    #expect(AudioAnalysis.bands(of: silence, sampleRate: rate).allSatisfy { $0 == 0 })
+  }
+}
+
 final class IconForLevelTests {
   @Test func testFirstBucketForLowLevel() {
     let icons = ["empty", "quarter", "half", "three-quarter", "full"]
