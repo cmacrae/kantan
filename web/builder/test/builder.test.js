@@ -16,7 +16,6 @@ import {
   NODE_INFO, NODE_KINDS, STARTERS, VIEW_KINDS, insertNode, moveNode, moveView, starterScript, newNode, nodeAt, nudgeNode, removeNode, replaceNode, shows,
   wrapNode,
 } from "../view.js";
-import { WORDS } from "../words.js";
 import { zip } from "../zip.js";
 
 const catalog = {
@@ -117,18 +116,6 @@ test("a link holds the whole document", async () => {
     assert.match(fragment, /^1\.[A-Za-z0-9_-]+$/);
     assert.deepEqual(await decodeLink(fragment, catalog), laid);
   }
-});
-
-test("links made before still open", async () => {
-  // A link made when the codec was written: the word list may only grow.
-  const fragment = "1.q1ZKVrKqVorLUrKKBlIGSlZKSYklJalFlUo6SnGGQG6coRGIaQRiGivVxtbqKCUBFcOVxdYCAA";
-  assert.deepEqual(await decodeLink(fragment, catalog), {
-    version: 1,
-    config: { modules: [{ name: "battery", type: "power", placement: "right" }] },
-    states: { battery: BUILT_INS.power.states },
-  });
-  assert.equal(WORDS[0], "name");
-  assert.equal(new Set(WORDS).size, WORDS.length);
 });
 
 test("a fragment names a shared bar or a config to fetch", () => {

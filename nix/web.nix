@@ -18,6 +18,9 @@ let
         tar -xzf ${package.src} -C $out/${package.name} --strip-components=1
       '')
       [
+        (npmPackage "fflate" "0.8.3"
+          "sha512-tbZNuJrLwGUp3zshBtdy4W+ORxZuIh8a5ilyIEQDC5rY1f3U20JMry0Ll3WBzU58EZKsEuJFXhb5gwv8CsPvgA=="
+        )
         (npmPackage "react" "19.3.1"
           "sha512-QNhWdt7nrgVWWQG58QuGsAR3jv3Hbe4mb4vz7w2csnHavciZJgda1CPNaldF6eVxv90ud3jUXpKlHL69gO38yw=="
         )

@@ -8,12 +8,18 @@
 // says nothing is left out: empty parts, and a view that is the default.
 // And the words nearly every config uses are swapped for short tokens.
 //
+// Deflating keeps it shorter still: the JSON is deflated against a
+// dictionary of packed bars the site offers, so what a document shares
+// with them costs it next to nothing.
+//
 // A fragment may instead name a config file to fetch: `from=<url>`,
 // `gh=<user>/<repo>/<path>` or `gist=<id>`.
 //
 // A link can also share one module on its own, to add to any bar: its
 // config and the states it shows, packed the same way, after `m` and the
 // module codec's version.
+import { deflateSync, inflateSync } from "fflate";
+import { DICTIONARY } from "./dictionary.js";
 import { sameValue } from "./equal.js";
 import { DOCUMENT_VERSION } from "../engine/document.js";
 import { dict, str } from "../engine/values.js";
@@ -23,6 +29,8 @@ import { WORDS } from "./words.js";
 
 export const CODEC_VERSION = "1";
 export const MODULE_CODEC_VERSION = "m1";
+
+const DICTIONARY_BYTES = new TextEncoder().encode(DICTIONARY);
 
 // Tokens count in base 62 from the start of the word list.
 const DIGITS = "0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ";
@@ -109,11 +117,6 @@ export function unpackDocument(packed, catalog) {
   return document;
 }
 
-async function pipe(bytes, stream) {
-  const piped = new Blob([bytes]).stream().pipeThrough(stream);
-  return new Uint8Array(await new Response(piped).arrayBuffer());
-}
-
 function toBase64Url(bytes) {
   let binary = "";
   for (const byte of bytes) binary += String.fromCharCode(byte);
@@ -127,7 +130,7 @@ function fromBase64Url(text) {
 
 // The fragment that holds the packed form `packed`, after `version`.
 async function encodeFragment(version, packed) {
-  const deflated = await pipe(new TextEncoder().encode(JSON.stringify(packed)), new CompressionStream("deflate-raw"));
+  const deflated = deflateSync(new TextEncoder().encode(JSON.stringify(packed)), { level: 9, dictionary: DICTIONARY_BYTES });
   return `${version}.${toBase64Url(deflated)}`;
 }
 
@@ -137,7 +140,7 @@ async function decodeFragment(version, fragment) {
   const dot = fragment.indexOf(".");
   if (dot < 0 || fragment.slice(0, dot) !== version) throw new Error("The link is in a format this site doesn't read");
   try {
-    const inflated = await pipe(fromBase64Url(fragment.slice(dot + 1)), new DecompressionStream("deflate-raw"));
+    const inflated = inflateSync(fromBase64Url(fragment.slice(dot + 1)), { dictionary: DICTIONARY_BYTES });
     return JSON.parse(new TextDecoder().decode(inflated));
   } catch {
     throw new Error("The link is damaged");

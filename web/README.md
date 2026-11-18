@@ -99,7 +99,7 @@ The gallery is the tinted-theming project's schemes, which the browser lists and
 
 A link holds a whole document in the address's fragment, so the site stores nothing. `builder/share.js` packs the document, deflates it and writes it as base64url after the codec's version: `/builder/#1.<data>`.
 
-The document's themes travel with it. Packing keeps links short. States a module starts with, or has in the example bar, are left out and restored from the catalogue when the link opens. The words nearly every config uses are written as tokens from the list in `builder/words.js`. That list only ever grows at its end, because a word's place is its token. The example bar's link is about 750 characters.
+The document's themes travel with it. Packing keeps links short. States a module starts with, or has in the example bar, are left out and restored from the catalogue when the link opens. The words nearly every config uses are written as tokens from the list in `builder/words.js`. That list only ever grows at its end, because a word's place is its token. The packed document is deflated against the dictionary in `builder/dictionary.js`: packed bars made of the modules, plugins and theme the builder offers. A link then holds little more than what differs from them. A link opens only against the dictionary it was made with. That text never changes. A codec that wants another takes a new version. The example bar's link is about 30 characters.
 
 A fragment can instead name a config file for the browser to fetch: `#from=<url>`, `#gh=<user>/<repo>/<path>` or `#gist=<id>`. Such a link is short and always shows the file as it is, with each module in the states it starts with.
 
