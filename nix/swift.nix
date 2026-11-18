@@ -25,10 +25,11 @@ let
     runHook postCheck
   '';
 
-  # Removes the binaries' rpaths into the Nix store, as they link only the
-  # system's Swift runtime, and signs them again.
+  # Removes the binaries' and libraries' rpaths into the Nix store, as they
+  # link only the system's Swift runtime, and signs them again.
   dropStoreRpaths = ''
-    for bin in $out/bin/*; do
+    for bin in $out/bin/* $out/share/*/*.dylib; do
+      [ -e "$bin" ] || continue
       for rpath in $(otool -l "$bin" | awk '$1 == "path" && $2 ~ /^\/nix\/store\// { print $2 }'); do
         install_name_tool -delete_rpath "$rpath" "$bin"
       done
@@ -36,7 +37,8 @@ let
     done
   '';
 
-  # Builds the Swift package at `src` and installs its `pname` executable.
+  # Builds the Swift package at `src` and installs its `pname` executable,
+  # with the dynamic libraries it builds under share/`pname`.
   buildSwiftPackage =
     args@{
       pname,
@@ -55,6 +57,9 @@ let
         installPhase = ''
           runHook preInstall
           install -D -m 755 "$(swiftpmBinPath)/${pname}" $out/bin/${pname}
+          for lib in "$(swiftpmBinPath)"/*.dylib; do
+            [ -e "$lib" ] && install -D -m 644 "$lib" "$out/share/${pname}/$(basename "$lib")"
+          done
           runHook postInstall
         '';
         postInstall = dropStoreRpaths + postInstall;
