@@ -41,6 +41,13 @@ export function withTransitions(named, states) {
   return named.map(({ name, output }, i) => (states?.[i]?.transitions ? { name, output, transitions: states[i].transitions } : { name, output }));
 }
 
+// The icons the fonts have, when KANTAN_ICONS names the file listing each
+// font's, as preview-icons.py writes for every icon. A view draws these as
+// glyphs, and takes any other plain name for an SF Symbol.
+const FONT_ICONS = new Set(
+  process.env.KANTAN_ICONS ? Object.values(JSON.parse(readFileSync(process.env.KANTAN_ICONS, "utf8"))).flatMap(Object.keys) : [],
+);
+
 // Everything within `value` the engine marked as something it can't draw.
 function unsupportedWithin(value) {
   if (Array.isArray(value)) return value.flatMap(unsupportedWithin);
@@ -55,7 +62,8 @@ function unsupportedWithin(value) {
 // can't show as kantan would.
 function drawn(document, name, state, icons, problem) {
   const modules = [false, true].flatMap(dark => {
-    const bar = resolveBar(document, { dark, states: { [name]: state }, icons: icon => void icons.add(icon) });
+    const lookup = icon => (icons.add(icon), FONT_ICONS.has(icon) ? { font: "", char: "", scale: 1 } : undefined);
+    const bar = resolveBar(document, { dark, states: { [name]: state }, icons: lookup });
     if (bar.problem !== undefined) problem(`its config doesn't load: ${bar.problem}`);
     return Object.values(bar.placements).flat().filter(module => module.name === name);
   });

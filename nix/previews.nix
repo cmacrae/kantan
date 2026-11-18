@@ -161,6 +161,7 @@ let
   documents =
     pkgs.runCommand "kantan-previews"
       {
+        KANTAN_ICONS = "${allIcons}/icons.json";
         nativeBuildInputs = [
           pkgs.nodejs
           pkgs.yq-go
@@ -211,6 +212,7 @@ let
       document =
         pkgs.runCommand "kantan-${name}-document"
           {
+            KANTAN_ICONS = "${allIcons}/icons.json";
             nativeBuildInputs = [
               pkgs.nodejs
               pkgs.yq-go
