@@ -93,8 +93,8 @@ export function addPlugin(document, plugin, catalog) {
 // module here has. Returns the document and the name the module took,
 // `{ document, name }`.
 export function addShared(document, shared) {
-  const added = addModule(document, shared.module, shared.states);
-  return { document: added, name: modulesOf(added).at(-1).name };
+  const name = freeName(document, str(shared.module.name) ?? "module");
+  return { document: addModule(document, { ...shared.module, name }, shared.states), name };
 }
 
 // A new command module for a plugin of someone's own, showing the output
