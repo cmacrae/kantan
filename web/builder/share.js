@@ -267,11 +267,11 @@ const FIELD = "preview";
 const LONGEST_DRAFT = 6000;
 
 // The address that opens a new discussion with `title` filled in and a
-// link to `url` in the form's preview, for whoever opens it to paste the
-// image over and post. Undefined when they make an address too long to
+// link to `url` in the form's preview, under a comment that says where to
+// paste the image. The comment shows in the form and not in the post. Undefined when they make an address too long to
 // open.
 export function draftUrl(title, url) {
-  const preview = `\n\n${markdownLink("Open in the builder", url)}\n`;
+  const preview = `<!-- Paste the image here -->\n<!-- It should be in your clipboard: the builder copied it -->\n\n${markdownLink("Open in the builder", url)}\n`;
   const draft = `${DISCUSSIONS}/new?${new URLSearchParams({ category: CATEGORY, title, [FIELD]: preview })}`;
   return draft.length > LONGEST_DRAFT ? undefined : draft;
 }
