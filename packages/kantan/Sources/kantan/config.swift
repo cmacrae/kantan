@@ -1015,11 +1015,11 @@ func parseModuleConfig(from moduleYaml: Yaml, configDir: String? = nil, theme: T
     }
   }
 
-  // Drawer modules automatically get a click interaction
-  if type == "drawer" && moduleYaml["interaction"]["click"]["type"].string == nil {
+  // A drawer's click opens and closes it, whatever the config gives it.
+  if type == "drawer" {
     builder.setInteraction(
       InteractionConfig(
-        hover: nil,
+        hover: parseHoverConfig(from: moduleYaml["interaction"]["hover"]),
         click: ClickConfig(type: "drawer")
       ))
   }

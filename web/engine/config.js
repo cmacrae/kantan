@@ -70,8 +70,9 @@ function parseModule(yaml) {
     };
   }
 
-  // A masked module passes its clicks to the menu bar item it covers, and a
-  // drawer's opens and closes it, unless the config says otherwise.
+  // A masked module passes its clicks to the menu bar item it covers,
+  // unless the config says otherwise. A drawer's click opens and closes it,
+  // whatever the config says.
   if (dict(yaml.mask) && (int(yaml.mask.index) !== undefined || str(yaml.mask.name) !== undefined)) {
     module.masked = true;
     module.mask = { name: str(yaml.mask.name), index: int(yaml.mask.index) };
@@ -79,8 +80,8 @@ function parseModule(yaml) {
   if (dict(yaml.mask) && clickType === undefined) {
     module.interaction = { hover: parseHover(yaml.interaction?.hover), click: { type: "passthrough" } };
   }
-  if (type === "drawer" && clickType === undefined) {
-    module.interaction = { click: { type: "drawer" } };
+  if (type === "drawer") {
+    module.interaction = { hover: parseHover(yaml.interaction?.hover), click: { type: "drawer" } };
   }
 
   module.loaded = implementation.load(yaml.config ?? null);

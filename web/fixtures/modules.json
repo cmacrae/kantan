@@ -2180,7 +2180,7 @@
   ]
  },
  {
-  "name": "a drawer shows whether it is open and drops its hover",
+  "name": "a drawer shows whether it is open and keeps its hover",
   "document": {
    "version": 1,
    "config": {
@@ -2192,7 +2192,7 @@
       "interaction": {
        "hover": {
         "type": "tooltip",
-        "content": "ignored"
+        "content": "kept"
        }
       }
      }
@@ -2238,7 +2238,7 @@
          "background": null
         },
         "text": null,
-        "tooltip": null,
+        "tooltip": {"text": "kept"},
         "click": {
          "type": "drawer"
         }
@@ -2266,7 +2266,7 @@
          "background": null
         },
         "text": null,
-        "tooltip": null,
+        "tooltip": {"text": "kept"},
         "click": {
          "type": "drawer"
         }
@@ -2294,7 +2294,7 @@
          "background": null
         },
         "text": null,
-        "tooltip": null,
+        "tooltip": {"text": "kept"},
         "click": {
          "type": "drawer"
         }
@@ -2306,7 +2306,7 @@
   ]
  },
  {
-  "name": "a drawer takes its own icons and click",
+  "name": "a drawer takes its own icons, and its click whatever the config says",
   "document": {
    "version": 1,
    "config": {
@@ -2370,7 +2370,7 @@
          "text": "kept"
         },
         "click": {
-         "type": "passthrough"
+         "type": "drawer"
         }
        }
       ]
@@ -2400,7 +2400,7 @@
          "text": "kept"
         },
         "click": {
-         "type": "passthrough"
+         "type": "drawer"
         }
        }
       ]
