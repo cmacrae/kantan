@@ -13,19 +13,28 @@ import { sameValue } from "../../builder/equal.js";
 import { themeFiles, writeYaml } from "../../builder/files.js";
 import { selectedThemes } from "../../builder/theme.js";
 import { Output } from "./Output.jsx";
-import { Button, useBuilder } from "./ui.jsx";
+import { Button, CopyButton, useBuilder } from "./ui.jsx";
 
 // A palette's colours, each with its name: the bar's own, then the rest.
+// A click on one copies it, and it says so for a moment.
 function Palette({ label, palette }) {
   const colors = [["fg", palette.fg], ["bg", palette.bg], ...(palette.shape === undefined ? [] : [["shape", palette.shape]]), ...Object.entries(palette.colors)];
+  const [copied, setCopied] = useState();
+  const copy = async (name, color) => {
+    await navigator.clipboard.writeText(color);
+    setCopied(name);
+    setTimeout(() => setCopied(now => (now === name ? undefined : now)), 1500);
+  };
   return (
     <div>
       <div className="kb-h">{label}</div>
       <ul className="kb-swatches">
         {colors.map(([name, color]) => (
           <li key={name}>
-            <i style={{ background: color }} />
-            <span><b>{name}</b><span>{color}</span></span>
+            <button type="button" aria-label={`Copy ${name}, ${color}`} onClick={() => copy(name, color)}>
+              <i style={{ background: color }} />
+              <span><b>{name}</b><span>{copied === name ? "Copied" : color}</span></span>
+            </button>
           </li>
         ))}
       </ul>
@@ -67,37 +76,41 @@ export function SharedTheme({ shared, systemDark, onBuild }) {
         </div>
       </header>
 
-      <main className="kb-shared">
-        <div>
-          <h1>{shared.name ?? names.join(" and ")}</h1>
-          <div className="kb-note">A shared theme, on the example bar</div>
-        </div>
-
-        <div className="kb-shared-fit">
-          <div className="kb-shared-desk" ref={frame} style={{ background: wallpaper(dark), zoom, minWidth: "max-content" }}>
+      <div className="kb-stage">
+        <div className="kb-stage-inner">
+          <h1 className="kb-shared-name">{shared.name ?? names.join(" and ")}</h1>
+          <div ref={frame} className="kb-desk" style={{ zoom }}>
+            <div className="kb-desk-paper" style={{ background: wallpaper(dark) }} />
             <BarView bar={bar} dark={dark} run={run} toggleDrawer={toggleDrawer} switchWorkspace={switchWorkspace} style={{ borderRadius: "10px 10px 0 0" }} />
+            <div className="kb-desk-room" style={{ marginTop: -Math.min(bar.gaps.top, 40) }} />
+          </div>
+          <div className="kb-stage-controls" style={{ justifyContent: "flex-end" }}>
+            <Button kind="plain" icon={dark ? "moon" : "sun"} onClick={() => setDark(!dark)}>{dark ? "Dark" : "Light"}</Button>
           </div>
         </div>
-        <div className="kb-shared-under">
-          <Button kind="plain" icon={dark ? "moon" : "sun"} onClick={() => setDark(!dark)}>{dark ? "Dark" : "Light"}</Button>
-        </div>
+      </div>
+
+      <main className="kb-shared">
 
         {palettes === undefined
           ? <div className="kb-problem">kantan can't load this theme.</div>
           : sameValue(palettes.light, palettes.dark)
           ? <Palette label="Its colours" palette={palettes.light} />
-          : <><Palette label="In light" palette={palettes.light} /><Palette label="In dark" palette={palettes.dark} /></>}
+          : <><Palette label="Light" palette={palettes.light} /><Palette label="Dark" palette={palettes.dark} /></>}
 
         {files.length > 0 && (
-          <section className="kb-pane">
-            <Output title={files.length === 1 ? "Its file" : "Its files"} files={files} archive={archive}
+          <section className="kb-pane kb-files">
+            <Output title={files.length === 1 ? "File" : "Files"} files={files} archive={archive}
               note={<>Save {files.length === 1 ? "it" : "them"} under <code>~/.config/kantan/</code>, by the {files.length === 1 ? "path" : "paths"} below.</>} />
           </section>
         )}
         <div className="kb-note">
           {files.length === 0 && "kantan bundles this theme. "}
           To use it, set this in <code>config.yaml</code>:
-          <pre className="kb-code" style={{ borderRadius: 8, marginTop: 6 }}><code>{selects}</code></pre>
+          <div className="kb-snippet">
+            <pre className="kb-code"><code>{selects}</code></pre>
+            <CopyButton kind="plain" text={selects} />
+          </div>
           To use it on a bar in the builder, open that bar and paste this page's link into Import a theme.
         </div>
       </main>
