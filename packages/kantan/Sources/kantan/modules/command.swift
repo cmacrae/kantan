@@ -13,11 +13,17 @@ struct ValueSegment: Equatable, Sendable {
   let text: String
   /// A hex colour or `{theme(name)}` template, or nil for the module's.
   let fg: String?
+  /// Whether the segment stays hidden until the pointer is over a module
+  /// that reveals on hover.
+  var reveal = false
 }
 
 struct CommandOutputData {
   var templateVars: [String: String] = [:]
   var segments: [ValueSegment] = []
+  /// Whether the output marks the icon as hidden until a hover reveals
+  /// it, or nil when the output says nothing of what a hover reveals.
+  var revealsIcon: Bool?
   var dynamicIcon: String = ""
   var viewTree: ViewNode? = nil
   var data: [String: [[String: String]]] = [:]
@@ -307,6 +313,13 @@ struct CommandConfig: ModuleConfiguration {
     return getCommandData(for: cacheKey).segments
   }
 
+  /// Whether the output marks the icon as hidden until a hover reveals
+  /// it, or nil when the output says nothing of what a hover reveals.
+  func revealsIcon() -> Bool? {
+    guard outputMode == "json" else { return nil }
+    return getCommandData(for: cacheKey).revealsIcon
+  }
+
   // MARK: - JSON Parsing
 
   /// Caches what `raw`, a command's output, parses to under `cacheKey`, and
@@ -397,8 +410,16 @@ struct CommandConfig: ModuleConfiguration {
     // Extract the value's coloured parts
     if let segments = json["segments"] as? [[String: Any]] {
       data.segments = segments.compactMap { segment in
-        (segment["text"] as? String).map { ValueSegment(text: $0, fg: segment["fg"] as? String) }
+        (segment["text"] as? String).map {
+          ValueSegment(
+            text: $0, fg: segment["fg"] as? String, reveal: segment["reveal"] as? Bool ?? false)
+        }
       }
+    }
+
+    // Extract the parts a hover reveals
+    if let reveal = json["reveal"] as? [String] {
+      data.revealsIcon = reveal.contains("icon")
     }
 
     // Extract view tree (DSL)

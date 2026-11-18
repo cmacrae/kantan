@@ -24,10 +24,20 @@
           "fg": {
             "$ref": "#/$defs/BarColor",
             "description": "Colour of this part: a hex colour (e.g. \"#89B4FA\" or \"89B4FA\") or a {theme(name)} template. Without it, the part takes the module's text colour."
+          },
+          "reveal": {
+            "type": "boolean",
+            "default": false,
+            "description": "Whether this part stays hidden until the pointer is over the module, when the module's hover type is 'reveal'."
           }
         }
       },
       "description": "The value in parts, each in its own colour, drawn in place of 'value'. 'value' should carry the same text, as tooltips and {value} templates use it."
+    },
+    "reveal": {
+      "type": "array",
+      "items": { "type": "string", "enum": ["icon"] },
+      "description": "The parts hidden until the pointer is over the module, when the module's hover type is 'reveal' and names no parts of its own: 'icon'. Parts of the value are marked by their segments' 'reveal'. An output with neither has its whole text hidden until then, so an empty list says that nothing waits."
     },
     "icon": {
       "type": "string",

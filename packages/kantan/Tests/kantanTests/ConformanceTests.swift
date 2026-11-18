@@ -263,6 +263,7 @@ private struct ShownState {
   var viewTree: ViewNode?
   var data: [String: [[String: String]]] = [:]
   var segments: [ValueSegment] = []
+  var revealsIcon: Bool?
   var backgroundIcon: String?
   var workspace: WorkspaceDisplay?
   var drawerOpen: Bool?
@@ -391,6 +392,7 @@ private func shownState(of module: ModuleConfig, output: Any?) throws -> ShownSt
     }
     state.data = command.getData()
     state.segments = command.getSegments()
+    state.revealsIcon = command.revealsIcon()
   } else {
     config.getValue { box.value = $0 }
   }
@@ -464,6 +466,10 @@ private func caseModule(_ module: ModuleConfig, state: ShownState, styles: Style
   if let display = state.workspace {
     result["workspace"] = caseWorkspace(module, display: display, styles: styles)
   }
+  let hover = module.interaction?.hover
+  let hides = { (part: RevealPart) in
+    hover?.hides(part, outputRevealsIcon: state.revealsIcon, segments: state.segments) ?? false
+  }
 
   let icon = state.icon.isEmpty ? module.icon : state.icon
   if let icon, !icon.isEmpty, state.workspace == nil {
@@ -473,6 +479,7 @@ private func caseModule(_ module: ModuleConfig, state: ShownState, styles: Style
       "opacity": state.isActive ? 1 : 0.4,
     ]
     shown["background"] = state.backgroundIcon.map { ["name": $0] }
+    if hides(.icon) { shown["reveal"] = true }
     result["icon"] = shown
   }
 
@@ -480,8 +487,13 @@ private func caseModule(_ module: ModuleConfig, state: ShownState, styles: Style
     let fg = styles.textFg(style: module.style, dynamic: state.dynamicStyle)
     let segments =
       state.segments.isEmpty ? [ValueSegment(text: state.value, fg: nil)] : state.segments
+    let hidesText = hides(.text)
     result["text"] = segments.map {
-      ["text": $0.text, "color": caseColor(styles.segmentFg($0.fg) ?? fg)]
+      var segment: [String: Any] = [
+        "text": $0.text, "color": caseColor(styles.segmentFg($0.fg) ?? fg),
+      ]
+      if hidesText || (hover?.type == "reveal" && $0.reveal) { segment["reveal"] = true }
+      return segment
     }
   }
 
@@ -492,6 +504,8 @@ private func caseModule(_ module: ModuleConfig, state: ShownState, styles: Style
     result["bg"] = caseColor(styles.bg(style: module.style, dynamic: state.dynamicStyle))
   }
 
+  if hover?.type == "reveal" { result["reveal"] = true }
+  if hover?.type == "reveal", hover?.persist == true { result["persist"] = true }
   if let hover = module.interaction?.hover, hover.type == "tooltip", hover.viewTree == nil {
     result["tooltip"] = [
       "text": plainTooltipText(

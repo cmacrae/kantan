@@ -1113,9 +1113,22 @@ class AppDelegate: NSObject, NSApplicationDelegate {
       // Animated content starts moving at once, so its panels follow
       // straight after the update instead of after a pause.
       Publishers.Merge3(shouldDisplay, displayValue, displayIcon)
-        .debounce(for: .milliseconds(vm.animatesContent ? 0 : 50), scheduler: RunLoop.main)
+        .debounce(
+          for: .milliseconds(vm.animatesContent || vm.moduleConfig.slidesSomewhere ? 0 : 50),
+          scheduler: RunLoop.main
+        )
         .sink { [weak self, weak vm] _ in
-          self?.repositionAllDisplays(animated: vm?.contentAnimation != nil)
+          self?.repositionAllDisplays(
+            animated: vm?.contentAnimation != nil || vm?.visibilityAnimation != nil)
+        }
+        .store(in: &visibilityCancellables)
+      // What a module reveals on hover takes its panel with it as it
+      // slides out.
+      vm.$isHovered.removeDuplicates().dropFirst()
+        .merge(with: vm.$isPopupOpen.removeDuplicates().dropFirst())
+        .debounce(for: .milliseconds(0), scheduler: RunLoop.main)
+        .sink { [weak self, weak vm] _ in
+          self?.repositionAllDisplays(animated: vm?.revealAnimation != nil)
         }
         .store(in: &visibilityCancellables)
     }

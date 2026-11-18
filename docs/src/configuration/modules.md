@@ -20,6 +20,8 @@ All modules support these configuration fields:
 | `interaction` | object | no | Hover and click behavior |
 | `mask` | object | no | Menu bar masking configuration |
 | `displays` | string/array | no | Restrict module to specific displays |
+| `iconPosition` | string | no | The side of the module its icon is on: `left` or `right`. Defaults to `left` |
+| `transition` | string | no | How the module enters and leaves as it shows and hides: `slide` or `none` (see [Showing and Hiding](#showing-and-hiding)) |
 
 A module missing `name`, `type` or `placement`, with an unknown `type`, or whose `config` fails to parse is skipped and the error logged. The rest of the config still loads. So is a module named like one before it, in `config.yaml` and then `modules.d/` in filename order. The `text`, `clock` and `command` types require a `config` block.
 
@@ -124,6 +126,24 @@ A module without a `shape` has no background of its own. A shape without a `bg` 
 
 Foreground colours resolve in this order: a state style (e.g. the power module's `config.style`) or the colour a plugin's output sets, the module's `text.fg`/`icon.fg`, the module's `fg`, the global `text.fg`/`icon.fg`, then the global `fg`. Module colours are ignored in [native appearance](bar.md#native-appearance).
 
+## Showing and Hiding
+
+Some modules leave the bar under a condition: `focus` while no Focus is on, `waveform` while there is no sound, a command whose output is `hidden`. `transition` sets how such a module leaves and returns:
+
+| Value | Behaviour |
+|-------|-----------|
+| `slide` | Slides to and from the edge its group is anchored to: behind the notch at `notchleft` and `notchright`, off the screen's edge at `left` and `right` |
+| `none` | Shows and hides at once |
+
+A module beside the notch slides by default, and one elsewhere doesn't. Reduce Motion turns the slide off.
+
+```yaml
+- name: waveform
+  type: waveform
+  placement: notchleft   # slides rightward, behind the notch, when the sound stops
+  transition: slide      # the default here
+```
+
 ## Per-Module Display Filtering
 
 Modules can restrict which displays they appear on, using the same format as the global `displays` setting:
@@ -175,6 +195,30 @@ interaction:
 ```
 
 Tooltip content supports variable substitution using `{variableName}` syntax: `{value}` and `{icon}` are the module's current value and icon. Other variables come from the module: a plugin's `variables`, or those a built-in module sets, listed on its [page](../modules/index.md) (such as the volume module's `{state}`). Without `content` or `view`, the tooltip shows `{value}`. `type` defaults to `tooltip`.
+
+**Reveal on hover:**
+```yaml
+interaction:
+  hover:
+    type: reveal
+    reveal: text     # or icon, or [icon, text]
+    persist: true    # stay revealed while the module's menu or popup is open
+```
+
+A module with a `reveal` hover keeps part of itself hidden until the pointer is over it, when that part slides out. It takes the place of the tooltip.
+
+| Key | Type | Default | Description |
+|-----|------|---------|-------------|
+| `reveal` | string/array | see below | The parts hidden until the hover: `icon`, `text`, or both |
+| `persist` | boolean | `false` | Keep what the hover reveals while the module's menu or popup is open |
+
+Without `reveal`, the hidden parts are those the module's output marks, which is how a plugin reveals a part of its text or its icon alone (see the [API reference](../plugins/api-reference.md)). A module whose output says nothing of them hides its text.
+
+Parts slide out from the icon's side of the module. The text unfolds from the icon. The icon is at the module's left, as in any module, except at `notchleft`, where it is at the right: there it stays beside the notch while the text slides out leftward. `iconPosition` sets the side for any module, revealing or not:
+
+```yaml
+iconPosition: right
+```
 
 ### Click Interaction
 

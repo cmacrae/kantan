@@ -262,12 +262,17 @@ struct ModuleContainerView: View {
     .allowsHitTesting(hasInteraction)
     .onHover(perform: hoverChanged)
     .background {
-      if viewModel.moduleConfig.isPassthrough, hasTooltip {
+      if viewModel.moduleConfig.isPassthrough, hasTooltip || viewModel.revealsOnHover {
         PassthroughHoverReader(onHover: hoverChanged)
       }
     }
     .onTapGesture {
       handleClick()
+    }
+    .onReceive(popupManager.openModule) { open in
+      let isOpen = open == viewModel.id
+      guard viewModel.isPopupOpen != isOpen else { return }
+      withAnimation(viewModel.revealAnimation) { viewModel.isPopupOpen = isOpen }
     }
   }
 
@@ -280,6 +285,9 @@ struct ModuleContainerView: View {
 
   private func hoverChanged(_ hovering: Bool) {
     guard hasInteraction else { return }
+    if viewModel.revealsOnHover {
+      withAnimation(viewModel.revealAnimation) { viewModel.isHovered = hovering }
+    }
     if hovering {
       showTooltipIfConfigured()
     } else {
@@ -383,40 +391,127 @@ struct StandardModuleView: View {
   @ObservedObject var viewModel: ModuleViewModel
   @EnvironmentObject var themeProvider: ThemeProvider
 
+  @Environment(\.groupPlacement) private var groupPlacement
+
+  /// Whether the text comes before the icon.
+  private var textLeads: Bool {
+    viewModel.moduleConfig.iconTrails(at: groupPlacement)
+  }
+
+  /// The edge revealed parts slide out from: the icon's side of the
+  /// module, so the text unfolds from the icon.
+  private var revealEdge: Edge {
+    textLeads ? .trailing : .leading
+  }
+
+  private var hasIcon: Bool {
+    !(viewModel.displayIcon ?? "").isEmpty
+  }
+
+  /// Whether the icon is in place: always, or once a hover reveals it.
+  private var showsIcon: Bool {
+    hasIcon && (!viewModel.hidesUntilRevealed(.icon) || viewModel.isRevealed)
+  }
+
+  /// The value's segments, each with whether it waits for a hover.
+  private var valueParts: [(text: AttributedString, reveal: Bool)] {
+    guard !(viewModel.displayValue ?? "").isEmpty else { return [] }
+    let hidesText = viewModel.hidesUntilRevealed(.text)
+    return themeProvider.valueParts(for: viewModel).map { ($0.text, hidesText || $0.reveal) }
+  }
+
   var body: some View {
-    HStack(spacing: themeProvider.iconTextSpacing) {
-      if let icon = viewModel.displayIcon, !icon.isEmpty {
-        if let bgIcon = viewModel.backgroundIcon, !bgIcon.isEmpty {
-          Text(bgIcon)
-            .font(themeProvider.iconFont(for: viewModel))
-            .foregroundStyle(iconColor.opacity(0.15))
-            .overlay {
-              Text(icon)
-                .font(themeProvider.iconFont(for: viewModel))
-                .foregroundStyle(iconColor)
-            }
-        } else {
-          Text(icon)
-            .font(themeProvider.iconFont(for: viewModel))
-            .foregroundStyle(iconColor)
+    if viewModel.revealsOnHover {
+      let parts = valueParts
+      let showsText = parts.contains { !$0.reveal || viewModel.isRevealed }
+      HStack(spacing: 0) {
+        if textLeads { revealingText(parts) }
+        if textLeads, showsIcon, showsText { iconTextGap }
+        ZStack {
+          if showsIcon {
+            iconView.transition(.move(edge: revealEdge).combined(with: .opacity))
+          }
         }
+        .clipped()
+        if !textLeads, showsIcon, showsText { iconTextGap }
+        if !textLeads { revealingText(parts) }
       }
-      if let value = viewModel.displayValue, !value.isEmpty {
-        Text(themeProvider.valueText(for: viewModel))
-          .font(themeProvider.textFont(for: viewModel))
-          .lineLimit(1)
+      .modifier(ModuleChrome(viewModel: viewModel))
+    } else {
+      HStack(spacing: themeProvider.iconTextSpacing) {
+        if hasIcon, !textLeads { iconView }
+        if let value = viewModel.displayValue, !value.isEmpty {
+          Text(themeProvider.valueText(for: viewModel))
+            .font(themeProvider.textFont(for: viewModel))
+            .lineLimit(1)
+        }
+        if hasIcon, textLeads { iconView }
+      }
+      .modifier(ModuleChrome(viewModel: viewModel))
+    }
+  }
+
+  private var iconTextGap: some View {
+    Color.clear.frame(width: themeProvider.iconTextSpacing, height: 1)
+  }
+
+  /// The module's icon, over the icon drawn faintly behind it when it has one.
+  @ViewBuilder
+  private var iconView: some View {
+    if let icon = viewModel.displayIcon {
+      if let bgIcon = viewModel.backgroundIcon, !bgIcon.isEmpty {
+        Text(bgIcon)
+          .font(themeProvider.iconFont(for: viewModel))
+          .foregroundStyle(iconColor.opacity(0.15))
+          .overlay {
+            Text(icon)
+              .font(themeProvider.iconFont(for: viewModel))
+              .foregroundStyle(iconColor)
+          }
+      } else {
+        Text(icon)
+          .font(themeProvider.iconFont(for: viewModel))
+          .foregroundStyle(iconColor)
       }
     }
-    .fixedSize(horizontal: true, vertical: false)
-    .padding(.horizontal, moduleShape != nil ? 6 : 0)
-    .padding(.vertical, modulePadding)
-    .frame(maxHeight: expandsToBarHeight ? .infinity : nil)
-    .background(shapeBackground)
+  }
+
+  /// The value of a revealing module: each segment that waits for a hover
+  /// slides out from the group's anchored edge once revealed, and back.
+  private func revealingText(_ parts: [(text: AttributedString, reveal: Bool)]) -> some View {
+    HStack(spacing: 0) {
+      ForEach(Array(parts.enumerated()), id: \.offset) { _, part in
+        ZStack {
+          if !part.reveal || viewModel.isRevealed {
+            Text(part.text)
+              .font(themeProvider.textFont(for: viewModel))
+              .lineLimit(1)
+              .transition(.move(edge: revealEdge).combined(with: .opacity))
+          }
+        }
+        .clipped()
+      }
+    }
   }
 
   private var iconColor: Color {
     let base = themeProvider.iconFgColor(for: viewModel)
     return viewModel.isActive ? base : base.opacity(0.4)
+  }
+}
+
+/// A standard module's size, padding and shape.
+private struct ModuleChrome: ViewModifier {
+  @ObservedObject var viewModel: ModuleViewModel
+  @EnvironmentObject var themeProvider: ThemeProvider
+
+  func body(content: Content) -> some View {
+    content
+      .fixedSize(horizontal: true, vertical: false)
+      .padding(.horizontal, moduleShape != nil ? 6 : 0)
+      .padding(.vertical, modulePadding)
+      .frame(maxHeight: expandsToBarHeight ? .infinity : nil)
+      .background(shapeBackground)
   }
 
   private var moduleShape: ModuleShape? {

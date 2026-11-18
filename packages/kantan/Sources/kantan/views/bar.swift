@@ -10,12 +10,50 @@ private struct ModuleVisibilityView: View {
   @ObservedObject var viewModel: ModuleViewModel
   let popupManager: PopupManager
   let horizontalPadding: CGFloat
+  /// The placement of the module's group.
+  let placement: String
+  @Environment(\.groupAnchorsTrailing) private var groupAnchorsTrailing
+
+  /// How the module enters and leaves: sliding to and from the edge its
+  /// group is anchored to, or at once.
+  private var transition: AnyTransition {
+    guard viewModel.moduleConfig.slides(at: placement) else { return .identity }
+    return .move(edge: groupAnchorsTrailing ? .trailing : .leading).combined(with: .opacity)
+  }
 
   var body: some View {
     if viewModel.shouldDisplay {
       ModuleContainerView(viewModel: viewModel, popupManager: popupManager)
         .padding(.horizontal, viewModel.moduleConfig.type == "drawer" ? 0 : horizontalPadding)
+        .transition(transition)
     }
+  }
+}
+
+// MARK: - Group Anchor
+
+private struct GroupAnchorsTrailingKey: EnvironmentKey {
+  static let defaultValue = false
+}
+
+extension EnvironmentValues {
+  /// Whether the module's group keeps its trailing edge in place, growing
+  /// toward the leading one, as groups right of the bar's centre do.
+  var groupAnchorsTrailing: Bool {
+    get { self[GroupAnchorsTrailingKey.self] }
+    set { self[GroupAnchorsTrailingKey.self] = newValue }
+  }
+}
+
+private struct GroupPlacementKey: EnvironmentKey {
+  static let defaultValue = "left"
+}
+
+extension EnvironmentValues {
+  /// The placement of the module's group.
+  var groupPlacement: String {
+    get { self[GroupPlacementKey.self] }
+    set { self[GroupPlacementKey.self] = newValue }
   }
 }
 
@@ -45,7 +83,8 @@ struct ModuleGroupView: View {
         ModuleVisibilityView(
           viewModel: vm,
           popupManager: popupManager,
-          horizontalPadding: isMasked ? 0 : CGFloat(themeProvider.config.padding)
+          horizontalPadding: isMasked ? 0 : CGFloat(themeProvider.config.padding),
+          placement: placement
         )
       }
     }
@@ -56,5 +95,7 @@ struct ModuleGroupView: View {
     // grown keeps the content at its anchor rather than widening at once.
     .frame(minWidth: 0, maxWidth: .infinity, alignment: anchor)
     .environmentObject(themeProvider)
+    .environment(\.groupAnchorsTrailing, anchor == .trailing)
+    .environment(\.groupPlacement, placement)
   }
 }

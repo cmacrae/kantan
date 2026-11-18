@@ -106,16 +106,66 @@ struct InteractionConfig {
   let click: ClickConfig?
 }
 
+/// A part of a module that a `reveal` hover can keep hidden until the
+/// pointer is over the module.
+enum RevealPart: String, Sendable {
+  case icon
+  case text
+}
+
 struct HoverConfig {
   let type: String
   let content: String?
   let viewTree: ViewNode?
+  /// The parts a `reveal` hover hides until the pointer is over the module,
+  /// or nil for those the module's output marks, and its text when it
+  /// marks none.
+  let reveal: Set<RevealPart>?
+  /// Whether what a hover reveals stays while the module's menu or popup
+  /// is open.
+  let persist: Bool
 
-  init(type: String, content: String? = nil, viewTree: ViewNode? = nil) {
+  init(
+    type: String, content: String? = nil, viewTree: ViewNode? = nil,
+    reveal: Set<RevealPart>? = nil, persist: Bool = false
+  ) {
     self.type = type
     self.content = content
     self.viewTree = viewTree
+    self.reveal = reveal
+    self.persist = persist
   }
+}
+
+extension HoverConfig {
+  /// Whether a `reveal` hover keeps `part` hidden until the pointer is over
+  /// the module: a part `reveal` lists, or without a list, one the module's
+  /// output marks. An output that says nothing of what a hover reveals,
+  /// with no `reveal` of its own (`outputRevealsIcon` is nil) and no
+  /// segment marked, has its text hidden.
+  func hides(_ part: RevealPart, outputRevealsIcon: Bool?, segments: [ValueSegment]) -> Bool {
+    guard type == "reveal" else { return false }
+    if let reveal { return reveal.contains(part) }
+    switch part {
+    case .icon: return outputRevealsIcon == true
+    case .text: return outputRevealsIcon == nil && !segments.contains(where: \.reveal)
+    }
+  }
+}
+
+/// The side of a module its icon is on, its text taking the other.
+enum IconPosition: String, Sendable {
+  case left
+  case right
+}
+
+/// How a module enters and leaves the bar as it shows and hides.
+enum ModuleTransition: String, Sendable {
+  /// Slides to and from the edge its group is anchored to: the notch
+  /// beside it, or the screen's edge.
+  case slide
+  /// Appears and disappears at once.
+  case none
 }
 
 struct ClickConfig {
@@ -217,6 +267,8 @@ struct ModuleConfigBuilder {
   private var interaction: InteractionConfig? = nil
   private var mask: MaskConfig? = nil
   private var displays: DisplaysConfig? = nil
+  private var transition: ModuleTransition? = nil
+  private var iconPosition: IconPosition? = nil
   private var configFactory: ModuleConfigurationFactory?
 
   mutating func setName(_ name: String) { self.name = name }
@@ -229,6 +281,8 @@ struct ModuleConfigBuilder {
   mutating func setInteraction(_ interaction: InteractionConfig) { self.interaction = interaction }
   mutating func setMask(_ mask: MaskConfig) { self.mask = mask }
   mutating func setDisplays(_ displays: DisplaysConfig) { self.displays = displays }
+  mutating func setTransition(_ transition: ModuleTransition) { self.transition = transition }
+  mutating func setIconPosition(_ position: IconPosition) { self.iconPosition = position }
   mutating func setConfigFactory(_ factory: ModuleConfigurationFactory) {
     self.configFactory = factory
   }
@@ -260,10 +314,13 @@ struct ModuleConfigBuilder {
     guard let config = self.config else {
       throw BuilderError.missingConfiguration
     }
-    return ModuleConfig(
+    var module = ModuleConfig(
       name: name, placement: placement, type: type, icon: icon, textFont: textFont,
       iconFont: iconFont, style: style, config: config, interaction: interaction, mask: mask,
       displays: displays)
+    module.transition = transition
+    module.iconPosition = iconPosition
+    return module
   }
 }
 
@@ -286,6 +343,32 @@ struct ModuleConfig {
   let interaction: InteractionConfig?
   let mask: MaskConfig?
   var displays: DisplaysConfig?
+  /// How the module enters and leaves the bar, or nil to slide beside the
+  /// notch and appear at once elsewhere.
+  var transition: ModuleTransition?
+
+  /// The side of the module its icon is on, or nil for the left, and the
+  /// right for a module that reveals on hover left of the notch.
+  var iconPosition: IconPosition?
+
+  /// Whether the icon comes after the text at `placement`, one of the four
+  /// a module resolves to. Left of the notch, a module that reveals on
+  /// hover keeps its icon beside the notch as the rest slides out.
+  func iconTrails(at placement: String) -> Bool {
+    let revealsBesideNotch = interaction?.hover?.type == "reveal" && placement == "notchleft"
+    return (iconPosition ?? (revealsBesideNotch ? .right : .left)) == .right
+  }
+
+  /// Whether the module slides in and out as it shows and hides at
+  /// `placement`, one of the four a module resolves to.
+  func slides(at placement: String) -> Bool {
+    (transition ?? (placement.hasPrefix("notch") ? .slide : ModuleTransition.none)) == .slide
+  }
+
+  /// Whether the module slides in and out at any placement it may take.
+  var slidesSomewhere: Bool {
+    placement.raw.split(separator: "|").contains { slides(at: String($0)) }
+  }
 
   /// Whether clicks pass through to whatever is beneath the module. A masked
   /// module passes them through unless its config sets a click type.

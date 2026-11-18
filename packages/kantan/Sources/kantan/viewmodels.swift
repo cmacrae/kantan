@@ -44,6 +44,47 @@ class ModuleViewModel: ObservableObject, Identifiable {
 
   @Published var dynamicStyle: DynamicStyleOverride?
 
+  /// Whether the pointer is over a module that reveals on hover.
+  @Published var isHovered = false
+  /// Whether the module's menu or popup is open.
+  @Published var isPopupOpen = false
+  /// Whether the module's output marks its icon as hidden until a hover,
+  /// or nil when it says nothing of what a hover reveals.
+  @Published var outputRevealsIcon: Bool?
+
+  /// Whether the module keeps some of itself hidden until the pointer is
+  /// over it.
+  var revealsOnHover: Bool {
+    moduleConfig.interaction?.hover?.type == "reveal"
+  }
+
+  /// Whether what a hover reveals is showing: under the pointer, or while
+  /// the module's menu or popup is open when its hover persists.
+  var isRevealed: Bool {
+    isHovered || (isPopupOpen && moduleConfig.interaction?.hover?.persist == true)
+  }
+
+  /// Whether `part` stays hidden until a hover reveals it.
+  func hidesUntilRevealed(_ part: RevealPart) -> Bool {
+    moduleConfig.interaction?.hover?.hides(
+      part, outputRevealsIcon: outputRevealsIcon, segments: segments) ?? false
+  }
+
+  /// The animation for the module sliding in and out as it shows and
+  /// hides, or nil when it appears at once.
+  var visibilityAnimation: Animation? {
+    guard moduleConfig.slidesSomewhere,
+      !NSWorkspace.shared.accessibilityDisplayShouldReduceMotion
+    else { return nil }
+    return ModuleAnimation.content
+  }
+
+  /// The animation for the module's text sliding out and back, or nil to
+  /// show it at once, as with Reduce Motion on.
+  var revealAnimation: Animation? {
+    NSWorkspace.shared.accessibilityDisplayShouldReduceMotion ? nil : ModuleAnimation.content
+  }
+
   /// Closure invoked when this module is clicked with type "drawer".
   /// Set by BarViewModel for the drawer module.
   var toggleAction: (() -> Void)?
@@ -178,7 +219,9 @@ class ModuleViewModel: ObservableObject, Identifiable {
   ) {
     let rawIcon = icon.isEmpty ? moduleConfig.icon : icon
     let resolved = rawIcon.map { resolveIconName($0) }
-    withAnimation(contentAnimation) {
+    // A module showing or hiding slides when its transition says so.
+    let appears = shouldDisplay != config.shouldDisplay()
+    withAnimation(contentAnimation ?? (appears ? visibilityAnimation : nil)) {
       displayValue = value
       displayIcon = resolved?.glyph ?? rawIcon
       iconFontNameOverride = resolved?.fontNameOverride
@@ -192,6 +235,7 @@ class ModuleViewModel: ObservableObject, Identifiable {
       if let cmdConfig = config as? CommandConfig {
         data = cmdConfig.getData()
         segments = cmdConfig.getSegments()
+        outputRevealsIcon = cmdConfig.revealsIcon()
       }
     }
   }
@@ -824,15 +868,21 @@ class ThemeProvider: ObservableObject {
   /// module's text colour for a segment without one. An `fg` override,
   /// and the native appearance, colour it all alike.
   func valueText(for vm: ModuleViewModel) -> AttributedString {
+    valueParts(for: vm).reduce(into: AttributedString()) { $0 += $1.text }
+  }
+
+  /// The module's value as its segments, each coloured as `valueText`
+  /// colours it, with whether it stays hidden until a hover reveals it.
+  func valueParts(for vm: ModuleViewModel) -> [(text: AttributedString, reveal: Bool)] {
     let fg = textFgColor(for: vm)
     let styles = styles
     let segments =
       vm.segments.isEmpty ? [ValueSegment(text: vm.displayValue ?? "", fg: nil)] : vm.segments
-    return segments.reduce(into: AttributedString()) { text, segment in
+    return segments.map { segment in
       var part = AttributedString(segment.text)
       part.foregroundColor =
         (vm.fgOverride == nil ? styles.segmentFg(segment.fg) : nil).map(swiftUIColor) ?? fg
-      text += part
+      return (part, segment.reveal)
     }
   }
 

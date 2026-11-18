@@ -131,6 +131,12 @@ class PopupManager {
   private var activePopupId: String?
   private var activeLiveContent: LiveContentProvider?
   private var activeRefresh: AnyCancellable?
+  /// The name of the module whose menu or popup is open, if one is.
+  let openModule = CurrentValueSubject<String?, Never>(nil)
+  /// Watches for the pointer leaving a popup a click has left open.
+  private var pointerLeaveTimer: Timer?
+  static let pointerLeaveDelay: TimeInterval = 0.4
+  static let pointerLeaveMargin: CGFloat = 8
   private var tooltipPanel: NSPanel?
   private var tooltipLabel: NSTextField?
   private var tooltipRefreshTimer: Timer?
@@ -418,9 +424,11 @@ class PopupManager {
       refreshNativeMenu(
         menu, from: tree, resolver: self.makeResolver(for: liveContent), textColor: textColor)
     }
+    openModule.send(moduleName)
     withExtendedLifetime(refresh) {
       _ = menu.popUp(positioning: nil, at: nativeAnchor, in: nil)
     }
+    openModule.send(nil)
   }
 
   // MARK: - DSL View (PopupPanel + SwiftUI)
@@ -456,6 +464,7 @@ class PopupManager {
       hostingView: hostingView,
       panelRect: popupRect(fitting: hostingView, anchorPoint: anchorPoint),
       popupId: effectiveId, liveContent: liveContent)
+    openModule.send(moduleName)
 
     activeRefresh = liveContent.changes.sink { [weak self, weak hostingView] in
       guard let self, let hostingView, let panel = self.activePanel else { return }
@@ -492,6 +501,7 @@ class PopupManager {
   }
 
   func dismissPopup() {
+    if openModule.value != nil { openModule.send(nil) }
     activePanel?.orderOut(nil)
     activePanel = nil
     activePopupId = nil

@@ -47,6 +47,16 @@
       "$ref": "#/$defs/InteractionConfig",
       "description": "Hover and click behavior for this module."
     },
+    "iconPosition": {
+      "type": "string",
+      "enum": ["left", "right"],
+      "description": "The side of the module its icon is on, its text taking the other. Defaults to 'left', and to 'right' for a module at 'notchleft' whose hover reveals, so its icon stays beside the notch as the rest slides out."
+    },
+    "transition": {
+      "type": "string",
+      "enum": ["slide", "none"],
+      "description": "How the module enters and leaves the bar as it shows and hides: a module that hides under some condition, such as focus, waveform or a command whose output is hidden. 'slide' slides it to and from the edge its group is anchored to, which is the notch for 'notchleft' and 'notchright' and the screen's edge for 'left' and 'right'. 'none' shows and hides it at once. Defaults to 'slide' beside the notch and 'none' elsewhere. Reduce Motion turns it off."
+    },
     "mask": {
       "$ref": "#/$defs/MaskConfig",
       "description": "Position this module over a native macOS menu bar item, effectively replacing it visually. Clicks reach the native item underneath (passthrough) unless interaction.click sets a type."
@@ -167,13 +177,25 @@
     "HoverConfig": {
       "type": "object",
       "additionalProperties": false,
-      "description": "Hover/tooltip interaction. Shows content when the user hovers over the module.",
+      "description": "Hover interaction: what the module does while the pointer is over it.",
       "properties": {
         "type": {
           "type": "string",
-          "enum": ["tooltip"],
+          "enum": ["tooltip", "reveal"],
           "default": "tooltip",
-          "description": "Hover type. 'tooltip' shows a floating panel near the module. Defaults to 'tooltip' when omitted."
+          "description": "Hover type. 'tooltip' shows a floating panel near the module. 'reveal' keeps part of the module hidden until the pointer is over it, when it slides out from the edge the module's group is anchored to. Defaults to 'tooltip' when omitted."
+        },
+        "reveal": {
+          "description": "For a 'reveal' hover, the parts hidden until the pointer is over the module: 'icon', 'text', or a list of them. Left out, they are the parts the module's output marks (a plugin's 'reveal' and its segments' 'reveal'), and the text when the output says nothing of them.",
+          "oneOf": [
+            { "type": "string", "enum": ["icon", "text"] },
+            { "type": "array", "items": { "type": "string", "enum": ["icon", "text"] } }
+          ]
+        },
+        "persist": {
+          "type": "boolean",
+          "default": false,
+          "description": "For a 'reveal' hover, whether what it reveals stays while the module's menu or popup is open."
         },
         "content": {
           "type": "string",

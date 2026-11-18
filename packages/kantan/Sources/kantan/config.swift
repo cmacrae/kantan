@@ -575,7 +575,13 @@ private func parseHoverConfig(from yaml: Yaml?) -> HoverConfig? {
   let hoverType = hoverYaml["type"]?.string ?? "tooltip"
   let content = hoverYaml["content"]?.string
   let viewTree = hoverYaml["view"].flatMap { parseViewNodeFromYaml($0) }
-  return HoverConfig(type: hoverType, content: content, viewTree: viewTree)
+  // The parts to reveal: a list of them, or one alone.
+  let revealYaml = hoverYaml["reveal"]
+  let reveal = (revealYaml?.array?.compactMap(\.string) ?? revealYaml?.string.map { [$0] })
+    .map { Set($0.compactMap(RevealPart.init(rawValue:))) }
+  return HoverConfig(
+    type: hoverType, content: content, viewTree: viewTree, reveal: reveal,
+    persist: hoverYaml["persist"]?.bool ?? false)
 }
 
 private func parseClickConfig(from clickYaml: [Yaml: Yaml]) -> ClickConfig {
@@ -990,6 +996,14 @@ func parseModuleConfig(from moduleYaml: Yaml, configDir: String? = nil, theme: T
 
   if let moduleStyle = parseStyleConfig(from: moduleYaml["style"]) {
     builder.setStyle(moduleStyle)
+  }
+
+  if let position = moduleYaml["iconPosition"].string.flatMap(IconPosition.init(rawValue:)) {
+    builder.setIconPosition(position)
+  }
+
+  if let transition = moduleYaml["transition"].string.flatMap(ModuleTransition.init(rawValue:)) {
+    builder.setTransition(transition)
   }
 
   if let interactionYaml = moduleYaml["interaction"].dictionary {

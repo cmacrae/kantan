@@ -129,7 +129,7 @@ kantan ignores fields it doesn't know. A field of the wrong type is treated as a
 
 #### segments (optional)
 
-**Type:** `Array<{text: string, fg?: string}>`
+**Type:** `Array<{text: string, fg?: string, reveal?: boolean}>`
 **Description:** The value in parts, each in its own colour, drawn in place of `value`. `fg` is a hex colour (`"#89B4FA"` or `"89B4FA"`) or a `{theme(name)}` template. A part without one takes the module's text colour. `value` should still carry the same text. Tooltips and `{value}` templates use it.
 
 **Example:**
@@ -145,6 +145,28 @@ kantan ignores fields it doesn't know. A field of the wrong type is treated as a
 ```
 
 **Rendering:** An `fg` override from `kantan trigger <name> set fg=...`, and the native appearance, colour every part alike. `kantan trigger <name> set value=...` shows its value in one colour.
+
+**Revealing:** A part with `"reveal": true` stays hidden until the pointer is over the module, then slides out, when the module's hover is `type: reveal`. A module's hover that names its own `reveal` parts decides instead.
+
+#### reveal (optional)
+
+**Type:** `Array<"icon">`
+**Description:** The parts hidden until the pointer is over the module, when the module's hover is `type: reveal` and names no `reveal` parts of its own. `["icon"]` hides the icon until then. Parts of the value are marked by their segments' `reveal`. An output with neither has its whole text hidden until the hover, so give `[]` to say that nothing waits.
+
+**Example:**
+```json
+{
+  "value": "Aphex Twin · Alberto Balsalm",
+  "icon": "brand-spotify",
+  "reveal": ["icon"],
+  "segments": [
+    {"text": "Aphex Twin · ", "reveal": true},
+    {"text": "Alberto Balsalm"}
+  ]
+}
+```
+
+At rest this module shows `Alberto Balsalm`. Under the pointer, the icon and the artist slide out beside it.
 
 #### icon (optional)
 
