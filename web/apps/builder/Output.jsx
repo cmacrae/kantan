@@ -79,16 +79,18 @@ const GITHUB_LIMIT = 65536;
 
 // The dialog that shares the bar. `makeLink` resolves to the link holding
 // it, and `source` is the link to the file it was opened from, while it is
-// still as that file has it. `makeThemeLink` resolves to the link holding
-// its theme alone, when it has one. `barFor` and `dark` are `ShareImage`'s.
-export function Share({ makeLink, makeThemeLink, source, barFor, dark, onClose }) {
+// still as that file has it. `makeThemeLink(name)` resolves to the link
+// holding its theme alone, under a name, when it has a theme: `themeNames`
+// are the themes it selects. `barFor` and `dark` are `ShareImage`'s.
+export function Share({ makeLink, makeThemeLink, themeNames = [], source, barFor, dark, onClose }) {
   const [link, setLink] = useState();
   const [themeLink, setThemeLink] = useState();
+  const [themeName, setThemeName] = useState("");
   useEffect(() => {
     let current = true;
-    makeThemeLink?.().then(made => current && setThemeLink(made));
+    makeThemeLink?.(themeName.trim()).then(made => current && setThemeLink(made));
     return () => { current = false; };
-  }, [makeThemeLink]);
+  }, [makeThemeLink, themeName]);
   const [title, setTitle] = useState("My kantan bar");
   useEffect(() => {
     let current = true;
@@ -132,7 +134,11 @@ export function Share({ makeLink, makeThemeLink, source, barFor, dark, onClose }
           {themeLink !== undefined && (
             <div style={{ marginTop: 14 }}>
               {row("Just the theme", themeLink)}
-              <div className="kb-note">Opens on a page of its own, for another bar to take.</div>
+              <div className="kb-row">
+                <input type="text" aria-label="The theme's name" value={themeName} placeholder={`Name it: ${themeNames.join(" and ")}`}
+                  onChange={event => setThemeName(event.target.value)} />
+              </div>
+              <div className="kb-note">Opens on a page of its own, under that name, for another bar to take.</div>
             </div>
           )}
         </>

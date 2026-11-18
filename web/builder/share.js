@@ -193,25 +193,27 @@ export const encodeModuleLink = async (module, states, shown, catalog) =>
 export const decodeModuleLink = async (fragment, catalog) => unpackModule(await decodeFragment(MODULE_CODEC_VERSION, fragment), catalog);
 
 // The packed form of the theme a document is drawn in: `k` what its
-// config's `theme` selects, and `t` the theme files of its own that
-// names. A theme kantan bundles goes by its name alone.
-export function packTheme(document) {
+// config's `theme` selects, `t` the theme files of its own that names,
+// and `n` the `name` its sharer gave it, when they gave one. A theme
+// kantan bundles goes by its name alone.
+export function packTheme(document, name = "") {
   const selection = document.config?.theme;
-  const themes = Object.fromEntries(selectedThemes(selection).filter(name => dict(document.themes?.[name])).map(name => [name, document.themes[name]]));
-  return mapStrings({ k: selection, ...(present(themes) ? { t: themes } : {}) }, packString);
+  const themes = Object.fromEntries(selectedThemes(selection).filter(each => dict(document.themes?.[each])).map(each => [each, document.themes[each]]));
+  return mapStrings({ k: selection, ...(present(themes) ? { t: themes } : {}), ...(name === "" ? {} : { n: name }) }, packString);
 }
 
-// The theme a packed form holds, as `{ selection, themes }`.
+// The theme a packed form holds, as `{ selection, themes }`, with the
+// `name` it was given when it was given one.
 export function unpackTheme(packed) {
   if (!dict(packed)) throw new Error("The link doesn't hold a theme");
-  const { k, t } = mapStrings(packed, unpackString);
+  const { k, t, n } = mapStrings(packed, unpackString);
   if (selectedThemes(k).length === 0) throw new Error("The link doesn't hold a theme");
-  return { selection: k, themes: dict(t) ?? {} };
+  return { selection: k, themes: dict(t) ?? {}, ...(str(n) === undefined ? {} : { name: n }) };
 }
 
 // The fragment, without its `#`, that shares the theme `document` is
-// drawn in.
-export const encodeThemeLink = async document => encodeFragment(THEME_CODEC_VERSION, packTheme(document));
+// drawn in, under `name` when it is given one.
+export const encodeThemeLink = async (document, name) => encodeFragment(THEME_CODEC_VERSION, packTheme(document, name));
 
 // The theme a fragment made by `encodeThemeLink` shares.
 export const decodeThemeLink = async fragment => unpackTheme(await decodeFragment(THEME_CODEC_VERSION, fragment));

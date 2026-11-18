@@ -85,7 +85,7 @@ function onExample(shared) {
 function inTheme(shared) {
   return {
     document: withSharedTheme(exampleDocument(), shared, catalog.themes),
-    note: `${selectedThemes(shared.selection).join(" and ")} is a theme shared by a link, shown here on the example bar. To use it on a bar of your own, open that bar and paste the link into Import a theme.`,
+    note: `${shared.name ?? selectedThemes(shared.selection).join(" and ")} is a theme shared by a link, shown here on the example bar. To use it on a bar of your own, open that bar and paste the link into Import a theme.`,
   };
 }
 
@@ -537,8 +537,8 @@ function Workspace({ opened, iconSet, onStart }) {
   const themeNames = selectedThemes(document.config.theme);
 
   // The theme the bar is drawn in, shared on its own.
-  const makeThemeLink = useCallback(async () => {
-    const fragment = await encodeThemeLink(document);
+  const makeThemeLink = useCallback(async name => {
+    const fragment = await encodeThemeLink(document, name);
     return `${window.location.origin}${window.location.pathname}#${fragment}`;
   }, [document]);
 
@@ -876,7 +876,7 @@ function Workspace({ opened, iconSet, onStart }) {
           theme={themeNames.length ? { names: themeNames, named: JSON.stringify([module, document.states?.[module.name]]).includes("{theme(") } : undefined}
           onClose={() => setSharingModule(false)} />
       )}
-      {sharing && <Share makeLink={makeLink} makeThemeLink={themeNames.length ? makeThemeLink : undefined} source={edited ? undefined : opened.source} barFor={barFor} dark={dark} onClose={() => setSharing(false)} />}
+      {sharing && <Share makeLink={makeLink} makeThemeLink={themeNames.length ? makeThemeLink : undefined} themeNames={themeNames} source={edited ? undefined : opened.source} barFor={barFor} dark={dark} onClose={() => setSharing(false)} />}
     </BuilderContext.Provider>
   );
 }

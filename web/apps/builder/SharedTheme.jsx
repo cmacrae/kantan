@@ -7,7 +7,7 @@ import { wallpaper } from "../../components/Desk.jsx";
 import { useBar } from "../../components/useBar.js";
 import { useFitZoom } from "../../components/useFitZoom.js";
 import { loadTheme } from "../../engine/index.js";
-import { withSharedTheme } from "../../builder/base16.js";
+import { schemeFileName, withSharedTheme } from "../../builder/base16.js";
 import { boundDocument, modulesOf } from "../../builder/edit.js";
 import { sameValue } from "../../builder/equal.js";
 import { themeFiles, writeYaml } from "../../builder/files.js";
@@ -33,7 +33,7 @@ function Palette({ label, palette }) {
   );
 }
 
-// `shared` is the theme a link holds, `{ selection, themes }`, and
+// `shared` is the theme a link holds, `{ selection, themes, name }`, and
 // `systemDark` whether the system's appearance is dark. `onBuild` opens
 // the example bar in the builder, drawn in the theme.
 export function SharedTheme({ shared, systemDark, onBuild }) {
@@ -51,6 +51,10 @@ export function SharedTheme({ shared, systemDark, onBuild }) {
   const zoom = useFitZoom(frame, 0.6);
 
   const files = useMemo(() => Object.entries(shared.themes).flatMap(([name, theme]) => themeFiles(name, theme)), [shared]);
+  // The archive its files download as: under the name it was given, when
+  // that makes a file name.
+  const given = schemeFileName(shared.name ?? "");
+  const archive = given === "" ? "kantan-theme.zip" : `${given}-kantan-theme.zip`;
   const selects = useMemo(() => writeYaml({ theme: shared.selection }).trim(), [shared]);
 
   return (
@@ -65,7 +69,7 @@ export function SharedTheme({ shared, systemDark, onBuild }) {
 
       <main className="kb-shared">
         <div>
-          <h1>{names.join(" and ")}</h1>
+          <h1>{shared.name ?? names.join(" and ")}</h1>
           <div className="kb-note">A shared theme, on the example bar</div>
         </div>
 
@@ -86,7 +90,7 @@ export function SharedTheme({ shared, systemDark, onBuild }) {
 
         {files.length > 0 && (
           <section className="kb-pane">
-            <Output title={files.length === 1 ? "Its file" : "Its files"} files={files} archive="kantan-theme.zip"
+            <Output title={files.length === 1 ? "Its file" : "Its files"} files={files} archive={archive}
               note={<>Save {files.length === 1 ? "it" : "them"} under <code>~/.config/kantan/</code>, by the {files.length === 1 ? "path" : "paths"} below.</>} />
           </section>
         )}
