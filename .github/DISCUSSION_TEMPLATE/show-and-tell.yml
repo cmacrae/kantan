@@ -3,7 +3,7 @@ body:
     id: preview
     attributes:
       label: Preview
-      description: An image of your bar, theme or module, with its link under it. Post to Discussions in the builder fills in the link and copies the image, so paste it here. Or drag in a screenshot.
+      description: An image of your bar, theme or module, with its link under it. Post to Discussions in the [builder](https://kantan.bar/builder/) fills in the link and copies the image, so paste it here. Or drag in a screenshot.
     validations:
       required: true
   - type: textarea
