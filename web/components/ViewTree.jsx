@@ -13,13 +13,45 @@ const DEFAULT_SPACING = 8;
 // The highlight behind a row the pointer is over.
 const hoverFill = native => (native ? "#0a84ff" : faded("#0a84ff", 0.3));
 
+// Whether a node takes all the width it is offered, as SwiftUI lays it
+// out: a row holding a spacer does, and so does a stack holding such a row.
+function fills(node) {
+  switch (node.type) {
+    case "spacer":
+    case "action":
+    case "check":
+    case "divider":
+    case "scroll":
+    case "grid":
+      return true;
+    case "progress":
+      return node.style !== "ring";
+    case "rect":
+      return node.width === undefined;
+    case "vstack":
+    case "hstack":
+    case "zstack":
+      return node.children.some(child => fills(child) && !(child.boxes ?? []).some(fixed));
+    default:
+      return false;
+  }
+}
+
+// Whether a box's frame sets its width.
+const fixed = box => box.frame?.w !== undefined || box.frame?.maxW !== undefined;
+
 // A node's padding, frame, background, corner radius and opacity, applied
-// from the inside out, as SwiftUI applies a view's modifiers.
-function Boxed({ boxes, dark, children }) {
-  return (boxes ?? []).reduce((inner, box, i) => (
+// from the inside out, as SwiftUI applies a view's modifiers. The frame
+// goes around the padding, so its sizes take the padding in. With `fill`,
+// each box up to one with a width of its own is as wide as it is offered.
+function Boxed({ boxes, fill, dark, children }) {
+  const list = boxes ?? [];
+  const until = list.findIndex(fixed);
+  return list.reduce((inner, box, i) => (
     <div key={i} style={{
       display: "flex", flexDirection: "column", alignItems: "stretch", flexShrink: 0,
-      boxSizing: "content-box",
+      alignSelf: fill && (until === -1 || i < until) ? "stretch" : undefined,
+      boxSizing: "border-box",
       padding: box.padding && `${box.padding.top}px ${box.padding.trailing}px ${box.padding.bottom}px ${box.padding.leading}px`,
       width: box.frame?.w, height: box.frame?.h,
       minWidth: box.frame?.minW, maxWidth: box.frame?.maxW,
@@ -90,7 +122,7 @@ function Node({ node, context }) {
     case "unsupported":
       return <Unsupported what={node.what} />;
     case "vstack":
-      return <div style={{ display: "flex", flexDirection: "column", alignItems: FLEX[node.align], gap: node.spacing ?? DEFAULT_SPACING }}>{children}</div>;
+      return <div style={{ display: "flex", flexDirection: "column", alignItems: FLEX[node.align], gap: node.spacing ?? DEFAULT_SPACING, alignSelf: fills(node) ? "stretch" : undefined }}>{children}</div>;
     case "hstack": {
       const style = { display: "flex", alignItems: FLEX[node.align], gap: node.spacing ?? DEFAULT_SPACING, alignSelf: "stretch" };
       return node.command
@@ -218,7 +250,7 @@ function Node({ node, context }) {
 export const nodeMark = source => JSON.stringify(source);
 
 function ViewNode({ node, context }) {
-  const drawn = <Boxed boxes={node.boxes} dark={context.dark}><Node node={node} context={context} /></Boxed>;
+  const drawn = <Boxed boxes={node.boxes} fill={fills(node)} dark={context.dark}><Node node={node} context={context} /></Boxed>;
   // The mark takes no room of its own, leaving the layout as it is.
   return context.mark && node.source
     ? <div data-kantan-node={nodeMark(node.source)} style={{ display: "contents" }}>{drawn}</div>
