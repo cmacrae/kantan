@@ -14,7 +14,7 @@ scopes = [
   # Built-in modules
   "bluetooth", "clock", "command", "drawer", "focus", "icon", "power", "text", "volume", "waveform", "wifi", "workspace", "modules",
   # Bundled plugins
-  "plugins", "caffeine", "calendar", "pomodoro", "reminders", "rift-indicator", "system-monitor", "tailscale",
+  "plugins", "caffeine", "calendar", "now-playing", "pomodoro", "reminders", "rift-indicator", "system-monitor", "tailscale",
   # Packaging and tooling, for types that don't bump
   "nix", "homebrew", "release", "install",
 ]

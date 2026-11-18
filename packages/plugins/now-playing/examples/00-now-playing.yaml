@@ -1,0 +1,25 @@
+name: now-playing
+type: command
+placement: right
+style:
+  icon:
+    fg: "{theme(green)}"
+config:
+  command: kantan-plugin-now-playing
+  output: json
+  watch: kantan-plugin-now-playing --watch
+  settings:
+    icon: music
+    icons:
+      Spotify: brand-spotify
+      Music: brand-apple
+    show:
+      playing: [icon, title]
+      paused: [icon]
+      hover: [artist]
+interaction:
+  hover:
+    type: reveal
+    persist: true
+  click:
+    type: popup

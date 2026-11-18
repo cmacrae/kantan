@@ -1,0 +1,185 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/cmacrae/kantan/packages/plugins/now-playing/settings.schema.json",
+  "title": "Kantan now-playing plugin settings",
+  "description": "The 'config.settings' block of a module running kantan-plugin-now-playing.",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "format": {
+      "description": "What the 'text' part writes: a template, or segments of templates, each with an optional colour, shown only while its 'when' variable is truthy and, with 'reveal', only while the pointer is over the module. The default writes the artist, when there is one, then the title.",
+      "oneOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "text"
+            ],
+            "properties": {
+              "text": {
+                "type": "string",
+                "description": "Template for the segment's text."
+              },
+              "fg": {
+                "$ref": "module-config.schema.json#/$defs/Color",
+                "description": "The segment's colour. Defaults to the module's."
+              },
+              "when": {
+                "type": "string",
+                "description": "Variable the segment shows for while it is truthy, or falsy as '!name'."
+              },
+              "reveal": {
+                "type": "boolean",
+                "default": false,
+                "description": "Whether the segment stays hidden until the pointer is over the module, when its hover's type is 'reveal'."
+              }
+            }
+          }
+        }
+      ]
+    },
+    "maxChars": {
+      "type": "integer",
+      "minimum": 0,
+      "default": 40,
+      "description": "Maximum characters of text the bar shows before a hover. Text over it loses the parts 'drop' lists, one at a time until it fits, and is cut short, ending in '...', if it still doesn't. 0 sets no limit."
+    },
+    "show": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "The parts the module shows in each state: 'icon', 'artist', 'title', 'album' and 'text', which is what 'format' writes. They are always drawn in that order. A state that shows nothing takes the module out of the bar.",
+      "properties": {
+        "playing": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": [
+              "icon",
+              "artist",
+              "title",
+              "album",
+              "text"
+            ]
+          },
+          "description": "What shows while a track plays.",
+          "default": [
+            "icon",
+            "text"
+          ]
+        },
+        "paused": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": [
+              "icon",
+              "artist",
+              "title",
+              "album",
+              "text"
+            ]
+          },
+          "description": "What shows while a track is paused.",
+          "default": [
+            "icon",
+            "text"
+          ]
+        },
+        "stopped": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": [
+              "icon",
+              "artist",
+              "title",
+              "album",
+              "text"
+            ]
+          },
+          "description": "What shows while no player has anything loaded.",
+          "default": []
+        },
+        "hover": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": [
+              "icon",
+              "artist",
+              "title",
+              "album",
+              "text"
+            ]
+          },
+          "description": "What is added while the pointer is over the module. Needs the module's 'interaction.hover.type' to be 'reveal'.",
+          "default": []
+        }
+      }
+    },
+    "icon": {
+      "$ref": "module-config.schema.json#/$defs/Icon",
+      "default": "music",
+      "description": "The module's icon, where a state shows one. Set it here, not as the module's own 'icon', which no state could leave out."
+    },
+    "icons": {
+      "type": "object",
+      "description": "The icon for each app, in place of 'icon' while that app is playing, and optionally the colour it is drawn in. Keys are an app's name, such as 'Spotify', or its bundle identifier, such as 'com.spotify.client', whatever their case.",
+      "additionalProperties": {
+        "oneOf": [
+          {
+            "$ref": "module-config.schema.json#/$defs/Icon"
+          },
+          {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "icon": {
+                "$ref": "module-config.schema.json#/$defs/Icon",
+                "description": "The app's icon. Left out, the app has the default 'icon'."
+              },
+              "fg": {
+                "$ref": "module-config.schema.json#/$defs/Color",
+                "description": "The icon's colour while the app plays. Left out, it is the module's."
+              }
+            }
+          }
+        ]
+      }
+    },
+    "separator": {
+      "type": "string",
+      "default": " · ",
+      "description": "What goes between the 'artist', 'title' and 'album' parts."
+    },
+    "drop": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "enum": [
+          "artist",
+          "title",
+          "album",
+          "text"
+        ]
+      },
+      "default": [
+        "album",
+        "artist"
+      ],
+      "description": "The parts left out of text longer than 'maxChars', the first listed going first. One that 'show.hover' lists comes back while the pointer is over the module."
+    },
+    "exclude": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "Apps whose playing is never shown, by name (such as 'Spotify') or bundle identifier (such as 'com.spotify.client'), in any case."
+    }
+  }
+}

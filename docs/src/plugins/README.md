@@ -50,6 +50,7 @@ kantan ships with these plugins:
 - **[system-monitor](system-monitor.md)**: Displays CPU, memory, disk, thermal, and uptime statistics (Swift, polling)
 - **[caffeine](caffeine.md)**: Prevents system sleep, toggled by a click (shell script)
 - **[calendar](calendar.md)**: Integrates with macOS Calendar, shows upcoming events with countdowns (Swift, event-driven)
+- **[now-playing](now-playing.md)**: Shows the track playing in any app, with album art and playback controls in its popup (Swift, event-driven)
 - **[pomodoro](pomodoro.md)**: Pomodoro timer with work/break sessions, pause/resume/skip controls (Go, polling)
 - **[tailscale](tailscale.md)**: Indicates Tailscale connection state via the LocalAPI, with tailnet tooltip (Go, polling)
 - **[rift-indicator](rift-indicator.md)**: Shows the Rift window manager's active layout mode, with an icon and colour per layout (Go, event-driven)
