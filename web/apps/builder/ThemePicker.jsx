@@ -4,7 +4,7 @@ import { useState } from "react";
 import { loadTheme } from "../../engine/index.js";
 import { dict } from "../../engine/values.js";
 import { ThemeImport } from "./ThemeImport.jsx";
-import { Button } from "./ui.jsx";
+import { Button, Ic } from "./ui.jsx";
 
 const titled = text => text.replace(/(^|[-_ ])(\p{L})/gu, (_, gap, letter) => (gap ? " " : "") + letter.toUpperCase());
 
@@ -144,8 +144,8 @@ export function ThemePicker({ theme, themes, own, onChange, onNew, onEdit, onCop
   return (
     <div>
       <div className="kb-chips" role="group" aria-label="How the bar is coloured">
-        <button type="button" className="kb-chip" aria-pressed={!themed} onClick={() => onChange(undefined)}>Native</button>
-        <button type="button" className="kb-chip" aria-pressed={themed} onClick={() => themed || onChange(first())}>Theme</button>
+        <button type="button" className="kb-chip iconed" aria-pressed={!themed} onClick={() => onChange(undefined)}><Ic name="brand-apple-filled" size={14} />Native</button>
+        <button type="button" className="kb-chip iconed" aria-pressed={themed} onClick={() => themed || onChange(first())}><Ic name="brush" size={14} />Theme</button>
       </div>
       {themed
         ? <>{row("light", "Light")}{row("dark", "Dark")}</>

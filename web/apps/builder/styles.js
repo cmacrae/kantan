@@ -123,6 +123,7 @@ export const STYLES = `
 .kb-chips { display: flex; flex-wrap: wrap; gap: 6px; padding: 2px 0 8px; }
 .kb-chip { padding: 3px 10px; border-radius: 999px; border: 1px solid var(--line); background: none; cursor: pointer; }
 .kb-chip[aria-pressed="true"] { border-color: var(--accent); color: var(--accent); font-weight: 600; }
+.kb-chip.iconed { display: inline-flex; align-items: center; gap: 5px; }
 
 .kb-code { margin: 0; padding: 12px 14px; background: var(--code); font: 12px/1.6 'SF Mono', Menlo, Monaco, monospace; overflow: auto; max-height: 70vh; border-radius: 0 0 10px 10px; }
 .kb-file { display: flex; align-items: center; gap: 8px; padding: 6px 12px; border-top: 1px solid var(--line); color: var(--muted); font: 12px 'SF Mono', Menlo, Monaco, monospace; }
