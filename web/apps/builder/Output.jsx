@@ -109,10 +109,7 @@ export function Share({ makeLink, makeThemeLink, source, barFor, dark, onClose }
     <Modal title="Share this bar" onClose={onClose} wide>
       {link === undefined ? <div className="kb-note">Making the link…</div> : (
         <>
-          <div className="kb-note" style={{ paddingBottom: 10 }}>
-            Holds the config, states and view. Nothing is stored.
-          </div>
-          {row(`A link to this bar · ${link.length.toLocaleString()} characters`, link)}
+          {row("A link to this bar", link)}
           {link.length > LONG_LINK && (
             <div className="kb-problem" style={{ paddingBottom: 10 }}>
               {link.length > GITHUB_LIMIT
@@ -134,7 +131,7 @@ export function Share({ makeLink, makeThemeLink, source, barFor, dark, onClose }
           )}
           {themeLink !== undefined && (
             <div style={{ marginTop: 14 }}>
-              {row(`A link to its theme alone · ${themeLink.length.toLocaleString()} characters`, themeLink)}
+              {row("Just the theme", themeLink)}
               <div className="kb-note">Opens on a page of its own, for another bar to take.</div>
             </div>
           )}
