@@ -506,7 +506,8 @@
         "label": { "type": "string" },
         "icon": { "type": "string" },
         "command": { "type": "string", "description": "Shell command executed on click." },
-        "style": { "$ref": "#/$defs/ButtonStyle" }
+        "style": { "$ref": "#/$defs/ButtonStyle" },
+        "dismiss": { "type": "boolean", "default": true, "description": "Whether a click closes the popup the button is in. When false, the popup stays open, for a control used more than once, and closes once the pointer leaves it." }
       },
       "required": ["type"]
     },

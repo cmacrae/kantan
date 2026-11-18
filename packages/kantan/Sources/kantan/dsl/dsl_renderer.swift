@@ -5,6 +5,18 @@ import SwiftUI
 
 /// Custom environment key for propagating the theme's foreground color into
 /// DSL-rendered popup/menu views. Falls back to `.primary` when no theme is set.
+private struct DismissWhenPointerLeavesKey: EnvironmentKey {
+  static let defaultValue: @MainActor @Sendable () -> Void = {}
+}
+
+extension EnvironmentValues {
+  /// Has the popup the view is in close once the pointer leaves it.
+  var dismissWhenPointerLeaves: @MainActor @Sendable () -> Void {
+    get { self[DismissWhenPointerLeavesKey.self] }
+    set { self[DismissWhenPointerLeavesKey.self] = newValue }
+  }
+}
+
 private struct DefaultTextColorKey: EnvironmentKey {
   static let defaultValue: Color = .primary
 }
@@ -136,7 +148,7 @@ extension ViewNode {
       .action(_, _, _, let c),
       .check(_, _, _, _, let c),
       .toggle(_, _, _, let c),
-      .button(_, _, _, _, let c),
+      .button(_, _, _, _, _, let c),
       .foreach(_, _, let c),
       .`if`(_, _, _, let c),
       .progress(_, _, _, _, let c),
@@ -240,9 +252,9 @@ struct DSLRendererView: View {
       DSLToggleView(
         label: label, on: on, command: command,
         resolver: resolver, isNative: isNative, dismissHandler: dismissHandler)
-    case .button(let label, let icon, let command, let style, _):
+    case .button(let label, let icon, let command, let style, let dismiss, _):
       DSLButtonView(
-        label: label, icon: icon, command: command, style: style,
+        label: label, icon: icon, command: command, style: style, dismisses: dismiss,
         resolver: resolver, isNative: isNative, dismissHandler: dismissHandler)
 
     // Data
@@ -931,16 +943,19 @@ private struct DSLButtonView: View {
   let icon: String?
   let command: String?
   let style: DSLButtonStyle?
+  /// Whether a click closes the popup, or leaves it until the pointer does.
+  let dismisses: Bool
   let resolver: TemplateResolver
   let isNative: Bool
   let dismissHandler: () -> Void
+  @Environment(\.dismissWhenPointerLeaves) private var dismissWhenPointerLeaves
 
   var body: some View {
     let resolvedLabel = label.map { resolver.resolve($0) }
     let resolvedIcon = icon.map { resolver.resolve($0) }
 
     Button(action: {
-      dismissHandler()
+      if dismisses { dismissHandler() } else { dismissWhenPointerLeaves() }
       guard let command = command, !command.isEmpty else { return }
       let resolved = resolver.resolveCommand(command)
       runCommand(resolved, environment: resolver.commandEnvironment)

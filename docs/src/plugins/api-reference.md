@@ -377,6 +377,8 @@ The data nodes (`foreach`, `if`) and advanced nodes (`progress`, `gauge`, `grid`
 }
 ```
 
+A `button` closes the popup it is in when clicked. Set its `dismiss` to `false` for a control used more than once, such as a skip button: the popup then stays open and closes once the pointer leaves it.
+
 A `menu` is a native macOS menu. It shows text, headers, dividers, `action`, `check` and `toggle` rows, and each `hstack` as one row of its text and icons. It skips `button`, shapes, images, `progress`, `gauge` and `badge` elsewhere. A `popup` renders every node. Commands in a view run with `/bin/sh -c`. A URL such as `https://…` is opened instead. kantan doesn't refresh the module afterwards. End a command with `&& kantan trigger <module-name> refresh` when it changes the module's state.
 
 See the [View DSL documentation](../view-dsl/index.md) for complete specification.

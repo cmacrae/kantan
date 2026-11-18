@@ -456,6 +456,7 @@ class PopupManager {
       dismissHandler: { [weak self] in self?.dismissPopup() }
     )
     .environment(\.defaultTextColor, themeFg)
+    .environment(\.dismissWhenPointerLeaves) { [weak self] in self?.dismissWhenPointerLeaves() }
     .padding(.vertical, 8)
 
     let hostingView = NSHostingView(rootView: dslView)
@@ -500,7 +501,32 @@ class PopupManager {
     return false
   }
 
+  /// Closes the popup once the pointer has been away from it for
+  /// `pointerLeaveDelay`, for a popup a click has left open. The pointer
+  /// counts as on the popup within `pointerLeaveMargin` of it.
+  func dismissWhenPointerLeaves() {
+    guard pointerLeaveTimer == nil, activePanel != nil else { return }
+    var away: Date?
+    let timer = Timer(timeInterval: 0.1, repeats: true) { [weak self] _ in
+      MainActor.assumeIsolated {
+        guard let self, let panel = self.activePanel else { return }
+        let margin = -Self.pointerLeaveMargin
+        if panel.frame.insetBy(dx: margin, dy: margin).contains(NSEvent.mouseLocation) {
+          away = nil
+        } else if let since = away {
+          if Date().timeIntervalSince(since) >= Self.pointerLeaveDelay { self.dismissPopup() }
+        } else {
+          away = Date()
+        }
+      }
+    }
+    RunLoop.main.add(timer, forMode: .common)
+    pointerLeaveTimer = timer
+  }
+
   func dismissPopup() {
+    pointerLeaveTimer?.invalidate()
+    pointerLeaveTimer = nil
     if openModule.value != nil { openModule.send(nil) }
     activePanel?.orderOut(nil)
     activePanel = nil

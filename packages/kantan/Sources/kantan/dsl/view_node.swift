@@ -292,11 +292,14 @@ enum ViewNode: Sendable {
     common: CommonNodeProperties
   )
 
+  /// A button. One that doesn't dismiss leaves the popup it is in open
+  /// when clicked, until the pointer leaves the popup.
   case button(
     label: String?,
     icon: String?,
     command: String?,
     style: DSLButtonStyle?,
+    dismiss: Bool,
     common: CommonNodeProperties
   )
 
@@ -366,7 +369,7 @@ extension ViewNode: Decodable {
     case strokeColor, strokeWidth
 
     // Interactive
-    case label, icon, command, uncheckedCommand, checked, on
+    case label, icon, command, uncheckedCommand, checked, on, dismiss
 
     // Data
     case items, child, condition, then, `else`
@@ -527,6 +530,7 @@ extension ViewNode: Decodable {
         icon: try container.decodeIfPresent(String.self, forKey: .icon),
         command: try container.decodeIfPresent(String.self, forKey: .command),
         style: try container.decodeIfPresent(DSLButtonStyle.self, forKey: .style),
+        dismiss: try container.decodeIfPresent(Bool.self, forKey: .dismiss) ?? true,
         common: common
       )
 
