@@ -29,11 +29,12 @@ indirect enum JSONValue: Encodable {
 // MARK: - View Tree Builders
 
 func vstack(
-  spacing: Double? = nil, padding: JSONValue? = nil, frame: JSONValue? = nil,
-  children: [JSONValue]
+  spacing: Double? = nil, alignment: String? = nil, padding: JSONValue? = nil,
+  frame: JSONValue? = nil, children: [JSONValue]
 ) -> JSONValue {
   var obj: [String: JSONValue] = ["type": .string("vstack"), "children": .array(children)]
   if let s = spacing { obj["spacing"] = .double(s) }
+  if let a = alignment { obj["alignment"] = .string(a) }
   if let p = padding { obj["padding"] = p }
   if let f = frame { obj["frame"] = f }
   return .object(obj)
@@ -135,6 +136,36 @@ func rect(
   return .object(obj)
 }
 
+func zstack(children: [JSONValue]) -> JSONValue {
+  .object(["type": .string("zstack"), "children": .array(children)])
+}
+
+func image(url: String, width: Double, height: Double, cornerRadius: Double? = nil) -> JSONValue {
+  var obj: [String: JSONValue] = [
+    "type": .string("image"), "url": .string(url),
+    "width": .double(width), "height": .double(height),
+  ]
+  if let cr = cornerRadius { obj["cornerRadius"] = .double(cr) }
+  return .object(obj)
+}
+
+func progress(value: Double, color: String? = nil) -> JSONValue {
+  var obj: [String: JSONValue] = ["type": .string("progress"), "value": .double(value)]
+  if let c = color { obj["color"] = .string(c) }
+  return .object(obj)
+}
+
+func button(
+  icon iconName: String, command: String, style: String? = nil, dismiss: Bool = true
+) -> JSONValue {
+  var obj: [String: JSONValue] = [
+    "type": .string("button"), "icon": .string(iconName), "command": .string(command),
+  ]
+  if let s = style { obj["style"] = .string(s) }
+  if !dismiss { obj["dismiss"] = .bool(false) }
+  return .object(obj)
+}
+
 // MARK: - Plugin Output
 
 /// A part of the module's value with its own colour, which kantan draws in
@@ -143,6 +174,9 @@ struct ValueSegment: Encodable, Equatable {
   let text: String
   /// A hex colour or `{theme(name)}` template, or nil for the module's.
   let fg: String?
+  /// Whether the segment stays hidden until the pointer is over a module
+  /// whose hover reveals. Left out of the output unless set.
+  var reveal: Bool? = nil
 }
 
 /// Top-level envelope emitted by command-module plugins.
@@ -154,6 +188,9 @@ struct PluginOutput: Encodable {
   let icon: String?
   let hidden: Bool?
   let active: Bool?
+  /// The parts hidden until the pointer is over a module whose hover
+  /// reveals: `icon`.
+  let reveal: [String]?
   let variables: [String: String]
   let data: [String: [[String: String]]]
   let view: JSONValue?
@@ -165,6 +202,7 @@ struct PluginOutput: Encodable {
     icon: String? = nil,
     hidden: Bool? = nil,
     active: Bool? = nil,
+    reveal: [String]? = nil,
     variables: [String: String] = [:],
     data: [String: [[String: String]]] = [:],
     view: JSONValue? = nil,
@@ -175,6 +213,7 @@ struct PluginOutput: Encodable {
     self.icon = icon
     self.hidden = hidden
     self.active = active
+    self.reveal = reveal
     self.variables = variables
     self.data = data
     self.view = view
@@ -182,7 +221,7 @@ struct PluginOutput: Encodable {
   }
 
   private enum CodingKeys: String, CodingKey {
-    case value, segments, icon, hidden, active, variables, data, view, style
+    case value, segments, icon, hidden, active, reveal, variables, data, view, style
   }
 
   func encode(to encoder: Encoder) throws {
@@ -192,6 +231,7 @@ struct PluginOutput: Encodable {
     try container.encodeIfPresent(icon, forKey: .icon)
     try container.encodeIfPresent(hidden, forKey: .hidden)
     try container.encodeIfPresent(active, forKey: .active)
+    try container.encodeIfPresent(reveal, forKey: .reveal)
     try container.encode(variables, forKey: .variables)
     try container.encode(data, forKey: .data)
     try container.encodeIfPresent(view, forKey: .view)
@@ -407,6 +447,8 @@ enum Format: Decodable, Equatable {
     var text: String
     var fg: String?
     var when: String?
+    /// Whether the segment stays hidden until a hover reveals it.
+    var reveal: Bool?
 
     /// Whether the segment shows for `variables`.
     func shows(for variables: [String: String]) -> Bool {
@@ -436,7 +478,11 @@ enum Format: Decodable, Equatable {
       let shown =
         segments
         .filter { $0.shows(for: variables) }
-        .map { ValueSegment(text: applyFormat($0.text, variables: variables), fg: $0.fg) }
+        .map {
+          ValueSegment(
+            text: applyFormat($0.text, variables: variables), fg: $0.fg,
+            reveal: $0.reveal == true ? true : nil)
+        }
         .filter { !$0.text.isEmpty }
       return (shown.map(\.text).joined(), shown)
     }
