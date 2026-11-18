@@ -118,9 +118,9 @@ export default function KantanLanding() {
           marginTop: 28, display: "inline-flex", alignItems: "center", gap: 8,
           padding: "9px 18px", borderRadius: 8, textDecoration: "none",
           fontSize: 14, fontWeight: 600,
-          background: siteDark ? "#d97757" : "#c4593a", color: siteDark ? "#141413" : "#ffffff",
+          background: "#fab387", color: "#141413",
         }}>
-          <I name="brush" size={16} color={siteDark ? "#141413" : "#ffffff"} />
+          <I name="brush" size={16} color="#141413" />
           Build your own bar
         </a>
       </div>

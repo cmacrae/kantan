@@ -17,7 +17,7 @@ html {
     --sidebar-bg: #f3f2ec;
     --sidebar-fg: #5f5e59;
     --sidebar-non-existant: #9c9c90;
-    --sidebar-active: #b5502f;
+    --sidebar-active: #a65f33;
     --sidebar-spacer: #e6e5de;
 
     --scrollbar: #c9c8c0;
@@ -25,7 +25,7 @@ html {
     --icons: #8f8e8a;
     --icons-hover: #191918;
 
-    --links: #b5502f;
+    --links: #a65f33;
 
     --inline-code-color: #4a4a44;
 
@@ -47,22 +47,22 @@ html {
     --searchresults-header-fg: #807f78;
     --searchresults-border-color: #d9d8d0;
     --searchresults-li-bg: #eeeee8;
-    --search-mark-bg: rgba(217, 119, 87, 0.3);
+    --search-mark-bg: rgba(250, 179, 135, 0.3);
 
     /* --icons and --sidebar-active as filters on the black copy icon */
     --copy-button-filter: invert(60%) sepia(1%) saturate(821%) hue-rotate(11deg) brightness(93%) contrast(90%);
     --copy-button-filter-hover: invert(38%) sepia(21%) saturate(1643%) hue-rotate(328deg) brightness(98%) contrast(98%);
 
-    --footnote-highlight: #d97757;
+    --footnote-highlight: #fab387;
 
     --overlay-bg: rgba(25, 25, 24, 0.2);
 
-    --sidebar-header-border-color: #d97757;
+    --sidebar-header-border-color: #fab387;
 
     --code-bg: #eeeee8;
     --code-fg: #191918;
     --code-comment: #9c9c90;
-    --code-key: #c4593a;
+    --code-key: #a65f33;
     --code-string: #40a02b;
     --code-number: #d76a00;
     --code-punct: #9c9c90;
@@ -75,7 +75,7 @@ html {
     --sidebar-bg: #1a1a19;
     --sidebar-fg: #bab8ae;
     --sidebar-non-existant: #6c6c60;
-    --sidebar-active: #d97757;
+    --sidebar-active: #fab387;
     --sidebar-spacer: #2a2a28;
 
     --scrollbar: #3a3a37;
@@ -83,7 +83,7 @@ html {
     --icons: #74736e;
     --icons-hover: #e8e6dc;
 
-    --links: #d97757;
+    --links: #fab387;
 
     --inline-code-color: #bab8ae;
 
@@ -105,24 +105,24 @@ html {
     --searchresults-header-fg: #8c8a82;
     --searchresults-border-color: #3a3a37;
     --searchresults-li-bg: #1c1c1b;
-    --search-mark-bg: rgba(217, 119, 87, 0.35);
+    --search-mark-bg: rgba(250, 179, 135, 0.35);
 
     /* --icons and --sidebar-active as filters on the black copy icon */
     --copy-button-filter: invert(45%) sepia(3%) saturate(476%) hue-rotate(18deg) brightness(98%) contrast(93%);
     --copy-button-filter-hover: invert(52%) sepia(10%) saturate(2561%) hue-rotate(328deg) brightness(102%) contrast(91%);
 
-    --footnote-highlight: #d97757;
+    --footnote-highlight: #fab387;
 
     --overlay-bg: rgba(0, 0, 0, 0.4);
 
-    --sidebar-header-border-color: #d97757;
+    --sidebar-header-border-color: #fab387;
 
     --code-bg: #1c1c1b;
     --code-fg: #e8e6dc;
     --code-comment: #6c6c60;
-    --code-key: #d97757;
+    --code-key: #fab387;
     --code-string: #a6e3a1;
-    --code-number: #fab387;
+    --code-number: #cba6f7;
     --code-punct: #6c6c60;
 }
 
@@ -134,9 +134,9 @@ html {
         --fg: #e8e6dc;
         --sidebar-bg: #1a1a19;
         --sidebar-fg: #bab8ae;
-        --sidebar-active: #d97757;
+        --sidebar-active: #fab387;
         --sidebar-spacer: #2a2a28;
-        --links: #d97757;
+        --links: #fab387;
         --inline-code-color: #bab8ae;
         --quote-bg: #1a1a19;
         --quote-border: #2a2a28;
@@ -146,9 +146,9 @@ html {
         --code-bg: #1c1c1b;
         --code-fg: #e8e6dc;
         --code-comment: #6c6c60;
-        --code-key: #d97757;
+        --code-key: #fab387;
         --code-string: #a6e3a1;
-        --code-number: #fab387;
+        --code-number: #cba6f7;
         --code-punct: #6c6c60;
     }
 }

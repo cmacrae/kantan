@@ -9,7 +9,7 @@ export default function InstallTabs({ siteDark }) {
   const fgSub = siteDark ? "rgba(232,230,220,0.65)" : "rgba(25,25,24,0.55)";
   const codeBg = siteDark ? "#1c1c1b" : "#eeeee8";
   const commentColor = siteDark ? "#6c6c60" : "#9c9c90";
-  const accent = "#d97757";
+  const accent = "#fab387";
 
   function highlightShell(code) {
     return code.split('\n').map((line, i, arr) => {

@@ -25,8 +25,8 @@ export function ConfigToggle({ siteDark, open, onToggle }) {
 
 export function ConfigCode({ siteDark }) {
   const colors = siteDark
-    ? { comment: "#6c6c60", key: "#d97757", string: "#a6e3a1", bool: "#fab387", number: "#fab387", value: "#bab8ae", punct: "#6c6c60" }
-    : { comment: "#9c9c90", key: "#c4593a", string: "#40a02b", bool: "#d76a00", number: "#d76a00", value: "#4a4a44", punct: "#9c9c90" };
+    ? { comment: "#6c6c60", key: "#fab387", string: "#a6e3a1", bool: "#cba6f7", number: "#cba6f7", value: "#bab8ae", punct: "#6c6c60" }
+    : { comment: "#9c9c90", key: "#a65f33", string: "#40a02b", bool: "#d76a00", number: "#d76a00", value: "#4a4a44", punct: "#9c9c90" };
   const codeBg = siteDark ? "#1c1c1b" : "#eeeee8";
   const fg = siteDark ? "#e8e6dc" : "#191918";
   return (
