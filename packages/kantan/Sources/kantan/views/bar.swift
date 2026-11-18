@@ -12,6 +12,8 @@ private struct ModuleVisibilityView: View {
   let horizontalPadding: CGFloat
   /// The placement of the module's group.
   let placement: String
+  /// Whether the group has slid behind the notch to make room.
+  let isDisplaced: Bool
   @Environment(\.groupAnchorsTrailing) private var groupAnchorsTrailing
 
   /// How the module enters and leaves: sliding to and from the edge its
@@ -22,7 +24,7 @@ private struct ModuleVisibilityView: View {
   }
 
   var body: some View {
-    if viewModel.shouldDisplay {
+    if viewModel.shouldDisplay, !isDisplaced {
       ModuleContainerView(viewModel: viewModel, popupManager: popupManager)
         .padding(.horizontal, viewModel.moduleConfig.type == "drawer" ? 0 : horizontalPadding)
         .transition(transition)
@@ -70,6 +72,7 @@ struct ModuleGroupView: View {
   let placement: String
   let popupManager: PopupManager
   @ObservedObject var themeProvider: ThemeProvider
+  @ObservedObject var displaced: DisplacedPlacements
 
   private var isMasked: Bool {
     modules.count == 1 && modules[0].moduleConfig.mask != nil
@@ -88,7 +91,7 @@ struct ModuleGroupView: View {
           viewModel: vm,
           popupManager: popupManager,
           horizontalPadding: isMasked ? 0 : CGFloat(themeProvider.config.padding),
-          placement: placement
+          placement: placement, isDisplaced: displaced.placements.contains(placement)
         )
       }
     }

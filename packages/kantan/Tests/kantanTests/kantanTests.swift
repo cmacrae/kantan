@@ -146,6 +146,32 @@ final class ModuleMergeTests {
   }
 }
 
+final class OverlapTests {
+  private func resolve(
+    collides: Bool = true, drawerOpen: Bool = true, engaged: Bool = false,
+    displaced: Bool = false, yielded: Bool = false
+  ) -> OverlapAction {
+    OverlapAction.resolve(
+      collides: collides, drawerOpen: drawerOpen, engaged: engaged, displaced: displaced,
+      yielded: yielded)
+  }
+
+  @Test func testWhicheverIsInUseKeepsItsPlace() {
+    // An open drawer displaces the modules beside the notch it runs into,
+    // until it closes or there is room.
+    #expect(resolve() == .displace)
+    #expect(resolve(collides: false) == .none)
+    #expect(resolve(displaced: true) == .none)
+    #expect(resolve(drawerOpen: false, displaced: true) == .restore)
+    #expect(resolve(collides: false, displaced: true) == .restore)
+    // A module in use closes the drawer it grows into, which opens again
+    // once the module is let go.
+    #expect(resolve(engaged: true) == .closeDrawer)
+    #expect(resolve(drawerOpen: false, engaged: true, yielded: true) == .none)
+    #expect(resolve(drawerOpen: false, yielded: true) == .reopenDrawer)
+  }
+}
+
 final class AudioAnalysisTests {
   @Test func testATonesBandIsTheLoudest() {
     let rate = 48000.0
@@ -643,7 +669,8 @@ final class MaskedModuleInteractionTests {
         isDrawerContent: false)
       let hostingView = NSHostingView(
         rootView: ModuleGroupView(
-          modules: [vm], placement: "right", popupManager: PopupManager(), themeProvider: theme))
+          modules: [vm], placement: "right", popupManager: PopupManager(), themeProvider: theme,
+          displaced: DisplacedPlacements()))
       let panel = NSPanel(
         contentRect: .zero, styleMask: [.borderless, .nonactivatingPanel], backing: .buffered,
         defer: true)

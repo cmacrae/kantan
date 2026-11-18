@@ -207,6 +207,13 @@ class DisplayInstance {
   var groupPanels:
     [(panel: NSPanel, hostingView: NSHostingView<ModuleGroupView>, group: ModuleGroup)] = []
   var drawerClickPanels: [NSPanel] = []
+  /// The placements whose modules have slid behind the notch to make room.
+  let displaced = DisplacedPlacements()
+  /// How wide a displaced placement's modules were, to tell when they fit.
+  private var displacedWidths: [String: CGFloat] = [:]
+  /// How near the modules beside the notch and a drawer's contents come
+  /// before one makes room for the other.
+  static let overlapMargin: CGFloat = 12
   var bgColorCancellable: AnyCancellable?
   /// View whose layer background tracks light/dark mode changes
   /// (the tint view inside the effect view when blur is on, or the
@@ -487,7 +494,8 @@ class DisplayInstance {
         modules: group.modules,
         placement: group.placement,
         popupManager: bar.popupManager,
-        themeProvider: theme
+        themeProvider: theme,
+        displaced: displaced
       )
       let hostingView = NSHostingView(rootView: groupView)
 
@@ -579,6 +587,7 @@ class DisplayInstance {
     var bounds = computePlacementBounds(
       screen: screen, nativeItems: nativeItems,
       maskedGroups: occupiedMasks(in: groupPanels.map { $0.group }))
+    resolveOverlaps(bounds: bounds)
 
     for entry in groupPanels {
       guard entry.group.modules.count == 1,
@@ -719,6 +728,79 @@ class DisplayInstance {
     }
   }
 
+  // MARK: - Overlap
+
+  /// Settles what shares each side of the notch: the modules beside it and
+  /// an open drawer's contents further out. See `OverlapAction.resolve`.
+  /// `bounds` are the placements' bounds before any panel is placed.
+  private func resolveOverlaps(bounds: PlacementBounds) {
+    guard let bar = barViewModel else { return }
+    var changed = displaced.placements
+    for side in ["left", "right"] {
+      let inner = side == "left" ? "notchleft" : "notchright"
+      let unmasked = groupPanels.filter {
+        !($0.group.modules.count == 1 && $0.group.modules[0].moduleConfig.mask != nil)
+      }
+      let innerGroups = unmasked.filter { $0.group.placement == inner }
+      let outerGroups = unmasked.filter { $0.group.placement == side }
+      guard !innerGroups.isEmpty, outerGroups.contains(where: { $0.group.isDrawerContent })
+      else { continue }
+
+      let isDisplaced = displaced.placements.contains(inner)
+      let width = {
+        (
+          groups: [(
+            panel: NSPanel, hostingView: NSHostingView<ModuleGroupView>, group: ModuleGroup
+          )]
+        ) in
+        groups.reduce(0) { $0 + $1.hostingView.fittingSize.width }
+      }
+      let innerWidth = isDisplaced ? displacedWidths[inner] ?? 0 : width(innerGroups)
+      // The drawer's contents count as they are once it is open.
+      let outerWidth = width(outerGroups)
+      let span =
+        side == "left" ? bounds.notchLeftX - bounds.leftX : bounds.rightX - bounds.notchRightX
+      let drawerOpen = isDrawerOpen(side: side)
+      let closedWidth = width(outerGroups.filter { !$0.group.isDrawerContent })
+      let collides =
+        span - innerWidth - (drawerOpen ? outerWidth : closedWidth) < Self.overlapMargin
+      let engaged = innerGroups.contains {
+        $0.group.modules.contains { $0.shouldDisplay && $0.isRevealed }
+      }
+
+      switch OverlapAction.resolve(
+        collides: collides, drawerOpen: drawerOpen, engaged: engaged, displaced: isDisplaced,
+        yielded: bar.yieldedDrawers.contains(side))
+      {
+      case .none:
+        break
+      case .displace:
+        displacedWidths[inner] = innerWidth
+        changed.insert(inner)
+      case .restore:
+        changed.remove(inner)
+      case .closeDrawer, .reopenDrawer:
+        // Once the panels being placed now are, as the drawer moves them too.
+        let yields =
+          OverlapAction.closeDrawer
+          == OverlapAction.resolve(
+            collides: collides, drawerOpen: drawerOpen, engaged: engaged,
+            displaced: isDisplaced, yielded: bar.yieldedDrawers.contains(side))
+        DispatchQueue.main.async {
+          MainActor.assumeIsolated { bar.yieldDrawer(side: side, yields) }
+        }
+      }
+    }
+    guard changed != displaced.placements else { return }
+    let animation =
+      NSWorkspace.shared.accessibilityDisplayShouldReduceMotion ? nil : ModuleAnimation.content
+    withAnimation(animation) { displaced.placements = changed }
+    // The panels follow once the modules have slid away or back.
+    DispatchQueue.main.async { [weak self] in
+      MainActor.assumeIsolated { self?.repositionPanels(animated: animation != nil) }
+    }
+  }
+
   // MARK: - Drawer Animation
 
   func animateDrawerToggle(side: String, open: Bool) {
@@ -734,6 +816,7 @@ class DisplayInstance {
     var bounds = computePlacementBounds(
       screen: screen, nativeItems: nativeItems,
       maskedGroups: occupiedMasks(in: groupPanels.map { $0.group }))
+    resolveOverlaps(bounds: bounds)
 
     // Helper: is this group's drawer content for the toggled side?
     let isToggledDrawerContent = { (group: ModuleGroup) -> Bool in
@@ -774,19 +857,7 @@ class DisplayInstance {
 
     let drawerContentPanels = groupPanels.filter { isToggledDrawerContent($0.group) }
 
-    // Detect notch-placed panels that would be overlapped by the toggled side's
-    // expanded drawer content. Only drawer content rects can displace notch panels.
-    let isNotchPlacement = { (p: String) in p == "notchleft" || p == "notchright" }
-
     if open {
-      let drawerContentRects = targetFrames.filter { isToggledDrawerContent($0.entry.group) }.map {
-        $0.frame
-      }
-      let displacedNotchPanels = groupPanels.filter { entry in
-        guard isNotchPlacement(entry.group.placement) else { return false }
-        let panelFrame = entry.panel.frame
-        return drawerContentRects.contains { $0.intersects(panelFrame) }
-      }
       // Opening: position drawer-content panels at target with alpha 0, then animate in
       for entry in drawerContentPanels {
         if let target = targetFrames.first(where: { $0.entry.panel === entry.panel }) {
@@ -808,10 +879,6 @@ class DisplayInstance {
           for target in targetFrames where !isToggledDrawerContent(target.entry.group) {
             target.entry.panel.animator().setFrame(target.frame, display: true)
           }
-
-          for entry in displacedNotchPanels {
-            entry.panel.animator().alphaValue = 0
-          }
         },
         completionHandler: { [weak self] in
           DispatchQueue.main.async {
@@ -821,10 +888,6 @@ class DisplayInstance {
           }
         })
     } else {
-      let displacedNotchPanels = groupPanels.filter { entry in
-        isNotchPlacement(entry.group.placement) && entry.panel.alphaValue == 0
-      }
-
       NSAnimationContext.runAnimationGroup(
         { context in
           context.duration = 0.25
@@ -836,10 +899,6 @@ class DisplayInstance {
 
           for target in targetFrames {
             target.entry.panel.animator().setFrame(target.frame, display: true)
-          }
-
-          for entry in displacedNotchPanels {
-            entry.panel.animator().alphaValue = 1
           }
         },
         completionHandler: { [weak self] in

@@ -519,6 +519,55 @@ struct ModuleGroup: Identifiable {
   let isDrawerContent: Bool
 }
 
+// MARK: - Overlap
+
+/// What happens where the modules beside the notch and an open drawer's
+/// contents, further out on the same side, want the same room.
+enum OverlapAction: Equatable {
+  case none
+  /// The modules beside the notch slide behind it.
+  case displace
+  /// They slide back out.
+  case restore
+  /// The drawer closes for now.
+  case closeDrawer
+  /// The drawer opens again.
+  case reopenDrawer
+
+  /// What to do on one side of the notch. Whichever is being used keeps
+  /// its place: a drawer opened over the modules beside the notch displaces
+  /// them, until it closes or there is room. A module beside the notch
+  /// under the pointer, or with its popup open, closes the drawer it grows
+  /// into, until it is let go, when the drawer opens again.
+  ///
+  /// - collides: whether the two want the same room, the modules beside
+  ///   the notch at the width they have, or had before being displaced.
+  /// - drawerOpen: whether the side's drawer is open with contents further
+  ///   out than the notch's modules.
+  /// - engaged: whether a module beside the notch is being used.
+  /// - displaced: whether the modules beside the notch are behind it.
+  /// - yielded: whether the drawer is closed for now.
+  static func resolve(
+    collides: Bool, drawerOpen: Bool, engaged: Bool, displaced: Bool, yielded: Bool
+  ) -> OverlapAction {
+    if yielded {
+      // The drawer waits for the module that closed it to be let go.
+      return engaged || drawerOpen ? .none : .reopenDrawer
+    }
+    if displaced {
+      return drawerOpen && collides ? .none : .restore
+    }
+    guard collides, drawerOpen else { return .none }
+    return engaged ? .closeDrawer : .displace
+  }
+}
+
+/// The placements whose modules a display has slid behind its notch.
+@MainActor
+final class DisplacedPlacements: ObservableObject {
+  @Published var placements: Set<String> = []
+}
+
 // MARK: - Bar View Model
 
 @MainActor
@@ -694,15 +743,32 @@ class BarViewModel: ObservableObject {
     return groups
   }
 
+  /// The sides whose drawer is closed for now, to make room for a module
+  /// beside the notch being used, and opens again once it isn't.
+  private(set) var yieldedDrawers: Set<String> = []
+
+  /// Opens or closes a side's drawer as its module's click does. A drawer
+  /// the user sets is no longer one waiting to open again.
   func toggleDrawer(side: String) {
+    yieldedDrawers.remove(side)
+    setDrawer(side: side, open: !(side == "left" ? leftDrawerOpen : rightDrawerOpen))
+  }
+
+  /// Closes a side's open drawer for now, or opens it again afterwards.
+  func yieldDrawer(side: String, _ yields: Bool) {
+    guard yields != yieldedDrawers.contains(side) else { return }
+    if yields { yieldedDrawers.insert(side) } else { yieldedDrawers.remove(side) }
+    setDrawer(side: side, open: !yields)
+  }
+
+  private func setDrawer(side: String, open: Bool) {
     if side == "left" {
-      leftDrawerOpen.toggle()
+      leftDrawerOpen = open
     } else {
-      rightDrawerOpen.toggle()
+      rightDrawerOpen = open
     }
     guard let drawer = drawerVMs[side] else { return }
-    (drawer.moduleConfig.config as? DrawerConfig)?.state.isOpen =
-      side == "left" ? leftDrawerOpen : rightDrawerOpen
+    (drawer.moduleConfig.config as? DrawerConfig)?.state.isOpen = open
     drawer.update()
   }
 

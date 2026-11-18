@@ -31,9 +31,14 @@ Drawer contents start hidden. Clicking the drawer toggles them. So does clicking
 
 The bar has at most one drawer per side: `left` and `notchleft` placements share the left drawer, and `right` and `notchright` the right one. When a side has several, the first in the configuration is the one that toggles.
 
-### Notch Placement Interaction
+### Sharing Room With the Notch's Modules
 
-When an open drawer's contents would overlap `notchleft` or `notchright` modules, those modules are hidden while it is open. This prevents visual overlap in the notch area.
+A drawer's contents at `left` or `right` open toward the notch, where the `notchleft` and `notchright` modules are. When the two would meet, within 12 points of each other, whichever is being used keeps its place:
+
+- **Opening the drawer** over the modules beside the notch slides them behind the notch. They slide back out when the drawer closes, or once there is room for both.
+- **Using a module beside the notch** closes the drawer it grows into: a module whose [hover reveals](../configuration/modules.md#hover-interaction) more of it, while the pointer is over it or, with `persist`, while its popup is open. The drawer opens again once the module is let go.
+
+Closing a drawer this way is only for the moment: its icon shows it closed, and it comes back as it was. Opening or closing the drawer yourself in the meantime settles it.
 
 ## Module Ordering
 
