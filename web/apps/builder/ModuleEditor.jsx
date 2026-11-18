@@ -294,6 +294,17 @@ function OnClick({ module, states = [], onChange, onView }) {
     // A menu or popup with nothing in it yet is built straight away.
     if ((type === "menu" || type === "popup") && !own && printed.length === 0) onView({ slot: "click" });
   };
+  // A drawer's click opens and closes it, whatever its config says.
+  if (module.type === "drawer") {
+    return (
+      <div className="kb-opts">
+        <div>
+          <Ic name="box-align-right" size={18} />
+          <span><b>Drawer</b><span>Opens and closes the drawer.</span></span>
+        </div>
+      </div>
+    );
+  }
   return (
     <>
       <div className="kb-opts" role="group" aria-label="What a click does">
@@ -335,6 +346,10 @@ function Design({ module, drawn, example, taken, states, masked, onChange, onVie
   const set = (key, value) => onChange(prune({ ...module, [key]: prune(value) }) ?? {});
   const config = configSchema(schema, module.type);
   const placements = PLACEMENTS.some(([value]) => value === module.placement) ? PLACEMENTS : [...PLACEMENTS, [module.placement, module.placement]];
+  // A drawer has no click to set.
+  const interaction = deref(schema, schema.properties.interaction);
+  const { click: _, ...unclicked } = interaction.properties;
+  const interactions = module.type === "drawer" ? { ...interaction, properties: unclicked } : interaction;
   const folded = (plugin === undefined ? ADVANCED[module.type] ?? [] : Object.keys(config?.properties ?? {})).filter(key => key !== "settings" || plugin === undefined);
   return (
     <div>
@@ -373,7 +388,7 @@ function Design({ module, drawn, example, taken, states, masked, onChange, onVie
           )}
           <Group title={labelOf("fonts")} name="fonts" node={deref(schema, schema.properties.fonts)} value={module.fonts} onChange={value => set("fonts", value)} />
           <Group title="Style" name="style" node={deref(schema, schema.properties.style)} value={module.style} onChange={value => set("style", value)} />
-          <Group title="Interaction" name="interaction" node={deref(schema, schema.properties.interaction)} value={module.interaction}
+          <Group title="Interaction" name="interaction" node={interactions} value={module.interaction}
             onChange={value => set("interaction", value)} />
         </div>
       </details>

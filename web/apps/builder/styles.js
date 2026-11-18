@@ -348,13 +348,14 @@ export const STYLES = `
 .kb .kb-preview .kb-chip[aria-pressed="true"] { border-color: var(--tint-fg); color: var(--tint-fg); }
 .kb-quick .kb-preview { margin: 8px 0 0; }
 .kb-opts { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 6px; }
-.kb-opts > button { display: flex; align-items: flex-start; gap: 8px; padding: 8px 10px; border: 1.5px solid var(--line); border-radius: 9px; background: none; cursor: pointer; text-align: left; }
+.kb-opts > :is(button, div) { display: flex; align-items: flex-start; gap: 8px; padding: 8px 10px; border: 1.5px solid var(--line); border-radius: 9px; background: none; cursor: pointer; text-align: left; }
 .kb-opts > button:hover { background: var(--hover); }
-.kb-opts > button[aria-pressed="true"] { border-color: var(--accent); }
-.kb .kb-opts > button[aria-pressed="true"] > .kb-ic { color: var(--accent); }
-.kb-opts > button > .kb-ic { margin-top: 1px; }
-.kb-opts > button > span { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
-.kb-opts > button > span > span { color: var(--muted); font-size: 12px; line-height: 1.35; }
+.kb-opts > button[aria-pressed="true"], .kb-opts > div { border-color: var(--accent); }
+.kb-opts > div { cursor: default; }
+.kb .kb-opts > button[aria-pressed="true"] > .kb-ic, .kb .kb-opts > div > .kb-ic { color: var(--accent); }
+.kb-opts > :is(button, div) > .kb-ic { margin-top: 1px; }
+.kb-opts > :is(button, div) > span { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
+.kb-opts > :is(button, div) > span > span { color: var(--muted); font-size: 12px; line-height: 1.35; }
 .kb-addgrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 8px; }
 @media (max-width: 520px) {
   .kb-f { grid-template-columns: minmax(76px, 104px) minmax(0, 1fr); }
