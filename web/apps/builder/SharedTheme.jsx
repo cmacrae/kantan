@@ -13,6 +13,7 @@ import { openDrawers, themeDocument, themeVariants } from "../../builder/shared.
 import { selectedThemes } from "../../builder/theme.js";
 import { Output } from "./Output.jsx";
 import { Button, CopyButton, SiteLinks, useBuilder } from "./ui.jsx";
+import { spell } from "../../builder/spelling.js";
 
 // A palette's colours, each with its name: the bar's own, then the rest.
 // A click on one copies it, and it says so for a moment. `uses` are the
@@ -95,7 +96,7 @@ export function SharedTheme({ shared, systemDark, onBuild }) {
           <div className="kb-stage-controls" style={{ justifyContent: "flex-end" }}>
             {flavoured
               ? (
-                <div className="kb-chips" role="group" aria-label="The flavour shown" style={{ padding: 0 }}>
+                <div className="kb-chips" role="group" aria-label={spell("The flavour shown")} style={{ padding: 0 }}>
                   {variants.map(each => (
                     <button key={each.key} type="button" className="kb-chip" aria-pressed={each === variant} onClick={() => setPicked(each.key)}>{each.label}</button>
                   ))}
@@ -113,7 +114,7 @@ export function SharedTheme({ shared, systemDark, onBuild }) {
         {variants.length === 0
           ? <div className="kb-problem">kantan can't load this theme.</div>
           : !flavoured && sameValue(variants[0].palette, variants[1].palette)
-          ? <Palette label="Its colours" palette={variants[0].palette} />
+          ? <Palette label={spell("Its colours")} palette={variants[0].palette} />
           : variants.map(each => (
             <Palette key={each.key} palette={each.palette} label={each.label} uses={flavoured ? each.uses : []} />
           ))}

@@ -12,6 +12,7 @@ import { dict } from "../../engine/values.js";
 import { ColorField, Group, IconField, Properties, Row, TextField } from "./Fields.jsx";
 import { PreviewWith } from "./StateEditor.jsx";
 import { BuilderContext, Button, Ic, YamlArea, useBuilder } from "./ui.jsx";
+import { spell } from "../../builder/spelling.js";
 
 const PLACEMENTS = [
   ["left", "Left"],
@@ -158,7 +159,7 @@ export function Looks({ module, drawn, example, onChange, compact }) {
 
   return (
     <>
-      <Row label="Colour" name="fg"><ColorField value={get([...style, "fg"])} onChange={value => set([...style, "fg"], value)} label="Colour" fallback={iconColor ?? textColor} /></Row>
+      <Row label={spell("Colour")} name="fg"><ColorField value={get([...style, "fg"])} onChange={value => set([...style, "fg"], value)} label={spell("Colour")} fallback={iconColor ?? textColor} /></Row>
       <Row label="Shape" name="shape">
         <div className="kb-chips" style={{ padding: 0 }} role="group" aria-label="Shape">
           {SHAPES.map(([shape, label]) => (
@@ -168,20 +169,20 @@ export function Looks({ module, drawn, example, onChange, compact }) {
         </div>
       </Row>
       {get([...style, "shape"]) !== undefined && (
-        <Row label="Shape colour" name="bg"><ColorField value={get([...style, "bg"])} onChange={value => set([...style, "bg"], value)} label="Shape colour" /></Row>
+        <Row label={spell("Shape colour")} name="bg"><ColorField value={get([...style, "bg"])} onChange={value => set([...style, "bg"], value)} label={spell("Shape colour")} /></Row>
       )}
       <details className="kb-group" open={apart}>
-        <summary>Icon and text colours{apart && <span className="set">set</span>}</summary>
+        <summary>{spell("Icon and text colours")}{apart && <span className="set">set</span>}</summary>
         <div>
-          <Row label="Icon colour" name="icon.fg"><ColorField value={get([...style, "icon", "fg"])} onChange={value => set([...style, "icon", "fg"], value)} label="Icon colour" fallback={iconColor} /></Row>
-          <Row label="Text colour" name="text.fg"><ColorField value={get([...style, "text", "fg"])} onChange={value => set([...style, "text", "fg"], value)} label="Text colour" fallback={textColor} /></Row>
+          <Row label={spell("Icon colour")} name="icon.fg"><ColorField value={get([...style, "icon", "fg"])} onChange={value => set([...style, "icon", "fg"], value)} label={spell("Icon colour")} fallback={iconColor} /></Row>
+          <Row label={spell("Text colour")} name="text.fg"><ColorField value={get([...style, "text", "fg"])} onChange={value => set([...style, "text", "fg"], value)} label={spell("Text colour")} fallback={textColor} /></Row>
         </div>
       </details>
-      {split && <div className="kb-note">The {dark ? "dark" : "light"} colours. Switch the preview for the others.</div>}
+      {split && <div className="kb-note">The {dark ? "dark" : "light"} {spell("colours")}. Switch the preview for the others.</div>}
       {ownStyle && (
         <div className="kb-note">
           {pluginStyle
-            ? `The ${plugin} plugin's output sets style, which overrides these.${compact ? " Its colours are under Edit." : " Its colours are below."}`
+            ? `The ${plugin} plugin's output sets style, which overrides these.${compact ? spell(" Its colours are under Edit.") : spell(" Its colours are below.")}`
             : "The command's output sets style, which overrides these."}
         </div>
       )}
@@ -198,9 +199,9 @@ export function Looks({ module, drawn, example, onChange, compact }) {
       )}
       {!compact && given.length > 0 && (
         <details className="kb-group" open>
-          <summary>Colours in settings</summary>
+          <summary>{spell("Colours in settings")}</summary>
           <div>
-            <div className="kb-note">Colours in <code>config.settings</code>. The states stay as they were printed.</div>
+            <div className="kb-note">{spell("Colours")} in <code>config.settings</code>. The states stay as they were printed.</div>
             {given.map(path => (
               <Row key={path.join(".")} label={path.join(".")}>
                 <ColorField value={getIn(module.config.settings, path)} label={path.join(".")}

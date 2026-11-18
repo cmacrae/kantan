@@ -10,6 +10,7 @@ import {
 } from "../edit.js";
 import { documentFiles, readYaml, themeFiles, variantsYaml } from "../files.js";
 import { themeVariants } from "../shared.js";
+import { american, canadian } from "../spelling.js";
 import { decodeLink, decodeModuleLink, decodeThemeLink, encodeLink, encodeModuleLink, encodeThemeLink, packModule, readFragment } from "../share.js";
 import { configSchema, deref } from "../schema.js";
 import { newTheme, paletteFor, palettesOf, previewRef, themeKind, themeProblems, toKind } from "../theme.js";
@@ -463,4 +464,10 @@ test("a click's view moves between the config and what the command prints", () =
   assert.match(script, /^#!\/bin\/sh\n/);
   assert.deepEqual(JSON.parse(script.slice(script.indexOf("'JSON'\n") + 7, script.lastIndexOf("\nJSON"))), printed.states[1].output);
   assert.deepEqual(Object.keys(NODE_INFO).sort(), [...NODE_TYPES].sort());
+});
+
+test("American and Canadian spelling keep a word's capital and the words around it", () => {
+  assert.equal(american("Customise a copy"), "Customize a copy");
+  assert.equal(american("Colours of mocha, each flavour centred"), "Colors of mocha, each flavor centered");
+  assert.equal(canadian("Customise the colours"), "Customize the colours");
 });

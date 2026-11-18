@@ -11,6 +11,7 @@ import { moduleCommands } from "../../engine/index.js";
 import { dict } from "../../engine/values.js";
 import { Row } from "./Fields.jsx";
 import { Button, OutputArea, useBuilder } from "./ui.jsx";
+import { spell } from "../../builder/spelling.js";
 
 // The controls that set each built-in type's sample. A `list` holds items
 // with controls of their own.
@@ -184,7 +185,7 @@ export function StateEditor({ module, drawn, states = [], shown, onShow, onState
     <div>
       {plugin !== undefined && (
         <div className="kb-note">
-          These states are what the {plugin} plugin prints. A <code>{"{setting(…)}"}</code> stands for a colour or an icon of the module's
+          These states are what the {plugin} plugin prints. A <code>{"{setting(…)}"}</code> stands for a {spell("colour")} or an icon of the module's
           settings, which the preview follows. Its other settings change the config, not these states.
         </div>
       )}

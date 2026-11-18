@@ -41,6 +41,7 @@ import { STYLES } from "./styles.js";
 import { BuilderContext, Button, Ic, Modal, SiteLinks, remember, remembered } from "./ui.jsx";
 import { ViewBuilder } from "./ViewEditor.jsx";
 import { moveView, startView, viewOf, withStateView, withView } from "../../builder/view.js";
+import { spell } from "../../builder/spelling.js";
 
 // Whether the editor was left open, as this browser keeps it.
 const EDITOR_KEY = "kantan-builder-editor";
@@ -794,7 +795,7 @@ function Workspace({ opened, iconSet, onStart }) {
             <div>
               <div className="kb-chips" role="group" aria-label="What a click on the bar does" style={{ padding: 0 }}>
                 <button type="button" className="kb-chip kb-tip" aria-pressed={!trying} onClick={() => setTrying(false)}
-                  data-tip="Click to edit, drag to move, click a gap to add.">Customise</button>
+                  data-tip="Click to edit, drag to move, click a gap to add.">{spell("Customise")}</button>
                 <button type="button" className="kb-chip kb-tip" aria-pressed={trying} onClick={() => { setTrying(true); setQuick(false); }}
                   data-tip="Live: hover and click as in kantan.">Try it</button>
               </div>
@@ -862,7 +863,7 @@ function Workspace({ opened, iconSet, onStart }) {
           {theme !== undefined
             ? (
               <Output title={`Theme: ${themeName}`} files={themeOutput} layout={themeLayout} onLayout={setThemeLayout} archive={`kantan-theme-${themeName}.zip`}
-                layouts={themeKind(theme) === "flavours" ? [["file", "One file"], ["dir", "A file per flavour"]] : []}
+                layouts={themeKind(theme) === "flavours" ? [["file", "One file"], ["dir", spell("A file per flavour")]] : []}
                 note={(
                   <>
                     {themeOutput.length === 1 ? <>Save it as <code>~/.config/kantan/{themeOutput[0].path}</code></> : <>Unpack them into <code>~/.config/kantan/</code></>}

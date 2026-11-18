@@ -8,11 +8,12 @@ import {
 import { dict } from "../../engine/values.js";
 import { ColorField, Row } from "./Fields.jsx";
 import { Button, Ic } from "./ui.jsx";
+import { spell } from "../../builder/spelling.js";
 
 const KINDS = [
-  ["single", "One palette", "The same colours in light and dark."],
+  ["single", "One palette", spell("The same colours in light and dark.")],
   ["modes", "Light and dark", "A palette for each appearance."],
-  ["flavours", "Flavours", "Named palettes, with a light and a dark default."],
+  ["flavours", spell("Flavours"), "Named palettes, with a light and a dark default."],
 ];
 
 // A name changed in place, once it is one that can be used and none of
@@ -54,7 +55,7 @@ export function ThemeEditor({
   const set = (key, value) => onChange(prune(setIn(theme, [...current.path, ...key], value)) ?? {});
 
   const addProblem = adding === "" ? undefined
-    : nameProblem(adding) ?? (["fg", "bg", "shape", ...colors].includes(adding) ? "The theme has a colour of that name" : undefined);
+    : nameProblem(adding) ?? (["fg", "bg", "shape", ...colors].includes(adding) ? spell("The theme has a colour of that name") : undefined);
   const add = () => {
     if (adding === "" || addProblem !== undefined) return;
     onChange(addColor(theme, adding, "#888888"));
@@ -107,18 +108,18 @@ export function ThemeEditor({
         )}
         {kind === "flavours" && (
           <>
-            <Row label="flavour" description="This flavour's name, as a config selects it: theme[flavour].">
+            <Row label={spell("flavour")} description={spell("This flavour's name, as a config selects it: theme[flavour].")}>
               <div className="kb-row">
-                <NameInput value={current.key} taken={flavours.filter(each => each !== current.key)} what="flavour"
+                <NameInput value={current.key} taken={flavours.filter(each => each !== current.key)} what={spell("flavour")}
                   onRename={to => onRenameFlavour(current.key, to)} />
                 <Button kind="plain" icon="copy" onClick={copy}>Duplicate</Button>
-                <Button kind="plain" icon="trash" disabled={flavours.length < 2} aria-label={`Remove the flavour ${current.key}`}
+                <Button kind="plain" icon="trash" disabled={flavours.length < 2} aria-label={spell(`Remove the flavour ${current.key}`)}
                   onClick={() => onChange(removeFlavour(theme, current.key))} />
               </div>
             </Row>
             {["light", "dark"].map(mode => (
-              <Row key={mode} label={`${mode} default`} description={`The ${mode} flavour of a config that names the theme alone.`}>
-                <select aria-label={`The default flavour for ${mode}`} value={flavours.includes(theme.defaults?.[mode]) ? theme.defaults[mode] : ""}
+              <Row key={mode} label={`${mode} default`} description={spell(`The ${mode} flavour of a config that names the theme alone.`)}>
+                <select aria-label={spell(`The default flavour for ${mode}`)} value={flavours.includes(theme.defaults?.[mode]) ? theme.defaults[mode] : ""}
                   onChange={event => onChange({ ...theme, defaults: { ...theme.defaults, [mode]: event.target.value } })}>
                   {!flavours.includes(theme.defaults?.[mode]) && <option value="">None</option>}
                   {flavours.map(each => <option key={each} value={each}>{each}</option>)}
@@ -128,7 +129,7 @@ export function ThemeEditor({
           </>
         )}
 
-        <div className="kb-h">{kind === "single" ? "Colours" : `Colours of ${current.key}`}</div>
+        <div className="kb-h">{spell(kind === "single" ? "Colours" : `Colours of ${current.key}`)}</div>
         <Row label="fg" description="The bar's text and icons.">
           <ColorField plain label="fg" value={values.fg} onChange={value => set(["fg"], value)} />
         </Row>
@@ -139,20 +140,20 @@ export function ThemeEditor({
           <ColorField plain label="shape" value={values.shape} onChange={value => set(["shape"], value)} />
         </Row>
 
-        <div className="kb-h">Named colours</div>
+        <div className="kb-h">{spell("Named colours")}</div>
         <div className="kb-note" style={{ paddingTop: 0 }}>
           A config uses one as <code>{"{theme(name)}"}</code>.
         </div>
         {colors.map(color => (
           <div className="kb-tc" key={color}>
-            <NameInput value={color} taken={["fg", "bg", "shape", ...colors.filter(each => each !== color)]} what="colour"
+            <NameInput value={color} taken={["fg", "bg", "shape", ...colors.filter(each => each !== color)]} what={spell("colour")}
               onRename={to => onRenameColor(color, to)} />
             <ColorField plain label={color} value={values.colors?.[color]} onChange={value => set(["colors", color], value)} />
-            <Button kind="plain" icon="x" aria-label={`Remove the colour ${color}`} onClick={() => onChange(removeColor(theme, color))} />
+            <Button kind="plain" icon="x" aria-label={spell(`Remove the colour ${color}`)} onClick={() => onChange(removeColor(theme, color))} />
           </div>
         ))}
         <div className="kb-row" style={{ padding: "4px 0" }}>
-          <input type="text" aria-label="A new colour's name" placeholder="A new colour's name" value={adding} spellCheck={false}
+          <input type="text" aria-label={spell("A new colour's name")} placeholder={spell("A new colour's name")} value={adding} spellCheck={false}
             onChange={event => setAdding(event.target.value)} onKeyDown={event => event.key === "Enter" && add()} />
           <Button icon="plus" disabled={adding === "" || addProblem !== undefined} onClick={add}>Add</Button>
         </div>
@@ -163,7 +164,7 @@ export function ThemeEditor({
         {problems.map(each => <div key={each} className="kb-problem">{each}</div>)}
         {missing.length > 0 && (
           <div className="kb-problem">
-            The config names {missing.length === 1 ? "a colour" : "colours"} this theme lacks in light or dark: {missing.join(", ")}. kantan draws {missing.length === 1 ? "it" : "them"} transparent.
+            The config names {spell(missing.length === 1 ? "a colour" : "colours")} this theme lacks in light or dark: {missing.join(", ")}. kantan draws {missing.length === 1 ? "it" : "them"} transparent.
             {named.length > 0 && (
               <div style={{ marginTop: 6 }}>
                 <Button icon="plus" onClick={() => onChange(named.reduce((next, each) => addColor(next, each), theme))}>

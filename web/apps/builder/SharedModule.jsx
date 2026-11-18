@@ -13,6 +13,7 @@ import { missingColors, selectedThemes } from "../../builder/theme.js";
 import { loadTheme } from "../../engine/index.js";
 import { YAML_COLORS } from "./Output.jsx";
 import { Button, CopyButton, SiteLinks, useBuilder } from "./ui.jsx";
+import { spell } from "../../builder/spelling.js";
 
 // What a held panel is called, by the slot that opens it.
 const HELD = { click: "On click", hover: "On hover" };
@@ -89,7 +90,7 @@ export function SharedModule({ shared, systemDark, onBuild }) {
         </div>
         {missing.length > 0 && (
           <div className="kb-problem">
-            {themeNames ? "Its theme lacks" : "The link holds no theme, and the example bar's lacks"} {missing.length === 1 ? "a colour" : "colours"} the
+            {themeNames ? "Its theme lacks" : "The link holds no theme, and the example bar's lacks"} {spell(missing.length === 1 ? "a colour" : "colours")} the
             module names: {missing.join(", ")}.
           </div>
         )}

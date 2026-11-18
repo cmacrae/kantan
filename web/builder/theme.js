@@ -6,6 +6,7 @@ import { parseHex } from "../engine/color.js";
 import { parseThemeRef } from "../engine/theme.js";
 import { dict, str } from "../engine/values.js";
 import { getIn, setIn } from "./schema.js";
+import { spell } from "./spelling.js";
 
 export function themeKind(theme) {
   if (dict(theme?.flavours)) return "flavours";
@@ -124,20 +125,20 @@ export function themeProblems(theme) {
     const where = key === "" ? "" : ` in ${key}`;
     for (const name of ["fg", "bg"]) {
       if (str(palette[name]) === undefined) problems.push(`${name} is missing${where}`);
-      else if (parseHex(palette[name]) === undefined) problems.push(`${name} isn't a hex colour${where}`);
+      else if (parseHex(palette[name]) === undefined) problems.push(spell(`${name} isn't a hex colour${where}`));
     }
-    if (palette.shape !== undefined && parseHex(palette.shape) === undefined) problems.push(`shape isn't a hex colour${where}`);
+    if (palette.shape !== undefined && parseHex(palette.shape) === undefined) problems.push(spell(`shape isn't a hex colour${where}`));
     const colors = dict(palette.colors) ?? {};
     for (const name of names) {
       if (colors[name] === undefined) problems.push(`${name} is missing${where}`);
-      else if (parseHex(colors[name]) === undefined) problems.push(`${name} isn't a hex colour${where}`);
+      else if (parseHex(colors[name]) === undefined) problems.push(spell(`${name} isn't a hex colour${where}`));
     }
   }
   if (themeKind(theme) === "flavours") {
     for (const mode of ["light", "dark"]) {
       const name = str(theme.defaults?.[mode]);
-      if (name === undefined) problems.push(`No flavour is the default for ${mode}`);
-      else if (!dict(theme.flavours[name])) problems.push(`The default for ${mode}, ${name}, isn't a flavour`);
+      if (name === undefined) problems.push(spell(`No flavour is the default for ${mode}`));
+      else if (!dict(theme.flavours[name])) problems.push(`The default for ${mode}, ${name}, ${spell("isn't a flavour")}`);
     }
   }
   return problems;

@@ -1,6 +1,7 @@
 // Labels for the keys of a config, for the builder's forms. A key is its
 // own label, as words, unless one is given here. They are labels only:
 // what the builder writes to a file keeps kantan's own keys.
+import { spell } from "./spelling.js";
 
 // A key's label, by the key alone or by `<what holds it>.<key>` where the
 // same key means different things. What holds a module type's settings is
@@ -38,7 +39,7 @@ export function humanise(key) {
 // The label of `key`, held by `within` when something holds it.
 export function labelOf(key, within) {
   const scoped = within === undefined ? undefined : LABELS[`${within}.${key}`];
-  return scoped ?? (Object.hasOwn(LABELS, key) ? LABELS[key] : humanise(key));
+  return spell(scoped ?? (Object.hasOwn(LABELS, key) ? LABELS[key] : humanise(key)));
 }
 
 // Whether a label says no more than its key does, give or take its

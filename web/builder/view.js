@@ -15,6 +15,7 @@ import { NODE_SLOTS } from "../engine/index.js";
 import { dict } from "../engine/values.js";
 import { prune, setIn } from "./schema.js";
 import { exampleRows, listFields, listsOf, mainValue, printingJson, withList } from "./values.js";
+import { spell } from "./spelling.js";
 
 const slotsOf = node => (Object.hasOwn(NODE_SLOTS, node?.type ?? "") ? NODE_SLOTS[node.type] : { one: [], many: [] });
 
@@ -223,7 +224,7 @@ export const NODE_INFO = {
   text: ["Text", "A line of text"],
   header: ["Heading", "A bold title for a section"],
   icon: ["Icon", "An icon from kantan's icon font"],
-  badge: ["Badge", "A short label in a coloured capsule"],
+  badge: ["Badge", spell("A short label in a coloured capsule")],
   image: ["Image", "A picture loaded from an address"],
   action: ["Action", "A row that runs a command when clicked"],
   check: ["Checkbox", "A row that ticks and unticks"],
@@ -673,7 +674,7 @@ export function renameFieldIn(view, list, from, to) {
 // What each kind of view is, in a sentence.
 export const VIEW_KINDS = {
   menu: "Native: a macOS menu. It shows plain rows only: text, icons, actions and checkboxes.",
-  popup: "Themed: a panel in your bar's colours. It lays out anything: columns, rows, colours, shapes and meters.",
+  popup: spell("Themed: a panel in your bar's colours. It lays out anything: columns, rows, colours, shapes and meters."),
   tooltip: "A small panel shown while the pointer is over the module. Nothing in it can be clicked.",
 };
 

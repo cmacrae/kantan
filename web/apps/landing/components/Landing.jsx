@@ -5,6 +5,7 @@ import { ConfigToggle, ConfigCode } from "./ConfigPreview.jsx";
 import InstallTabs from "./InstallTabs.jsx";
 import Wordmark from "../../../components/Wordmark.jsx";
 import features from "../content/features.json";
+import { spell } from "../../../builder/spelling.js";
 
 function Toggle({ icon, label, onClick, siteDark }) {
   const color = siteDark ? "rgba(232,230,220,0.5)" : "rgba(25,25,24,0.45)";
@@ -148,7 +149,7 @@ export default function KantanLanding() {
               <p style={{
                 fontSize: 14, color: fgSub, margin: 0,
                 lineHeight: 1.55,
-              }}>{description}</p>
+              }}>{spell(description)}</p>
             </div>
           ))}
         </div>

@@ -8,6 +8,7 @@ import { resolveThemeTemplate } from "../../engine/index.js";
 import { dict } from "../../engine/values.js";
 import { IconPicker } from "./IconPicker.jsx";
 import { Button, Ic, YamlArea, useBuilder } from "./ui.jsx";
+import { spell } from "../../builder/spelling.js";
 
 const first = text => (typeof text === "string" ? text.split(/(?<=\.)\s/)[0] : undefined);
 
@@ -109,7 +110,7 @@ function ThemeColors({ value, onChange, palette, label }) {
   const dot = name => <i className="dot" style={{ background: resolveThemeTemplate(`{theme(${name})}`, palette) }} />;
   return (
     <span className="kb-colors" ref={ref}>
-      <button type="button" aria-haspopup="listbox" aria-expanded={open} aria-label={`${label}: a colour of the theme`} onClick={() => setOpen(!open)}>
+      <button type="button" aria-haspopup="listbox" aria-expanded={open} aria-label={spell(`${label}: a colour of the theme`)} onClick={() => setOpen(!open)}>
         {picked ? <>{dot(picked)}<span>{picked}</span></> : <span className="unset">Theme</span>}
         <Ic name="chevron-down" size={12} />
       </button>
@@ -140,7 +141,7 @@ export function ColorField({ value, onChange, label, fallback, plain }) {
     <div className="kb-row">
       <span className={`kb-swatch ${hex === undefined && shown !== undefined ? "inherited" : ""}`}
         style={{ background: shown ?? "repeating-linear-gradient(45deg, transparent 0 4px, var(--line) 4px 8px)" }}>
-        <input type="color" aria-label={`${label}: pick a colour`} value={hex ?? "#888888"} onChange={event => onChange(event.target.value)} />
+        <input type="color" aria-label={spell(`${label}: pick a colour`)} value={hex ?? "#888888"} onChange={event => onChange(event.target.value)} />
       </span>
       <input type="text" aria-label={label} value={text} placeholder={fallback !== undefined ? "Not set here" : palette ? "#rrggbb or {theme(name)}" : "#rrggbb"} spellCheck={false}
         onChange={event => onChange(event.target.value === "" ? undefined : event.target.value)} />
@@ -166,7 +167,7 @@ function StateStyleField({ value, onChange, label }) {
         : <ColorField value={typeof value === "string" ? value : undefined} onChange={onChange} label={label} />}
       <label className="kb-row" style={{ padding: "4px 0" }}>
         <input type="checkbox" checked={parts} onChange={toggle} />
-        <span>Separate colours for its icon, text and shape</span>
+        <span>{spell("Separate colours for its icon, text and shape")}</span>
       </label>
     </div>
   );

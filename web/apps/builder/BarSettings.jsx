@@ -3,6 +3,7 @@ import { prune } from "../../builder/schema.js";
 import { Properties } from "./Fields.jsx";
 import { ThemePicker } from "./ThemePicker.jsx";
 import { Ic } from "./ui.jsx";
+import { spell } from "../../builder/spelling.js";
 
 // The bar's own settings, described as the module config schema describes
 // a module's.
@@ -28,7 +29,7 @@ const BAR_SCHEMA = {
       description: "The fonts of every module's text and icon, as Name:Size or Name:Weight:Size.",
       properties: { text: { type: "string", default: "system:Helvetica Neue:13" }, icon: { type: "string", default: "tabler-icons:regular:15" } },
     },
-    style: { $ref: "#/$defs/StyleConfig", description: "The bar's colours. Without a theme, light and dark each need fg and bg." },
+    style: { $ref: "#/$defs/StyleConfig", description: spell("The bar's colours. Without a theme, light and dark each need fg and bg.") },
   },
 };
 
@@ -48,7 +49,7 @@ export function BarSettings({ config, themes, own, problem, onChange, theming })
         <div className="kb-h">Appearance</div>
         <ThemePicker theme={theme} themes={themes} own={own} {...theming}
           onChange={next => onChange(prune({ ...config, theme: next }) ?? {})} />
-        <div className="kb-h">Size, fonts and colours</div>
+        <div className="kb-h">{spell("Size, fonts and colours")}</div>
         <Properties node={BAR_SCHEMA} value={rest} name="bar" onChange={value => onChange({ ...(theme === undefined ? {} : { theme }), ...value })} />
       </div>
     </>

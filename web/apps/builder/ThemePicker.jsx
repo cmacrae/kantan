@@ -5,6 +5,7 @@ import { loadTheme } from "../../engine/index.js";
 import { dict } from "../../engine/values.js";
 import { ThemeImport } from "./ThemeImport.jsx";
 import { Button, Ic } from "./ui.jsx";
+import { spell } from "../../builder/spelling.js";
 
 const titled = text => text.replace(/(^|[-_ ])(\p{L})/gu, (_, gap, letter) => (gap ? " " : "") + letter.toUpperCase());
 
@@ -80,7 +81,7 @@ function Themes({ themes, own, onNew, onEdit, onCopy, onImport, onImportSchemes,
             <span className="tag">{own.includes(name) ? "Yours" : "Bundled"}</span>
             {own.includes(name)
               ? <Button kind="plain" icon="pencil" aria-label={`Edit the theme ${name}`} onClick={() => onEdit(name)}>Edit</Button>
-              : <Button kind="plain" icon="copy" aria-label={`Customise a copy of the theme ${name}`} onClick={() => onCopy(name)}>Customise a copy</Button>}
+              : <Button kind="plain" icon="copy" aria-label={spell(`Customise a copy of the theme ${name}`)} onClick={() => onCopy(name)}>{spell("Customise a copy")}</Button>}
           </li>
         ))}
       </ul>
@@ -143,7 +144,7 @@ export function ThemePicker({ theme, themes, own, onChange, onNew, onEdit, onCop
   const themed = theme !== undefined;
   return (
     <div>
-      <div className="kb-chips" role="group" aria-label="How the bar is coloured">
+      <div className="kb-chips" role="group" aria-label={spell("How the bar is coloured")}>
         <button type="button" className="kb-chip iconed" aria-pressed={!themed} onClick={() => onChange(undefined)}><Ic name="brand-apple-filled" size={14} />Native</button>
         <button type="button" className="kb-chip iconed" aria-pressed={themed} onClick={() => themed || onChange(first())}><Ic name="brush" size={14} />Theme</button>
       </div>
@@ -151,7 +152,7 @@ export function ThemePicker({ theme, themes, own, onChange, onNew, onEdit, onCop
         ? <>{row("light", "Light")}{row("dark", "Dark")}</>
         : (
           <div className="kb-note">
-            Uses the menu bar's material and colours.
+            {spell("Uses the menu bar's material and colours.")}
           </div>
         )}
       <Themes themes={themes} own={own} onNew={onNew} onEdit={onEdit} onCopy={onCopy} onImport={onImport} onImportSchemes={onImportSchemes}

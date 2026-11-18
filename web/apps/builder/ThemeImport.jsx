@@ -9,6 +9,7 @@ import { nameProblem } from "../../builder/theme.js";
 import { loadTheme } from "../../engine/index.js";
 import { dict } from "../../engine/values.js";
 import { Button, Modal, remember, remembered } from "./ui.jsx";
+import { spell } from "../../builder/spelling.js";
 
 const SYSTEMS = [["base16", "Base16"], ["base24", "Base24"]];
 const MODES = [["light", "Light"], ["dark", "Dark"]];
@@ -209,8 +210,8 @@ export function ThemeImport({ taken, onImport, onImportSchemes, onImportShared, 
   return (
     <Modal title="Import a theme" onClose={onClose} wide>
       <div className="kb-note" style={{ paddingTop: 0 }}>
-        A <a href="https://github.com/tinted-theming/home" target="_blank" rel="noreferrer">Base16 or Base24</a> scheme becomes a theme with a colour for each of its slots,
-        {" "}<code>base00</code> to <code>base0F</code> or <code>base17</code>. A config that names Catppuccin's colours is rewritten to name the slots that hold them.
+        A <a href="https://github.com/tinted-theming/home" target="_blank" rel="noreferrer">Base16 or Base24</a> scheme becomes a theme with a {spell("colour")} for each of its slots,
+        {" "}<code>base00</code> to <code>base0F</code> or <code>base17</code>. A config that names Catppuccin's {spell("colours")} is rewritten to name the slots that hold them.
       </div>
       <div className="kb-h">Schemes to import</div>
       <div className="kb-slots">
@@ -254,7 +255,7 @@ export function ThemeImport({ taken, onImport, onImportSchemes, onImportShared, 
           : <Button disabled={!scheme || wanted === "" || problem !== undefined} onClick={() => { pick(wanted, scheme); setText(""); setName(""); }}>Pick it for {filling}</Button>}
       </div>
       {problem !== undefined && <div className="kb-problem">{problem}</div>}
-      <div className="kb-note">A kantan theme kept as a directory goes in as one file: its flavours under <code>flavours</code>, beside its <code>defaults</code>.</div>
+      <div className="kb-note">A kantan theme kept as a directory goes in as one file: its {spell("flavours")} under <code>flavours</code>, beside its <code>defaults</code>.</div>
 
       <div className="kb-h">Or paste a link to a theme</div>
       <div className="kb-row">

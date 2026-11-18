@@ -9,6 +9,7 @@ import { highlightYaml } from "../../components/yaml-highlight.jsx";
 import { ModuleCard, ThemeCard } from "./ShareCards.jsx";
 import { ShareImage, barCard } from "./ShareImage.jsx";
 import { Button, CopyButton, Ic, Modal } from "./ui.jsx";
+import { spell } from "../../builder/spelling.js";
 
 // The colours YAML is written in.
 export const YAML_COLORS = {
@@ -218,7 +219,7 @@ export function Share({ makeLink, source, barFor, config, theme, onClose }) {
           <LinkRow label="A link to the theme" url={themeLink} />
           <div className="kb-note">Opens on a page of its own, under that name, for another bar to take.</div>
           <Post link={themeLink} kind="Theme" title={themeTitle} config={mode => <CopyButton text={() => variantsYaml(theme.variants, mode)}>Theme config</CopyButton>} image={(onImage, actions) => (
-            <ShareImage file="kantan-theme" alt="The example bar in the theme, over its colours" onImage={onImage} actions={actions}
+            <ShareImage file="kantan-theme" alt={spell("The example bar in the theme, over its colours")} onImage={onImage} actions={actions}
               variants={theme.variants.map(each => [each.key, each.label])}
               draw={(key, width, brief) => {
                 const variant = theme.variants.find(each => each.key === key);
@@ -261,7 +262,7 @@ export function ShareModule({ makeLink, module, plugin, printed, yaml, theme, ba
               </label>
               <div className="kb-note">
                 {theme.named
-                  ? "The module names the theme's colours. Without the theme it is drawn in the example bar's, which may lack them."
+                  ? spell("The module names the theme's colours. Without the theme it is drawn in the example bar's, which may lack them.")
                   : "The module is drawn in the theme where the link opens. Without it, in the example bar's."}
               </div>
             </div>
