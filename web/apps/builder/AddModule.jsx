@@ -4,10 +4,8 @@
 import { useMemo, useState } from "react";
 import { BarView } from "../../components/BarView.jsx";
 import { BUILT_INS, PLUGIN_ABOUT } from "../../builder/catalog.js";
-import { bindStates, settingDefaults } from "../../builder/settings.js";
 import { decodeModuleLink, decodeThemeLink, readFragment } from "../../builder/share.js";
 import { selectedThemes } from "../../builder/theme.js";
-import { dict } from "../../engine/values.js";
 import { Button, Modal, useBuilder } from "./ui.jsx";
 
 // Something to add, under the module it would be: a strip of bar holding
@@ -49,13 +47,10 @@ export function AddModule({ onClose, onBuiltIn, onPlugin, onPasted, onShared, on
   const clash = name === "" || taken.includes(name);
 
   // Each thing to add as the bar would draw it, in the states it starts
-  // with. A plugin's are drawn with its settings' defaults.
+  // with.
   const bars = useMemo(() => ({
     types: Object.fromEntries(Object.entries(BUILT_INS).map(([type, { module, states }]) => [type, draw({ name: type, type, ...module }, states ?? [])])),
-    plugins: Object.fromEntries(Object.entries(catalog.plugins).map(([plugin, { module, states, settings }]) => [
-      plugin,
-      draw(module, bindStates(states ?? [], dict(module.config)?.settings ?? {}, settings === undefined ? {} : settingDefaults(settings))),
-    ])),
+    plugins: Object.fromEntries(Object.entries(catalog.plugins).map(([plugin, { module, states }]) => [plugin, draw(module, states ?? [])])),
   }), [catalog, dark]);
 
   return (

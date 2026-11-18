@@ -347,11 +347,19 @@ function Workspace({ opened, iconSet, onStart }) {
   // Picking a module from the list opens its settings in full.
   const select = index => { setSelected(index); setQuick(false); setPane("edit"); };
 
+  // A document with the Catppuccin colours its config names written as the
+  // slots of the theme it selects, where that theme lacks them: a bundled
+  // plugin's module names Catppuccin's.
+  const inSlots = made => {
+    const palettes = loadTheme(made.config.theme, { ...catalog.themes, ...made.themes });
+    return palettes ? adoptSlots(made, palettes) : made;
+  };
+
   // Adds the module `make` makes where `adding` says, or where a module
   // of its kind starts when it names no placement, and picks it. Returns
   // where the module is among the others.
   const add = make => {
-    const made = make(document);
+    const made = inSlots(make(document));
     const before = new Set(modules.map(each => each?.name));
     const fresh = modulesOf(made).find(each => !before.has(each?.name));
     const next = placeAtEdge(made, modulesOf(made).indexOf(fresh), adding.placement ?? fresh.placement, adding.start);
@@ -691,8 +699,10 @@ function Workspace({ opened, iconSet, onStart }) {
 
   // A module alone on a bar of its own, at the bar's left where a panel
   // has the most room: the one whose view is being built, or one that
-  // might be added. `states` are shown in place of the ones it has.
-  const barOf = (alone, states) => {
+  // might be added. `states` are shown in place of the ones it has. One
+  // that might be added is drawn `adopted`: in the colours it would take
+  // once added, with its states following its settings.
+  const barOf = (alone, states, adopted = false) => {
     const { mask: _, ...unmasked } = alone;
     const { modulesDir: __, ...rest } = drawnDocument;
     const only = {
@@ -700,7 +710,7 @@ function Workspace({ opened, iconSet, onStart }) {
       config: { ...rest.config, modules: [{ ...unmasked, placement: "left" }] },
       ...(states === undefined ? {} : { states: { ...rest.states, [alone.name]: states } }),
     };
-    return resolveBar(only, { dark, icons: iconSet.icons, themes: catalog.themes, states: shown, samples });
+    return resolveBar(adopted ? boundDocument(inSlots(only), catalog) : only, { dark, icons: iconSet.icons, themes: catalog.themes, states: shown, samples });
   };
   const viewBar = useMemo(() => (viewing ? barOf(module) : undefined), [viewing !== undefined, module, drawnDocument, dark, iconSet, shown, samples]);
   const viewDrawn = viewBar && Object.values(viewBar.placements).flat()[0];
@@ -847,7 +857,7 @@ function Workspace({ opened, iconSet, onStart }) {
       </main>
 
       {adding && (
-        <AddModule onClose={() => setAdding(undefined)} taken={modules.map(each => each?.name)} draw={barOf} dark={dark} onOwn={addOwn}
+        <AddModule onClose={() => setAdding(undefined)} taken={modules.map(each => each?.name)} draw={(alone, states) => barOf(alone, states, true)} dark={dark} onOwn={addOwn}
           onBuiltIn={type => add(doc => addBuiltIn(doc, type))} onPlugin={plugin => add(doc => addPlugin(doc, plugin, catalog))}
           onPasted={(name, pasted) => add(doc => addPasted(doc, name, pasted))}
           onShared={(shared, theme) => add(doc => {
