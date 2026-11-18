@@ -745,7 +745,7 @@ function Workspace({ opened, iconSet, onStart }) {
   const tint = cssColor(bar.native ? "primary" : bar.fg, dark);
   const marks = [
     !trying && module?.name !== undefined && `.kb-desk [data-kantan-module="${CSS.escape(module.name)}"] { outline: 1.5px dashed ${dark ? "#fff" : "#000"}; outline-offset: -3px; border-radius: 6px; }`,
-    !trying && ".kb-desk [data-kantan-module] { cursor: grab; }",
+    !trying && ".kb-desk [data-kantan-module], .kb-desk [data-kantan-module] * { cursor: grab !important; }",
   ].filter(Boolean).join("\n");
 
   return (
