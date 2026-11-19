@@ -167,6 +167,10 @@ function resolveModule(module, state, config, styler, icons, dark) {
       model.icon.background = behind
         ? { name: state.backgroundIcon, glyph: behind.char }
         : { name: state.backgroundIcon, text: state.backgroundIcon };
+      // The icon's outline starts where the one behind it does.
+      if (state.backgroundIconLeading && behind && entry) {
+        model.icon.shift = ((behind.left ?? 0) - (entry.left ?? 0)) * model.icon.size;
+      }
     }
   }
 

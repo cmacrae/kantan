@@ -36,10 +36,12 @@ export default {
     const levelIcon = iconForLevel(level, loaded.levelIcons);
     state.icon = muted ? loaded.mutedIcon : ownIcon ?? levelIcon;
 
-    // The full-volume icon sits dimmed behind a quieter level's.
+    // The full-volume icon sits dimmed behind a quieter level's, whose
+    // speaker is drawn where its own is.
     const fullIcon = loaded.levelIcons.at(-1);
     if (!muted && ownIcon === undefined && loaded.levelIcons.length > 1 && levelIcon !== fullIcon) {
       state.backgroundIcon = fullIcon;
+      state.backgroundIconLeading = true;
     }
     state.variables = { level: String(level), state: muted ? "Muted" : `${level}%`, device };
     return state;

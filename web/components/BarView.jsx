@@ -157,7 +157,7 @@ function ModuleIcon({ icon, dark }) {
         <Glyph icon={{ ...icon, ...icon.background }} color={icon.color} dark={dark} opacity={icon.opacity * 0.15}
           fallbackFont={fontFamily(icon.font)} />
       </span>
-      <span style={{ gridArea: "1 / 1" }}>{glyph}</span>
+      <span style={{ gridArea: "1 / 1", transform: icon.shift ? `translateX(${icon.shift}px)` : undefined }}>{glyph}</span>
     </span>
   );
 }
