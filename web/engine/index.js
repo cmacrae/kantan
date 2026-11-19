@@ -9,6 +9,7 @@ export { iconTable, noIcons, resolveIcon, scaledSize } from "./icons.js";
 export { menuRows } from "./menu.js";
 export { MENU_BAR, NOTCH } from "./menubar.js";
 export { MODULE_TYPES } from "./modules/index.js";
+export { barLevels } from "./modules/waveform.js";
 export { formatDate, ordinalSuffix } from "./dates.js";
 export { shuffledRainbow } from "./modules/workspace.js";
 export { OVERLAP_MARGIN, resolveOverlap } from "./overlap.js";

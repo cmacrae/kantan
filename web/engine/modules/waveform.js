@@ -1,4 +1,4 @@
-// The waveform module: the sound the Mac is playing, as bars or as a wave.
+// The waveform module: the sound the Mac is playing, drawn in its style.
 // Its sample is `{ levels }`, the level of each band of the sound from 0 to
 // 1, the lowest first; without a level above 0, there is no sound.
 import { plainState } from "../output.js";
@@ -7,6 +7,21 @@ import { shuffledRainbow } from "./workspace.js";
 
 // The most bars the module draws, which is the bands kantan measures.
 const BANDS = 256;
+
+// What the module draws the sound as. The first is what it draws unless
+// told otherwise.
+const STYLES = ["bars", "wave", "flow", "scroll", "spectrogram", "line", "dots"];
+
+// What the `wave` style adds to its line.
+const WAVE_OPTIONS = ["lock", "glow", "loudness", "tone", "curve", "fill", "stereo"];
+
+// The width of a bar and the space between two, for a style that draws a
+// bar or a column for each band, or undefined for one that doesn't.
+export function barGeometry(style) {
+  if (style === "bars") return { width: 2, spacing: 2 };
+  if (style === "dots") return { width: 2, spacing: 1 };
+  return undefined;
+}
 
 // `levels` as `count` levels, each the highest of the levels it covers.
 function resampled(levels, count) {
@@ -29,18 +44,22 @@ export function barLevels(levels, count) {
 }
 
 // How many bars a waveform of at least `bars` draws beside a module
-// `matched` points wide: as many as fit that width, each 2 points wide and
-// 2 apart.
-export function matchedBars(bars, matched) {
-  return Math.min(Math.max(Math.floor((matched + 2) / 4), bars), BANDS);
+// `matched` points wide: as many as fit that width, each as wide and as far
+// apart as `style` draws them.
+export function matchedBars(bars, matched, style = "bars") {
+  const { width, spacing } = barGeometry(style);
+  return Math.min(Math.max(Math.floor((matched + spacing) / (width + spacing)), bars), BANDS);
 }
 
 // The colours a module's `gradient` or `rainbow` gives its bars, as
-// written: a gradient's `low` and `high`, or a rainbow's palette, shuffled
-// for `bars` unless it isn't `random`.
+// written: the `stops` a gradient passes through, which are its `colors`
+// or its `low` and `high`, or a rainbow's palette, shuffled for `bars`
+// unless it isn't `random`.
 function colors(config, bars) {
   const gradient = dict(config?.gradient), rainbow = dict(config?.rainbow);
-  if (str(gradient?.low) !== undefined && str(gradient?.high) !== undefined) return { low: gradient.low, high: gradient.high };
+  const stops = (list(gradient?.colors) ?? []).filter(color => typeof color === "string");
+  if (stops.length > 1) return { stops };
+  if (str(gradient?.low) !== undefined && str(gradient?.high) !== undefined) return { stops: [gradient.low, gradient.high] };
   const palette = (list(rainbow?.colors) ?? []).filter(color => typeof color === "string");
   if (rainbow?.enabled !== true || !palette.length) return undefined;
   return { palette: (bool(rainbow.random) ?? true) ? shuffledRainbow(palette, bars) : palette };
@@ -49,8 +68,10 @@ function colors(config, bars) {
 export default {
   load(config) {
     const bars = Math.min(Math.max(int(config?.bars) ?? 8, 1), BANDS);
+    const style = str(config?.style), wave = dict(config?.wave);
     return {
-      style: str(config?.style) === "wave" ? "wave" : "bars",
+      style: STYLES.includes(style) ? style : STYLES[0],
+      options: Object.fromEntries(WAVE_OPTIONS.map(option => [option, bool(wave?.[option]) ?? false])),
       bars, colors: colors(config, bars),
       width: Math.max(num(config?.width) ?? 40, 4),
       height: Math.max(num(config?.height) ?? 14, 2),
@@ -66,8 +87,8 @@ export default {
     state.hidden = silent && loaded.hidesWhenSilent;
     state.variables = { state: silent ? "Silent" : "Playing" };
     state.waveform = {
-      style: loaded.style, width: loaded.width, height: loaded.height, bars: loaded.bars, colors: loaded.colors,
-      levels: resampled(levels, loaded.style === "wave" ? Math.max(levels.length, 2) : loaded.bars),
+      style: loaded.style, options: loaded.options, width: loaded.width, height: loaded.height, bars: loaded.bars, colors: loaded.colors,
+      levels: resampled(levels, barGeometry(loaded.style) ? loaded.bars : Math.max(levels.length, 2)),
     };
     // A waveform following another module's width keeps the levels it was
     // given, to draw as many bars of as that width fits.

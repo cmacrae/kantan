@@ -228,3 +228,18 @@ test("where a drawer and the notch's modules meet, whichever is in use keeps its
   assert.equal(resolve({ drawerOpen: false, engaged: true, yielded: true }), "none");
   assert.equal(resolve({ drawerOpen: false, yielded: true }), "reopenDrawer");
 });
+
+test("a waveform's gradient passes through each of its colours, and a wave following the tone takes a palette's once", () => {
+  const waveform = config => resolveBar({
+    version: 1, config: { theme: "t", modules: [{ name: "sound", type: "waveform", placement: "left", config }] },
+    themes: { t: { fg: "#111111", bg: "#eeeeee" } },
+    states: { sound: [{ name: "Playing", output: { levels: [0.5, 0.9, 0.4] } }] },
+  }).placements.left[0].waveform;
+  assert.deepEqual(waveform({ bars: 5, gradient: { colors: ["#000000", "#FFFFFF", "#FF0000"] } }).colors,
+    ["#000000", "#808080", "#FFFFFF", "#FF8080", "#FF0000"]);
+  const rainbow = { enabled: true, random: false, colors: ["#FF0000", "#00FF00"] };
+  assert.deepEqual(waveform({ bars: 4, rainbow }).colors, ["#ff0000", "#00ff00", "#ff0000", "#00ff00"]);
+  assert.deepEqual(waveform({ style: "wave", wave: { tone: true }, rainbow }).colors, ["#ff0000", "#00ff00"]);
+  assert.equal(waveform({ style: "spectrogram" }).style, "spectrogram");
+  assert.equal(waveform({ style: "unknown" }).style, "bars");
+});

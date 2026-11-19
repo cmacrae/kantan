@@ -6,7 +6,7 @@ import { loadConfig, DEFAULT_ICON_FONT, DEFAULT_TEXT_FONT } from "./config.js";
 import { menuRows } from "./menu.js";
 import { MENU_BAR, NOTCH, menuBarModules } from "./menubar.js";
 import { moduleType } from "./modules/index.js";
-import { barLevels, matchedBars } from "./modules/waveform.js";
+import { barGeometry, barLevels, matchedBars } from "./modules/waveform.js";
 import { barColor } from "./color.js";
 import { noIcons } from "./icons.js";
 import { createStyler } from "./style.js";
@@ -90,27 +90,37 @@ function blend(low, high, fraction) {
 }
 
 // The colour of each of a waveform's `count` bars, or undefined for the
-// module's: its palette in order, going round again, or its gradient from
-// the first bar to the last. `resolve` turns a colour as written into one
-// to draw, or undefined for one it can't, which leaves the bars the module's.
+// module's: its palette in order, going round again, or its gradient
+// through each of its stops from the first bar to the last. `resolve` turns
+// a colour as written into one to draw, or undefined for one it can't,
+// which leaves the bars the module's.
 function waveformColors(colors, count, resolve) {
   if (!colors) return undefined;
-  const written = colors.palette ?? [colors.low, colors.high];
-  const drawn = written.map(resolve);
+  const drawn = (colors.palette ?? colors.stops).map(resolve);
   if (drawn.some(color => color === undefined || !color.startsWith("#"))) return undefined;
   if (colors.palette) return Array.from({ length: count }, (_, i) => drawn[i % drawn.length]);
-  const [low, high] = drawn;
-  return Array.from({ length: count }, (_, i) => blend(low, high, count > 1 ? i / (count - 1) : 0));
+  return Array.from({ length: count }, (_, i) => {
+    const along = (count > 1 ? i / (count - 1) : 0) * (drawn.length - 1);
+    const lower = Math.min(Math.floor(along), drawn.length - 2);
+    return blend(drawn[lower], drawn[lower + 1], along - lower);
+  });
+}
+
+// How many colours a waveform is given: a wave following the sound's tone
+// takes a palette's own, each once, and any other as many as it has bars.
+function waveformColorCount(waveform, bars) {
+  const toned = waveform.style === "wave" && waveform.options?.tone;
+  return toned && waveform.colors?.palette ? waveform.colors.palette.length : bars;
 }
 
 // A resolved waveform as it is drawn beside the module it follows, once
 // that module is `matched` points wide: as many bars as fit that width, or
-// as wide a wave, and never less than its own. A module out of the bar is
+// as wide itself in a style without bars, and never less than its own. A module out of the bar is
 // 0 wide, and leaves the waveform as it is.
 export function matchWaveform(waveform, matched) {
   if (waveform.matchWidth === undefined || !(matched > 0)) return waveform;
-  if (waveform.style === "wave") return { ...waveform, width: Math.max(waveform.width, matched) };
-  const bars = matchedBars(waveform.bars, matched);
+  if (!barGeometry(waveform.style)) return { ...waveform, width: Math.max(waveform.width, matched) };
+  const bars = matchedBars(waveform.bars, matched, waveform.style);
   return {
     ...waveform, bars, levels: barLevels(waveform.bands, bars),
     colors: waveformColors(waveform.shades, bars, color => color),
@@ -129,12 +139,12 @@ function resolveModule(module, state, config, styler, icons, dark) {
   if (state.waveform) {
     model.waveform = {
       ...state.waveform, color: styler.iconFg(module, dynamic),
-      colors: waveformColors(state.waveform.colors, state.waveform.bars, styler.segmentFg),
+      colors: waveformColors(state.waveform.colors, waveformColorCount(state.waveform, state.waveform.bars), styler.segmentFg),
     };
     // The colours as resolved, for the bars a followed module's width adds.
     if (state.waveform.matchWidth !== undefined && model.waveform.colors) {
-      const { palette, low, high } = state.waveform.colors;
-      model.waveform.shades = palette ? { palette: palette.map(styler.segmentFg) } : { low: styler.segmentFg(low), high: styler.segmentFg(high) };
+      const { palette, stops } = state.waveform.colors;
+      model.waveform.shades = palette ? { palette: palette.map(styler.segmentFg) } : { stops: stops.map(styler.segmentFg) };
     }
   }
 
