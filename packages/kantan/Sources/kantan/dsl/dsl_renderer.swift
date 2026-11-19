@@ -691,13 +691,58 @@ struct DSLRendererView: View {
   @ViewBuilder
   private func renderGrid(columns: Int?, spacing: Double?, children: [ViewNode]) -> some View {
     let columnCount = dslGridColumnCount(columns)
-    let gap = spacing ?? 8.0
-    let gridColumns = Array(
-      repeating: GridItem(.flexible(), spacing: CGFloat(gap)),
-      count: columnCount)
+    let gap = CGFloat(spacing ?? 8.0)
+    let cells = gridCells(children, resolver: resolver)
+    let rows = stride(from: 0, to: cells.count, by: columnCount).map {
+      Array(cells[$0..<min($0 + columnCount, cells.count)])
+    }
 
-    LazyVGrid(columns: gridColumns, spacing: CGFloat(gap)) {
-      renderChildren(children)
+    // Every row is laid out at once, so the grid's size is known before
+    // it is drawn, as a lazy grid's isn't.
+    Grid(horizontalSpacing: gap, verticalSpacing: gap) {
+      ForEach(Array(rows.enumerated()), id: \.offset) { _, row in
+        GridRow {
+          ForEach(Array(row.enumerated()), id: \.offset) { _, cell in
+            DSLRendererView(
+              node: cell.node, resolver: cell.resolver, isNative: isNative,
+              dismissHandler: dismissHandler, depth: depth + 1
+            )
+            // Columns share the grid's width evenly.
+            .frame(maxWidth: .infinity)
+          }
+          // A short last row keeps the columns the others have.
+          ForEach(row.count..<columnCount, id: \.self) { _ in
+            Color.clear.gridCellUnsizedAxes([.horizontal, .vertical])
+          }
+        }
+      }
+    }
+  }
+}
+
+/// A grid's cell: a node, and the resolver for the values it is drawn with.
+private struct GridCell {
+  let node: ViewNode
+  let resolver: TemplateResolver
+}
+
+/// The cells `children` give a grid. A `foreach` gives one for each item of
+/// its collection, and an `if` and a `group` those of what they hold, so
+/// each takes a place of its own.
+private func gridCells(_ children: [ViewNode], resolver: TemplateResolver) -> [GridCell] {
+  children.flatMap { child -> [GridCell] in
+    switch child {
+    case .foreach(let items, let each, _):
+      return (resolver.data[items] ?? []).flatMap {
+        gridCells([each], resolver: resolver.scoped(with: $0))
+      }
+    case .if(let condition, let thenNode, let elseNode, _):
+      let shown = dslEvaluateTruthy(condition, resolver: resolver) ? thenNode : elseNode
+      return shown.map { gridCells([$0], resolver: resolver) } ?? []
+    case .group(let held, _):
+      return gridCells(held, resolver: resolver)
+    default:
+      return [GridCell(node: child, resolver: resolver)]
     }
   }
 }
