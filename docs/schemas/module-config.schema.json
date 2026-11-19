@@ -681,11 +681,12 @@
         "gradient": {
           "type": "object",
           "additionalProperties": false,
-          "required": ["low", "high"],
-          "description": "Colours the bars from 'low' to 'high': the lowest frequency's bar is 'low', the highest's 'high', and those between pass from one to the other. Comes before 'rainbow'. Not applied with the native appearance.",
+          "anyOf": [{ "required": ["low", "high"] }, { "required": ["colors"] }],
+          "description": "Colours the bars from 'low' to 'high': the lowest frequency's bar is 'low', the highest's 'high', and those between pass from one to the other. With 'colors', they pass through each of those in turn instead. Comes before 'rainbow'. Not applied with the native appearance.",
           "properties": {
             "low": { "$ref": "#/$defs/Color" },
-            "high": { "$ref": "#/$defs/Color" }
+            "high": { "$ref": "#/$defs/Color" },
+            "colors": { "type": "array", "minItems": 2, "items": { "$ref": "#/$defs/Color" }, "description": "Two or more colours the bars pass through, from the lowest frequency's to the highest's. Comes before 'low' and 'high'." }
           }
         }
       }

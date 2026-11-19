@@ -40,9 +40,9 @@ enum WaveformColors: Sendable, Equatable {
   case module
   /// The bars take these in order, going round again past the last.
   case palette([String])
-  /// The first bar is `low`, the last `high`, and those between pass from
-  /// one to the other.
-  case gradient(low: String, high: String)
+  /// The first bar is the first of these, the last the last, and those
+  /// between pass through each on the way.
+  case gradient([String])
 
   /// The colours a module's `gradient` or `rainbow` gives its bars: a
   /// gradient comes first, and a rainbow's colours are shuffled for
@@ -50,8 +50,11 @@ enum WaveformColors: Sendable, Equatable {
   init(yaml: Yaml) {
     let rainbow = yaml["rainbow"]
     let palette = rainbow["colors"].array?.compactMap(\.string) ?? []
-    if let low = yaml["gradient"]["low"].string, let high = yaml["gradient"]["high"].string {
-      self = .gradient(low: low, high: high)
+    let stops = yaml["gradient"]["colors"].array?.compactMap(\.string) ?? []
+    if stops.count > 1 {
+      self = .gradient(stops)
+    } else if let low = yaml["gradient"]["low"].string, let high = yaml["gradient"]["high"].string {
+      self = .gradient([low, high])
     } else if rainbow["enabled"].bool == true, !palette.isEmpty {
       let bars = min(max(yaml["bars"].int ?? 8, 1), AudioAnalysis.bandCount)
       self = .palette(
@@ -81,10 +84,12 @@ enum WaveformColors: Sendable, Equatable {
       return nil
     case .palette(let palette):
       return (0..<count).map { resolve(palette[$0 % palette.count]) }
-    case .gradient(let low, let high):
-      let (low, high) = (resolve(low), resolve(high))
+    case .gradient(let stops):
+      let stops = stops.map(resolve)
       return (0..<count).map {
-        Self.blend(low, high, fraction: count > 1 ? Double($0) / Double(count - 1) : 0)
+        let along = (count > 1 ? Double($0) / Double(count - 1) : 0) * Double(stops.count - 1)
+        let lower = min(Int(along), stops.count - 2)
+        return Self.blend(stops[lower], stops[lower + 1], fraction: along - Double(lower))
       }
     }
   }
