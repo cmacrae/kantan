@@ -30,6 +30,7 @@ const BAR_SCHEMA = {
       properties: { text: { type: "string", default: "system:Helvetica Neue:13" }, icon: { type: "string", default: "tabler-icons:regular:15" } },
     },
     style: { $ref: "#/$defs/StyleConfig", description: spell("The bar's colours. Without a theme, light and dark each need fg and bg.") },
+    menuBarSlots: { type: "boolean", default: true, description: "Hold room in the menu bar for unmasked modules listed after a masked one, so they keep their place among the masked ones." },
   },
 };
 

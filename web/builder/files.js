@@ -6,7 +6,7 @@ import { selectedThemes, themeKind } from "./theme.js";
 
 // The order keys are written in: a config's and a module's own keys as the
 // docs list them, and any others after, as they came.
-const CONFIG_KEYS = ["theme", "displays", "height", "padding", "iconTextSpacing", "cornerRadius", "blur", "autohide", "fonts", "style", "modules"];
+const CONFIG_KEYS = ["theme", "displays", "height", "padding", "iconTextSpacing", "cornerRadius", "blur", "autohide", "menuBarSlots", "fonts", "style", "modules"];
 const MODULE_KEYS = ["name", "type", "placement", "displays", "icon", "fonts", "style", "mask", "config", "interaction"];
 const PALETTE_KEYS = ["fg", "bg", "shape", "colors"];
 const MODE_KEYS = ["light", "dark"];
