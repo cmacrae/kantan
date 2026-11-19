@@ -20,7 +20,7 @@ func output(playing: Bool) -> PluginOutput {
     track: Track(
       title: "Alberto Balsalm", artist: "Aphex Twin", album: "…I Care Because You Do",
       duration: 310, elapsed: 84, timestamp: now.timeIntervalSince1970, rate: playing ? 1 : 0),
-    artwork: nil, source: Source(name: "Music", bundle: "com.apple.Music"),
+    artwork: nil, source: Source(name: "Spotify", bundle: "com.spotify.client"),
     settings: settings, now: now)
 }
 
