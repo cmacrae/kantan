@@ -17,6 +17,7 @@ struct WaveformConfigFactory: ModuleConfigurationFactory {
       silenceDelay: max(number("silenceDelay") ?? WaveformConfig.defaultSilenceDelay, 0),
       colors: WaveformColors(yaml: yaml), matchWidth: yaml["matchWidth"].string,
       sensitivity: number("sensitivity").map { max($0, 0) },
+      wave: WaveOptions(yaml: yaml["wave"]),
       filter: AudioFilter(
         appsOnly: yaml["sources"].string != "all",
         excluded: yaml["exclude"].array?.compactMap(\.string) ?? []))
@@ -32,6 +33,37 @@ struct WaveformConfigFactory: ModuleConfigurationFactory {
 enum WaveformStyle: String, Sendable {
   case bars
   case wave
+}
+
+/// What the `wave` style does beyond drawing the wave as a line.
+struct WaveOptions: Sendable, Equatable {
+  /// Begins the wave where the sound rises through zero, so a steady sound
+  /// stands still.
+  var lock = false
+  /// Leaves the waves just drawn fading beneath the newest.
+  var glow = false
+  /// Draws a louder sound with a thicker line.
+  var loudness = false
+  /// Colours the line by where the sound sits between low and high.
+  var tone = false
+  /// Draws the wave as a smooth curve.
+  var curve = false
+  /// Fills between the wave and its middle.
+  var fill = false
+  /// Draws the left and right sides as a line each.
+  var stereo = false
+
+  init() {}
+
+  init(yaml: Yaml) {
+    lock = yaml["lock"].bool ?? false
+    glow = yaml["glow"].bool ?? false
+    loudness = yaml["loudness"].bool ?? false
+    tone = yaml["tone"].bool ?? false
+    curve = yaml["curve"].bool ?? false
+    fill = yaml["fill"].bool ?? false
+    stereo = yaml["stereo"].bool ?? false
+  }
 }
 
 /// The colours of a waveform module's bars, the lowest frequency first.
@@ -93,6 +125,13 @@ enum WaveformColors: Sendable, Equatable {
       }
     }
   }
+
+  /// How many colours a line following the sound's tone passes through:
+  /// a palette's own, each once in its order, or as many as there are bars.
+  func toneCount(bars: Int) -> Int {
+    if case .palette(let palette) = self { return palette.count }
+    return bars
+  }
 }
 
 extension CGFloat {
@@ -125,6 +164,8 @@ final class WaveformConfig: ModuleConfiguration, EventDrivenModule {
   /// How much taller than measured the sound is drawn: 1 as it is, 2 twice
   /// as tall, up to the module's height. Nil follows the number of bars.
   let sensitivity: Double?
+  /// What the `wave` style does beyond drawing a line.
+  let wave: WaveOptions
   /// Whose sound the module draws.
   let filter: AudioFilter
 
@@ -136,7 +177,8 @@ final class WaveformConfig: ModuleConfiguration, EventDrivenModule {
     style: WaveformStyle, bars: Int, width: Double, height: Double, hidesWhenSilent: Bool,
     silenceDelay: TimeInterval = WaveformConfig.defaultSilenceDelay,
     colors: WaveformColors = .module, matchWidth: String? = nil,
-    sensitivity: Double? = nil, filter: AudioFilter = AudioFilter()
+    sensitivity: Double? = nil, wave: WaveOptions = WaveOptions(),
+    filter: AudioFilter = AudioFilter()
   ) {
     self.style = style
     self.bars = bars
@@ -147,6 +189,7 @@ final class WaveformConfig: ModuleConfiguration, EventDrivenModule {
     self.colors = colors
     self.matchWidth = matchWidth
     self.sensitivity = sensitivity
+    self.wave = wave
     self.filter = filter
   }
 
@@ -243,14 +286,23 @@ final class ModuleWidths: ObservableObject {
 
 // MARK: - Audio Tap
 
+/// A stretch of sound: its left and right sides, and the two together.
+struct AudioSamples: Sendable {
+  var mono: [Float]
+  var left: [Float]
+  var right: [Float]
+}
+
 /// Reads the sound processes send to the Mac's output through a Core Audio
-/// tap, keeping the latest of it as mono samples.
+/// tap, keeping the latest of it, each side and the two together.
 final class AudioTap: @unchecked Sendable {
   /// How many of the latest samples are kept.
   static let capacity = 8192
 
   private let lock = NSLock()
   private var ring = [Float](repeating: 0, count: AudioTap.capacity)
+  private var leftRing = [Float](repeating: 0, count: AudioTap.capacity)
+  private var rightRing = [Float](repeating: 0, count: AudioTap.capacity)
   private var writeIndex = 0
   private var tapID = AudioObjectID(kAudioObjectUnknown)
   private var deviceID = AudioObjectID(kAudioObjectUnknown)
@@ -317,48 +369,107 @@ final class AudioTap: @unchecked Sendable {
     tapID = AudioObjectID(kAudioObjectUnknown)
   }
 
-  /// Keeps the first buffer's frames, its channels averaged into one.
+  /// Keeps the frames received: their channels averaged into one, and the
+  /// first two as the left and right sides. The channels come together in
+  /// one buffer, or each in its own.
   private func received(_ input: UnsafePointer<AudioBufferList>) {
     let buffers = UnsafeMutableAudioBufferListPointer(UnsafeMutablePointer(mutating: input))
-    guard let buffer = buffers.first, let data = buffer.mData else { return }
+    let samples = { (buffer: AudioBuffer) in
+      UnsafeBufferPointer(
+        start: buffer.mData?.assumingMemoryBound(to: Float.self),
+        count: Int(buffer.mDataByteSize) / MemoryLayout<Float>.size)
+    }
+    guard let buffer = buffers.first, buffer.mData != nil else { return }
     let channels = max(Int(buffer.mNumberChannels), 1)
-    let samples = UnsafeBufferPointer(
-      start: data.assumingMemoryBound(to: Float.self),
-      count: Int(buffer.mDataByteSize) / MemoryLayout<Float>.size)
+    let first = samples(buffer)
+    let second = channels == 1 && buffers.count > 1 ? samples(buffers[1]) : nil
     lock.lock()
     defer { lock.unlock() }
     var frame = 0
-    while frame + channels <= samples.count {
+    while frame + channels <= first.count {
+      let left = first[frame]
+      let right: Float
       var sum: Float = 0
-      for channel in 0..<channels { sum += samples[frame + channel] }
-      ring[writeIndex] = sum / Float(channels)
+      if let second, frame < second.count {
+        right = second[frame]
+        sum = (left + right) / 2
+      } else {
+        right = channels > 1 ? first[frame + 1] : left
+        for channel in 0..<channels { sum += first[frame + channel] }
+        sum /= Float(channels)
+      }
+      ring[writeIndex] = sum
+      leftRing[writeIndex] = left
+      rightRing[writeIndex] = right
       writeIndex = (writeIndex + 1) % Self.capacity
       frame += channels
     }
   }
 
   /// The latest `count` samples, the oldest first.
-  func latest(_ count: Int) -> [Float] {
+  func latest(_ count: Int) -> AudioSamples {
     lock.lock()
     defer { lock.unlock() }
     let count = min(count, Self.capacity)
-    return (0..<count).map { ring[(writeIndex - count + $0 + Self.capacity) % Self.capacity] }
+    let latest = { (ring: [Float]) in
+      (0..<count).map { ring[(self.writeIndex - count + $0 + Self.capacity) % Self.capacity] }
+    }
+    return AudioSamples(mono: latest(ring), left: latest(leftRing), right: latest(rightRing))
   }
 }
 
 // MARK: - Audio Meter
 
-/// What waveform modules draw: the level of each band, 0 to 1, and the
-/// wave's latest stretch, -1 to 1.
+/// A stretch of the sound's wave, -1 to 1: its two sides together, and each
+/// side's own.
+struct Waves: Sendable, Equatable {
+  var mono: [Float]
+  var left: [Float]
+  var right: [Float]
+
+  static let silent = Waves(
+    mono: [Float](repeating: 0, count: AudioAnalysis.wavePoints),
+    left: [Float](repeating: 0, count: AudioAnalysis.wavePoints),
+    right: [Float](repeating: 0, count: AudioAnalysis.wavePoints))
+}
+
+/// The sound as waveform modules draw it.
+struct Sound: Sendable {
+  /// How many of the latest waves are kept.
+  static let trail = 4
+  /// How many times a second the sound is measured while there is some.
+  static let rate: Double = 30
+
+  /// The level of each band, 0 to 1, the lowest frequencies first.
+  var bands = [Float](repeating: 0, count: AudioAnalysis.bandCount)
+  /// The latest waves, the newest first.
+  var waves = [Waves.silent]
+  /// The latest waves, each begun where the sound rose through zero.
+  var lockedWaves = [Waves.silent]
+  /// How loud the sound is, 0 to 1.
+  var loudness: Float = 0
+  /// Where the sound sits between its lowest frequencies, 0, and its
+  /// highest, 1.
+  var tone: Float = 0.5
+
+  /// Leaves nothing of the sound.
+  mutating func settle() {
+    bands = Sound().bands
+    waves = [.silent]
+    lockedWaves = [.silent]
+    loudness = 0
+  }
+}
+
+/// What waveform modules draw.
 @MainActor
 final class AudioLevels: ObservableObject {
   static let shared = AudioLevels()
-  @Published var bands = [Float](repeating: 0, count: AudioAnalysis.bandCount)
-  @Published var wave = [Float](repeating: 0, count: AudioAnalysis.wavePoints)
+  @Published var sound = Sound()
 }
 
 /// Measures the sound the Mac plays while waveform modules observe it:
-/// publishes its levels to `AudioLevels` thirty times a second, and tells
+/// publishes it to `AudioLevels` thirty times a second, and tells
 /// each observer when sound starts and when it has been quiet for as long
 /// as the observer waits.
 final class AudioMeter: @unchecked Sendable {
@@ -375,14 +486,22 @@ final class AudioMeter: @unchecked Sendable {
 
   /// How often the sound is measured while every observer waits for some.
   private static let idleInterval: TimeInterval = 1.0 / 20
-  private static let activeInterval: TimeInterval = 1.0 / 30
+  private static let activeInterval: TimeInterval = 1.0 / Sound.rate
 
   private let lock = NSLock()
   private var observers: [ObjectIdentifier: Observer] = [:]
   private let tap = AudioTap()
   private var timer: Timer?
   private var interval: TimeInterval = 0
-  private var bands = [Float](repeating: 0, count: AudioAnalysis.bandCount)
+  private var sound = Sound()
+  /// Where the sound has sat between low and high at each of the latest
+  /// measurements, which the tone now is placed among.
+  private var tones: [Float] = []
+  /// How many measurements `tones` goes back: fifteen seconds of sound.
+  private static let toneMemory = Int(15 * Sound.rate)
+  /// How much of the way to where the sound now sits the tone moves at
+  /// each measurement, which takes it most of the way in half a second.
+  private static let toneEasing: Float = 0.065
   private var lastSound = Date.distantPast
   /// The processes the tap leaves out.
   private var excluded: [AudioObjectID] = []
@@ -488,9 +607,9 @@ final class AudioMeter: @unchecked Sendable {
     }
     lock.unlock()
     callbacks.forEach { $0() }
-    bands = [Float](repeating: 0, count: AudioAnalysis.bandCount)
-    AudioLevels.shared.bands = bands
-    AudioLevels.shared.wave = [Float](repeating: 0, count: AudioAnalysis.wavePoints)
+    sound = Sound()
+    tones = []
+    AudioLevels.shared.sound = sound
     if timer != nil { schedule(every: Self.watchInterval) }
   }
 
@@ -545,7 +664,7 @@ final class AudioMeter: @unchecked Sendable {
     // The newest samples alone say whether there is sound now, so quiet is
     // noticed as it begins, not once it fills the window.
     let sounding =
-      AudioAnalysis.peak(Array(samples.suffix(AudioAnalysis.recent)))
+      AudioAnalysis.peak(Array(samples.mono.suffix(AudioAnalysis.recent)))
       > AudioAnalysis.silenceThreshold
     if sounding { lastSound = Date() }
     let quiet = Date().timeIntervalSince(lastSound)
@@ -571,19 +690,31 @@ final class AudioMeter: @unchecked Sendable {
         MainActor.assumeIsolated {
           guard let self, Date().timeIntervalSince(self.lastSound) >= ModuleAnimation.duration
           else { return }
-          self.bands = [Float](repeating: 0, count: AudioAnalysis.bandCount)
-          AudioLevels.shared.bands = self.bands
-          AudioLevels.shared.wave = [Float](repeating: 0, count: AudioAnalysis.wavePoints)
+          self.sound.settle()
+          AudioLevels.shared.sound = self.sound
         }
       }
     }
     // The levels hold through a quiet moment, so they don't drop away
     // just before a module does.
     guard sounding else { return }
-    bands = AudioAnalysis.smoothed(
-      AudioAnalysis.bands(of: samples, sampleRate: tap.sampleRate), over: bands)
-    AudioLevels.shared.bands = bands
-    AudioLevels.shared.wave = AudioAnalysis.wave(of: samples)
+    let spectrum = AudioAnalysis.bands(of: samples.mono, sampleRate: tap.sampleRate)
+    let loudness = AudioAnalysis.loudness(of: Array(samples.mono.suffix(AudioAnalysis.window / 2)))
+    let locked = AudioAnalysis.lockOffset(of: samples.mono)
+    sound.bands = AudioAnalysis.smoothed(spectrum, over: sound.bands)
+    sound.waves = [AudioAnalysis.waves(of: samples)] + sound.waves.prefix(Sound.trail - 1)
+    sound.lockedWaves =
+      [AudioAnalysis.waves(of: samples, leaving: locked)]
+      + sound.lockedWaves.prefix(Sound.trail - 1)
+    // Loudness rises at once and falls a little at a time, and the tone
+    // eases toward where the sound sits among where it lately has.
+    sound.loudness = max(loudness, sound.loudness - 0.05)
+    if let tone = AudioAnalysis.tone(of: spectrum) {
+      tones.append(tone)
+      if tones.count > Self.toneMemory { tones.removeFirst(tones.count - Self.toneMemory) }
+      sound.tone += (AudioAnalysis.placed(tone, among: tones) - sound.tone) * Self.toneEasing
+    }
+    AudioLevels.shared.sound = sound
   }
 }
 
@@ -773,7 +904,7 @@ enum AudioSource {
       return tap.start(processes: source.processes) ? tap : nil
     }
     Thread.sleep(forTimeInterval: 0.3)
-    let peaks = taps.map { $0.map { AudioAnalysis.peak($0.latest(AudioTap.capacity)) } ?? 0 }
+    let peaks = taps.map { $0.map { AudioAnalysis.peak($0.latest(AudioTap.capacity).mono) } ?? 0 }
     taps.forEach { $0?.stop() }
     return zip(sources, peaks).max { $0.1 < $1.1 }?.0.app
   }

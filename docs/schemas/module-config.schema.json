@@ -617,6 +617,20 @@
           "default": "bars",
           "description": "What is drawn: 'bars' for the level of each band of frequencies, lowest first, or 'wave' for the sound's wave as a line."
         },
+        "wave": {
+          "type": "object",
+          "additionalProperties": false,
+          "description": "What the 'wave' style does beyond drawing the wave as a line. Each is off unless set.",
+          "properties": {
+            "lock": { "type": "boolean", "default": false, "description": "Begins the wave where the sound rises through zero, so a steady sound stands still." },
+            "glow": { "type": "boolean", "default": false, "description": "Leaves the waves just drawn fading beneath the newest." },
+            "loudness": { "type": "boolean", "default": false, "description": "Draws a louder sound with a thicker line." },
+            "tone": { "type": "boolean", "default": false, "description": "Colours the whole line by where the sound sits between its low and high frequencies, among where it has sat over the last fifteen seconds: through a 'gradient', or through a 'rainbow''s colours, each once in its order." },
+            "curve": { "type": "boolean", "default": false, "description": "Draws the wave as a smooth curve." },
+            "fill": { "type": "boolean", "default": false, "description": "Fills faintly between the wave and its middle." },
+            "stereo": { "type": "boolean", "default": false, "description": "Draws the left and right sides as a line each, in a gradient's 'low' and 'high'." }
+          }
+        },
         "bars": {
           "type": "integer",
           "minimum": 1,

@@ -194,6 +194,39 @@ final class AudioAnalysisTests {
     let silence = [Float](repeating: 0, count: AudioAnalysis.window)
     #expect(AudioAnalysis.bands(of: silence, sampleRate: rate).allSatisfy { $0 == 0 })
   }
+
+  @Test func testALockedWaveStandsStill() {
+    // The same tone caught at two moments, a third of its swing apart.
+    let tone = { (phase: Double) in
+      (0..<AudioAnalysis.window).map {
+        Float(0.5 * sin(2 * Double.pi * 220 * Double($0) / 48000 + phase))
+      }
+    }
+    let waves = [0, 2.1].map { phase -> [Float] in
+      let samples = tone(phase)
+      return AudioAnalysis.wave(of: samples, leaving: AudioAnalysis.lockOffset(of: samples))
+    }
+    let apart = zip(waves[0], waves[1]).map { abs($0 - $1) }.max()!
+    #expect(apart < 0.1)
+    // Left to run, the two are drawn far apart.
+    let free = zip(AudioAnalysis.wave(of: tone(0)), AudioAnalysis.wave(of: tone(2.1)))
+    #expect(free.map { abs($0 - $1) }.max()! > 0.5)
+  }
+
+  @Test func testToneFollowsWhereTheSoundSits() {
+    var low = [Float](repeating: 0, count: AudioAnalysis.bandCount)
+    var high = low
+    low[30] = 1
+    high[220] = 1
+    #expect(AudioAnalysis.tone(of: low)! < 0.2)
+    #expect(AudioAnalysis.tone(of: high)! > 0.8)
+    #expect(AudioAnalysis.tone(of: [Float](repeating: 0, count: 8)) == nil)
+    // A tone is placed among those lately heard, however close together.
+    let recent: [Float] = (0...100).map { 0.2 + Float($0) / 1000 }
+    #expect(AudioAnalysis.placed(0.2, among: recent) < 0.1)
+    #expect(abs(AudioAnalysis.placed(0.25, among: recent) - 0.5) < 0.01)
+    #expect(AudioAnalysis.placed(0.3, among: recent) > 0.9)
+  }
 }
 
 final class IconForLevelTests {
