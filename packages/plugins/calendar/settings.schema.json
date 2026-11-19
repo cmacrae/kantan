@@ -39,6 +39,83 @@
         }
       ]
     },
+    "mode": {
+      "type": "string",
+      "enum": [
+        "compact",
+        "full"
+      ],
+      "default": "compact",
+      "description": "What a click opens: 'compact' lists today's and tomorrow's events, and 'full' shows a month to pick a day from, over that day's events. 'full' needs a click of type popup."
+    },
+    "colors": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Colours of the module's views. All but 'event' and 'calendars' are the full calendar's.",
+      "properties": {
+        "event": {
+          "description": "The colour of events: of the strip beside each and its dot in the month. 'inherit' gives each event the colour its calendar has in the Calendar app.",
+          "default": "inherit",
+          "anyOf": [
+            {
+              "$ref": "module-config.schema.json#/$defs/Color"
+            },
+            {
+              "const": "inherit"
+            }
+          ]
+        },
+        "calendars": {
+          "type": "object",
+          "description": "The colour of each calendar's events, by the calendar's name, in place of 'event'. 'inherit' gives a calendar's events the colour it has in the Calendar app.",
+          "additionalProperties": {
+            "anyOf": [
+              {
+                "$ref": "module-config.schema.json#/$defs/Color"
+              },
+              {
+                "const": "inherit"
+              }
+            ]
+          }
+        },
+        "today": {
+          "$ref": "module-config.schema.json#/$defs/Color",
+          "description": "The circle behind today. It starts as the system's accent colour.",
+          "default": "accent"
+        },
+        "today_text": {
+          "$ref": "module-config.schema.json#/$defs/Color",
+          "description": "Today's number, on its circle.",
+          "default": "white"
+        },
+        "selected": {
+          "$ref": "module-config.schema.json#/$defs/Color",
+          "description": "The circle behind the day picked.",
+          "default": "#8E8E934D"
+        },
+        "now": {
+          "$ref": "module-config.schema.json#/$defs/Color",
+          "description": "The badge on an event under way. Left out, it takes the system's accent colour."
+        },
+        "now_text": {
+          "$ref": "module-config.schema.json#/$defs/Color",
+          "description": "The text of the badge on an event under way. Left out, it is white."
+        },
+        "navigation": {
+          "$ref": "module-config.schema.json#/$defs/Color",
+          "description": "The buttons for the months before and after, and Today. Left out, they take the system's accent colour."
+        },
+        "action": {
+          "$ref": "module-config.schema.json#/$defs/Color",
+          "description": "The Calendar button, its icon and its text. Left out, it takes the system's accent colour."
+        },
+        "dot": {
+          "$ref": "module-config.schema.json#/$defs/Color",
+          "description": "The dot under a day with events. Left out, it takes the colour of the day's first event."
+        }
+      }
+    },
     "upcoming": {
       "type": "string",
       "pattern": "^[0-9]+[mhd]$",
@@ -94,6 +171,16 @@
           "$ref": "module-config.schema.json#/$defs/Icon",
           "description": "Icon for the Calendar action.",
           "default": "calendar-event-filled"
+        },
+        "previous": {
+          "$ref": "module-config.schema.json#/$defs/Icon",
+          "description": "Icon for the full calendar's button that shows the month before.",
+          "default": "chevron-left"
+        },
+        "next": {
+          "$ref": "module-config.schema.json#/$defs/Icon",
+          "description": "Icon for the full calendar's button that shows the month after.",
+          "default": "chevron-right"
         }
       }
     }

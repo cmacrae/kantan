@@ -58,12 +58,98 @@ final class CalendarRenderTests {
     #expect(render(events: day, settings: settings, now: at(10, 15)).hidden == false)
   }
 
+  @Test func testEventsTakeTheColourTheirCalendarIsGiven() throws {
+    let colors = try JSONDecoder().decode(
+      ColorConfig.self,
+      from: Data(##"{"event":"#111111","calendars":{"Home":"inherit","Work":"#222222"}}"##.utf8))
+    #expect(colors.color(ofCalendar: "Work", own: "#FF0000") == "#222222")
+    #expect(colors.color(ofCalendar: "Home", own: "#00FF00") == "#00FF00")
+    #expect(colors.color(ofCalendar: "Other", own: "#0000FF") == "#111111")
+    #expect(ColorConfig().color(ofCalendar: "Work", own: "#FF0000") == "#FF0000")
+
+    var settings = Settings()
+    settings.colors = colors
+    let output = render(events: day, settings: settings, now: at(9))
+    #expect(output.variables["next_color"] == "#222222")
+    #expect((output.data["today_events"]?.map { $0["color"] }) == ["#222222"])
+  }
+
+  @Test func testAnEventOfCalendarsOpensInCalendar() {
+    let start = Date(timeIntervalSince1970: 1_800_000_000)
+    let event = CalendarEvent(
+      title: "Sync", startDate: start, endDate: start.addingTimeInterval(3600), isAllDay: false,
+      calendarColor: "#FF0000", calendarName: "Work", id: "A1:B2/C3")
+    #expect(
+      event.openCommand
+        == "open 'ical://ekevent/20270115T080000Z/A1:B2%2FC3?method=show&options=more'")
+    #expect(day[0].openCommand == nil)
+  }
+
   @Test func testCountdowns() {
     let now = at(9)
     #expect(formatCountdown(from: now, to: now.addingTimeInterval(30)) == "<1m")
     #expect(formatCountdown(from: now, to: at(9, 45)) == "45m")
     #expect(formatCountdown(from: now, to: at(11)) == "2h")
     #expect(formatCountdown(from: now, to: at(8)) == "now")
+  }
+}
+
+final class FullCalendarTests {
+  /// November 2026 on `day` at `hour`.
+  private func at(day: Int, hour: Int = 0) -> Date {
+    Calendar.current.date(from: DateComponents(year: 2026, month: 11, day: day, hour: hour))!
+  }
+
+  private func event(_ title: String, day: Int, from start: Int, to end: Int) -> CalendarEvent {
+    CalendarEvent(
+      title: title, startDate: at(day: day, hour: start), endDate: at(day: day, hour: end),
+      isAllDay: false, calendarColor: "#FF0000", calendarName: "Work")
+  }
+
+  @Test func testTheMonthPicksADayAndListsItsEvents() throws {
+    var settings = Settings()
+    settings.mode = .full
+    let events = [
+      event("Standup", day: 18, from: 9, to: 10), event("Review", day: 18, from: 14, to: 15),
+      event("Offsite", day: 20, from: 10, to: 16),
+    ]
+    let now = at(day: 18, hour: 12)
+
+    let today = render(events: events, settings: settings, now: now, module: "cal")
+    #expect((today.data["agenda_past"]?.map { $0["title"] }) == ["Standup"])
+    #expect((today.data["agenda_events"]?.map { $0["countdown"] }) == ["2h"])
+    // The bar still counts down to today's next event.
+    #expect(today.value == "Review in 2h")
+    let view = String(decoding: try JSONEncoder().encode(today.view), as: UTF8.self)
+    for day in 1...30 {
+      let key = String(format: "2026-11-%02d", day)
+      #expect(
+        view.contains("kantan-plugin-calendar --select \(key) && kantan trigger 'cal' refresh"))
+    }
+
+    let picked = try #require(ViewState().applying("--select", "2026-11-20", at: now))
+    let offsite = render(events: events, settings: settings, now: now, state: picked, module: "cal")
+    #expect((offsite.data["agenda_events"]?.map { $0["title"] }) == ["Offsite"])
+    #expect(offsite.data["agenda_events"]?.first?["countdown"] == nil)
+  }
+
+  @Test func testTheViewFollowsItsButtonsForTheDay() throws {
+    let now = at(day: 18, hour: 12)
+    let picked = try #require(ViewState().applying("--select", "2026-11-20", at: now))
+    #expect(picked.selectedDay(at: now) == at(day: 20))
+    #expect(picked.shownMonth(at: now) == at(day: 1))
+
+    let next = try #require(picked.applying("--month", "2", at: now))
+    #expect(next.shownMonth(at: now) == Calendar.current.date(from: DateComponents(year: 2027))!)
+    #expect(next.selectedDay(at: now) == at(day: 20))
+    #expect(next.applying("--today", nil, at: now) == ViewState())
+
+    // The next day, the calendar opens on today again.
+    #expect(next.selectedDay(at: at(day: 19)) == at(day: 19))
+    #expect(next.shownMonth(at: at(day: 19)) == at(day: 1))
+
+    #expect(picked.applying("--select", "tomorrow", at: now) == nil)
+    #expect(picked.applying("--sideways", nil, at: now) == nil)
   }
 }
 
