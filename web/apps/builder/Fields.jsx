@@ -193,14 +193,24 @@ export function IconField({ value, onChange, placeholder, label }) {
 // keys it needs.
 const blankItem = node => (node.type === "object" ? Object.fromEntries((node.required ?? []).map(key => [key, ""])) : "");
 
-// A list, each item a field of its own.
-function ListField({ value, onChange, items: raw, iconish, label }) {
+// A list, each item a field of its own. One with no items is left to its
+// default, `fallback`, or set to hold none.
+function ListField({ value, onChange, items: raw, iconish, label, fallback }) {
   const { schema } = useBuilder();
   const items = deref(schema, raw);
   const list = Array.isArray(value) ? value : [];
   const set = next => onChange(next.length ? next : undefined);
   return (
     <div>
+      {list.length === 0 && (
+        <div className="kb-row" style={{ padding: "2px 0" }}>
+          <select aria-label={`${label}: with no items`} value={Array.isArray(value) ? "none" : ""}
+            onChange={event => onChange(event.target.value === "none" ? [] : undefined)}>
+            <option value="">{Array.isArray(fallback) ? `Default (${fallback.length ? fallback.join(", ") : "none"})` : "Not set"}</option>
+            <option value="none">None</option>
+          </select>
+        </div>
+      )}
       {list.map((item, i) => (
         <div className="kb-row" key={i} style={{ padding: "2px 0" }}>
           <div style={{ flex: 1, minWidth: 0 }}>
@@ -308,7 +318,7 @@ function Control({ node: raw, value, onChange, iconish, label, name }) {
     case "integer":
       return <NumberField value={value} onChange={onChange} node={node} label={label} />;
     case "array":
-      return <ListField value={value} onChange={onChange} items={node.items ?? { type: "string" }} iconish={iconish} label={label} />;
+      return <ListField value={value} onChange={onChange} items={node.items ?? { type: "string" }} iconish={iconish} label={label} fallback={node.default} />;
     case "object":
       if (node.properties && Object.keys(node.properties).length) return <Properties node={node} value={value} onChange={onChange} iconish={iconish} name={name ?? label} />;
       if (dict(node.additionalProperties)) return <MapField value={value} onChange={onChange} items={node.additionalProperties} iconish={iconish} label={label} />;
