@@ -33,8 +33,9 @@ let
   };
 
   # Each plugin's README becomes its page, listed under Plugins, with its
-  # preview below its title. A README's github-only block links to that
-  # page, so the page drops it. The previews, their icons and the script
+  # preview below its title, and the preview of a variant of it wherever
+  # the README asks for one, as `<!-- preview: calendar-full -->`. A
+  # README's github-only block links to that page, so the page drops it. The previews, their icons and the script
   # drawing them sit in the book's preview directory.
   assembledSrc = pkgs.runCommand "kantan-docs-src" { nativeBuildInputs = [ pkgs.perl ]; } ''
     mkdir -p $out/src/plugins $out/src/preview
@@ -46,10 +47,19 @@ let
       grep -qF '${siteUrl}/docs/plugins/${name}.html' ${pluginsDir}/${name}/README.md \
         || { echo "${name}'s README must link to ${siteUrl}/docs/plugins/${name}.html" >&2; exit 1; }
       cp ${previews.documents}/${name}.json $out/src/preview/
+      for variant in ${previews.documents}/${name}-*.json; do
+        if [ -e "$variant" ]; then cp "$variant" $out/src/preview/; fi
+      done
       perl -0pe 's/<!-- github-only -->.*?<!-- \/github-only -->\n+//gs;
-        s/\A(# [^\n]*\n)/$1\n<div class="kantan-preview" data-preview="${name}"><\/div>\n/' \
+        s/\A(# [^\n]*\n)/$1\n<div class="kantan-preview" data-preview="${name}"><\/div>\n/;
+        s/<!-- preview: (${name}-[\w-]+) -->/<div class="kantan-preview" data-preview="$1"><\/div>/g' \
         ${pluginsDir}/${name}/README.md > $out/src/plugins/${name}.md
       ! grep -q 'github-only' $out/src/plugins/${name}.md
+      # Every preview a page asks for is one the build made.
+      for asked in $(grep -o 'data-preview="[^"]*"' $out/src/plugins/${name}.md | cut -d'"' -f2); do
+        test -e "$out/src/preview/$asked.json" \
+          || { echo "${name}'s README asks for the preview $asked, which isn't one of its variants" >&2; exit 1; }
+      done
     '') pluginNames}
     perl -0pi -e 's|(  - \[API Reference\]\(plugins/api-reference\.md\)\n)|$1${pluginSummary}|' \
       $out/src/SUMMARY.md

@@ -253,6 +253,8 @@ The popup view displays a structured agenda:
 
 With `mode: full`, a click opens a month in place of the agenda. It needs a click of type `popup`: a native menu has no rows for its grid and buttons.
 
+<!-- preview: calendar-full -->
+
 ```yaml
 config:
   settings:
