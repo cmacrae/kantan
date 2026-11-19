@@ -19,7 +19,7 @@ export const WORDS = [
   "connected", "devices", "volume", "device", "rssi",
   // Module types and placements
   "workspace", "clock", "power", "wifi", "bluetooth", "focus", "drawer", "notchleft", "notchright", "left|notchleft",
-  "right|notchright", "notchleft|left", "notchright|right",
+  "right|notchright", "notchleft|left", "notchright|right", "notchleft|center", "anchor", "notchright|center",
   // The rest of a config
   "height", "iconTextSpacing", "cornerRadius", "blur", "fonts", "displays", "main", "all", "autohide", "box", "pill",
   "underline", "overline", "passthrough", "complete", "index", "timeout", "launcher", "path", "args", "timezone",

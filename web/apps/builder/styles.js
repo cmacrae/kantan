@@ -88,6 +88,7 @@ export const STYLES = `
 .kb-item .name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .kb-item .tag { font-size: 11px; color: var(--faint); white-space: nowrap; }
 .kb-item .out { color: var(--warn); }
+.kb-item .pill { font-size: 10px; line-height: 14px; padding: 0 6px; border-radius: 999px; border: 1px solid var(--faint); color: var(--faint); white-space: nowrap; opacity: 0.8; }
 .kb-item .moves { display: none; }
 .kb-item:hover .moves, .kb-item.on .moves { display: flex; }
 .kb-item:hover .tag:not(.out), .kb-item.on .tag:not(.out) { display: none; }

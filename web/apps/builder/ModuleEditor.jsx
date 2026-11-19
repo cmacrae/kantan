@@ -4,12 +4,14 @@
 // tab over.
 import { useEffect, useState } from "react";
 import { BUILT_INS, pluginOf } from "../../builder/catalog.js";
+import { placementParts, withPlacement } from "../../builder/edit.js";
 import { ADVANCED, CLICKS, CLOCK_FORMATS, QUICK, labelOf } from "../../builder/labels.js";
 import { configSchema, deref, getIn, prune, setIn } from "../../builder/schema.js";
 import { cssColor } from "../../components/system.js";
 import { formatDate } from "../../engine/index.js";
 import { dict } from "../../engine/values.js";
 import { ColorField, Group, IconField, Properties, Row, TextField } from "./Fields.jsx";
+import { SECONDARY } from "./ModuleList.jsx";
 import { PreviewWith } from "./StateEditor.jsx";
 import { BuilderContext, Button, Ic, YamlArea, useBuilder } from "./ui.jsx";
 import { spell } from "../../builder/spelling.js";
@@ -19,8 +21,7 @@ const PLACEMENTS = [
   ["right", "Right"],
   ["notchleft", "Left of the notch"],
   ["notchright", "Right of the notch"],
-  ["notchleft|left", "Left of the notch, or left without one"],
-  ["notchright|right", "Right of the notch, or right without one"],
+  ["center", "Centre, without a notch"],
 ];
 
 const SHAPES = [[undefined, "None"], ["pill", "Pill"], ["box", "Box"], ["underline", "Underline"], ["overline", "Overline"]];
@@ -345,7 +346,12 @@ function Design({ module, drawn, example, taken, states, masked, onChange, onVie
   const plugin = pluginOf(module, catalog);
   const set = (key, value) => onChange(prune({ ...module, [key]: prune(value) }) ?? {});
   const config = configSchema(schema, module.type);
-  const placements = PLACEMENTS.some(([value]) => value === module.placement) ? PLACEMENTS : [...PLACEMENTS, [module.placement, module.placement]];
+  // A placement is where the module sits, and for one beside the notch,
+  // where it sits on a screen without one.
+  const { primary, secondary } = placementParts(module.placement);
+  const placements = PLACEMENTS.some(([value]) => value === primary) ? PLACEMENTS : [...PLACEMENTS, [primary, primary]];
+  const besideNotch = primary === "notchleft" || primary === "notchright";
+  const place = (first, second) => onChange(withPlacement(module, first.startsWith("notch") && second ? `${first}|${second}` : first));
   // A drawer has no click to set.
   const interaction = deref(schema, schema.properties.interaction);
   const { click: _, ...unclicked } = interaction.properties;
@@ -372,10 +378,26 @@ function Design({ module, drawn, example, taken, states, masked, onChange, onVie
       <Section icon="layout-navbar" title="Name and placement">
         <NameField key={module.name} name={module.name} taken={taken} onRename={name => onChange({ ...module, name })} />
         <Row label="Placement" name="placement" description={schema.properties.placement.description}>
-          <select aria-label="Placement" value={module.placement ?? ""} onChange={event => set("placement", event.target.value)}>
+          <select aria-label="Placement" value={primary ?? ""} onChange={event => place(event.target.value, secondary)}>
             {placements.map(([value, label]) => <option key={value} value={value}>{label}</option>)}
           </select>
         </Row>
+        {besideNotch && (
+          <Row label="Secondary placement" name="placement" description="Where the module sits on a display without a notch. Centre is its own side of the bar's centre.">
+            <select aria-label="Secondary placement" value={secondary ?? ""} onChange={event => place(primary, event.target.value)}>
+              <option value="">None: hidden without a notch</option>
+              {Object.entries(SECONDARY).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
+            </select>
+          </Row>
+        )}
+        {(module.placement ?? "").includes("center") && (
+          <Row label="Anchor" name="anchor" description={schema.properties.anchor.description}>
+            <select aria-label="Anchor" value={module.anchor ?? ""} onChange={event => set("anchor", event.target.value || undefined)}>
+              <option value="">None</option>
+              <option value="icon">Icon</option>
+            </select>
+          </Row>
+        )}
         {masked && <div className="kb-note">It sits over its menu bar item, wherever its placement puts it and wherever macOS has that item.</div>}
         <Group title={labelOf("mask")} name="mask" node={deref(schema, schema.properties.mask)} value={module.mask} onChange={value => set("mask", value)} />
       </Section>

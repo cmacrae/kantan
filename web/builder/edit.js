@@ -1,6 +1,7 @@
 // The changes the builder makes to a document. The builder works on a
 // document whose modules all sit in config.yaml, in the order the bar draws
 // them, and writes them out to modules.d when that layout is chosen.
+import { resolvePlacement } from "../engine/bar.js";
 import { DOCUMENT_VERSION } from "../engine/document.js";
 import { dict, list, str } from "../engine/values.js";
 import { BUILT_INS, defaultStates, pluginOf } from "./catalog.js";
@@ -198,25 +199,62 @@ export function setTransition(states, name, command, target) {
   });
 }
 
+const BESIDE_NOTCH = ["notchleft", "notchright"];
+
+// A placement as its parts: `primary`, where the module sits beside the
+// notch, with `secondary`, where it sits on a screen without one, when it
+// names one; or `primary` alone, the whole placement, for any other.
+export function placementParts(placement) {
+  const parts = (str(placement) ?? "").split("|");
+  const beside = parts.find(part => BESIDE_NOTCH.includes(part));
+  if (beside === undefined) return { primary: str(placement) };
+  return { primary: beside, secondary: parts.find(part => ["left", "right", "center"].includes(part)) };
+}
+
+// The part of a screen with or without a notch a module is drawn in, or
+// undefined when it has no place there.
+export const sectionOf = (module, notch) => resolvePlacement(str(module?.placement) ?? "", notch);
+
+// The placement of a module at `placement` once moved to `section` of a
+// screen with or without a notch. Beside the notch, it keeps where it sits
+// without one. Without a notch, a module that has a place beside one keeps
+// that, and `section` is where it sits without: either side of the centre
+// is the same side of the notch, which the centre takes the place of.
+function placedIn(placement, section, notch) {
+  const { primary, secondary } = placementParts(placement);
+  if (BESIDE_NOTCH.includes(section)) return notch ? [section, secondary].filter(Boolean).join("|") : `${section}|center`;
+  return !notch && BESIDE_NOTCH.includes(primary) && section !== "center" ? `${primary}|${section}` : section;
+}
+
+// `module` at `placement`, without the anchor only a module around the
+// centre has.
+export function withPlacement(module, placement) {
+  const { anchor, ...rest } = module;
+  return { ...(placement.includes("center") ? module : rest), placement };
+}
+
 // The document with the module at `from` moved to sit just before the
-// module at `to`, or just after it when `after`, taking its placement.
-export function placeModule(document, from, to, after = false) {
+// module at `to`, or just after it when `after`, in its part of a screen
+// with or without a notch.
+export function placeModule(document, from, to, after = false, notch = false) {
   const modules = modulesOf(document);
   if (from === to || !dict(modules[from]) || !dict(modules[to])) return document;
-  const moved = { ...modules[from], placement: modules[to].placement };
+  const section = sectionOf(modules[to], notch);
+  const moved = withPlacement(modules[from], section === undefined ? modules[to].placement : placedIn(modules[from].placement, section, notch));
   const order = modulesOf(updateModule(document, from, moved)).filter(module => module !== moved);
   order.splice(order.indexOf(modules[to]) + (after ? 1 : 0), 0, moved);
   return withModules(document, order);
 }
 
-// The document with the module at `from` placed in `placement`: before the
-// modules already there when `start`, and after them otherwise.
-export function placeAtEdge(document, from, placement, start) {
+// The document with the module at `from` placed in `section` of a screen
+// with or without a notch: before the modules already there when `start`,
+// and after them otherwise.
+export function placeAtEdge(document, from, section, start, notch = false) {
   const modules = modulesOf(document);
   if (!dict(modules[from])) return document;
-  const moved = { ...modules[from], placement };
+  const moved = withPlacement(modules[from], placedIn(modules[from].placement, section, notch));
   const order = modulesOf(updateModule(document, from, moved)).filter(module => module !== moved);
-  const there = order.map((module, i) => (module?.placement === placement ? i : -1)).filter(i => i >= 0);
+  const there = order.map((module, i) => (sectionOf(module, notch) === section ? i : -1)).filter(i => i >= 0);
   const at = there.length === 0 ? order.length : start ? there[0] : there[there.length - 1] + 1;
   order.splice(at, 0, moved);
   return withModules(document, order);

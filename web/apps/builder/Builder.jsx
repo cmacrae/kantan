@@ -11,7 +11,7 @@ import { loadConfig, loadTheme, resolveBar } from "../../engine/index.js";
 import { dict } from "../../engine/values.js";
 import { inVariant, pluginOf } from "../../builder/catalog.js";
 import {
-  addBuiltIn, addOwnPlugin, addPasted, addPlugin, addShared, boundDocument, documentFromConfig, emptyDocument, inLayout, layoutOf, modulesOf, placeAtEdge,
+  addBuiltIn, addOwnPlugin, addPasted, addPlugin, addShared, boundDocument, documentFromConfig, emptyDocument, inLayout, layoutOf, modulesOf, placeAtEdge, sectionOf,
   placeModule, removeModule, setModuleStates, toSingle, updateModule,
 } from "../../builder/edit.js";
 import { adoptSlots, importSchemes, withSharedTheme } from "../../builder/base16.js";
@@ -203,9 +203,15 @@ function sectionsOf(modules, bar, notch) {
   const sections = [
     { title: "Left", placement: "left", items: placed("left") },
     ...(notch ? [
-      { title: "Left of the notch", placement: "notchleft|left", items: placed("notchleft") },
-      { title: "Right of the notch", placement: "notchright|right", items: placed("notchright") },
-    ] : []),
+      { title: "Left of the notch", placement: "notchleft", items: placed("notchleft") },
+      { title: "Right of the notch", placement: "notchright", items: placed("notchright") },
+    ] : [
+      // Without a notch its placements meet at the centre, and are listed
+      // when they hold a module.
+      { title: "Left of the centre", placement: "notchleft", items: placed("notchleft") },
+      { title: "Centre", placement: "center", items: placed("center") },
+      { title: "Right of the centre", placement: "notchright", items: placed("notchright") },
+    ].filter(section => section.placement === "center" || section.items.length > 0)),
     { title: "Right", placement: "right", items: placed("right") },
   ];
   if (masked.length) {
@@ -216,7 +222,7 @@ function sectionsOf(modules, bar, notch) {
   }
   const rest = modules.map((_, i) => i).filter(i => !listed.has(i));
   if (rest.length) {
-    sections.push({ title: "Not on this screen", fixed: true, items: rest, note: notch ? undefined : "Notch-only placements. Shown with a notch." });
+    sections.push({ title: "Not on this screen", fixed: true, items: rest, note: notch ? "Centre placements. Shown without a notch." : "Notch-only placements. Shown with a notch." });
   }
   return sections;
 }
@@ -364,7 +370,7 @@ function Workspace({ opened, iconSet, onStart }) {
     const made = inSlots(make(document));
     const before = new Set(modules.map(each => each?.name));
     const fresh = modulesOf(made).find(each => !before.has(each?.name));
-    const next = placeAtEdge(made, modulesOf(made).indexOf(fresh), adding.placement ?? fresh.placement, adding.start);
+    const next = placeAtEdge(made, modulesOf(made).indexOf(fresh), adding.placement ?? sectionOf(fresh, notch) ?? fresh.placement, adding.start, notch);
     change(next);
     setAdding(undefined);
     setEditing(true);
@@ -386,8 +392,8 @@ function Workspace({ opened, iconSet, onStart }) {
     if (picked !== undefined) setSelected(now.findIndex(each => each?.name === picked));
     return now.findIndex(each => each?.name === name);
   };
-  const place = (from, to, after) => moved(placeModule(document, from, to, after), modules[from]?.name);
-  const placeIn = (from, placement, start) => moved(placeAtEdge(document, from, placement, start), modules[from]?.name);
+  const place = (from, to, after) => moved(placeModule(document, from, to, after, notch), modules[from]?.name);
+  const placeIn = (from, placement, start) => moved(placeAtEdge(document, from, placement, start, notch), modules[from]?.name);
   const update = asked => {
     // Settings that need a popup, say, bring one with them.
     const next = inVariant(module, asked, catalog);
@@ -628,8 +634,10 @@ function Workspace({ opened, iconSet, onStart }) {
 
   // Where the pointer would put a module: in the place of the module under
   // it, or in the gap a placement's modules grow into. Undefined over the
-  // notch, or over a module that can't give up its place.
-  const PLACEMENT_OF = { left: "left", notchleft: "notchleft|left", notchright: "notchright|right", right: "right" };
+  // notch, or over a module that can't give up its place. Without a notch
+  // its placements meet at the bar's centre, which the nearest gap is when
+  // they are as near.
+  const LANDINGS = notch ? ["left", "notchleft", "notchright", "right"] : ["center", "left", "notchleft", "notchright", "right"];
   // The placements whose modules sit against their right end and grow
   // leftwards.
   const growsLeft = key => key === "right" || key === "notchleft";
@@ -649,11 +657,11 @@ function Workspace({ opened, iconSet, onStart }) {
     }
     const desk = frame.current.getBoundingClientRect();
     const x = (event.clientX - desk.left) / zoom;
-    const gaps = Object.keys(PLACEMENT_OF).filter(key => notch || !key.startsWith("notch")).map(key => {
+    const gaps = LANDINGS.map(key => {
       const { left, right } = span(frame.current.querySelector(`[data-kantan-placement="${key}"]`));
       return growsLeft(key)
-        ? { placement: PLACEMENT_OF[key], start: true, x: left - width, away: Math.abs(x - left) }
-        : { placement: PLACEMENT_OF[key], start: false, x: right, away: Math.abs(x - right) };
+        ? { placement: key, start: true, x: left - width, away: Math.abs(x - left) }
+        : { placement: key, start: false, x: right, away: Math.abs(x - right) };
     });
     const { away, ...nearest } = gaps.reduce((best, each) => (each.away < best.away ? each : best));
     return { ...nearest, width };

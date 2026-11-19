@@ -2,6 +2,7 @@
 // it, removing it, or adding another beside it.
 import { useState } from "react";
 import { BUILT_INS } from "../../builder/catalog.js";
+import { placementParts } from "../../builder/edit.js";
 import { Button, Ic, useBuilder } from "./ui.jsx";
 
 // `modules` are the modules' configs, and `sections` where the bar draws
@@ -11,6 +12,9 @@ import { Button, Ic, useBuilder } from "./ui.jsx";
 // kantan would load, and `selected` the index of the one being edited.
 // `onAdd(placement)` asks for a module to be added to a section, and
 // `onRemove(index)` removes a module.
+// Where a module beside the notch sits on a screen without one.
+export const SECONDARY = { left: "Left", right: "Right", center: "Centre" };
+
 export function ModuleList({ modules, sections, accepted, selected, onSelect, onPlace, onPlaceIn, onAdd, onRemove }) {
   const { icons } = useBuilder();
   const [dragged, setDragged] = useState();
@@ -19,6 +23,7 @@ export function ModuleList({ modules, sections, accepted, selected, onSelect, on
 
   const item = (section, index, position) => {
     const module = modules[index];
+    const { secondary } = placementParts(module?.placement);
     const up = section.items[position - 1], down = section.items[position + 1];
     const drop = section.fixed ? {} : {
       onDragOver: event => { event.preventDefault(); setOver(index); },
@@ -31,6 +36,9 @@ export function ModuleList({ modules, sections, accepted, selected, onSelect, on
         onDragStart={event => { setDragged(index); event.dataTransfer.effectAllowed = "move"; event.dataTransfer.setData("text/plain", String(index)); }}>
         <span className="kb-glyph"><Ic name={icons(module?.icon ?? "") ? module.icon : BUILT_INS[module?.type]?.icon ?? "puzzle"} size={16} /></span>
         <span className="name">{module?.name ?? "(no name)"}</span>
+        {secondary !== undefined && (
+          <span className="pill" title={`Without a notch: ${SECONDARY[secondary].toLowerCase()}`}>{SECONDARY[secondary]}</span>
+        )}
         {!accepted.has(module?.name) && <span className="tag out" title="kantan would leave this module out">left out</span>}
         <span className="moves">
           {!section.fixed && (
