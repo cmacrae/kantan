@@ -99,6 +99,14 @@ final class PlacementSpecTests {
     #expect(spec.resolve(hasNotch: true) == "notchleft")
     #expect(spec.resolve(hasNotch: false) == "left")
   }
+
+  @Test func testCenterPairKeepsItsSideOfTheNotchOnScreensWithoutOne() {
+    let spec = PlacementSpec(raw: "notchright|center")
+    #expect(spec.resolve(hasNotch: true) == "notchright")
+    #expect(spec.resolve(hasNotch: false) == "notchright")
+    #expect(PlacementSpec(raw: "center").resolve(hasNotch: false) == "center")
+    #expect(PlacementSpec(raw: "center").resolve(hasNotch: true) == nil)
+  }
 }
 
 final class StyleParsingTests {

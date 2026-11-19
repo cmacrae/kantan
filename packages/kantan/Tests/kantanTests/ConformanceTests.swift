@@ -576,7 +576,7 @@ private func caseBar(document: [String: Any], check: [String: Any]) throws -> [S
   let chosen = check["states"] as? [String: String] ?? [:]
 
   var placements: [String: [[String: Any]]] = [
-    "left": [], "notchleft": [], "notchright": [], "right": [],
+    "left": [], "notchleft": [], "center": [], "notchright": [], "right": [],
   ]
   for module in config.modules {
     guard
@@ -589,6 +589,25 @@ private func caseBar(document: [String: Any], check: [String: Any]) throws -> [S
     placements[placement]?.append(
       caseModule(
         module, state: try shownState(of: module, output: picked?["output"]), styles: styles))
+  }
+
+  // Without a notch, a module around the bar's centre may anchor it, the
+  // module on its icon's side joined to it.
+  if !(check["notch"] as? Bool ?? false) {
+    let around = ["notchleft", "center", "notchright"].flatMap { (placement: String) in
+      config.modules.filter { $0.placement.resolve(hasNotch: false) == placement }
+        .map { (config: $0, placement: placement) }
+    }
+    if let (name, trails, neighbour) = CenterAnchor.find(in: around) {
+      for placement in placements.keys {
+        placements[placement] = placements[placement]?.map { module in
+          var module = module
+          if module["name"] as? String == name { module["anchor"] = trails ? "right" : "left" }
+          if module["name"] as? String == neighbour { module["joined"] = trails ? "left" : "right" }
+          return module
+        }
+      }
+    }
   }
 
   return [

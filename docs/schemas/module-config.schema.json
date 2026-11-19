@@ -52,6 +52,11 @@
       "enum": ["left", "right"],
       "description": "The side of the module its icon is on, its text taking the other. Defaults to 'left', and to 'right' for a module at 'notchleft' whose hover reveals, so its icon stays beside the notch as the rest slides out."
     },
+    "anchor": {
+      "type": "string",
+      "enum": ["icon"],
+      "description": "For a module whose placement names 'center': on a display without a notch, 'icon' puts the module's icon on the bar's centre, the modules around the centre moving along with it. The module on the icon's side sits against it as its text does, the padding between the two giving way to 'iconTextSpacing', so the two read as one module. The first module to name an anchor is the one. Does nothing on a notched display."
+    },
     "transition": {
       "type": "string",
       "enum": ["slide", "none"],
@@ -82,6 +87,7 @@
     { "if": { "properties": { "type": { "const": "wifi" } } }, "then": { "properties": { "config": { "$ref": "#/$defs/WiFiConfig" } } } },
     { "if": { "properties": { "type": { "const": "bluetooth" } } }, "then": { "properties": { "config": { "$ref": "#/$defs/BluetoothConfig" } } } },
     { "if": { "properties": { "type": { "const": "workspace" } } }, "then": { "properties": { "config": { "$ref": "#/$defs/WorkspaceConfig" } } } },
+    { "if": { "required": ["anchor"] }, "then": { "properties": { "placement": { "pattern": "center" } } } },
     { "if": { "properties": { "type": { "const": "drawer" } } }, "then": { "properties": { "config": { "$ref": "#/$defs/DrawerConfig" } } } },
     { "if": { "properties": { "type": { "const": "icon" } } }, "then": { "properties": { "config": { "$ref": "#/$defs/IconConfig" } } } },
     { "if": { "properties": { "type": { "const": "focus" } } }, "then": { "properties": { "config": { "$ref": "#/$defs/FocusConfig" } } } },
@@ -90,9 +96,9 @@
   "$defs": {
     "PlacementSpec": {
       "type": "string",
-      "description": "Placement specification. Single values position the module on a specific side. Or-wise syntax (e.g. \"right|notchright\") selects placement based on whether the display has a notch.\n\nOn a notched display, the four placements correspond to:\n  |← left →|← notchleft|[NOTCH]|notchright →|← right →|\n\nBehavior per placement:\n  - left: left side, grows rightward. Always visible.\n  - right: right side, grows leftward. Always visible.\n  - notchleft: adjacent to notch in left ear, grows leftward. Hidden on non-notch displays.\n  - notchright: adjacent to notch in right ear, grows rightward. Hidden on non-notch displays.\n  - right|notchright: notchright on notched displays, right on others.\n  - left|notchleft: notchleft on notched displays, left on others.",
-      "pattern": "^(left|right|notchleft|notchright)(\\|(left|right|notchleft|notchright))?$",
-      "examples": ["left", "right", "notchleft", "notchright", "right|notchright", "left|notchleft"]
+      "description": "Placement specification. Single values position the module on a specific side. Or-wise syntax (e.g. \"right|notchright\") selects placement based on whether the display has a notch.\n\nOn a notched display, the placements correspond to:\n  |← left →|← notchleft|[NOTCH]|notchright →|← right →|\n\nOn a display without a notch:\n  |← left →|← notchleft|center|notchright →|← right →|\n\nBehavior per placement:\n  - left: left side, grows rightward. Always visible.\n  - right: right side, grows leftward. Always visible.\n  - notchleft: adjacent to notch in left ear, grows leftward. Hidden on non-notch displays.\n  - notchright: adjacent to notch in right ear, grows rightward. Hidden on non-notch displays.\n  - center: centred in the bar. Hidden on notched displays.\n  - right|notchright: notchright on notched displays, right on others.\n  - left|notchleft: notchleft on notched displays, left on others.\n  - notchleft|center: notchleft on notched displays. On others, ends at the bar's centre, left of any center modules, and grows leftward.\n  - notchright|center: notchright on notched displays. On others, starts at the bar's centre, right of any center modules, and grows rightward.\n  While only one of those two sides has a module showing and none is at center, its modules are centred in the bar together.",
+      "pattern": "^(left|right|notchleft|notchright|center)(\\|(left|right|notchleft|notchright|center))?$",
+      "examples": ["left", "right", "notchleft", "notchright", "center", "right|notchright", "left|notchleft", "notchleft|center", "notchright|center"]
     },
 
     "Color": {

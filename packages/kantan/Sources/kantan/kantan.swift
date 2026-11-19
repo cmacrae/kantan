@@ -278,7 +278,7 @@ class DisplayInstance {
       guard !filtered.isEmpty else { return nil }
       return ModuleGroup(
         id: group.id, modules: filtered, isPassthrough: group.isPassthrough,
-        placement: group.placement, isDrawerContent: group.isDrawerContent)
+        placement: group.placement, isDrawerContent: group.isDrawerContent, anchor: group.anchor)
     }
   }
 
@@ -308,7 +308,7 @@ class DisplayInstance {
     panel.backgroundColor = NSColor.clear
   }
 
-  /// Positioning boundaries for all four placement zones.
+  /// Positioning boundaries for every placement zone.
   struct PlacementBounds {
     /// Left placement: grows rightward from screen left edge.
     var leftX: CGFloat
@@ -326,6 +326,58 @@ class DisplayInstance {
     var notchRightX: CGFloat
     /// Notchright placement: maximum X boundary.
     var notchRightBound: CGFloat
+    /// Center placement: grows rightward from the left edge of its modules,
+    /// which sit centred in the bar.
+    var centerX: CGFloat
+  }
+
+  typealias HostedGroup = (group: ModuleGroup, hostingView: NSHostingView<ModuleGroupView>)
+
+  private var hostedGroups: [HostedGroup] {
+    groupPanels.map { ($0.group, $0.hostingView) }
+  }
+
+  /// Where the placements beside a notch start on a screen without one:
+  /// either side of the modules at the bar's centre, `centre`, and moved
+  /// along for the icon anchoring the centre to sit on it. Without that
+  /// icon, modules showing on one side alone are centred together.
+  private func centerSeams(around centre: CGFloat, groups: [HostedGroup])
+    -> (left: CGFloat, right: CGFloat)
+  {
+    let placed = groups.filter {
+      !($0.group.modules.count == 1 && $0.group.modules[0].moduleConfig.mask != nil)
+        && !isDrawerContentHidden($0.group)
+    }
+    let width = { (groups: [HostedGroup]) in
+      groups.reduce(0) { $0 + $1.hostingView.fittingSize.width }
+    }
+    let centerWidth = width(placed.filter { $0.group.placement == "center" })
+    let seams = (left: centre - centerWidth / 2, right: centre + centerWidth / 2)
+
+    // The anchor's group, with its icon's place in it, and the groups of
+    // its placement laid out before it.
+    guard
+      let index = placed.firstIndex(where: { entry in
+        entry.group.modules.contains { $0.id == entry.group.anchor?.module }
+      }),
+      let iconMidX = placed[index].group.anchor?.iconMidX
+    else {
+      let leftWidth = width(placed.filter { $0.group.placement == "notchleft" })
+      let rightWidth = width(placed.filter { $0.group.placement == "notchright" })
+      guard centerWidth == 0, (leftWidth > 0) != (rightWidth > 0) else { return seams }
+      let seam = centre + (leftWidth - rightWidth) / 2
+      return (seam, seam)
+    }
+    let group = placed[index]
+    let before = width(placed[..<index].filter { $0.group.placement == group.group.placement })
+    let groupX =
+      switch group.group.placement {
+      case "notchleft": seams.left - before - group.hostingView.fittingSize.width
+      case "notchright": seams.right + before
+      default: seams.left + before
+      }
+    let shift = centre - (groupX + iconMidX)
+    return (seams.left + shift, seams.right + shift)
   }
 
   /// Masked groups that occupy their native item's slot. A hidden masked
@@ -342,7 +394,8 @@ class DisplayInstance {
   private func computePlacementBounds(
     screen: NSScreen,
     nativeItems: [NativeMenuBarItem],
-    maskedGroups: [(placement: String, mask: MaskConfig)]
+    maskedGroups: [(placement: String, mask: MaskConfig)],
+    groups: [HostedGroup]
   ) -> PlacementBounds {
     let gaps = config.gaps
     let layout = screenLayout(for: screen)
@@ -372,7 +425,16 @@ class DisplayInstance {
       // Notchright: starts at notch right edge, grows rightward
       notchRightX = rightEar.minX
       notchRightBound = screenRight - gaps.right
+    } else {
+      // Without a notch its placements meet at the bar's centre, either
+      // side of the modules placed there
+      let seams = centerSeams(around: (leftX + rightX) / 2, groups: groups)
+      notchLeftX = seams.left
+      notchLeftBound = leftX
+      notchRightX = seams.right
+      notchRightBound = rightX
     }
+    let centerX = notchLeftX
 
     // Adjust boundaries for masked modules
     for (placement, mask) in maskedGroups {
@@ -398,7 +460,8 @@ class DisplayInstance {
       leftX: leftX, leftBound: leftBound,
       rightX: rightX, rightBound: rightBound,
       notchLeftX: notchLeftX, notchLeftBound: notchLeftBound,
-      notchRightX: notchRightX, notchRightBound: notchRightBound)
+      notchRightX: notchRightX, notchRightBound: notchRightBound,
+      centerX: centerX)
   }
 
   func createPanels(for screen: NSScreen, bar: BarViewModel, theme: ThemeProvider) {
@@ -486,18 +549,33 @@ class DisplayInstance {
 
     let nativeItems = MenuBarItemDetector.detectItems(for: screen)
 
-    var bounds = computePlacementBounds(
-      screen: screen, nativeItems: nativeItems, maskedGroups: occupiedMasks(in: allGroups))
-
-    for group in allGroups {
+    let hosted = allGroups.map { group in
       let groupView = ModuleGroupView(
         modules: group.modules,
         placement: group.placement,
         popupManager: bar.popupManager,
         themeProvider: theme,
-        displaced: displaced
+        displaced: displaced,
+        centerAnchor: group.anchor
       )
-      let hostingView = NSHostingView(rootView: groupView)
+      return (group: group, hostingView: NSHostingView(rootView: groupView))
+    }
+    // The panels follow the icon anchoring the centre once it is drawn,
+    // and the layout pass that drew it is over.
+    allGroups.first?.anchor?.onMove = { [weak self] in
+      DispatchQueue.main.async {
+        MainActor.assumeIsolated {
+          self?.repositionPanels(
+            animated: !NSWorkspace.shared.accessibilityDisplayShouldReduceMotion)
+        }
+      }
+    }
+
+    var bounds = computePlacementBounds(
+      screen: screen, nativeItems: nativeItems, maskedGroups: occupiedMasks(in: allGroups),
+      groups: hosted)
+
+    for (group, hostingView) in hosted {
 
       // Skip positioning drawer content while its side's drawer is closed,
       // and masks with nothing to cover
@@ -565,6 +643,9 @@ class DisplayInstance {
       // Grows rightward from notch right edge
       panelX = bounds.notchRightX
       bounds.notchRightX += fittingWidth
+    case "center":
+      panelX = bounds.centerX
+      bounds.centerX += fittingWidth
     default:
       panelX = bounds.leftX
       bounds.leftX += fittingWidth
@@ -586,7 +667,8 @@ class DisplayInstance {
 
     var bounds = computePlacementBounds(
       screen: screen, nativeItems: nativeItems,
-      maskedGroups: occupiedMasks(in: groupPanels.map { $0.group }))
+      maskedGroups: occupiedMasks(in: groupPanels.map { $0.group }),
+      groups: hostedGroups)
     resolveOverlaps(bounds: bounds)
 
     for entry in groupPanels {
@@ -815,7 +897,8 @@ class DisplayInstance {
     let nativeItems = MenuBarItemDetector.detectItems(for: screen)
     var bounds = computePlacementBounds(
       screen: screen, nativeItems: nativeItems,
-      maskedGroups: occupiedMasks(in: groupPanels.map { $0.group }))
+      maskedGroups: occupiedMasks(in: groupPanels.map { $0.group }),
+      groups: hostedGroups)
     resolveOverlaps(bounds: bounds)
 
     // Helper: is this group's drawer content for the toggled side?

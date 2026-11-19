@@ -12,18 +12,23 @@ import { createStyler } from "./style.js";
 import { createResolver, fillTooltip } from "./template.js";
 import { resolveView } from "./view.js";
 
-const PLACEMENTS = ["left", "notchleft", "notchright", "right"];
+const PLACEMENTS = ["left", "notchleft", "center", "notchright", "right"];
 
 // Where a module sits on a screen with or without a notch, or undefined
-// when it has no place there: `left|notchleft` names one of each.
-function resolvePlacement(raw, notch) {
+// when it has no place there: `left|notchleft` names one of each. A screen
+// without a notch has the placements beside one too: they meet at the
+// bar's centre, around the modules at `center`, and hold the modules whose
+// pair names `center` for such a screen.
+export function resolvePlacement(raw, notch) {
   const parts = raw.split("|").filter(part => part !== "");
   if (parts.length === 2) {
     const notchPart = parts.find(p => p === "notchleft" || p === "notchright");
-    const normalPart = parts.find(p => p === "left" || p === "right");
-    return notch ? notchPart ?? normalPart : normalPart;
+    const normalPart = parts.find(p => p === "left" || p === "right" || p === "center");
+    if (notch) return notchPart ?? (normalPart === "center" ? undefined : normalPart);
+    return normalPart === "center" ? notchPart ?? normalPart : normalPart;
   }
   if (raw === "notchleft" || raw === "notchright") return notch ? raw : undefined;
+  if (raw === "center") return notch ? undefined : raw;
   return raw;
 }
 
@@ -231,6 +236,22 @@ export function resolveBar(document, { dark = false, states = {}, samples = {}, 
     placements[placement].push(model);
   }
 
+  // Without a notch, the first module around the bar's centre to name an
+  // anchor has its icon on the centre, at the side `anchor` tells, and the
+  // module on that side is `joined` to it at the side facing it: the
+  // padding between the two gives way to the room between icon and text.
+  if (!notch) {
+    const around = ["notchleft", "center", "notchright"].flatMap(placement => placements[placement]);
+    const anchors = new Set(config.modules.filter(module => module.anchor === "icon").map(module => module.name));
+    const index = around.findIndex(module => anchors.has(module.name));
+    if (index >= 0) {
+      const trails = around[index].iconPosition === "right";
+      around[index].anchor = trails ? "right" : "left";
+      const neighbour = around[index + (trails ? 1 : -1)];
+      if (neighbour) neighbour.joined = trails ? "left" : "right";
+    }
+  }
+
   // Each side of the screen has one drawer, the first drawer module placed
   // there, and is open when that module is.
   const side = placement => (placement.includes("right") ? "right" : "left");
@@ -242,7 +263,8 @@ export function resolveBar(document, { dark = false, states = {}, samples = {}, 
 
   // Within a placement, the modules on the far side of its drawer from the
   // screen's centre fold away with it while their side's drawer is closed.
-  for (const placement of PLACEMENTS) {
+  // The centre has no direction to fold in.
+  for (const placement of PLACEMENTS.filter(each => each !== "center")) {
     const modules = placements[placement];
     const drawer = modules.findIndex(module => module.type === "drawer");
     if (drawer < 0) continue;

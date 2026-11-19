@@ -396,6 +396,7 @@ struct StandardModuleView: View {
   @EnvironmentObject var themeProvider: ThemeProvider
 
   @Environment(\.groupPlacement) private var groupPlacement
+  @Environment(\.anchorsCenter) private var anchorsCenter
 
   /// Whether the text comes before the icon.
   private var textLeads: Bool {
@@ -459,9 +460,22 @@ struct StandardModuleView: View {
     Color.clear.frame(width: themeProvider.iconTextSpacing, height: 1)
   }
 
+  /// The module's icon, telling its group where it is when it anchors the
+  /// bar's centre.
+  private var iconView: some View {
+    iconGlyph.background {
+      if anchorsCenter {
+        GeometryReader { geo in
+          Color.clear.preference(
+            key: AnchorIconKey.self, value: geo.frame(in: .named(AnchorIconKey.space)).midX)
+        }
+      }
+    }
+  }
+
   /// The module's icon, over the icon drawn faintly behind it when it has one.
   @ViewBuilder
-  private var iconView: some View {
+  private var iconGlyph: some View {
     if let icon = viewModel.displayIcon {
       if let bgIcon = viewModel.backgroundIcon, !bgIcon.isEmpty {
         Text(bgIcon)

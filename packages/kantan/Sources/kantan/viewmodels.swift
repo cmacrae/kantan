@@ -517,6 +517,53 @@ struct ModuleGroup: Identifiable {
   let isPassthrough: Bool
   let placement: String
   let isDrawerContent: Bool
+  /// The anchor of the screen's centre, which every group of a screen
+  /// with one shares.
+  var anchor: CenterAnchor? = nil
+}
+
+/// The module whose icon sits on the bar's centre on a screen without a
+/// notch, and where that icon has been drawn.
+@MainActor
+final class CenterAnchor {
+  let module: String
+  /// Whether the icon is at the module's right.
+  let iconTrails: Bool
+  /// The module on the icon's side, drawn against it as its text is: the
+  /// padding between the two gives way to the room between icon and text.
+  let neighbour: String?
+  /// The icon's centre within its group, while it is drawn.
+  private(set) var iconMidX: CGFloat?
+  /// Called as the icon moves within its group.
+  var onMove: (() -> Void)?
+
+  init(module: String, iconTrails: Bool, neighbour: String?) {
+    self.module = module
+    self.iconTrails = iconTrails
+    self.neighbour = neighbour
+  }
+
+  func setIconMidX(_ midX: CGFloat?) {
+    if let midX, let iconMidX, abs(midX - iconMidX) < 0.5 { return }
+    guard midX != iconMidX else { return }
+    iconMidX = midX
+    onMove?()
+  }
+
+  /// The anchor among `modules`, those around the centre of a screen
+  /// without a notch from left to right with where each resolves to: the
+  /// first that names one.
+  nonisolated static func find(in modules: [(config: ModuleConfig, placement: String)])
+    -> (module: String, iconTrails: Bool, neighbour: String?)?
+  {
+    guard let index = modules.firstIndex(where: { $0.config.anchor == .icon }) else { return nil }
+    let trails = modules[index].config.iconTrails(at: modules[index].placement)
+    let beside = trails ? index + 1 : index - 1
+    return (
+      modules[index].config.name, trails,
+      modules.indices.contains(beside) ? modules[beside].config.name : nil
+    )
+  }
 }
 
 // MARK: - Overlap
@@ -646,10 +693,11 @@ class BarViewModel: ObservableObject {
     }
 
     // Partition by effective placement. Config order is preserved within each bucket.
-    // Layout order: left → notchleft → [NOTCH] → notchright → right
+    // Layout order: left → notchleft → [NOTCH] or center → notchright → right
     let buckets: [(placement: String, modules: [ResolvedModule])] = [
       ("left", resolved.filter { $0.placement == "left" }),
       ("notchleft", resolved.filter { $0.placement == "notchleft" }),
+      ("center", resolved.filter { $0.placement == "center" }),
       ("notchright", resolved.filter { $0.placement == "notchright" }),
       ("right", resolved.filter { $0.placement == "right" }),
     ]
@@ -666,7 +714,19 @@ class BarViewModel: ObservableObject {
       }
       allGroups.append(contentsOf: groups)
     }
-    return allGroups
+
+    // Without a notch, the modules around the bar's centre may anchor it.
+    guard !hasNotch else { return allGroups }
+    let anchor = CenterAnchor.find(
+      in: ["notchleft", "center", "notchright"].flatMap { placement in
+        resolved.filter { $0.placement == placement }.map { ($0.vm.moduleConfig, placement) }
+      }
+    ).map(CenterAnchor.init)
+    return allGroups.map { group in
+      var group = group
+      group.anchor = anchor
+      return group
+    }
   }
 
   static func buildGroupsForPlacement(
@@ -681,7 +741,9 @@ class BarViewModel: ObservableObject {
     // its content in config order, so content = indices before the drawer.
     // For left-to-right placements (left, notchright) the drawer comes BEFORE
     // its content, so content = indices after the drawer.
-    let drawerIndex = modules.firstIndex { $0.moduleConfig.type == "drawer" }
+    // The centre has no direction to fold in, so a drawer there has no content.
+    let drawerIndex =
+      placement == "center" ? nil : modules.firstIndex { $0.moduleConfig.type == "drawer" }
     let isRightToLeft = placement == "right" || placement == "notchleft"
 
     // Tag each module with whether it's drawer content

@@ -347,6 +347,47 @@
     ]
   },
   {
+    "name": "modules paired with the centre meet there, around those at it, on a screen without a notch",
+    "document": {
+      "version": 1,
+      "config": {
+        "modules": [
+          { "name": "after", "type": "text", "placement": "notchright|center", "anchor": "icon", "icon": "star", "config": { "value": "v" } },
+          { "name": "middle", "type": "text", "placement": "center", "config": { "value": "v" } },
+          { "name": "before", "type": "text", "placement": "notchleft|center", "config": { "value": "v" } }
+        ]
+      }
+    },
+    "checks": [
+      {
+        "dark": false,
+        "notch": false,
+        "expect": {
+          "placements": {
+            "left": [],
+            "notchleft": [{ "name": "before" }],
+            "center": [{ "name": "middle", "joined": "right" }],
+            "notchright": [{ "name": "after", "anchor": "left" }],
+            "right": []
+          }
+        }
+      },
+      {
+        "dark": false,
+        "notch": true,
+        "expect": {
+          "placements": {
+            "left": [],
+            "notchleft": [{ "name": "before" }],
+            "center": [],
+            "notchright": [{ "name": "after" }],
+            "right": []
+          }
+        }
+      }
+    ]
+  },
+  {
     "name": "a bar with no modules welcomes its user",
     "document": { "version": 1, "config": { "theme": "fx-welcome" }, "themes": { "fx-welcome": { "fg": "#111111", "bg": "#EEEEEE" } } },
     "checks": [

@@ -21,6 +21,7 @@ All modules support these configuration fields:
 | `mask` | object | no | Menu bar masking configuration |
 | `displays` | string/array | no | Restrict module to specific displays |
 | `iconPosition` | string | no | The side of the module its icon is on: `left` or `right`. Defaults to `left` |
+| `anchor` | string | no | `icon` puts the module's icon on the bar's centre on a display without a notch (see [Centre placement](#centre-placement)) |
 | `transition` | string | no | How the module enters and leaves as it shows and hides: `slide` or `none` (see [Showing and Hiding](#showing-and-hiding)) |
 
 A module missing `name`, `type` or `placement`, with an unknown `type`, or whose `config` fails to parse is skipped and the error logged. The rest of the config still loads. So is a module named like one before it, in `config.yaml` and then `modules.d/` in filename order. The `text`, `clock` and `command` types require a `config` block.
@@ -54,6 +55,7 @@ The `placement` field controls where the module appears in the bar. It is a requ
 | `right` | Right side of the bar, grows leftward |
 | `notchleft` | Left of the notch, grows leftward (notched displays only) |
 | `notchright` | Right of the notch, grows rightward (notched displays only) |
+| `center` | Centre of the bar (displays without a notch only) |
 
 Within each placement, modules appear left to right in the order they are listed: the first `left` module sits at the left edge and the last `right` module at the right edge. Masked modules sit over their native items instead. Unmasked modules are laid out inward of them (see [Menu Bar Masking](masking.md)).
 
@@ -66,9 +68,43 @@ placement: "notchright|right"    # right notch, with right side fallback
 placement: "notchleft|left"      # left notch, with left side fallback
 ```
 
-The notch-side value (`notchleft` / `notchright`) is used on notched displays. The non-notch value (`left` / `right`) is used on non-notched displays. Order is irrelevant — `"right|notchright"` behaves identically to `"notchright|right"`.
+The notch-side value (`notchleft` / `notchright`) is used on notched displays. The non-notch value (`left` / `right` / `center`) is used on non-notched displays. Order is irrelevant — `"right|notchright"` behaves identically to `"notchright|right"`.
 
-A placement of just `notchleft` or `notchright` hides the module on displays without a notch. Pairing a notch value with a non-notch value is the only useful combination. A pair of two non-notch values, such as `left|right`, uses the first on every display. A pair of two notch values, such as `notchleft|notchright`, uses the first on notched displays and hides the module on the others.
+A placement of just `notchleft` or `notchright` hides the module on displays without a notch, and one of just `center` hides it on displays with one. Pairing a notch value with a non-notch value is the only useful combination. A pair of two non-notch values, such as `left|right`, uses the first on every display. A pair of two notch values, such as `notchleft|notchright`, uses the first on notched displays and hides the module on the others.
+
+### Centre placement
+
+On a display without a notch, modules paired with `center` keep their side of where the notch would be and meet at the centre of the bar:
+
+```yaml
+- name: waveform
+  placement: "notchleft|center"
+- name: now-playing
+  placement: "notchright|center"
+```
+
+```
+notched:    |left →      ← waveform [NOTCH] now-playing →      ← right|
+notchless:  |left →         waveform now-playing               ← right|
+```
+
+`notchleft|center` modules end at the centre and grow leftward. `notchright|center` modules start there and grow rightward. Each side keeps the order its modules are listed in. The bar then reads the same on either display. The point they meet at stays put as they change width. While only one of the two sides has a module showing, there is nothing to meet: its modules are centred in the bar together, and stay centred as they change width. They behave there as they do beside a notch: they slide by default, and give way to an open drawer that needs their room.
+
+Modules placed at just `center` sit centred in the bar, between the two. A drawer at `center` has no contents.
+
+#### Anchoring the centre to an icon
+
+`anchor: icon`, on a module whose placement names `center`, puts that module's icon on the centre of the bar instead:
+
+```yaml
+- name: waveform
+  placement: "notchleft|center"
+- name: now-playing
+  placement: "notchright|center"
+  anchor: icon
+```
+
+The module on the icon's side sits against it as the icon's own text does: the padding between the two gives way to `iconTextSpacing`. The pair then reads as one module: the waveform, the icon, then the track. The icon stays on the centre while its module is the only one showing. While the anchoring module is hidden, the modules meet at the centre, or are centred, as they are without an anchor. The first module to name an anchor is the one, and it does nothing on a display with a notch.
 
 ## Per-Module Fonts
 

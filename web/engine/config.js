@@ -62,6 +62,7 @@ function parseModule(yaml) {
     style: parseStyle(yaml.style),
     transition: ["slide", "none"].includes(yaml.transition) ? yaml.transition : undefined,
     iconPosition: ["left", "right"].includes(yaml.iconPosition) ? yaml.iconPosition : undefined,
+    anchor: yaml.anchor === "icon" ? "icon" : undefined,
   };
 
   const clickType = str(yaml.interaction?.click?.type);

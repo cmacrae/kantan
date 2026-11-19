@@ -159,6 +159,12 @@ enum IconPosition: String, Sendable {
   case right
 }
 
+/// The part of a module that sits on the bar's centre on a screen without
+/// a notch.
+enum ModuleAnchor: String, Sendable {
+  case icon
+}
+
 /// How a module enters and leaves the bar as it shows and hides.
 enum ModuleTransition: String, Sendable {
   /// Slides to and from the edge its group is anchored to: the notch
@@ -196,27 +202,35 @@ struct MaskConfig {
 // MARK: - Placement Spec
 
 /// Represents a placement specification from config.
-/// Can be a single value ("left", "right", "notchleft", "notchright")
-/// or an or-wise pair ("right|notchright", "left|notchleft").
+/// Can be a single value ("left", "right", "notchleft", "notchright",
+/// "center") or an or-wise pair of a placement beside the notch and one for
+/// a screen without a notch ("right|notchright", "notchleft|center").
 struct PlacementSpec: Equatable, Sendable {
   let raw: String
 
   /// Resolve the effective placement for a given screen.
   /// Returns nil if the module should be hidden on this screen.
+  ///
+  /// A screen without a notch has the placements beside one too: they meet
+  /// at the bar's centre, around the modules at "center", and hold the
+  /// modules whose pair names "center" for such a screen.
   func resolve(hasNotch: Bool) -> String? {
     let parts = raw.split(separator: "|").map(String.init)
     if parts.count == 2 {
       let notchPart = parts.first { $0 == "notchleft" || $0 == "notchright" }
-      let normalPart = parts.first { $0 == "left" || $0 == "right" }
+      let normalPart = parts.first { $0 == "left" || $0 == "right" || $0 == "center" }
       if hasNotch {
-        return notchPart ?? normalPart
+        return notchPart ?? (normalPart == "center" ? nil : normalPart)
       } else {
-        return normalPart
+        return normalPart == "center" ? notchPart ?? normalPart : normalPart
       }
     }
     // Single value
     if raw == "notchleft" || raw == "notchright" {
       return hasNotch ? raw : nil
+    }
+    if raw == "center" {
+      return hasNotch ? nil : raw
     }
     return raw
   }
@@ -270,6 +284,7 @@ struct ModuleConfigBuilder {
   private var displays: DisplaysConfig? = nil
   private var transition: ModuleTransition? = nil
   private var iconPosition: IconPosition? = nil
+  private var anchor: ModuleAnchor? = nil
   private var configFactory: ModuleConfigurationFactory?
 
   mutating func setName(_ name: String) { self.name = name }
@@ -284,6 +299,7 @@ struct ModuleConfigBuilder {
   mutating func setDisplays(_ displays: DisplaysConfig) { self.displays = displays }
   mutating func setTransition(_ transition: ModuleTransition) { self.transition = transition }
   mutating func setIconPosition(_ position: IconPosition) { self.iconPosition = position }
+  mutating func setAnchor(_ anchor: ModuleAnchor) { self.anchor = anchor }
   mutating func setConfigFactory(_ factory: ModuleConfigurationFactory) {
     self.configFactory = factory
   }
@@ -321,6 +337,7 @@ struct ModuleConfigBuilder {
       displays: displays)
     module.transition = transition
     module.iconPosition = iconPosition
+    module.anchor = anchor
     return module
   }
 }
@@ -352,7 +369,11 @@ struct ModuleConfig {
   /// right for a module that reveals on hover left of the notch.
   var iconPosition: IconPosition?
 
-  /// Whether the icon comes after the text at `placement`, one of the four
+  /// The part of the module the bar's centre passes through on a screen
+  /// without a notch, for a module whose placement there is around it.
+  var anchor: ModuleAnchor?
+
+  /// Whether the icon comes after the text at `placement`, one of those
   /// a module resolves to. Left of the notch, a module that reveals on
   /// hover keeps its icon beside the notch as the rest slides out.
   func iconTrails(at placement: String) -> Bool {
@@ -361,7 +382,7 @@ struct ModuleConfig {
   }
 
   /// Whether the module slides in and out as it shows and hides at
-  /// `placement`, one of the four a module resolves to.
+  /// `placement`, one of those a module resolves to.
   func slides(at placement: String) -> Bool {
     (transition ?? (placement.hasPrefix("notch") ? .slide : ModuleTransition.none)) == .slide
   }

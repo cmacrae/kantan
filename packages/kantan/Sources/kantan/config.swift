@@ -1004,6 +1004,9 @@ func parseModuleConfig(from moduleYaml: Yaml, configDir: String? = nil, theme: T
   if let position = moduleYaml["iconPosition"].string.flatMap(IconPosition.init(rawValue:)) {
     builder.setIconPosition(position)
   }
+  if let anchor = moduleYaml["anchor"].string.flatMap(ModuleAnchor.init(rawValue:)) {
+    builder.setAnchor(anchor)
+  }
 
   if let transition = moduleYaml["transition"].string.flatMap(ModuleTransition.init(rawValue:)) {
     builder.setTransition(transition)
