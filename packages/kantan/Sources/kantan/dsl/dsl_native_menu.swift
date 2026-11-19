@@ -216,8 +216,8 @@ func buildNativeMenu(
 
 /// Update `menu`'s items from `rootNode`, so an open menu shows the values
 /// `resolver` holds now. When the rows line up with the existing ones, each
-/// existing item takes its new content in place, keeping its highlight;
-/// otherwise the items are replaced.
+/// existing item and its view take their new content in place, so the menu
+/// keeps its highlight where it is; otherwise the items are replaced.
 @MainActor
 func refreshNativeMenu(
   _ menu: NSMenu, from rootNode: ViewNode, resolver: TemplateResolver, textColor: Color? = nil
@@ -234,6 +234,8 @@ func refreshNativeMenu(
     return
   }
 
+  // Changing an item's view or title while the menu is open makes macOS
+  // move its highlight, so each is set only when it differs.
   for (item, update) in zip(menu.items, updates) where !item.isSeparatorItem {
     let view = update.view
     update.view = nil
@@ -242,14 +244,34 @@ func refreshNativeMenu(
     {
       continue
     }
-    item.view = view
-    (view as? NativeMenuItemView)?.isHighlighted = item.isHighlighted
-    item.attributedTitle = update.attributedTitle
+    if let view {
+      if (item.view as? NativeMenuRefreshable)?.takeContent(of: view) != true {
+        item.view = view
+        (view as? NativeMenuItemView)?.isHighlighted = item.isHighlighted
+      }
+    } else if item.view != nil {
+      item.view = nil
+    }
+    if item.attributedTitle != update.attributedTitle {
+      item.attributedTitle = update.attributedTitle
+    }
     item.target = update.target
-    item.action = update.action
+    if item.action != update.action {
+      item.action = update.action
+    }
     item.representedObject = update.representedObject
-    item.isEnabled = update.isEnabled
+    if item.isEnabled != update.isEnabled {
+      item.isEnabled = update.isEnabled
+    }
   }
+}
+
+/// A menu item's view that can show what a freshly built one shows, so an
+/// open menu updates without its items' views being replaced.
+protocol NativeMenuRefreshable {
+  /// Takes `fresh`'s content when it is the same kind of view, returning
+  /// whether it did.
+  @MainActor func takeContent(of fresh: NSView) -> Bool
 }
 
 /// A menu whose items drawn by a view of their own are told when they are
@@ -330,10 +352,34 @@ class NativeMenuItemView: NSView {
   }
 }
 
+/// A menu item's view that only shows `Content`.
+final class NativeMenuHostedView<Content: View>: NSView, NativeMenuRefreshable {
+  let hosting: NSHostingView<Content>
+
+  init(_ content: Content, size: NSSize) {
+    hosting = NSHostingView(rootView: content)
+    super.init(frame: NSRect(origin: .zero, size: size))
+    hosting.frame = bounds
+    hosting.autoresizingMask = [.width, .height]
+    addSubview(hosting)
+  }
+
+  required init?(coder: NSCoder) { fatalError() }
+
+  func takeContent(of fresh: NSView) -> Bool {
+    guard let fresh = fresh as? NativeMenuHostedView<Content>, fresh.frame.size == frame.size
+    else {
+      return false
+    }
+    hosting.rootView = fresh.hosting.rootView
+    return true
+  }
+}
+
 /// A menu item's view showing a SwiftUI row that runs the item's command
 /// when clicked, closing the menu as choosing any item does.
-private final class NativeMenuCommandItemView: NativeMenuItemView {
-  private let content: (Bool) -> AnyView
+private final class NativeMenuCommandItemView: NativeMenuItemView, NativeMenuRefreshable {
+  private var content: (Bool) -> AnyView
   private let hosting: NSHostingView<AnyView>
 
   /// `content` draws the row, highlighted or not.
@@ -348,6 +394,15 @@ private final class NativeMenuCommandItemView: NativeMenuItemView {
 
   override func highlightChanged() {
     hosting.rootView = content(isHighlighted)
+  }
+
+  func takeContent(of fresh: NSView) -> Bool {
+    guard let fresh = fresh as? NativeMenuCommandItemView, fresh.frame.size == frame.size else {
+      return false
+    }
+    content = fresh.content
+    hosting.rootView = content(isHighlighted)
+    return true
   }
 
   override func mouseUp(with event: NSEvent) {
@@ -419,9 +474,7 @@ private func hostedItem<Content: View>(_ view: Content, width: CGFloat = 280, he
   -> NSMenuItem
 {
   let item = NSMenuItem(title: "", action: nil, keyEquivalent: "")
-  let hosting = NSHostingView(rootView: view)
-  hosting.frame = NSRect(x: 0, y: 0, width: width, height: height)
-  item.view = hosting
+  item.view = NativeMenuHostedView(view, size: NSSize(width: width, height: height))
   return item
 }
 

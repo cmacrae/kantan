@@ -2685,8 +2685,9 @@ final class DSLToggleTests {
     let resolver = TemplateResolver(
       variables: [:], data: ["devices": [["name": "Headphones", "address": "aa-bb"]]])
     let menu = buildNativeMenu(from: node, resolver: resolver)
-    let view = try #require(menu.items.first?.view as? NSHostingView<NativeMenuToggleView>)
-    view.rootView.action()
+    let view = try #require(
+      menu.items.first?.view as? NativeMenuHostedView<NativeMenuToggleView>)
+    view.hosting.rootView.action()
     let file = dir.appendingPathComponent("aa-bb").path
     await waitUntil { FileManager.default.fileExists(atPath: file) }
   }
@@ -2804,6 +2805,36 @@ final class LiveModuleViewTests {
     #expect(menu.items.first === item)
     #expect(refreshes == 1)
     withExtendedLifetime(refresh) {}
+  }
+
+  @Test func testAnOpenMenuKeepsItsItemsViewsAsValuesChange() async throws {
+    let vm = try await viewModel(cpu: "5%")
+    let live = LiveContentProvider(viewModel: vm)
+    let manager = PopupManager()
+    let tree = try node(
+      #"""
+      {"type":"vstack","children":[
+        {"type":"header","content":"Overview"},
+        {"type":"hstack","children":[
+          {"type":"text","content":"CPU"},{"type":"spacer"},{"type":"text","content":"{cpu}"}]},
+        {"type":"hstack","command":"true","children":[
+          {"type":"text","content":"Load"},{"type":"spacer"},{"type":"text","content":"{cpu}"}]},
+        {"type":"action","label":"Activity Monitor","command":"true"}]}
+      """#)
+    let menu = buildNativeMenu(from: tree, resolver: manager.makeResolver(for: live))
+    let views = menu.items.map(\.view)
+    let title = menu.items.last?.attributedTitle
+
+    vm.templateVariables = ["cpu": "42%"]
+    await waitUntil { live.templateVariables["cpu"] == "42%" }
+    refreshNativeMenu(menu, from: tree, resolver: manager.makeResolver(for: live))
+
+    #expect(zip(menu.items.map(\.view), views).allSatisfy { $0 === $1 })
+    #expect(menu.items.last?.attributedTitle === title)
+    let row = try #require(menu.items[1].view as? NativeMenuHostedView<AnyView>)
+    var shown = ""
+    dump(row.hosting.rootView, to: &shown)
+    #expect(shown.contains("42%"))
   }
 
   @Test func testAnOpenMenuGainsRowsWhenTheModuleDoes() async throws {
