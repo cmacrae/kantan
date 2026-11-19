@@ -62,6 +62,24 @@
       "enum": ["slide", "none"],
       "description": "How the module enters and leaves the bar as it shows and hides: a module that hides under some condition, such as focus, waveform or a command whose output is hidden. 'slide' slides it to and from the edge its group is anchored to, which is the notch for 'notchleft' and 'notchright' and the screen's edge for 'left' and 'right'. 'none' shows and hides it at once. Defaults to 'slide' beside the notch and 'none' elsewhere. Reduce Motion turns it off."
     },
+    "tuck": {
+      "description": "Makes a module at 'notchleft' or 'notchright' give way to the other modules on its side of the notch. While one of them shows, the module waits behind the notch, which glows on that side. It comes out, in their place, while the pointer rests at the notch, and goes back a moment after the pointer leaves the notch and the module. 'true' takes the defaults. Does nothing on a display without a notch, at any other placement, or for a drawer or masked module.",
+      "oneOf": [
+        { "type": "boolean" },
+        {
+          "type": "object",
+          "properties": {
+            "peek": {
+              "type": "number",
+              "minimum": 0,
+              "default": 5,
+              "description": "Seconds the module stays out when it starts showing while another module holds its side, before it slides behind the notch. 0 sends it behind the notch at once."
+            }
+          },
+          "additionalProperties": false
+        }
+      ]
+    },
     "mask": {
       "$ref": "#/$defs/MaskConfig",
       "description": "Position this module over a native macOS menu bar item, effectively replacing it visually. Clicks reach the native item underneath (passthrough) unless interaction.click sets a type."

@@ -615,6 +615,46 @@ final class DisplacedPlacements: ObservableObject {
   @Published var placements: Set<String> = []
 }
 
+// MARK: - Tuck
+
+/// How one side of the notch is shared between the modules that give way,
+/// those with a `tuck`, and the others.
+enum TuckPhase: Equatable {
+  /// Every module shows as it would alone.
+  case idle
+  /// The modules that give way wait behind the notch.
+  case tucked
+  /// They are out, in place of the others.
+  case revealed
+
+  /// The phase of one side of the notch.
+  ///
+  /// - tucking: whether a module that gives way has something to show.
+  /// - holding: whether another module on the side does.
+  /// - revealing: whether those that give way are wanted out: one has just
+  ///   arrived, the pointer is at the notch, or one has its popup open.
+  static func resolve(tucking: Bool, holding: Bool, revealing: Bool) -> TuckPhase {
+    guard tucking, holding else { return .idle }
+    return revealing ? .revealed : .tucked
+  }
+
+  /// Whether a module is out of the bar in this phase: one that gives way
+  /// while tucked, any other while those are revealed.
+  func hides(givesWay: Bool) -> Bool {
+    switch self {
+    case .idle: false
+    case .tucked: givesWay
+    case .revealed: !givesWay
+    }
+  }
+}
+
+/// The phase of each side of a display's notch, by placement.
+@MainActor
+final class NotchTucks: ObservableObject {
+  @Published var phases: [String: TuckPhase] = [:]
+}
+
 // MARK: - Bar View Model
 
 @MainActor

@@ -174,6 +174,18 @@ enum ModuleTransition: String, Sendable {
   case none
 }
 
+/// Makes a module beside the notch give way to the others on its side:
+/// while one of them shows, the module waits behind the notch.
+struct TuckConfig: Equatable, Sendable {
+  /// How long a module arriving stays out before it slides behind the
+  /// notch, when `peek` isn't set.
+  static let defaultPeek: TimeInterval = 5
+
+  /// The seconds the module stays out when it arrives while another shows,
+  /// or 0 to go behind the notch at once.
+  var peek: TimeInterval = TuckConfig.defaultPeek
+}
+
 struct ClickConfig {
   let type: String
   let viewTree: ViewNode?
@@ -283,6 +295,7 @@ struct ModuleConfigBuilder {
   private var mask: MaskConfig? = nil
   private var displays: DisplaysConfig? = nil
   private var transition: ModuleTransition? = nil
+  private var tuck: TuckConfig? = nil
   private var iconPosition: IconPosition? = nil
   private var anchor: ModuleAnchor? = nil
   private var configFactory: ModuleConfigurationFactory?
@@ -298,6 +311,7 @@ struct ModuleConfigBuilder {
   mutating func setMask(_ mask: MaskConfig) { self.mask = mask }
   mutating func setDisplays(_ displays: DisplaysConfig) { self.displays = displays }
   mutating func setTransition(_ transition: ModuleTransition) { self.transition = transition }
+  mutating func setTuck(_ tuck: TuckConfig) { self.tuck = tuck }
   mutating func setIconPosition(_ position: IconPosition) { self.iconPosition = position }
   mutating func setAnchor(_ anchor: ModuleAnchor) { self.anchor = anchor }
   mutating func setConfigFactory(_ factory: ModuleConfigurationFactory) {
@@ -336,6 +350,7 @@ struct ModuleConfigBuilder {
       iconFont: iconFont, style: style, config: config, interaction: interaction, mask: mask,
       displays: displays)
     module.transition = transition
+    module.tuck = tuck
     module.iconPosition = iconPosition
     module.anchor = anchor
     return module
@@ -365,6 +380,10 @@ struct ModuleConfig {
   /// notch and appear at once elsewhere.
   var transition: ModuleTransition?
 
+  /// How the module gives way to the others on its side of the notch, or
+  /// nil for a module that keeps its place.
+  var tuck: TuckConfig?
+
   /// The side of the module its icon is on, or nil for the left, and the
   /// right for a module that reveals on hover left of the notch.
   var iconPosition: IconPosition?
@@ -379,6 +398,12 @@ struct ModuleConfig {
   func iconTrails(at placement: String) -> Bool {
     let revealsBesideNotch = interaction?.hover?.type == "reveal" && placement == "notchleft"
     return (iconPosition ?? (revealsBesideNotch ? .right : .left)) == .right
+  }
+
+  /// Whether the module takes part in sharing its side of the notch: every
+  /// module but a drawer's and one over a menu bar item.
+  var sharesNotch: Bool {
+    mask == nil && type != "drawer"
   }
 
   /// Whether the module slides in and out as it shows and hides at

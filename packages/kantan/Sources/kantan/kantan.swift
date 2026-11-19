@@ -214,6 +214,26 @@ class DisplayInstance {
   /// How near the modules beside the notch and a drawer's contents come
   /// before one makes room for the other.
   static let overlapMargin: CGFloat = 12
+  /// How each side of the notch is shared between the modules that give
+  /// way and the others.
+  let tucks = NotchTucks()
+  /// The panel drawing the glow of the modules behind the notch.
+  private var glowPanel: NSPanel?
+  /// Whether each module that gives way was showing when last looked at,
+  /// to tell when one arrives.
+  private var tuckShown: [String: Bool] = [:]
+  /// The timers ending the stay of modules that arrived, by placement.
+  private var tuckPeeks: [String: Timer] = [:]
+  /// Whether the pointer at the notch has the modules behind it out.
+  private var isTuckHovered = false
+  /// Waits for the pointer to settle at the notch, or to stay away.
+  private var tuckHoverTimer: Timer?
+  /// How long the pointer rests at the notch before the modules behind it
+  /// come out, and how long they stay once it has left.
+  /// How far either side of the notch the pointer brings them out.
+  static let tuckHoverReach: CGFloat = 18
+  static let tuckHoverDwell: TimeInterval = 0.12
+  static let tuckHoverLinger: TimeInterval = 0.6
   var bgColorCancellable: AnyCancellable?
   /// View whose layer background tracks light/dark mode changes
   /// (the tint view inside the effect view when blur is on, or the
@@ -592,6 +612,7 @@ class DisplayInstance {
         popupManager: bar.popupManager,
         themeProvider: theme,
         displaced: displaced,
+        tucks: tucks,
         centerAnchor: group.anchor
       )
       return (group: group, hostingView: NSHostingView(rootView: groupView))
@@ -653,6 +674,7 @@ class DisplayInstance {
       groupPanels.append((panel: groupPanel, hostingView: hostingView, group: group))
     }
 
+    createGlowPanel(on: screen, theme: theme, level: moduleGroupLevel)
     updateDrawerClickPanels()
   }
 
@@ -711,6 +733,10 @@ class DisplayInstance {
       maskedGroups: occupiedMasks(in: groupPanels.map { $0.group }),
       groups: hostedGroups)
     resolveOverlaps(bounds: bounds)
+    resolveTucks(on: screen)
+    if let glowFrame = glowFrame(on: screen) {
+      glowPanel?.setFrame(glowFrame, display: true)
+    }
 
     for entry in groupPanels {
       guard entry.group.modules.count == 1, entry.group.modules[0].moduleConfig.mask != nil
@@ -929,6 +955,190 @@ class DisplayInstance {
     }
   }
 
+  // MARK: - Tuck
+
+  /// The modules sharing a side of the notch, at `placement`: those of its
+  /// groups in the bar, but for drawers and masks.
+  private func notchModules(at placement: String) -> [ModuleViewModel] {
+    groupPanels
+      .filter { $0.group.placement == placement && !isDrawerContentHidden($0.group) }
+      .flatMap { $0.group.modules }
+      .filter { $0.moduleConfig.sharesNotch }
+  }
+
+  /// The notch and a little either side of it, across the bar's height:
+  /// where the pointer brings out the modules behind the notch. Nil on a
+  /// screen without a notch.
+  private func notchZone(on screen: NSScreen) -> NSRect? {
+    guard screen.hasNotch else { return nil }
+    let left = screen.notchLeftArea.maxX - Self.tuckHoverReach
+    let right = screen.notchRightArea.minX + Self.tuckHoverReach
+    return NSRect(
+      x: left, y: screenLayout(for: screen).statusBarY, width: right - left, height: barHeight)
+  }
+
+  /// The frame of the glow's panel: the notch, and the glow's reach past
+  /// its sides and beneath it. Nil on a screen without a notch.
+  private func glowFrame(on screen: NSScreen) -> NSRect? {
+    guard screen.hasNotch else { return nil }
+    let left = screen.notchLeftArea.maxX - NotchGlowView.reach
+    let right = screen.notchRightArea.minX + NotchGlowView.reach
+    let height = screen.safeAreaInsets.top + NotchGlowView.reach
+    return NSRect(x: left, y: screen.frame.maxY - height, width: right - left, height: height)
+  }
+
+  /// Makes the panel that glows where modules wait behind the notch, on a
+  /// screen with a notch and modules that give way beside it.
+  private func createGlowPanel(on screen: NSScreen, theme: ThemeProvider, level: NSWindow.Level) {
+    let modules = ["notchleft", "notchright"].reduce(into: [String: [ModuleViewModel]]()) {
+      $0[$1] = notchModules(at: $1).filter { $0.moduleConfig.tuck != nil }
+    }
+    guard let frame = glowFrame(on: screen), modules.values.contains(where: { !$0.isEmpty })
+    else { return }
+    let panel = NSPanel(
+      contentRect: frame, styleMask: [.borderless, .nonactivatingPanel], backing: .buffered,
+      defer: false)
+    // Over the modules beside the notch, which it lets every click through to.
+    configurePanelDefaults(panel, level: NSWindow.Level(rawValue: level.rawValue + 1))
+    panel.ignoresMouseEvents = true
+    let view = NSHostingView(
+      rootView: NotchGlowView(tucks: tucks, themeProvider: theme, modules: modules))
+    view.frame = NSRect(origin: .zero, size: frame.size)
+    view.autoresizingMask = [.width, .height]
+    panel.contentView = view
+    panel.orderFrontRegardless()
+    glowPanel = panel
+  }
+
+  private var tuckAnimation: Animation? {
+    NSWorkspace.shared.accessibilityDisplayShouldReduceMotion ? nil : ModuleAnimation.content
+  }
+
+  /// Settles how each side of the notch is shared: a module that gives way
+  /// waits behind the notch while another on its side shows. It stays out
+  /// for its `peek` when it arrives, and comes out while the pointer is at
+  /// the notch or its popup is open. See `TuckPhase.resolve`.
+  private func resolveTucks(on screen: NSScreen) {
+    guard glowPanel != nil, screen.hasNotch else { return }
+    var phases: [String: TuckPhase] = [:]
+    for placement in ["notchleft", "notchright"] {
+      let modules = notchModules(at: placement)
+      let tucking = modules.filter { $0.moduleConfig.tuck != nil }
+      let holding = modules.contains { $0.moduleConfig.tuck == nil && $0.shouldDisplay }
+
+      for module in tucking {
+        let arrived = module.shouldDisplay && tuckShown[module.id] == false
+        tuckShown[module.id] = module.shouldDisplay
+        if arrived, holding, let peek = module.moduleConfig.tuck?.peek, peek > 0 {
+          startPeek(at: placement, for: peek)
+        }
+      }
+      let showing = tucking.filter(\.shouldDisplay)
+      if showing.isEmpty || !holding {
+        tuckPeeks.removeValue(forKey: placement)?.invalidate()
+      }
+      phases[placement] = TuckPhase.resolve(
+        tucking: !showing.isEmpty, holding: holding,
+        revealing: isTuckHovered || tuckPeeks[placement] != nil
+          || showing.contains(where: \.isPopupOpen))
+    }
+
+    if phases.values.allSatisfy({ $0 == .idle }) {
+      isTuckHovered = false
+      tuckHoverTimer?.invalidate()
+      tuckHoverTimer = nil
+    } else if isTuckHovered {
+      // A popup closing may leave the pointer away from the notch.
+      checkTuckHover(mouseLocation: NSEvent.mouseLocation)
+    }
+
+    guard phases != tucks.phases else { return }
+    let animation = tuckAnimation
+    withAnimation(animation) { tucks.phases = phases }
+    // The panels follow once the modules have slid away or back.
+    DispatchQueue.main.async { [weak self] in
+      MainActor.assumeIsolated { self?.repositionPanels(animated: animation != nil) }
+    }
+  }
+
+  /// Keeps the modules that give way at `placement` out for `seconds`, or
+  /// for as long as a stay already under way lasts, if longer.
+  private func startPeek(at placement: String, for seconds: TimeInterval) {
+    if let current = tuckPeeks[placement], current.fireDate.timeIntervalSinceNow >= seconds {
+      return
+    }
+    tuckPeeks[placement]?.invalidate()
+    tuckPeeks[placement] = Timer.scheduledTimer(withTimeInterval: seconds, repeats: false) {
+      [weak self] _ in
+      MainActor.assumeIsolated {
+        guard let self else { return }
+        self.tuckPeeks[placement] = nil
+        // A module under the pointer stays out, as one the pointer brought
+        // out does.
+        if self.pointerKeepsTucksOut(at: NSEvent.mouseLocation) { self.isTuckHovered = true }
+        self.repositionPanels(animated: self.tuckAnimation != nil)
+      }
+    }
+  }
+
+  /// Whether the pointer at `location` keeps the modules that give way out:
+  /// at the notch, or over the modules beside it. An open popup of theirs
+  /// does too.
+  private func pointerKeepsTucksOut(at location: NSPoint) -> Bool {
+    guard let screen = resolveScreen(), let zone = notchZone(on: screen) else { return false }
+    // The pointer against the top of the screen is on a frame's edge.
+    let holds = { (frame: NSRect) in frame.insetBy(dx: 0, dy: -1).contains(location) }
+    if holds(zone) { return true }
+    return groupPanels.contains { entry in
+      entry.group.placement.hasPrefix("notch")
+        && entry.group.modules.contains { module in
+          module.moduleConfig.tuck != nil
+            && module.shouldDisplay
+            && (module.isPopupOpen || (entry.panel.isVisible && holds(entry.panel.frame)))
+        }
+    }
+  }
+
+  /// Follows the pointer to and from the notch: resting there brings out
+  /// the modules waiting behind it, and they go back a moment after it has
+  /// left both the notch and them.
+  func checkTuckHover(mouseLocation: NSPoint) {
+    guard glowPanel != nil, !isMenuBarShowing else { return }
+    if isTuckHovered {
+      if pointerKeepsTucksOut(at: mouseLocation) {
+        tuckHoverTimer?.invalidate()
+        tuckHoverTimer = nil
+      } else if tuckHoverTimer == nil {
+        awaitTuckHover(Self.tuckHoverLinger, wanting: false)
+      }
+    } else if tucks.phases.values.contains(.tucked),
+      let screen = resolveScreen(),
+      notchZone(on: screen)?.insetBy(dx: 0, dy: -1).contains(mouseLocation) == true
+    {
+      if tuckHoverTimer == nil { awaitTuckHover(Self.tuckHoverDwell, wanting: true) }
+    } else {
+      tuckHoverTimer?.invalidate()
+      tuckHoverTimer = nil
+    }
+  }
+
+  /// After `delay`, brings the modules behind the notch out if the pointer
+  /// is still at it, or sends them back if it is still away.
+  private func awaitTuckHover(_ delay: TimeInterval, wanting hovered: Bool) {
+    tuckHoverTimer = Timer.scheduledTimer(withTimeInterval: delay, repeats: false) {
+      [weak self] _ in
+      MainActor.assumeIsolated {
+        guard let self else { return }
+        self.tuckHoverTimer = nil
+        guard self.pointerKeepsTucksOut(at: NSEvent.mouseLocation) == hovered,
+          self.isTuckHovered != hovered
+        else { return }
+        self.isTuckHovered = hovered
+        self.repositionPanels(animated: self.tuckAnimation != nil)
+      }
+    }
+  }
+
   // MARK: - Drawer Animation
 
   func animateDrawerToggle(side: String, open: Bool) {
@@ -1137,12 +1347,13 @@ class DisplayInstance {
         !isDrawerContentHidden($0.group)
           && !Self.isUncoveredMask($0.group, nativeItems: nativeItems)
       }.map { $0.panel }
+      + [glowPanel].compactMap { $0 }
       + drawerClickPanels
   }
 
   /// All panels including hidden drawer-content panels.
   var allPanels: [NSPanel] {
-    [bgPanel].compactMap { $0 } + groupPanels.map { $0.panel } + drawerClickPanels
+    [bgPanel, glowPanel].compactMap { $0 } + groupPanels.map { $0.panel } + drawerClickPanels
   }
 
   func slideOut() {
@@ -1195,6 +1406,11 @@ class DisplayInstance {
       panel.orderOut(nil)
     }
     slots?.forget(display: screenName)
+    for timer in tuckPeeks.values { timer.invalidate() }
+    tuckPeeks.removeAll()
+    tuckHoverTimer?.invalidate()
+    tuckHoverTimer = nil
+    glowPanel = nil
     groupPanels.removeAll()
     drawerClickPanels.removeAll()
     bgPanel = nil
@@ -1214,6 +1430,8 @@ class AppDelegate: NSObject, NSApplicationDelegate {
   var barHeight: CGFloat = 0
   var autohideConfig: AutohideConfig = .default
   nonisolated(unsafe) var menuBarMonitor: Any?
+  /// Follows the pointer for the modules waiting behind the notch.
+  nonisolated(unsafe) var tuckMonitor: Any?
   nonisolated(unsafe) var repositionTimer: Timer?
   var visibilityCancellables: [AnyCancellable] = []
   /// Whether this launch has asked for Accessibility permission, so config
@@ -1382,6 +1600,9 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     if autohideConfig.enabled {
       startMenuBarMonitoring()
     }
+    if config.modules.contains(where: { $0.tuck != nil }) {
+      startTuckMonitoring()
+    }
 
     warnIfMenuBarAutoHides()
 
@@ -1412,6 +1633,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     barViewModel?.popupManager.hideTooltip()
     MenuBarAccessibility.shared.stop()
     stopMenuBarMonitoring()
+    stopTuckMonitoring()
     repositionTimer?.invalidate()
     repositionTimer = nil
     visibilityCancellables.removeAll()
@@ -1536,6 +1758,29 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     if let monitor = menuBarMonitor {
       NSEvent.removeMonitor(monitor)
       menuBarMonitor = nil
+    }
+  }
+
+  /// Tells each display where the pointer is as it moves, for the modules
+  /// waiting behind a notch to come out when it is there.
+  func startTuckMonitoring() {
+    tuckMonitor = NSEvent.addGlobalMonitorForEvents(matching: .mouseMoved) { [weak self] _ in
+      DispatchQueue.main.async {
+        MainActor.assumeIsolated {
+          guard let self else { return }
+          let mouseLocation = NSEvent.mouseLocation
+          for instance in self.displayInstances {
+            instance.checkTuckHover(mouseLocation: mouseLocation)
+          }
+        }
+      }
+    }
+  }
+
+  func stopTuckMonitoring() {
+    if let monitor = tuckMonitor {
+      NSEvent.removeMonitor(monitor)
+      tuckMonitor = nil
     }
   }
 

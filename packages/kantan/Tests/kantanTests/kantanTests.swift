@@ -180,6 +180,31 @@ final class OverlapTests {
   }
 }
 
+final class TuckTests {
+  @Test func testAModuleThatGivesWayWaitsBehindTheNotchWhileAnotherShows() {
+    // Alone on its side, it shows as any module does.
+    #expect(TuckPhase.resolve(tucking: true, holding: false, revealing: false) == .idle)
+    #expect(TuckPhase.resolve(tucking: false, holding: true, revealing: true) == .idle)
+    // Beside another it is behind the notch, until it is wanted out.
+    #expect(TuckPhase.resolve(tucking: true, holding: true, revealing: false) == .tucked)
+    #expect(TuckPhase.resolve(tucking: true, holding: true, revealing: true) == .revealed)
+
+    #expect(TuckPhase.tucked.hides(givesWay: true))
+    #expect(!TuckPhase.tucked.hides(givesWay: false))
+    #expect(TuckPhase.revealed.hides(givesWay: false))
+    #expect(!TuckPhase.revealed.hides(givesWay: true))
+    #expect(!TuckPhase.idle.hides(givesWay: true))
+  }
+
+  @Test func testTuckIsTrueOrAMappingOfItsSettings() throws {
+    #expect(parseTuckConfig(from: try Yaml.load("true")) == TuckConfig())
+    #expect(parseTuckConfig(from: try Yaml.load("{ peek: 8 }"))?.peek == 8)
+    #expect(parseTuckConfig(from: try Yaml.load("{ peek: 0 }"))?.peek == 0)
+    #expect(parseTuckConfig(from: try Yaml.load("false")) == nil)
+    #expect(parseTuckConfig(from: try Yaml.load("~")) == nil)
+  }
+}
+
 final class AudioAnalysisTests {
   @Test func testATonesBandIsTheLoudest() {
     let rate = 48000.0
@@ -711,7 +736,7 @@ final class MaskedModuleInteractionTests {
       let hostingView = NSHostingView(
         rootView: ModuleGroupView(
           modules: [vm], placement: "right", popupManager: PopupManager(), themeProvider: theme,
-          displaced: DisplacedPlacements()))
+          displaced: DisplacedPlacements(), tucks: NotchTucks()))
       let panel = NSPanel(
         contentRect: .zero, styleMask: [.borderless, .nonactivatingPanel], backing: .buffered,
         defer: true)

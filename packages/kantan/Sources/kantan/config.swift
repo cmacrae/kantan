@@ -970,6 +970,18 @@ private let defaultModuleIcons: [String: String] = [
 ]
 
 /// `configDir` resolves relative paths (e.g. command scripts).
+/// A module's `tuck`: `true` for the defaults, or a mapping of its settings.
+/// Nil when the key is absent, false or anything else.
+func parseTuckConfig(from yaml: Yaml) -> TuckConfig? {
+  if yaml.bool == true { return TuckConfig() }
+  guard yaml.dictionary != nil else { return nil }
+  var tuck = TuckConfig()
+  if let peek = yaml["peek"].double ?? yaml["peek"].int.map(Double.init), peek >= 0 {
+    tuck.peek = peek
+  }
+  return tuck
+}
+
 func parseModuleConfig(from moduleYaml: Yaml, configDir: String? = nil, theme: ThemeConfig? = nil)
   -> ModuleConfig?
 {
@@ -1015,6 +1027,10 @@ func parseModuleConfig(from moduleYaml: Yaml, configDir: String? = nil, theme: T
 
   if let transition = moduleYaml["transition"].string.flatMap(ModuleTransition.init(rawValue:)) {
     builder.setTransition(transition)
+  }
+
+  if let tuck = parseTuckConfig(from: moduleYaml["tuck"]) {
+    builder.setTuck(tuck)
   }
 
   if let interactionYaml = moduleYaml["interaction"].dictionary {
