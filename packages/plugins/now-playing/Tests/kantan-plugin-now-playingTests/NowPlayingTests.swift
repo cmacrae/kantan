@@ -59,6 +59,16 @@ final class NowPlayingTests {
     #expect(shown(track(rate: 0), Settings()).variables["elapsed"] == "0:30")
   }
 
+  @Test func testThePositionBarSeeksUnlessThePlayerCant() throws {
+    let view = { (track: Track) in
+      String(decoding: try JSONEncoder().encode(shown(track, Settings()).view), as: UTF8.self)
+    }
+    var fixed = track()
+    fixed.seekable = false
+    #expect(try view(track()).contains("--seek {value}"))
+    #expect(try !view(fixed).contains("--seek"))
+  }
+
   @Test func testEachStateShowsItsParts() throws {
     let paused = track(rate: 0)
     #expect(shown(nil, Settings()).hidden == true)

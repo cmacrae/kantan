@@ -67,6 +67,11 @@ private let infoKeys = [
   "kMRMediaRemoteNowPlayingInfoArtworkMIMEType": "artworkType",
 ]
 
+/// The MediaRemote command that moves a player to a position in its track,
+/// and the option that carries the position, in seconds.
+private let seekCommand: UInt32 = 24
+private let positionOption = "kMRMediaRemoteOptionPlaybackPosition"
+
 /// What `info`, MediaRemote's info for a player, says of its track. A
 /// number that isn't finite, such as the duration of a live stream, is left
 /// out, as the track has no such value.
@@ -157,6 +162,7 @@ private struct PlayerRequests: @unchecked Sendable {
   private static let artwork = NSSelectorFromString(
     "requestNowPlayingItemArtworkOnQueue:completion:")
   private static let send = NSSelectorFromString("sendCommand:options:queue:completion:")
+  private static let commands = NSSelectorFromString("requestSupportedCommandsOnQueue:completion:")
 
   /// Nil on a macOS whose MediaRemote lacks any of what the requests use.
   init?() {
@@ -219,9 +225,29 @@ private struct PlayerRequests: @unchecked Sendable {
     }
   }
 
-  func send(_ command: UInt32, to request: AnyObject, then done: @escaping () -> Void) {
+  /// Whether the player takes a position to move to, or nil on a macOS
+  /// that can't be asked.
+  func seekable(_ request: AnyObject, then done: @escaping (Bool?) -> Void) {
+    guard class_respondsToSelector(requestClass, Self.commands) else { return done(nil) }
+    method(Self.commands, of: requestClass, as: AskObject.self)(request, Self.commands, .main) {
+      commands, _ in
+      guard let commands = commands as? [NSObject] else { return done(nil) }
+      done(
+        commands.contains {
+          $0.responds(to: NSSelectorFromString("command"))
+            && $0.responds(to: NSSelectorFromString("isEnabled"))
+            && ($0.value(forKey: "command") as? NSNumber)?.uint32Value == seekCommand
+            && ($0.value(forKey: "enabled") as? NSNumber)?.boolValue == true
+        })
+    }
+  }
+
+  func send(
+    _ command: UInt32, options: [String: Any]?, to request: AnyObject,
+    then done: @escaping () -> Void
+  ) {
     method(Self.send, of: requestClass, as: Send.self)(
-      request, Self.send, command, nil, .main
+      request, Self.send, command, options as NSDictionary?, .main
     ) { _ in done() }
   }
 }
@@ -239,8 +265,8 @@ private func write(_ line: [String: Any]) {
 }
 
 /// Writes every player as a line of JSON, `{"players": [...]}`: each one's
-/// track, whether it plays, and whether it is the one MediaRemote counts
-/// as playing now. Then calls `done`.
+/// track, whether it plays, whether it takes a position to move to, and
+/// whether it is the one MediaRemote counts as playing now. Then calls `done`.
 private func writeLine(
   _ remote: MediaRemote, _ requests: PlayerRequests?,
   then done: @escaping @Sendable () -> Void = {}
@@ -266,6 +292,11 @@ private func writeLine(
       group.enter()
       requests.info(request) { info in
         gathering.players[index].merge(track(from: info)) { $1 }
+        group.leave()
+      }
+      group.enter()
+      requests.seekable(request) { seekable in
+        if let seekable { gathering.players[index]["seekable"] = seekable }
         group.leave()
       }
       group.enter()
@@ -307,12 +338,45 @@ private func writeCurrent(_ remote: MediaRemote, then done: @escaping @Sendable 
   }
 }
 
+/// Sends the MediaRemote command `number` with `options` to the player with
+/// the bundle identifier `bundle`, or without one, to the one MediaRemote
+/// counts as playing now. Then exits.
+private func send(
+  _ number: UInt32, options: [String: Any]?, to bundle: String?, _ remote: MediaRemote,
+  _ requests: PlayerRequests?
+) {
+  let finish: @Sendable () -> Void = {
+    DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) { exit(0) }
+  }
+  let sendToCurrent = {
+    _ = remote.sendCommand(number, options as CFDictionary?)
+    finish()
+  }
+  guard let requests, let bundle else { return sendToCurrent() }
+  requests.getClients(.main) { clients in
+    let player = (clients as? [AnyObject] ?? []).compactMap { $0 as? NSObject }
+      .first { identity(of: $0)["bundle"] as? String == bundle }
+    guard let request = player.flatMap(requests.request) else { exit(1) }
+    // MediaRemote sends every command to the player macOS counts as playing
+    // now, whichever player it is addressed to, so the player is made that
+    // one first. Without a way to, the command goes nowhere.
+    let isCurrent = currentClient().map(identity)?["bundle"] as? String == bundle
+    if !isCurrent {
+      guard let makeCurrent = remote.setOverriddenApp else { exit(1) }
+      _ = makeCurrent(bundle as CFString)
+    }
+    requests.send(number, options: options, to: request, then: finish)
+  }
+}
+
 /// The host's entry point, which Perl calls. What follows `--` on Perl's
 /// command line is this library's path and then what to do: `stream` writes
 /// a line now and after every change until stdin closes, `once` writes a
-/// line, and `command <number> [<bundle>]` sends the MediaRemote command of
+/// line, `command <number> [<bundle>]` sends the MediaRemote command of
 /// that number to the player with that bundle identifier, or without one,
-/// to the one MediaRemote counts as playing now.
+/// to the one MediaRemote counts as playing now, and
+/// `seek <seconds> [<bundle>]` moves that player to that position in its
+/// track.
 @_cdecl("kantan_now_playing_host")
 public func host() {
   let arguments = Array(CommandLine.arguments.drop { $0 != "--" }.dropFirst(2))
@@ -345,27 +409,12 @@ public func host() {
     writeLine(remote, requests) { exit(0) }
   case "command":
     guard let number = arguments.dropFirst().first.flatMap({ UInt32($0) }) else { exit(1) }
-    let finish: @Sendable () -> Void = {
-      DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) { exit(0) }
-    }
-    if let requests, let bundle = arguments.dropFirst(2).first {
-      requests.getClients(.main) { clients in
-        let player = (clients as? [AnyObject] ?? []).compactMap { $0 as? NSObject }
-          .first { identity(of: $0)["bundle"] as? String == bundle }
-        guard let request = player.flatMap(requests.request) else { exit(1) }
-        // MediaRemote sends every command to the player macOS counts as
-        // playing now, whichever player it is addressed to, so the player is
-        // made that one first. Without a way to, the command goes nowhere.
-        if currentClient().map(identity)?["bundle"] as? String != bundle {
-          guard let makeCurrent = remote.setOverriddenApp else { exit(1) }
-          _ = makeCurrent(bundle as CFString)
-        }
-        requests.send(number, to: request, then: finish)
-      }
-    } else {
-      _ = remote.sendCommand(number, nil)
-      finish()
-    }
+    send(number, options: nil, to: arguments.dropFirst(2).first, remote, requests)
+  case "seek":
+    guard let seconds = arguments.dropFirst().first.flatMap({ Double($0) }) else { exit(1) }
+    send(
+      seekCommand, options: [positionOption: seconds], to: arguments.dropFirst(2).first, remote,
+      requests)
   default:
     exit(1)
   }

@@ -15,7 +15,7 @@ This plugin is bundled with kantan and requires no separate installation. It is 
 - **Any source** — Shows whatever macOS itself counts as now playing, as Control Centre does
 - **Yours to lay out** — Choose which of the icon, artist, title and album show while playing, while paused and on a hover, or write the text with a `format` template
 - **An icon for each app** — Spotify's icon while Spotify plays, a browser's while it does
-- **Popup** — Album art, title, artist, album, position and previous, play/pause and next buttons, staying open while you use them
+- **Popup** — Album art, title, artist, album, position and previous, play/pause and next buttons, staying open while you use them. Click or drag the position bar to move through the track, in players that allow it
 - **Open the source** — Clicking the track in the popup brings the app playing it to the front
 - **Hides itself** — Leaves the bar in any state you show nothing for, sliding behind the notch when it sits beside it
 - **Event-driven** — Updates as the track or its state changes, with no polling
@@ -196,12 +196,13 @@ interaction:
     type: toggle
 ```
 
-| Command      | Does                                         |
-|--------------|----------------------------------------------|
-| `--open`     | Brings the app that is playing to the front  |
-| `--toggle`   | Plays or pauses                              |
-| `--next`     | Skips to the next track                      |
-| `--previous` | Goes back to the previous track              |
+| Command      | Does                                            |
+|--------------|-------------------------------------------------|
+| `--open`     | Brings the app that is playing to the front     |
+| `--toggle`   | Plays or pauses                                 |
+| `--next`     | Skips to the next track                         |
+| `--previous` | Goes back to the previous track                 |
+| `--seek <n>` | Moves through the track: 0 its start, 1 its end |
 
 ## Update Model
 

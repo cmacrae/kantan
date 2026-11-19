@@ -173,6 +173,8 @@ struct Track: Decodable, Equatable, Sendable {
   var name: String?
   /// Whether macOS counts this player as the one playing now.
   var current: Bool?
+  /// Whether the player takes a position to move to, when macOS tells.
+  var seekable: Bool?
 
   var isPlaying: Bool { playing ?? ((rate ?? 0) > 0) }
 
@@ -305,6 +307,8 @@ let previousCommand = "\(plugin) --previous"
 let toggleCommand = "\(plugin) --toggle"
 let nextCommand = "\(plugin) --next"
 let openCommand = "\(plugin) --open"
+/// Moves the track to where its position bar was clicked or dragged to.
+let seekCommand = "\(plugin) --seek {value}"
 
 /// The length of the text `segments` show before a hover.
 func restingLength(_ segments: [ValueSegment]) -> Int {
@@ -452,7 +456,9 @@ func render(track: Track?, artwork: URL?, source: Source?, settings: Settings, n
   ]
   if duration > 0 {
     rows += [
-      progress(value: position / duration, color: "accent"),
+      progress(
+        value: position / duration, color: "accent",
+        command: track.seekable == false ? nil : seekCommand),
       hstack(children: [
         text(variables["elapsed"]!, size: 10, style: "secondary"), spacer(),
         text(variables["duration"]!, size: 10, style: "secondary"),
@@ -538,9 +544,21 @@ func currentTrack(excluding excluded: [String]) -> Track? {
 /// Sends `command` to the player whose track is shown.
 func send(_ command: PlayerCommand, settings: Settings) -> Int32 {
   let player = currentTrack(excluding: settings.exclude)?.bundle
-  guard
-    let host = hostProcess(["command", String(command.rawValue)] + (player.map { [$0] } ?? []))
+  return runHost(["command", String(command.rawValue)] + (player.map { [$0] } ?? []))
+}
+
+/// Moves the track shown to `fraction` of the way through it, from 0 to 1.
+func seek(to fraction: Double, settings: Settings) -> Int32 {
+  guard let track = currentTrack(excluding: settings.exclude), let duration = track.duration,
+    duration > 0
   else { return 1 }
+  let position = min(max(fraction, 0), 1) * duration
+  return runHost(["seek", String(position)] + (track.bundle.map { [$0] } ?? []))
+}
+
+/// Runs the host with `arguments` until it exits, and returns its status.
+private func runHost(_ arguments: [String]) -> Int32 {
+  guard let host = hostProcess(arguments) else { return 1 }
   host.standardInput = FileHandle.nullDevice
   host.standardOutput = FileHandle.nullDevice
   guard (try? host.run()) != nil else { return 1 }
@@ -671,6 +689,12 @@ func main() -> Int32 {
     return send(.previous, settings: settings)
   case "--open":
     return openSource(settings: settings)
+  case "--seek":
+    guard let fraction = CommandLine.arguments.dropFirst(2).first.flatMap(Double.init) else {
+      FileHandle.standardError.write(Data("\(plugin): --seek takes a number from 0 to 1\n".utf8))
+      return 2
+    }
+    return seek(to: fraction, settings: settings)
   case nil:
     let track = currentTrack(excluding: settings.exclude)
     printJSON(
