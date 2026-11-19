@@ -481,7 +481,10 @@ function Notch({ notch, gaps, glows = {}, onHover }) {
 // caller's own. `pinned`, `{ module, slot }`, keeps a module's menu or
 // popup open for the slot `click`, or its tooltip for `hover`: it runs
 // nothing, and each node it draws carries `data-kantan-node`, the path of
-// the node it came from in the view as written.
+// the node it came from in the view as written. `kept` names a module to
+// keep in view, as one being edited: what would take its place makes way
+// as it would for a module in use. The modules it waits behind the notch
+// for go there, and a drawer that has its room closes for now.
 const group = { display: "flex", alignItems: "center" };
 
 // The placement beside the notch on each side of the screen.
@@ -491,7 +494,7 @@ const BESIDE_NOTCH = { left: "notchleft", right: "notchright" };
 // beside it and an open drawer's contents further out. Gives the placements
 // slid behind the notch, the bar's element to measure, what a module tells
 // of being in use, and the drawer's toggle for a click to call.
-function useOverlaps(bar, toggleDrawer) {
+function useOverlaps(bar, toggleDrawer, kept) {
   const element = useRef(null);
   const [displaced, setDisplaced] = useState({});
   const [engaged, setEngaged] = useState({});
@@ -528,13 +531,21 @@ function useOverlaps(bar, toggleDrawer) {
       const innerWidth = displaced[inner] ? widths.current[inner] ?? 0 : total(modules(inner).map(each => each.offsetWidth));
       const half = root.querySelectorAll("[data-kantan-half]")[side === "left" ? 0 : 1];
       const span = (half?.offsetWidth ?? 0) - (side === "right" ? root.querySelector("[data-kantan-masked]")?.offsetWidth ?? 0 : 0);
-      const using = bar.placements[inner].some(module => engaged[module.name]);
+      // A module kept in view is in use for as long as it is kept.
+      const keeps = bar.placements[inner].some(module => module.name === kept);
+      const using = keeps || bar.placements[inner].some(module => engaged[module.name]);
 
       const action = resolveOverlap({
         collides: span - innerWidth - outerWidth < OVERLAP_MARGIN, drawerOpen, engaged: using,
         displaced: displaced[inner] === true, yielded: yielded.current[side] === true,
       });
-      if (action === "displace") {
+      if (keeps && displaced[inner] && drawerOpen && toggleDrawer) {
+        // Kept in view where a drawer already has its room, it comes back
+        // out and the drawer closes for now.
+        next[inner] = false;
+        yielded.current[side] = true;
+        toggleDrawer(drawer.name);
+      } else if (action === "displace") {
         widths.current[inner] = innerWidth;
         next[inner] = true;
       } else if (action === "restore") {
@@ -545,7 +556,7 @@ function useOverlaps(bar, toggleDrawer) {
       }
     }
     if (Object.keys(next).some(placement => next[placement] !== (displaced[placement] ?? false))) setDisplaced(next);
-  }, [bar, engaged, displaced, settled]);
+  }, [bar, engaged, displaced, settled, kept]);
 
   return {
     element, displaced,
@@ -570,8 +581,10 @@ const TUCK_LINGER = 600;
 // stays out for its `peek` when it arrives, and comes out while the pointer
 // is at the notch. Gives each side's phase by placement, what the pointer
 // tells of being at the notch or over the modules it brought out, how a
-// module is drawn, and the colour each side of the notch glows in.
-function useTucks(bar, dark, interactive) {
+// module is drawn, and the colour each side of the notch glows in. A side
+// with the module `kept` in view is as that module needs: out from behind
+// the notch when it gives way, and behind it otherwise.
+function useTucks(bar, dark, interactive, kept) {
   const [hovered, setHovered] = useState(false);
   const [peeks, setPeeks] = useState({});
   // Whether each module that gives way was showing when last drawn.
@@ -601,9 +614,11 @@ function useTucks(bar, dark, interactive) {
   }, [bar]);
   useEffect(() => () => Object.values(timers.current).forEach(clearTimeout), []);
 
-  const phases = Object.fromEntries(sides.map(({ placement, tucking, holding }) => [
-    placement, resolveTuck({ tucking: tucking.length > 0, holding, revealing: hovered || peeks[placement] === true }),
-  ]));
+  const phases = Object.fromEntries(sides.map(({ placement, modules, tucking, holding }) => {
+    const held = modules.find(module => module.name === kept);
+    const revealing = held ? Boolean(held.tuck) : hovered || peeks[placement] === true;
+    return [placement, resolveTuck({ tucking: tucking.length > 0, holding, revealing })];
+  }));
   const waiting = Object.values(phases).includes("tucked");
 
   const hover = inside => {
@@ -673,9 +688,9 @@ function useCenterShift(element, notch) {
   return shift;
 }
 
-export function BarView({ bar, dark, run, toggleDrawer, switchWorkspace, style, interactive = true, moduleProps, pinned }) {
-  const overlaps = useOverlaps(bar, toggleDrawer);
-  const tucks = useTucks(bar, dark, interactive);
+export function BarView({ bar, dark, run, toggleDrawer, switchWorkspace, style, interactive = true, moduleProps, pinned, kept }) {
+  const overlaps = useOverlaps(bar, toggleDrawer, kept);
+  const tucks = useTucks(bar, dark, interactive, kept);
   const shift = useCenterShift(overlaps.element, Boolean(bar.notch));
   const aroundCenter = { "data-kantan-around-center": true };
   const shifted = shift ? { transform: `translateX(${shift}px)` } : {};

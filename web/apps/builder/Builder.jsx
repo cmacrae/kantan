@@ -335,10 +335,16 @@ function Workspace({ opened, iconSet, onStart }) {
   const accepted = useMemo(() => new Set(config.problem === undefined ? config.modules.map(module => module.name) : []), [config]);
 
   // While customising, every drawer is open, so what it holds can be
-  // reached.
+  // reached, but for one closed for now to keep the module being edited
+  // in view.
+  const [yieldedDrawers, setYieldedDrawers] = useState([]);
   const drawersOpen = useMemo(
-    () => (trying ? undefined : Object.fromEntries(modules.filter(each => each?.type === "drawer").map(each => [each.name, { open: true }]))),
-    [trying, modules]);
+    () => (trying ? undefined : Object.fromEntries(
+      modules.filter(each => each?.type === "drawer").map(each => [each.name, { open: !yieldedDrawers.includes(each.name) }]))),
+    [trying, modules, yieldedDrawers]);
+  const yieldDrawer = useCallback(name => setYieldedDrawers(current => (
+    current.includes(name) ? current.filter(each => each !== name) : [...current, name]
+  )), []);
   const { bar, run, toggleDrawer, switchWorkspace, states: shown, setState, samples } = useBar(drawnDocument, {
     dark, notch, icons: iconSet.icons, themes: catalog.themes, states: opened.document.view?.shown, samples: drawersOpen,
   });
@@ -773,8 +779,9 @@ function Workspace({ opened, iconSet, onStart }) {
         <div className="kb-stage-inner">
           <div ref={frame} className="kb-desk" style={{ zoom }} onClick={pick} {...dragging} {...hovering}>
             <div className="kb-desk-paper" style={{ background: wallpaper(dark) }} />
-            <BarView bar={bar} dark={dark} run={run} toggleDrawer={toggleDrawer} switchWorkspace={switchWorkspace}
-              interactive={trying} moduleProps={moduleProps} style={{ borderRadius: "10px 10px 0 0" }} />
+            <BarView bar={bar} dark={dark} run={run} toggleDrawer={trying ? toggleDrawer : yieldDrawer} switchWorkspace={switchWorkspace}
+              interactive={trying} moduleProps={moduleProps} kept={trying ? undefined : module?.name}
+              style={{ borderRadius: "10px 10px 0 0" }} />
             {slot && (
               <button type="button" className={`kb-slot ${slot.add ? "add" : ""}`} tabIndex={slot.add ? 0 : -1}
                 aria-label="Add a module here"
