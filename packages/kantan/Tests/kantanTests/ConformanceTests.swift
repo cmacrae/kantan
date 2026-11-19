@@ -464,12 +464,15 @@ private func caseWorkspace(_ module: ModuleConfig, display: WorkspaceDisplay, st
 
 /// A module as the cases write one, drawn as `StandardModuleView` draws it
 /// and answering hovers and clicks as `ModuleContainerView` does.
-private func caseModule(_ module: ModuleConfig, state: ShownState, styles: StyleResolver)
-  -> [String: Any]
-{
+private func caseModule(
+  _ module: ModuleConfig, state: ShownState, styles: StyleResolver, besideNotch: Bool
+) -> [String: Any] {
   var result: [String: Any] = [
     "name": module.name, "type": module.type, "hidden": !state.shouldDisplay,
   ]
+  if besideNotch, module.sharesNotch, let tuck = module.tuck {
+    result["tuck"] = ["peek": tuck.peek]
+  }
   result["open"] = state.drawerOpen
   if let display = state.workspace {
     result["workspace"] = caseWorkspace(module, display: display, styles: styles)
@@ -578,9 +581,10 @@ private func caseBar(document: [String: Any], check: [String: Any]) throws -> [S
   var placements: [String: [[String: Any]]] = [
     "left": [], "notchleft": [], "center": [], "notchright": [], "right": [],
   ]
+  let hasNotch = check["notch"] as? Bool ?? false
   for module in config.modules {
     guard
-      let placement = module.placement.resolve(hasNotch: check["notch"] as? Bool ?? false),
+      let placement = module.placement.resolve(hasNotch: hasNotch),
       placements[placement] != nil
     else { continue }
     let moduleStates = states[module.name] ?? []
@@ -588,7 +592,8 @@ private func caseBar(document: [String: Any], check: [String: Any]) throws -> [S
       moduleStates.first { $0["name"] as? String == chosen[module.name] } ?? moduleStates.first
     placements[placement]?.append(
       caseModule(
-        module, state: try shownState(of: module, output: picked?["output"]), styles: styles))
+        module, state: try shownState(of: module, output: picked?["output"]), styles: styles,
+        besideNotch: hasNotch && placement.hasPrefix("notch")))
   }
 
   // Without a notch, a module around the bar's centre may anchor it, the

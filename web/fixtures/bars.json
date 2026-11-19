@@ -405,6 +405,37 @@
     ]
   },
   {
+    "name": "a module beside a notch gives way to the others on its side when it has a tuck",
+    "document": {
+      "version": 1,
+      "config": {
+        "modules": [
+          { "name": "agenda", "type": "text", "placement": "notchleft|left", "tuck": { "peek": 8 }, "config": { "value": "v" } },
+          { "name": "music", "type": "text", "placement": "notchleft|left", "config": { "value": "v" } },
+          { "name": "defaults", "type": "text", "placement": "notchright", "tuck": true, "config": { "value": "v" } },
+          { "name": "unset", "type": "text", "placement": "notchright", "tuck": false, "config": { "value": "v" } },
+          { "name": "elsewhere", "type": "text", "placement": "right", "tuck": true, "config": { "value": "v" } }
+        ]
+      }
+    },
+    "checks": [
+      {
+        "notch": true,
+        "expect": {
+          "placements": {
+            "notchleft": [{ "name": "agenda", "tuck": { "peek": 8 } }, { "name": "music", "tuck": null }],
+            "notchright": [{ "name": "defaults", "tuck": { "peek": 5 } }, { "name": "unset", "tuck": null }],
+            "right": [{ "name": "elsewhere", "tuck": null }]
+          }
+        }
+      },
+      {
+        "notch": false,
+        "expect": { "placements": { "left": [{ "name": "agenda", "tuck": null }, { "name": "music", "tuck": null }] } }
+      }
+    ]
+  },
+  {
     "name": "a config kantan refuses shows what's wrong in a native bar",
     "document": {
       "version": 1,

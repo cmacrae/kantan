@@ -263,6 +263,9 @@ export function resolveBar(document, { dark = false, states = {}, samples = {}, 
     // otherwise, or it reveals on hover left of the notch, where the icon
     // stays beside the notch as the rest slides out.
     if ((module.iconPosition ?? (model.reveal && placement === "notchleft" ? "right" : "left")) === "right") model.iconPosition = "right";
+    // A module beside a notch gives way to the others on its side when it
+    // has a `tuck`, but for a drawer and a module over a menu bar item.
+    if (module.tuck && notch && placement.startsWith("notch") && !module.masked && module.type !== "drawer") model.tuck = module.tuck;
     placements[placement].push(model);
   }
 

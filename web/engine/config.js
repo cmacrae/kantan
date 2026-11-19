@@ -3,6 +3,7 @@
 import { moduleType } from "./modules/index.js";
 import { parseStyle } from "./style.js";
 import { loadTheme } from "./theme.js";
+import { parseTuck } from "./tuck.js";
 import { bool, dict, int, list, num, str } from "./values.js";
 import { decodeYamlView } from "./view.js";
 
@@ -63,6 +64,7 @@ function parseModule(yaml) {
     transition: ["slide", "none"].includes(yaml.transition) ? yaml.transition : undefined,
     iconPosition: ["left", "right"].includes(yaml.iconPosition) ? yaml.iconPosition : undefined,
     anchor: yaml.anchor === "icon" ? "icon" : undefined,
+    tuck: parseTuck(yaml.tuck),
   };
 
   const clickType = str(yaml.interaction?.click?.type);

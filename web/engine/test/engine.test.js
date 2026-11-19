@@ -4,7 +4,8 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import {
-  createResolver, decodeJsonView, formatDate, iconTable, ordinalSuffix, resolveBar, resolveOverlap, resolveView, validateDocument,
+  createResolver, decodeJsonView, formatDate, iconTable, ordinalSuffix, resolveBar, resolveOverlap, resolveTuck, resolveView, tuckHides,
+  validateDocument,
 } from "../index.js";
 
 const icons = iconTable({
@@ -227,6 +228,15 @@ test("where a drawer and the notch's modules meet, whichever is in use keeps its
   assert.equal(resolve({ engaged: true }), "closeDrawer");
   assert.equal(resolve({ drawerOpen: false, engaged: true, yielded: true }), "none");
   assert.equal(resolve({ drawerOpen: false, yielded: true }), "reopenDrawer");
+});
+
+test("a module that gives way waits behind the notch while another on its side shows", () => {
+  assert.equal(resolveTuck({ tucking: true, holding: false, revealing: false }), "idle");
+  assert.equal(resolveTuck({ tucking: false, holding: true, revealing: true }), "idle");
+  assert.equal(resolveTuck({ tucking: true, holding: true, revealing: false }), "tucked");
+  assert.equal(resolveTuck({ tucking: true, holding: true, revealing: true }), "revealed");
+  assert.deepEqual(["idle", "tucked", "revealed"].map(phase => [tuckHides(phase, true), tuckHides(phase, false)]),
+    [[false, false], [true, false], [false, true]]);
 });
 
 test("a waveform's gradient passes through each of its colours, and a wave following the tone takes a palette's once", () => {
