@@ -101,7 +101,7 @@ func nativeMenuRows(from node: ViewNode, resolver: TemplateResolver) -> [NativeM
     }
     return elseNode.map { nativeMenuRows(from: $0, resolver: resolver) } ?? []
 
-  case .progress(let value, let color, let trackColor, let style, _, _):
+  case .progress(let value, let color, let trackColor, let style, _, _, _):
     guard style != .ring else { return [] }
     return [
       .progress(

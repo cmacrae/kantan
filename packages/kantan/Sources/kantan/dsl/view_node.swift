@@ -327,6 +327,7 @@ enum ViewNode: Sendable {
     trackColor: String?,
     style: ProgressStyle?,
     strokeWidth: Double?,
+    command: String?,
     common: CommonNodeProperties
   )
 
@@ -561,6 +562,7 @@ extension ViewNode: Decodable {
         trackColor: try container.decodeIfPresent(String.self, forKey: .trackColor),
         style: try container.decodeIfPresent(ProgressStyle.self, forKey: .style),
         strokeWidth: try container.decodeIfPresent(Double.self, forKey: .strokeWidth),
+        command: try container.decodeIfPresent(String.self, forKey: .command),
         common: common
       )
 

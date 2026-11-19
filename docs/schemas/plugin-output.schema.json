@@ -547,7 +547,8 @@
         "color": { "$ref": "#/$defs/Color", "description": "Progress fill color." },
         "trackColor": { "$ref": "#/$defs/Color", "description": "Track (background) color." },
         "style": { "$ref": "#/$defs/ProgressStyle" },
-        "strokeWidth": { "type": "number", "default": 4, "description": "Width of a ring's stroke, in points. The stroke is centred on the edge of the ring's frame." }
+        "strokeWidth": { "type": "number", "default": 4, "description": "Width of a ring's stroke, in points. The stroke is centred on the edge of the ring's frame." },
+        "command": { "type": "string", "description": "Shell command executed when a bar in a popup is clicked, or dragged and let go. `{value}` is that point along the bar, from 0 to 1." }
       },
       "required": ["type", "value"]
     },

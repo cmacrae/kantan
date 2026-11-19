@@ -254,12 +254,23 @@ Advanced nodes provide specialized UI components.
 
 | Type | Description | Properties |
 |------|-------------|------------|
-| `progress` | Progress bar or ring | `value` (number or template, **required**; 0.0 to 1.0, clamped), `color` (hex or named colour, default accent), `trackColor` (hex or named colour), `style` (`bar`/`ring`, default `bar`), `strokeWidth` (number, the width of a ring's stroke, default 4) |
+| `progress` | Progress bar or ring | `value` (number or template, **required**; 0.0 to 1.0, clamped), `color` (hex or named colour, default accent), `trackColor` (hex or named colour), `style` (`bar`/`ring`, default `bar`), `strokeWidth` (number, the width of a ring's stroke, default 4), `command` (string, optional; makes a bar take clicks and drags) |
 | `gauge` | Gauge indicator | `value` (number or template, **required**), `min` (number, default 0.0), `max` (number, default 1.0), `label` (string), `color` (hex or named colour, default accent) |
 | `badge` | Capsule-shaped label (11pt medium) | `content` (string, **required**), `color` (hex or named colour, background, default accent), `textColor` (hex or named colour, foreground, default white) |
 | `grid` | Grid of equal-width columns, filled row by row | `columns` (integer, default 2), `spacing` (number, default 8; between rows and columns), `children` (array) |
 
 A `progress` or `gauge` value that isn't a number is treated as 0. The `bar` style is 6pt tall and fills the available width. The `ring` style fills the space it is given, with a stroke 4pt wide unless `strokeWidth` says otherwise. The stroke is centred on the ring's edge, so half its width falls outside the frame. Give the ring a size with `frame`. `gauge` uses the system gauge, with `label` shown in 11pt text. It spans `min` to `max` whichever order they come in: `min: 20` alone spans 1 to 20.
+
+A `bar` with a `command` takes a click or a drag in a popup. Its fill follows the pointer, and where the pointer is let go the command runs, with `{value}` as that point along the bar, from 0 to 1. The popup stays open. The bar shows that point until `value` catches up with it, or for two seconds. In a native menu the bar only shows its value.
+
+**Seekable Progress Example:**
+```json
+{
+  "type": "progress",
+  "value": "{position}",
+  "command": "my-player --seek {value}"
+}
+```
 
 **Progress Example:**
 ```json

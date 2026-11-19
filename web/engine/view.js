@@ -45,7 +45,7 @@ const NODES = {
   button: { label: defaulted(S, ""), icon: S, command: S, style: E("default", "bordered", "borderless", "plain"), dismiss: B, color: S },
   foreach: { items: required(S, ""), child: required(K) },
   if: { condition: required(S, ""), then: required(K), else: K },
-  progress: { value: required(F, "0"), color: S, trackColor: S, style: E("bar", "ring"), strokeWidth: N },
+  progress: { value: required(F, "0"), color: S, trackColor: S, style: E("bar", "ring"), strokeWidth: N, command: S },
   gauge: { value: required(F, "0"), min: N, max: N, label: S, color: S },
   badge: { content: required(S, ""), color: S, textColor: S },
   grid: { columns: defaulted(I, 2), spacing: N, children: C },

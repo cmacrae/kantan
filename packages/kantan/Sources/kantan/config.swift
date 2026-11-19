@@ -756,7 +756,8 @@ func parseViewNodeFromYaml(_ yaml: Yaml) -> ViewNode? {
     let style = dict["style"]?.string.flatMap { ProgressStyle(rawValue: $0) }
     return .progress(
       value: value, color: color, trackColor: trackColor, style: style,
-      strokeWidth: yamlDouble(dict["strokeWidth"]), common: common)
+      strokeWidth: yamlDouble(dict["strokeWidth"]), command: dict["command"]?.string,
+      common: common)
 
   case "gauge":
     let value =

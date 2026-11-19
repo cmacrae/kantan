@@ -151,7 +151,7 @@ extension ViewNode {
       .button(_, _, _, _, _, _, let c),
       .foreach(_, _, let c),
       .`if`(_, _, _, let c),
-      .progress(_, _, _, _, _, let c),
+      .progress(_, _, _, _, _, _, let c),
       .gauge(_, _, _, _, _, let c),
       .badge(_, _, _, let c),
       .grid(_, _, _, let c):
@@ -265,10 +265,11 @@ struct DSLRendererView: View {
       renderIf(condition: condition, thenNode: thenNode, elseNode: elseNode)
 
     // Advanced
-    case .progress(let value, let color, let trackColor, let style, let strokeWidth, _):
+    case .progress(
+      let value, let color, let trackColor, let style, let strokeWidth, let command, _):
       renderProgress(
         value: value, color: color, trackColor: trackColor, style: style,
-        strokeWidth: strokeWidth)
+        strokeWidth: strokeWidth, command: command)
     case .gauge(let value, let min, let max, let label, let color, _):
       renderGauge(value: value, min: min, max: max, label: label, color: color)
     case .badge(let content, let color, let textColor, _):
@@ -611,7 +612,7 @@ struct DSLRendererView: View {
   @ViewBuilder
   private func renderProgress(
     value: String, color: String?, trackColor: String?, style: ProgressStyle?,
-    strokeWidth: Double?
+    strokeWidth: Double?, command: String?
   ) -> some View {
     let resolvedValue = resolveDouble(value, resolver: resolver) ?? 0.0
     let clampedValue = min(max(resolvedValue, 0.0), 1.0)
@@ -634,19 +635,11 @@ struct DSLRendererView: View {
           .stroke(tint, style: StrokeStyle(lineWidth: width, lineCap: .round))
           .rotationEffect(.degrees(-90))
       }
+    } else if let command, !command.isEmpty {
+      DSLSeekBar(
+        value: clampedValue, track: track, tint: tint, command: command, resolver: resolver)
     } else {
-      // Bar style (default)
-      GeometryReader { geo in
-        ZStack(alignment: .leading) {
-          RoundedRectangle(cornerRadius: 2)
-            .fill(track)
-            .frame(height: 6)
-          RoundedRectangle(cornerRadius: 2)
-            .fill(tint)
-            .frame(width: geo.size.width * clampedValue, height: 6)
-        }
-      }
-      .frame(height: 6)
+      DSLProgressBar(value: clampedValue, track: track, tint: tint)
     }
   }
 
@@ -769,6 +762,103 @@ private struct DSLForeachElementView: View {
 }
 
 // MARK: - Interactive Node Views
+
+/// A bar 6pt tall, filled to `value`, from 0 to 1, in `tint` over `track`.
+private struct DSLProgressBar: View {
+  let value: Double
+  let track: Color
+  let tint: Color
+
+  var body: some View {
+    GeometryReader { geo in
+      ZStack(alignment: .leading) {
+        RoundedRectangle(cornerRadius: 2)
+          .fill(track)
+          .frame(height: 6)
+        RoundedRectangle(cornerRadius: 2)
+          .fill(tint)
+          .frame(width: geo.size.width * value, height: 6)
+      }
+    }
+    .frame(height: 6)
+  }
+}
+
+/// A progress bar that takes a click or a drag: its fill follows the
+/// pointer, and where the pointer is let go, `command` runs with `{value}`
+/// as that point along the bar, from 0 to 1. While the pointer is near the
+/// bar or dragging it, a dot in the fill's colour marks the fill's end.
+private struct DSLSeekBar: View {
+  let value: Double
+  let track: Color
+  let tint: Color
+  let command: String
+  let resolver: TemplateResolver
+  /// How far above and below the bar it takes the pointer, in points.
+  private static let reach: CGFloat = 6
+  /// The dot's diameter, in points.
+  private static let dot: CGFloat = 12
+  /// How near `value` comes to where the pointer let go before the bar
+  /// follows it again, and how long the bar waits for that, in seconds.
+  private static let settled = 0.02
+  private static let patience: TimeInterval = 2
+  /// Where the pointer is along the bar during a drag, or let go and
+  /// `value` has yet to follow.
+  @State private var chosen: Double?
+  @State private var dragging = false
+  @State private var hovered = false
+  @State private var releases = 0
+  @Environment(\.dismissWhenPointerLeaves) private var dismissWhenPointerLeaves
+
+  var body: some View {
+    GeometryReader { geo in
+      DSLProgressBar(value: chosen ?? value, track: track, tint: tint)
+        .overlay(alignment: .leading) {
+          SwiftUI.Circle()
+            .fill(tint)
+            .frame(width: Self.dot, height: Self.dot)
+            .offset(x: geo.size.width * (chosen ?? value) - Self.dot / 2)
+            .opacity(hovered || dragging ? 1 : 0)
+            .animation(.easeOut(duration: 0.12), value: hovered || dragging)
+        }
+        .padding(.vertical, Self.reach)
+        .contentShape(Rectangle())
+        .onHover { hovered = $0 }
+        .gesture(
+          DragGesture(minimumDistance: 0)
+            .onChanged { drag in
+              dragging = true
+              chosen = fraction(of: drag.location.x, in: geo.size.width)
+            }
+            .onEnded { drag in
+              release(at: fraction(of: drag.location.x, in: geo.size.width))
+            }
+        )
+        .padding(.vertical, -Self.reach)
+    }
+    .frame(height: 6)
+    .onChange(of: value) { _, value in
+      if !dragging, let chosen, abs(value - chosen) < Self.settled { self.chosen = nil }
+    }
+  }
+
+  private func fraction(of x: CGFloat, in width: CGFloat) -> Double {
+    width > 0 ? min(max(Double(x / width), 0), 1) : 0
+  }
+
+  private func release(at fraction: Double) {
+    dragging = false
+    chosen = fraction
+    releases += 1
+    let release = releases
+    DispatchQueue.main.asyncAfter(deadline: .now() + Self.patience) {
+      if release == releases, !dragging { chosen = nil }
+    }
+    dismissWhenPointerLeaves()
+    let scoped = resolver.scoped(with: ["value": dslCanonicalNumber(fraction)])
+    runCommand(scoped.resolveCommand(command), environment: resolver.commandEnvironment)
+  }
+}
 
 /// HStack that optionally becomes clickable when a command is provided.
 /// Without a command it renders as a plain HStack.
