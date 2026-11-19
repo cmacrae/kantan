@@ -93,8 +93,19 @@ final class MenuBarAccessibility: @unchecked Sendable {
     }
   }
 
+  /// Whether the lock screen is up. The system's items can't be read behind
+  /// it, and are back where they were once it lifts.
+  static var isScreenLocked: Bool {
+    let session = CGSessionCopyCurrentDictionary() as? [String: Any]
+    return session?["CGSSessionScreenIsLocked"] as? Bool ?? false
+  }
+
+  /// Reads the items, keeping the last read while the screen is locked, or
+  /// when it locks during the read.
   private func refresh(generation current: Int, onChange: @Sendable () -> Void) {
+    guard !Self.isScreenLocked else { return }
     let fresh = Self.isTrusted ? Self.read() : []
+    guard !Self.isScreenLocked else { return }
     let changed = lock.withLock { () -> Bool in
       guard generation == current, fresh != items else { return false }
       items = fresh
