@@ -749,7 +749,9 @@ class DisplayInstance {
     guard let bgPanel = bgPanel, let bar = barViewModel, bar.hasDrawer else { return }
 
     let barFrame = bgPanel.frame
-    let level = bgPanel.level
+    // Above the native menu bar's items, as the module panels are, so a
+    // click on the bar never reaches an item the bar has no module over.
+    let level = NSWindow.Level(rawValue: bgPanel.level.rawValue + 1)
 
     // Collect x-ranges of all visible group panels.
     var ranges: [(minX: CGFloat, maxX: CGFloat)] = []
