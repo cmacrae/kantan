@@ -15,7 +15,7 @@ The [builder](https://kantan.bar/builder/) draws each of them on a bar in the br
 | `bluetooth` | Bluetooth status |
 | `workspace` | Window manager workspace indicator (native macOS, aerospace or rift) |
 | `focus` | Focus mode indicator |
-| `waveform` | The sound the Mac is playing, as bars or a wave |
+| `waveform` | The sound the Mac is playing, as bars, a wave and more |
 | `text` | Static text display |
 | `icon` | Static icon display |
 | `drawer` | Expandable module group |

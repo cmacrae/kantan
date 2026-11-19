@@ -542,9 +542,11 @@ These keys go under a waveform module's `config` key:
 
 | Key | Type | Default | Description |
 |-----|------|---------|-------------|
-| `style` | string | `bars` | `bars` draws the level of each band of frequencies; `wave` draws the sound's wave as a line |
-| `bars` | number | `8` | How many bars the `bars` style draws, up to 256 |
-| `width` | number | `40` | Width of the `wave` style's line in points |
+| `style` | string | `bars` | What is drawn: `bars`, `wave`, `flow`, `scroll`, `spectrogram`, `line` or `dots` |
+| `bars` | number | `8` | How many bars the `bars` style draws, or columns the `dots` style, up to 256 |
+| `width` | number | `40` | Width in points of every style but `bars` and `dots` |
+| `wave` | object | — | What the `wave` style adds to its line: `lock`, `glow`, `loudness`, `tone`, `curve`, `fill`, `stereo` |
+| `speed` | number | `15` | How fast the `scroll` and `spectrogram` styles scroll, in points a second |
 | `height` | number | `14` | Height in points |
 | `hide` | string | `silent` | `silent` hides the module while there is no sound; `never` keeps it |
 | `silenceDelay` | number | `0.3` | Seconds of quiet before the sound counts as stopped. `0` follows it at once |
@@ -553,7 +555,7 @@ These keys go under a waveform module's `config` key:
 | `sources` | string | `apps` | `apps` draws the sound of apps in the Dock and their helpers, leaving out the system's own; `all` draws every sound |
 | `exclude` | array | — | Apps whose sound isn't drawn, by name or bundle identifier |
 | `rainbow` | object | — | Colours the bars from a palette: `enabled`, `random`, `colors` |
-| `gradient` | object | — | Colours the bars from `low` to `high` |
+| `gradient` | object | — | Colours the bars from `low` to `high`, or through a list of `colors` |
 
 See [Waveform](../modules/waveform.md).
 
