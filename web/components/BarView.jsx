@@ -502,8 +502,9 @@ function useOverlaps(bar, toggleDrawer) {
     const next = { ...displaced };
     for (const side of ["left", "right"]) {
       const inner = BESIDE_NOTCH[side];
-      const outerModules = bar.placements[side].filter(module => !module.slot);
-      const drawer = outerModules.find(module => module.type === "drawer");
+      // The modules over the menu bar are outside the room being shared.
+      const outerModules = bar.placements[side].filter(module => !bar.menuBar.modules.includes(module.name));
+      const drawer = bar.placements[side].find(module => module.type === "drawer");
       if (!drawer || !outerModules.some(module => module.inDrawer) || !bar.placements[inner].length) continue;
 
       const modules = placement => [...root.querySelectorAll(`[data-kantan-placement="${placement}"] > [data-kantan-module]`)];
@@ -601,8 +602,9 @@ export function BarView({ bar, dark, run, toggleDrawer, switchWorkspace, style, 
     pointerEvents: overlaps.displaced[placement] ? "none" : undefined,
     transition: `max-width ${WORKSPACE_TIMING}, opacity ${WORKSPACE_TIMING}`,
   });
-  // Masked modules sit together over the system's menu bar items.
-  const modules = placement => bar.placements[placement].filter(module => !module.slot).map(view);
+  // Masked modules sit together over the system's menu bar items, with
+  // the unmasked ones kantan holds room for among them.
+  const modules = placement => bar.placements[placement].filter(module => !bar.menuBar.modules.includes(module.name)).map(view);
   const all = Object.values(bar.placements).flat();
   const masked = bar.menuBar.modules.map(name => all.find(module => module.name === name));
   const gaps = bar.gaps ?? { top: 0, left: 0, right: 0 };
