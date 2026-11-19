@@ -254,12 +254,12 @@ Advanced nodes provide specialized UI components.
 
 | Type | Description | Properties |
 |------|-------------|------------|
-| `progress` | Progress bar or ring | `value` (number or template, **required**; 0.0 to 1.0, clamped), `color` (hex or named colour, default accent), `trackColor` (hex or named colour), `style` (`bar`/`ring`, default `bar`) |
+| `progress` | Progress bar or ring | `value` (number or template, **required**; 0.0 to 1.0, clamped), `color` (hex or named colour, default accent), `trackColor` (hex or named colour), `style` (`bar`/`ring`, default `bar`), `strokeWidth` (number, the width of a ring's stroke, default 4) |
 | `gauge` | Gauge indicator | `value` (number or template, **required**), `min` (number, default 0.0), `max` (number, default 1.0), `label` (string), `color` (hex or named colour, default accent) |
 | `badge` | Capsule-shaped label (11pt medium) | `content` (string, **required**), `color` (hex or named colour, background, default accent), `textColor` (hex or named colour, foreground, default white) |
 | `grid` | Grid of equal-width columns, filled row by row | `columns` (integer, default 2), `spacing` (number, default 8; between rows and columns), `children` (array) |
 
-A `progress` or `gauge` value that isn't a number is treated as 0. The `bar` style is 6pt tall and fills the available width. The `ring` style has a 4pt stroke and fills the space it is given. Give it a size with `frame`. `gauge` uses the system gauge, with `label` shown in 11pt text. It spans `min` to `max` whichever order they come in: `min: 20` alone spans 1 to 20.
+A `progress` or `gauge` value that isn't a number is treated as 0. The `bar` style is 6pt tall and fills the available width. The `ring` style fills the space it is given, with a stroke 4pt wide unless `strokeWidth` says otherwise. The stroke is centred on the ring's edge, so half its width falls outside the frame. Give the ring a size with `frame`. `gauge` uses the system gauge, with `label` shown in 11pt text. It spans `min` to `max` whichever order they come in: `min: 20` alone spans 1 to 20.
 
 **Progress Example:**
 ```json

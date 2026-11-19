@@ -228,9 +228,13 @@ function Node({ node, context }) {
     case "progress":
       return node.style === "ring"
         ? (
-          <svg viewBox="0 0 20 20" style={{ flex: "1 1 auto", minWidth: 12, minHeight: 12, transform: "rotate(-90deg)" }}>
-            <circle cx="10" cy="10" r="8" fill="none" stroke={color(node.track)} strokeWidth="4" />
-            <circle cx="10" cy="10" r="8" fill="none" stroke={color(node.color)} strokeWidth="4" strokeLinecap="round" pathLength="1" strokeDasharray={`${node.value} 1`} />
+          // A stroke of the ring's width along the edge of the space it is
+          // given, whatever its size, as kantan draws it.
+          <svg width="100%" height="100%" style={{ flex: "1 1 auto", minWidth: 12, minHeight: 12, transform: "rotate(-90deg)", overflow: "visible" }}>
+            <circle cx="50%" cy="50%" r="50%" fill="none" stroke={color(node.track)} strokeWidth={node.strokeWidth} />
+            {node.value > 0 && (
+              <circle cx="50%" cy="50%" r="50%" fill="none" stroke={color(node.color)} strokeWidth={node.strokeWidth} strokeLinecap="round" pathLength="1" strokeDasharray={`${node.value} 1`} />
+            )}
           </svg>
         )
         : (

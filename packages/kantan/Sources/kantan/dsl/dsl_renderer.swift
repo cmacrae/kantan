@@ -151,7 +151,7 @@ extension ViewNode {
       .button(_, _, _, _, _, let c),
       .foreach(_, _, let c),
       .`if`(_, _, _, let c),
-      .progress(_, _, _, _, let c),
+      .progress(_, _, _, _, _, let c),
       .gauge(_, _, _, _, _, let c),
       .badge(_, _, _, let c),
       .grid(_, _, _, let c):
@@ -264,8 +264,10 @@ struct DSLRendererView: View {
       renderIf(condition: condition, thenNode: thenNode, elseNode: elseNode)
 
     // Advanced
-    case .progress(let value, let color, let trackColor, let style, _):
-      renderProgress(value: value, color: color, trackColor: trackColor, style: style)
+    case .progress(let value, let color, let trackColor, let style, let strokeWidth, _):
+      renderProgress(
+        value: value, color: color, trackColor: trackColor, style: style,
+        strokeWidth: strokeWidth)
     case .gauge(let value, let min, let max, let label, let color, _):
       renderGauge(value: value, min: min, max: max, label: label, color: color)
     case .badge(let content, let color, let textColor, _):
@@ -607,7 +609,8 @@ struct DSLRendererView: View {
 
   @ViewBuilder
   private func renderProgress(
-    value: String, color: String?, trackColor: String?, style: ProgressStyle?
+    value: String, color: String?, trackColor: String?, style: ProgressStyle?,
+    strokeWidth: Double?
   ) -> some View {
     let resolvedValue = resolveDouble(value, resolver: resolver) ?? 0.0
     let clampedValue = min(max(resolvedValue, 0.0), 1.0)
@@ -621,12 +624,13 @@ struct DSLRendererView: View {
       fallback: .accentColor)
 
     if style == .ring {
+      let width = CGFloat(strokeWidth ?? dslRingStrokeWidth)
       ZStack {
         SwiftUI.Circle()
-          .stroke(track, lineWidth: 4)
+          .stroke(track, lineWidth: width)
         SwiftUI.Circle()
           .trim(from: 0, to: clampedValue)
-          .stroke(tint, style: StrokeStyle(lineWidth: 4, lineCap: .round))
+          .stroke(tint, style: StrokeStyle(lineWidth: width, lineCap: .round))
           .rotationEffect(.degrees(-90))
       }
     } else {

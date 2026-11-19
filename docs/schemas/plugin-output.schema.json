@@ -545,7 +545,8 @@
         },
         "color": { "$ref": "#/$defs/Color", "description": "Progress fill color." },
         "trackColor": { "$ref": "#/$defs/Color", "description": "Track (background) color." },
-        "style": { "$ref": "#/$defs/ProgressStyle" }
+        "style": { "$ref": "#/$defs/ProgressStyle" },
+        "strokeWidth": { "type": "number", "default": 4, "description": "Width of a ring's stroke, in points. The stroke is centred on the edge of the ring's frame." }
       },
       "required": ["type", "value"]
     },

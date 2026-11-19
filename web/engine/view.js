@@ -45,7 +45,7 @@ const NODES = {
   button: { label: defaulted(S, ""), icon: S, command: S, style: E("default", "bordered", "borderless", "plain"), dismiss: B },
   foreach: { items: required(S, ""), child: required(K) },
   if: { condition: required(S, ""), then: required(K), else: K },
-  progress: { value: required(F, "0"), color: S, trackColor: S, style: E("bar", "ring") },
+  progress: { value: required(F, "0"), color: S, trackColor: S, style: E("bar", "ring"), strokeWidth: N },
   gauge: { value: required(F, "0"), min: N, max: N, label: S, color: S },
   badge: { content: required(S, ""), color: S, textColor: S },
   grid: { columns: defaulted(I, 2), spacing: N, children: C },
@@ -324,6 +324,7 @@ export function resolveView(node, context, depth = 0) {
         type: "progress", style: node.style === "ring" ? "ring" : "bar",
         value: Number.isFinite(value) ? Math.min(Math.max(value, 0), 1) : 0,
         color: color(node.color, "accent"), track: color(node.trackColor, "track"),
+        ...(node.style === "ring" ? { strokeWidth: node.strokeWidth ?? 4 } : {}),
       });
     }
     case "gauge":
