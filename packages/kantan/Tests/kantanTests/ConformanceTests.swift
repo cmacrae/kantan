@@ -144,6 +144,8 @@ private func caseRow(_ row: NativeMenuRow) -> [String: Any] {
     return [
       "type": "text", "text": text, "bold": bold, "secondary": secondary, "strike": strikethrough,
     ]
+  case .progress(let value, _, _):
+    return ["type": "progress", "value": value]
   }
 }
 

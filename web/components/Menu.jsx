@@ -92,6 +92,14 @@ export function Menu({ rows, fg, dark, run, close, mark }) {
                 <span style={{ textDecoration: row.checked ? "line-through" : undefined }}>{row.label}</span>
               </Selectable>
             );
+          case "progress":
+            return (
+              <div key={i} {...tag(row)} style={{ ...ROW, minHeight: 14 }}>
+                <div style={{ flex: 1, height: 6, borderRadius: 2, background: cssColor(row.track, dark) }}>
+                  <div style={{ width: `${row.value * 100}%`, height: 6, borderRadius: 2, background: cssColor(row.color, dark) }} />
+                </div>
+              </div>
+            );
           case "toggle":
             return (
               <div key={i} {...tag(row)} onClick={() => row.command && run(row.command)} style={{ ...ROW, minHeight: 28, gap: 8 }}>

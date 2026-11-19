@@ -171,13 +171,27 @@
         { "type": "circle", "size": 4 },
         { "type": "capsule" },
         { "type": "button", "label": "Go" },
-        { "type": "progress", "value": "{x}" },
+        { "type": "progress", "value": "{x}", "style": "ring" },
         { "type": "gauge", "value": 1 },
         { "type": "badge", "content": "3" },
         { "type": "grid", "columns": 2, "children": [{ "type": "text", "content": "in a grid" }] }
       ]
     },
     "expect": { "rows": [{ "type": "text", "text": "in a grid" }] }
+  },
+  {
+    "name": "a progress bar outside an hstack is a row of its own",
+    "source": "json",
+    "variables": { "done": "0.375", "over": "3" },
+    "view": {
+      "type": "vstack",
+      "children": [
+        { "type": "progress", "value": "{done}" },
+        { "type": "progress", "value": "{over}", "style": "bar" },
+        { "type": "progress", "value": "{missing}" }
+      ]
+    },
+    "expect": { "rows": [{ "type": "progress", "value": 0.375 }, { "type": "progress", "value": 1 }, { "type": "progress", "value": 0 }] }
   },
   {
     "name": "visible is not a menu's concern",

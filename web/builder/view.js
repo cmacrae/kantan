@@ -401,7 +401,7 @@ export const STARTERS = [
   },
   {
     name: "Meters",
-    about: "A label over a bar for each reading. Bars need a popup: a menu has no row for them.",
+    about: "A label over a bar for each reading.",
     kinds: ["popup"],
     view: () => ({
       type: "vstack",

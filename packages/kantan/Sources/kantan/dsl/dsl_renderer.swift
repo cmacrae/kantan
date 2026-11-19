@@ -32,7 +32,7 @@ extension EnvironmentValues {
 
 /// Resolve a color string from a node property. Supports named system colors
 /// and hex color strings.
-private func resolveColor(
+func resolveColor(
   _ colorString: String?, isNative: Bool, fallback: Color = .primary
 ) -> Color {
   guard let colorString = colorString, !colorString.isEmpty else { return fallback }
@@ -120,7 +120,7 @@ private func swiftUITextAlignment(from align: DSLTextAlignment?) -> SwiftUI.Text
 
 /// Resolve a template string to a `Double`, returning nil if resolution or
 /// parsing fails.
-private func resolveDouble(_ template: String, resolver: TemplateResolver) -> Double? {
+func resolveDouble(_ template: String, resolver: TemplateResolver) -> Double? {
   let resolved = resolver.resolve(template)
   return Double(resolved)
 }

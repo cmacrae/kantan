@@ -22,6 +22,9 @@ enum NativeMenuRow: Equatable {
   case header(String)
   case divider
   case text(String, bold: Bool, secondary: Bool, strikethrough: Bool)
+  /// A progress bar filled to `value`, from 0 to 1, in `color` over
+  /// `trackColor`, each the system's when nil.
+  case progress(value: Double, color: String?, trackColor: String?)
 }
 
 /// The rows of the native menu `node` makes, with their placeholders and
@@ -29,8 +32,9 @@ enum NativeMenuRow: Equatable {
 ///
 /// A menu is a flat list, so layout containers (vstack, zstack, scroll,
 /// group, grid) flatten into their children, and an hstack with no
-/// interactive child becomes one row. Nodes a menu has no row for (shapes,
-/// images, progress, gauge, badge, spacer, a lone icon) are left out.
+/// interactive child becomes one row, and a progress bar outside an hstack a
+/// row of its own. Nodes a menu has no row for (shapes, images, progress
+/// rings, gauge, badge, spacer, a lone icon) are left out.
 func nativeMenuRows(from node: ViewNode, resolver: TemplateResolver) -> [NativeMenuRow] {
   switch node {
   case .vstack(_, _, let children, _),
@@ -97,7 +101,16 @@ func nativeMenuRows(from node: ViewNode, resolver: TemplateResolver) -> [NativeM
     }
     return elseNode.map { nativeMenuRows(from: $0, resolver: resolver) } ?? []
 
-  case .spacer, .icon, .image, .rect, .circle, .capsule, .button, .progress, .gauge, .badge:
+  case .progress(let value, let color, let trackColor, let style, _, _):
+    guard style != .ring else { return [] }
+    return [
+      .progress(
+        value: min(max(resolveDouble(value, resolver: resolver) ?? 0, 0), 1),
+        color: color.map { resolver.resolve($0) },
+        trackColor: trackColor.map { resolver.resolve($0) })
+    ]
+
+  case .spacer, .icon, .image, .rect, .circle, .capsule, .button, .gauge, .badge:
     return []
   }
 }
@@ -506,6 +519,10 @@ private func menuItem(
       NativeMenuTextView(
         content: content, isBold: bold, isSecondary: secondary, isStrikethrough: strikethrough,
         textColor: textColor))
+
+  case .progress(let value, let color, let trackColor):
+    return hostedItem(
+      NativeMenuProgressView(value: value, color: color, trackColor: trackColor), height: 14)
   }
 }
 
@@ -604,6 +621,28 @@ private struct NativeMenuLabelView: View {
     }
     .padding(.horizontal, 14)
     .frame(maxWidth: .infinity, minHeight: 22)
+  }
+}
+
+/// A progress bar for native NSMenu, as wide as the menu's rows.
+struct NativeMenuProgressView: View {
+  let value: Double
+  var color: String?
+  var trackColor: String?
+
+  var body: some View {
+    GeometryReader { geo in
+      ZStack(alignment: .leading) {
+        RoundedRectangle(cornerRadius: 2)
+          .fill(resolveColor(trackColor, isNative: true, fallback: Color.secondary.opacity(0.2)))
+        RoundedRectangle(cornerRadius: 2)
+          .fill(resolveColor(color, isNative: true, fallback: .accentColor))
+          .frame(width: geo.size.width * value)
+      }
+    }
+    .frame(height: 6)
+    .padding(.horizontal, 14)
+    .frame(maxWidth: .infinity, maxHeight: .infinity)
   }
 }
 

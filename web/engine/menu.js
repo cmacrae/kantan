@@ -1,10 +1,11 @@
 // A view as a native menu shows it. A menu is a flat list of rows, so
-// stacks flatten into their children, an hstack becomes one row, and the
-// nodes a menu has no row for are left out.
+// stacks flatten into their children, an hstack becomes one row, a progress
+// bar outside an hstack is a row of its own, and the nodes a menu has no
+// row for are left out.
 // Each row has its `source`, the path of the node it came from in the view
 // as written. A row an hstack makes also lists the `sources` of the nodes
 // within the hstack that went into it.
-import { parseHex } from "./color.js";
+import { parseHex, viewColor } from "./color.js";
 import { resolveIcon } from "./icons.js";
 
 const MENU_FONT_SIZE = 13;
@@ -124,6 +125,15 @@ export function menuRows(node, r, icons) {
         type: "text", text: r.resolve(node.content), bold: BOLD.includes(node.weight),
         secondary: node.style === "secondary", strike: node.strikethrough === true, source,
       }];
+    case "progress": {
+      if (node.style === "ring") return [];
+      const value = Number(r.resolve(node.value));
+      const color = (given, fallback) => viewColor(given === undefined ? undefined : r.resolve(given), fallback);
+      return [{
+        type: "progress", value: Number.isFinite(value) ? Math.min(Math.max(value, 0), 1) : 0,
+        color: color(node.color, "accent"), track: color(node.trackColor, "track"), source,
+      }];
+    }
     case "foreach":
       return (r.data[node.items] ?? []).flatMap(element => menuRows(node.child, r.scoped(element), icons));
     case "if":

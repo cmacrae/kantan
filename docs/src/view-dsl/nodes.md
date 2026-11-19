@@ -322,7 +322,8 @@ A view opened by `click.type: menu` is always rendered as a native `NSMenu`, in 
 | `check` | A check item; clicking it doesn't close the menu |
 | `toggle` | A switch |
 | `foreach`, `if` | Expanded in place |
-| `spacer`, `icon`, `image`, `rect`, `circle`, `capsule`, `button`, `progress`, `gauge`, `badge` | Skipped (except inside an `hstack`, below) |
+| `progress` | A bar as wide as the menu, in its `color` and `trackColor`. The `ring` style, and a `progress` inside an `hstack`, are skipped |
+| `spacer`, `icon`, `image`, `rect`, `circle`, `capsule`, `button`, `gauge`, `badge` | Skipped (except inside an `hstack`, below) |
 
 Native menus ignore the common styling properties (`padding`, `frame`, `opacity`, `background`, `cornerRadius`) and `visible`. Use an `if` node to hide items in a menu.
 
