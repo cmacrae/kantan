@@ -300,6 +300,7 @@ enum ViewNode: Sendable {
     command: String?,
     style: DSLButtonStyle?,
     dismiss: Bool,
+    color: String?,
     common: CommonNodeProperties
   )
 
@@ -532,6 +533,7 @@ extension ViewNode: Decodable {
         command: try container.decodeIfPresent(String.self, forKey: .command),
         style: try container.decodeIfPresent(DSLButtonStyle.self, forKey: .style),
         dismiss: try container.decodeIfPresent(Bool.self, forKey: .dismiss) ?? true,
+        color: try container.decodeIfPresent(String.self, forKey: .color),
         common: common
       )
 

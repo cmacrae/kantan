@@ -218,7 +218,10 @@ function Node({ node, context }) {
       );
     case "button":
       return (
-        <span onClick={runs(node.command, node.dismiss !== false)} style={{ display: "inline-flex", alignItems: "center", gap: 6, cursor: "pointer", fontSize: 13, color: color("accent") }}>
+        <span onClick={runs(node.command, node.dismiss !== false)} style={{
+          display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 6, cursor: "pointer", fontSize: 13, whiteSpace: "nowrap", flexShrink: 0,
+          color: color(node.color), ...(node.plain ? { minWidth: 24, minHeight: 24 } : {}),
+        }}>
           {node.icon && (node.icon.type === "unsupported"
             ? <Unsupported what={node.icon.what} />
             : <Glyph icon={node.icon} dark={dark} fallbackFont="inherit" />)}

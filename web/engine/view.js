@@ -42,7 +42,7 @@ const NODES = {
   action: { label: defaulted(S, ""), icon: S, command: S },
   check: { label: defaulted(S, ""), checked: defaulted(F, "false"), command: S, uncheckedCommand: S },
   toggle: { label: defaulted(S, ""), on: defaulted(F, "false"), command: S },
-  button: { label: defaulted(S, ""), icon: S, command: S, style: E("default", "bordered", "borderless", "plain"), dismiss: B },
+  button: { label: defaulted(S, ""), icon: S, command: S, style: E("default", "bordered", "borderless", "plain"), dismiss: B, color: S },
   foreach: { items: required(S, ""), child: required(K) },
   if: { condition: required(S, ""), then: required(K), else: K },
   progress: { value: required(F, "0"), color: S, trackColor: S, style: E("bar", "ring"), strokeWidth: N },
@@ -311,6 +311,10 @@ export function resolveView(node, context, depth = 0) {
         icon: name === "" ? undefined : icon(name, 12), command: command(node.command),
         // A button that leaves its popup open, until the pointer leaves it.
         ...(node.dismiss === false ? { dismiss: false } : {}),
+        // Its own colour, or the text's around a plain button, or the
+        // system's.
+        color: color(node.color, node.style === "plain" ? context.fg : "accent"),
+        ...(node.style === "plain" ? { plain: true } : {}),
       });
     }
     case "foreach":

@@ -507,6 +507,7 @@
         "icon": { "type": "string" },
         "command": { "type": "string", "description": "Shell command executed on click." },
         "style": { "$ref": "#/$defs/ButtonStyle" },
+        "color": { "$ref": "#/$defs/Color", "description": "Colour of the label and icon. Left out, a plain button takes the text colour around it, and any other the system's." },
         "dismiss": { "type": "boolean", "default": true, "description": "Whether a click closes the popup the button is in. When false, the popup stays open, for a control used more than once, and closes once the pointer leaves it." }
       },
       "required": ["type"]

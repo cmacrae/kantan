@@ -154,7 +154,7 @@ A bare placeholder whose value is empty leaves nothing. A command that is a sing
 | `action` | Clickable menu-style row with icon and label | `label` (string, optional), `icon` (string, optional icon name), `command` (string, optional) |
 | `check` | Checkbox item | `label` (string, optional), `checked` (boolean, number, or template string; default false), `command` (string, optional; run when checking), `uncheckedCommand` (string, optional; run when unchecking, falling back to `command`) |
 | `toggle` | Toggle switch | `label` (string, optional), `on` (boolean, number, or template string; default false), `command` (string, optional; run whenever it is switched, either way) |
-| `button` | Button | `label` (string, optional), `icon` (string, optional icon name), `command` (string, optional), `style` (`default`/`bordered`/`borderless`/`plain`; accepted but currently renders as `borderless`) |
+| `button` | Button | `label` (string, optional), `icon` (string, optional icon name), `command` (string, optional), `style` (`default`/`bordered`/`borderless`/`plain`; `plain` draws the label in the text colour around it, in a click area at least 24pt square; the others render as `borderless`), `color` (hex or named colour of the label and icon; default the system's, or for `plain` the text colour) |
 
 `checked` and `on` are evaluated as booleans: `true`, `1`, `yes`, and any other non-empty value are on; `false`, `0`, `no`, and empty are off.
 

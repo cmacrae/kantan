@@ -185,6 +185,9 @@ class TemplateResolver {
 /// The width of a progress ring's stroke when it gives none, in points.
 let dslRingStrokeWidth = 4.0
 
+/// The least width and height of a `plain` button's click area, in points.
+let dslPlainButtonSize: CGFloat = 24
+
 /// How many columns a grid with `columns` has: 2 by default, and at least 1.
 func dslGridColumnCount(_ columns: Int?) -> Int {
   max(1, columns ?? 2)

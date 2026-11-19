@@ -729,7 +729,7 @@ func parseViewNodeFromYaml(_ yaml: Yaml) -> ViewNode? {
     let style = dict["style"]?.string.flatMap { DSLButtonStyle(rawValue: $0) }
     return .button(
       label: label, icon: icon, command: command, style: style,
-      dismiss: dict["dismiss"]?.bool ?? true, common: common)
+      dismiss: dict["dismiss"]?.bool ?? true, color: dict["color"]?.string, common: common)
 
   case "foreach":
     let items = dict["items"]?.string ?? ""

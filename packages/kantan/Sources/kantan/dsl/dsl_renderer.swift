@@ -148,7 +148,7 @@ extension ViewNode {
       .action(_, _, _, let c),
       .check(_, _, _, _, let c),
       .toggle(_, _, _, let c),
-      .button(_, _, _, _, _, let c),
+      .button(_, _, _, _, _, _, let c),
       .foreach(_, _, let c),
       .`if`(_, _, _, let c),
       .progress(_, _, _, _, _, let c),
@@ -252,9 +252,10 @@ struct DSLRendererView: View {
       DSLToggleView(
         label: label, on: on, command: command,
         resolver: resolver, isNative: isNative, dismissHandler: dismissHandler)
-    case .button(let label, let icon, let command, let style, let dismiss, _):
+    case .button(let label, let icon, let command, let style, let dismiss, let color, _):
       DSLButtonView(
         label: label, icon: icon, command: command, style: style, dismisses: dismiss,
+        color: color,
         resolver: resolver, isNative: isNative, dismissHandler: dismissHandler)
 
     // Data
@@ -949,6 +950,8 @@ private struct DSLButtonView: View {
   let style: DSLButtonStyle?
   /// Whether a click closes the popup, or leaves it until the pointer does.
   let dismisses: Bool
+  /// The colour of the label and icon, or nil for the style's own.
+  let color: String?
   let resolver: TemplateResolver
   let isNative: Bool
   let dismissHandler: () -> Void
@@ -994,8 +997,39 @@ private struct DSLButtonView: View {
             .font(.system(size: 13))
         }
       }
+      // A button's label keeps to one line, however little room it has.
+      .lineLimit(1)
+      .fixedSize()
+      .modifier(
+        ButtonLabel(
+          isPlain: style == .plain,
+          color: color.map { resolver.resolve($0) }.flatMap { $0.isEmpty ? nil : $0 },
+          isNative: isNative))
     }
     .buttonStyle(.borderless)
+  }
+}
+
+/// Draws a button's label in its `color` when it has one. A `plain`
+/// button's is otherwise in the text colour around it, in an area a click
+/// can find however short the label.
+private struct ButtonLabel: ViewModifier {
+  let isPlain: Bool
+  let color: String?
+  let isNative: Bool
+  @Environment(\.defaultTextColor) private var defaultTextColor
+
+  func body(content: Content) -> some View {
+    if isPlain {
+      content
+        .foregroundStyle(resolveColor(color, isNative: isNative, fallback: defaultTextColor))
+        .frame(minWidth: dslPlainButtonSize, minHeight: dslPlainButtonSize)
+        .contentShape(Rectangle())
+    } else if let color {
+      content.foregroundStyle(resolveColor(color, isNative: isNative, fallback: .accentColor))
+    } else {
+      content
+    }
   }
 }
 
