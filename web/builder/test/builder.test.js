@@ -7,7 +7,7 @@ import { SLOTS, readScheme, schemeFileName, schemeTheme, withSharedTheme } from 
 import { BUILT_INS, inVariant, pluginOf, variantOf } from "../catalog.js";
 import { bindSettings } from "../settings.js";
 import {
-  addBuiltIn, addPasted, addPlugin, addShared, boundDocument, emptyDocument, inLayout, layoutOf, modulesOf, toDir, toSingle, updateModule,
+  addBuiltIn, addPasted, addPlugin, addShared, boundDocument, emptyDocument, inLayout, layoutOf, modulesOf, toDir, toSingle, updateModule, placeAtEdge, placeModule,
 } from "../edit.js";
 import { documentFiles, readYaml, themeFiles, variantsYaml } from "../files.js";
 import { themeVariants } from "../shared.js";
@@ -507,4 +507,13 @@ test("American and Canadian spelling keep a word's capital and the words around 
   assert.equal(american("Customise a copy"), "Customize a copy");
   assert.equal(american("Colours of mocha, each flavour centred"), "Colors of mocha, each flavor centered");
   assert.equal(canadian("Customise the colours"), "Customize the colours");
+});
+
+test("a masked module moves among the right placement's modules and nowhere else", () => {
+  const module = (name, placement, mask) => ({ name, type: "text", placement, ...(mask ? { mask: { name: mask } } : {}) });
+  const document = { version: 1, config: { modules: [module("spaces", "left"), module("caffeine", "right"), module("wifi", "right", "WiFi")] } };
+  const names = next => next.config.modules.map(each => `${each.name}:${each.placement}`);
+  assert.deepEqual(names(placeModule(document, 2, 1)), ["spaces:left", "wifi:right", "caffeine:right"]);
+  assert.equal(placeModule(document, 2, 0), document);
+  assert.equal(placeAtEdge(document, 2, "left", true), document);
 });

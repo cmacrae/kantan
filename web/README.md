@@ -46,7 +46,7 @@ The landing page draws the config it shows, `apps/landing/content/config-example
 
 `apps/builder/` is the page at `/builder/`. It draws a document's bar live, lists its modules, edits whichever is picked, and shows the YAML that makes the bar.
 
-The bar has two ways of answering the pointer. While customising, a click on a module drops its quick settings and a drag moves it. While trying it out, the bar behaves as it does in kantan. Modules set over the menu bar can't be moved, because macOS decides where its own items sit.
+The bar has two ways of answering the pointer. While customising, a click on a module drops its quick settings and a drag moves it. While trying it out, the bar behaves as it does in kantan. A module set over a menu bar item moves among the right placement's modules and nowhere else, since that is where the menu bar's items are. One over the clock or Control Centre can't be moved: macOS keeps both at the right end.
 
 - **A module's design** is one form, in the order someone thinks about it: what it shows, how it looks, what a hover and a click do, and where it sits. Its sections are Content, Style, On hover, On click, and Name and placement. The settings few people change are folded under Advanced. The quick settings that drop from a module on the bar are the first two sections of the same form.
 - **Labels** are kantan's keys as words. `builder/labels.js` holds the few that differ, which show the key beside them, and says which keys are folded away. The fields themselves are made from `docs/schemas/module-config.schema.json`. A key the schema gains appears in the builder under its own name. Any module can also be edited as YAML.

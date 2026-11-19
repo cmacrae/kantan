@@ -233,13 +233,18 @@ export function withPlacement(module, placement) {
   return { ...(placement.includes("center") ? module : rest), placement };
 }
 
+// Whether a module's config sets it over a menu bar item.
+export const isMasked = module => dict(module?.mask) !== undefined && (typeof module.mask.name === "string" || Number.isInteger(module.mask.index));
+
 // The document with the module at `from` moved to sit just before the
 // module at `to`, or just after it when `after`, in its part of a screen
-// with or without a notch.
+// with or without a notch. A masked module stays at the right, where the
+// menu bar's items are.
 export function placeModule(document, from, to, after = false, notch = false) {
   const modules = modulesOf(document);
   if (from === to || !dict(modules[from]) || !dict(modules[to])) return document;
   const section = sectionOf(modules[to], notch);
+  if (isMasked(modules[from]) && section !== "right") return document;
   const moved = withPlacement(modules[from], section === undefined ? modules[to].placement : placedIn(modules[from].placement, section, notch));
   const order = modulesOf(updateModule(document, from, moved)).filter(module => module !== moved);
   order.splice(order.indexOf(modules[to]) + (after ? 1 : 0), 0, moved);
@@ -248,10 +253,10 @@ export function placeModule(document, from, to, after = false, notch = false) {
 
 // The document with the module at `from` placed in `section` of a screen
 // with or without a notch: before the modules already there when `start`,
-// and after them otherwise.
+// and after them otherwise. A masked module stays at the right.
 export function placeAtEdge(document, from, section, start, notch = false) {
   const modules = modulesOf(document);
-  if (!dict(modules[from])) return document;
+  if (!dict(modules[from]) || (isMasked(modules[from]) && section !== "right")) return document;
   const moved = withPlacement(modules[from], placedIn(modules[from].placement, section, notch));
   const order = modulesOf(updateModule(document, from, moved)).filter(module => module !== moved);
   const there = order.map((module, i) => (sectionOf(module, notch) === section ? i : -1)).filter(i => i >= 0);

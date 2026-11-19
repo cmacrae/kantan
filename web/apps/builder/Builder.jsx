@@ -11,7 +11,7 @@ import { loadConfig, loadTheme, resolveBar } from "../../engine/index.js";
 import { dict } from "../../engine/values.js";
 import { inVariant, pluginOf } from "../../builder/catalog.js";
 import {
-  addBuiltIn, addOwnPlugin, addPasted, addPlugin, addShared, boundDocument, documentFromConfig, emptyDocument, inLayout, layoutOf, modulesOf, placeAtEdge, sectionOf,
+  addBuiltIn, addOwnPlugin, addPasted, addPlugin, addShared, boundDocument, documentFromConfig, emptyDocument, inLayout, isMasked, layoutOf, modulesOf, placeAtEdge, sectionOf,
   placeModule, removeModule, setModuleStates, toSingle, updateModule,
 } from "../../builder/edit.js";
 import { adoptSlots, importSchemes, withSharedTheme } from "../../builder/base16.js";
@@ -184,21 +184,16 @@ function Start({ onClose, onOpen }) {
   );
 }
 
-// Whether a module's config sets it over a menu bar item.
-const isMasked = module => dict(module?.mask) !== undefined && (typeof module.mask.name === "string" || Number.isInteger(module.mask.index));
-
 // Where the bar draws each module, for listing them: a section for each
-// placement the screen has, one for the modules set over the menu bar, and
-// one for those with no place. `items` are indexes into `modules`.
+// placement the screen has, one for the masked modules that stay where
+// macOS has their items, and one for those with no place. `items` are
+// indexes into `modules`.
 function sectionsOf(modules, bar, notch) {
   const index = name => modules.findIndex(module => module?.name === name);
   const listed = new Set();
   const take = names => names.map(index).filter(i => i >= 0 && !listed.has(i) && listed.add(i));
 
-  const masked = take([
-    ...bar.menuBar.modules,
-    ...Object.values(bar.placements).flat().filter(module => isMasked(modules[index(module.name)])).map(module => module.name),
-  ]);
+  const kept = take(Object.values(bar.placements).flat().filter(module => module.fixed).map(module => module.name));
   const placed = key => take(bar.placements[key].map(module => module.name));
   const sections = [
     { title: "Left", placement: "left", items: placed("left") },
@@ -214,10 +209,10 @@ function sectionsOf(modules, bar, notch) {
     ].filter(section => section.placement === "center" || section.items.length > 0)),
     { title: "Right", placement: "right", items: placed("right") },
   ];
-  if (masked.length) {
+  if (kept.length) {
     sections.push({
-      title: "Over the menu bar", fixed: true, items: masked,
-      note: "Masked over menu bar items. Position follows macOS.",
+      title: "Kept by macOS", fixed: true, items: kept,
+      note: "The clock and Control Centre stay at the right edge. A masked module placed anywhere but Right sits over its item all the same.",
     });
   }
   const rest = modules.map((_, i) => i).filter(i => !listed.has(i));
@@ -642,11 +637,14 @@ function Workspace({ opened, iconSet, onStart }) {
   // leftwards.
   const growsLeft = key => key === "right" || key === "notchleft";
   const placedIn = name => Object.keys(bar.placements).find(key => bar.placements[key].some(each => each.name === name));
+  const modelOf = name => Object.values(bar.placements).flat().find(each => each.name === name);
   const landing = (event, width) => {
     if (event.target.closest?.("[data-kantan-notch]")) return undefined;
     const over = nameAt(event.target);
-    if (over !== undefined && !isMasked(modules[indexOf(over)])) {
-      if (over === drag || indexOf(over) < 0) return undefined;
+    // A masked module stays at the right, where the menu bar's items are.
+    const masked = drag !== undefined && isMasked(modules[indexOf(drag)]);
+    if (over !== undefined && !modelOf(over)?.fixed) {
+      if (over === drag || indexOf(over) < 0 || (masked && placedIn(over) !== "right")) return undefined;
       const { left, right } = span(element(over));
       // A module moved along its own placement ends where the other was.
       // One from elsewhere takes the other's place, pushing it the way its
@@ -657,7 +655,7 @@ function Workspace({ opened, iconSet, onStart }) {
     }
     const desk = frame.current.getBoundingClientRect();
     const x = (event.clientX - desk.left) / zoom;
-    const gaps = LANDINGS.map(key => {
+    const gaps = LANDINGS.filter(key => !masked || key === "right").map(key => {
       const { left, right } = span(frame.current.querySelector(`[data-kantan-placement="${key}"]`));
       return growsLeft(key)
         ? { placement: key, start: true, x: left - width, away: Math.abs(x - left) }
@@ -728,7 +726,7 @@ function Workspace({ opened, iconSet, onStart }) {
     },
     onMouseLeave: () => drag === undefined && setSlot(undefined),
   };
-  const moduleProps = useCallback(each => (trying || each.slot ? undefined : { draggable: true }), [trying]);
+  const moduleProps = useCallback(each => (trying || each.fixed ? undefined : { draggable: true }), [trying]);
 
   // A module alone on a bar of its own, at the bar's left where a panel
   // has the most room: the one whose view is being built, or one that

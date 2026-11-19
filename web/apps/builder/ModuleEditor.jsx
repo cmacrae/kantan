@@ -378,7 +378,7 @@ function Design({ module, drawn, example, taken, states, masked, onChange, onVie
       <Section icon="layout-navbar" title="Name and placement">
         <NameField key={module.name} name={module.name} taken={taken} onRename={name => onChange({ ...module, name })} />
         <Row label="Placement" name="placement" description={schema.properties.placement.description}>
-          <select aria-label="Placement" value={primary ?? ""} onChange={event => place(event.target.value, secondary)}>
+          <select aria-label="Placement" value={primary ?? ""} disabled={masked && primary === "right"} onChange={event => place(event.target.value, secondary)}>
             {placements.map(([value, label]) => <option key={value} value={value}>{label}</option>)}
           </select>
         </Row>
@@ -398,7 +398,13 @@ function Design({ module, drawn, example, taken, states, masked, onChange, onVie
             </select>
           </Row>
         )}
-        {masked && <div className="kb-note">It sits over its menu bar item, wherever its placement puts it and wherever macOS has that item.</div>}
+        {masked && (
+          <div className="kb-note">
+            {primary === "right"
+              ? "It sits over its menu bar item, at the right. Its place among the other modules there is where its item belongs in the menu bar."
+              : "It sits over its menu bar item, at the right, whatever its placement. Place it at the right to give it a place among the modules there."}
+          </div>
+        )}
         <Group title={labelOf("mask")} name="mask" node={deref(schema, schema.properties.mask)} value={module.mask} onChange={value => set("mask", value)} />
       </Section>
 
