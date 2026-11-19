@@ -5,6 +5,7 @@ import { test } from "node:test";
 import { NODE_FIELDS, NODE_TYPES, decodeJsonView, loadConfig, loadTheme, resolveBar, validateDocument } from "../../engine/index.js";
 import { SLOTS, readScheme, schemeFileName, schemeTheme, withSharedTheme } from "../base16.js";
 import { BUILT_INS, pluginOf } from "../catalog.js";
+import { bindSettings } from "../settings.js";
 import {
   addBuiltIn, addPasted, addPlugin, addShared, boundDocument, emptyDocument, inLayout, layoutOf, modulesOf, toDir, toSingle, updateModule,
 } from "../edit.js";
@@ -282,6 +283,14 @@ test("a document is drawn with its plugins' states bound to their modules' setti
   // A document naming no settings is drawn as it is.
   const plain = everything();
   assert.equal(boundDocument(plain, catalog), plain);
+
+  // A name falls back to what follows it while its setting is unset, and
+  // to the last of them when set to inherit.
+  const falling = "{setting(colors.calendars.Work)}|{setting(colors.event)}|#1e66f5";
+  assert.equal(bindSettings(falling, {}), "#1e66f5");
+  assert.equal(bindSettings(falling, { colors: { event: "#ff0000" } }), "#ff0000");
+  assert.equal(bindSettings(falling, { colors: { calendars: { Work: "inherit" }, event: "#ff0000" } }), "#1e66f5");
+  assert.equal(bindSettings(falling, { colors: { calendars: { Work: "#00ff00" }, event: "#ff0000" } }), "#00ff00");
 });
 
 const sampleView = () => ({

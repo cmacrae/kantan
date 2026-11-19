@@ -50,6 +50,9 @@ const escapeKey = key => String(key).replace(/[%.(){}]/g, char => ESCAPED[char])
 export const settingName = path => `{setting(${path.map(escapeKey).join(".")})}`;
 
 const NAME = /\{setting\(([^(){}]*)\)\}/g;
+// A name followed by what it falls back to: more names, or a value with
+// no space in it.
+const ALTERNATIVES = /^\{setting\([^(){}]*\)\}(\|(\{setting\([^(){}]*\)\}|[^\s|{}]+))+$/;
 const pathOf = name => name.split(".").map(decodeURIComponent);
 
 // Whether `node` describes a colour or an icon, which a plugin prints as
@@ -127,6 +130,10 @@ export function namesSettings(value) {
 // it, or its entry in `defaults`. A string that is one name alone is left
 // out when the setting is unset and has no default, as a plugin leaves
 // out what it wasn't given, and so is a mapping that held nothing else.
+// A string of alternatives, `{setting(a)}|{setting(b)}|#1e66f5`, is the
+// first of them that says something: a name does when its setting is set,
+// and anything else does as it is. A setting set to `inherit` says the
+// last of them, which is the thing's own.
 export function bindSettings(value, settings, defaults = {}) {
   const lookup = name => {
     const set = pathOf(name).reduce((at, key) => (at === null || at === undefined ? undefined : at[key]), settings);
@@ -134,6 +141,16 @@ export function bindSettings(value, settings, defaults = {}) {
   };
   const bind = item => {
     if (typeof item === "string") {
+      if (ALTERNATIVES.test(item)) {
+        const each = item.split("|");
+        for (const one of each) {
+          const name = one.match(/^\{setting\(([^(){}]*)\)\}$/);
+          const said = name ? lookup(name[1]) : one;
+          if (said === "inherit") return each[each.length - 1];
+          if (said !== undefined) return said;
+        }
+        return undefined;
+      }
       const whole = item.match(/^\{setting\(([^(){}]*)\)\}$/);
       return whole ? lookup(whole[1]) : item.replace(NAME, (_, name) => lookup(name) ?? "");
     }
