@@ -24,37 +24,50 @@ function panelBackground(bar, dark) {
 }
 
 // How far to move `ref`'s element sideways to keep it within the bar's
-// width, as kantan keeps a panel within the screen the bar spans.
-function useWithinBar(ref, deps) {
-  const [shift, setShift] = useState(0);
-  useLayoutEffect(() => {
-    const screen = ref.current?.closest("[data-kantan-bar]")?.getBoundingClientRect();
-    if (!screen) return;
-    const rect = ref.current.getBoundingClientRect();
-    const left = rect.left - shift, right = rect.right - shift;
-    setShift(right > screen.right ? Math.max(screen.right - right, screen.left - left) : left < screen.left ? screen.left - left : 0);
-  }, deps);
-  return shift;
-}
-
-// How far to move `ref`'s element sideways to keep it where it opened,
-// as kantan keeps a popup in place while its module changes width under
-// it. The place is kept along the bar, so it holds as the page scrolls.
-function useHeldInPlace(ref, holds, deps) {
+// How far to move `ref`'s element from where it hangs, as `{ x, y }`: to
+// keep it within the screen its bar is on, and to keep it where it opened
+// along each axis `holds` names, as kantan keeps a popup in place while its
+// module changes size under it. The place is kept within the bar, so it holds as
+// the page scrolls. Measured again whenever `deps` change, and whenever the
+// element, its module or its bar changes size, as each does when a font
+// loads.
+function usePanelOffset(ref, holds, deps) {
   const opened = useRef(null);
-  const [hold, setHold] = useState(0);
+  const [offset, setOffset] = useState({ x: 0, y: 0 });
+  const [resized, setResized] = useState(0);
+  useEffect(() => {
+    const panel = ref.current;
+    if (!panel || typeof ResizeObserver === "undefined") return undefined;
+    const observer = new ResizeObserver(() => setResized(count => count + 1));
+    for (const each of [panel, panel.offsetParent, panel.closest("[data-kantan-bar]")]) {
+      if (each) observer.observe(each);
+    }
+    return () => observer.disconnect();
+  }, []);
   useLayoutEffect(() => {
     const bar = ref.current?.closest("[data-kantan-bar]");
-    const module = ref.current?.offsetParent;
-    if (!holds || !bar || !module) return;
-    const screen = bar.getBoundingClientRect(), under = module.getBoundingClientRect();
+    if (!bar) return;
+    const screen = bar.getBoundingClientRect();
     // The page may draw the bar scaled, which the move is made within.
-    const scale = bar.offsetWidth ? screen.width / bar.offsetWidth : 1;
-    const centre = (under.left + under.width / 2 - screen.left) / (scale || 1);
-    opened.current ??= centre;
-    setHold(opened.current - centre);
-  }, deps);
-  return hold;
+    const scale = (bar.offsetWidth ? screen.width / bar.offsetWidth : 1) || 1;
+    const rect = ref.current.getBoundingClientRect();
+    const top = (rect.top - screen.top) / scale - offset.y;
+    let hold = { x: 0, y: 0 };
+    const module = ref.current.offsetParent;
+    if (module) {
+      const under = module.getBoundingClientRect();
+      const centre = (under.left + under.width / 2 - screen.left) / scale;
+      opened.current ??= { centre, top };
+      hold = { x: holds.x ? opened.current.centre - centre : 0, y: holds.y ? opened.current.top - top : 0 };
+    }
+    // Where the element's sides would be, held in place but not yet kept
+    // within the screen.
+    const left = rect.left + (hold.x - offset.x) * scale, right = rect.right + (hold.x - offset.x) * scale;
+    const shift = right > screen.right ? Math.max(screen.right - right, screen.left - left) : left < screen.left ? screen.left - left : 0;
+    const next = { x: hold.x + shift / scale, y: hold.y };
+    if (next.x !== offset.x || next.y !== offset.y) setOffset(next);
+  }, [...deps, resized]);
+  return offset;
 }
 
 // What a menu, popup or tooltip is drawn on: its corners, material,
@@ -89,8 +102,8 @@ export function PanelView({ kind, nodes, context }) {
 // its left edge at the module's, `gap` below the module's content.
 function Panel({ kind, bar, dark, align, gap, style, deps, children }) {
   const ref = useRef(null);
-  const shift = useWithinBar(ref, deps);
-  const hold = useHeldInPlace(ref, kind === "popup", deps);
+  // A menu hangs from its module's left edge, so only its height is held.
+  const offset = usePanelOffset(ref, { x: kind === "popup", y: kind !== "tooltip" }, deps);
   return (
     <div
       ref={ref}
@@ -98,7 +111,7 @@ function Panel({ kind, bar, dark, align, gap, style, deps, children }) {
       style={{
         position: "absolute", top: `calc(100% + ${gap}px)`, zIndex: 300,
         left: align === "center" ? "50%" : 0,
-        transform: `translateX(calc(${align === "center" ? "-50%" : "0px"} + ${shift + hold}px))`,
+        transform: `translate(calc(${align === "center" ? "-50%" : "0px"} + ${offset.x}px), ${offset.y}px)`,
         ...panelSurface(kind, bar, dark),
         ...style,
       }}
