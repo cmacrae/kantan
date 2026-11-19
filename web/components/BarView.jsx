@@ -2,7 +2,7 @@
 // value and shape, the tooltip it shows under the pointer, and the menu or
 // popup a click opens.
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
-import { OVERLAP_MARGIN, matchWaveform, resolveOverlap } from "../engine/index.js";
+import { OVERLAP_MARGIN, matchWaveform, resolveOverlap, resolveTuck, tuckHides } from "../engine/index.js";
 import { Glyph } from "./Glyph.jsx";
 import { Menu } from "./Menu.jsx";
 import { Unsupported } from "./Unsupported.jsx";
@@ -141,6 +141,10 @@ function Shaped({ shape, color, height, children }) {
 // How long a drawer takes to open or close, and a workspace to change.
 const DRAWER_TIMING = "0.25s ease-in-out";
 const WORKSPACE_TIMING = "0.3s cubic-bezier(0.4, 0, 0.2, 1)";
+// A module making way for one from behind the notch clears in the first
+// half of the change, and fades back in from a third of the way through.
+const TUCK_EXIT = "0.15s cubic-bezier(0.4, 0, 1, 1)";
+const TUCK_ENTRANCE = "0.2s cubic-bezier(0, 0, 0.2, 1) 0.1s";
 
 // A module's icon, over the icon kantan draws faintly behind it when it
 // has one: the full-strength signal behind a weaker one, say.
@@ -242,12 +246,21 @@ function WorkspaceView({ workspace, bar, dark, activate }) {
   );
 }
 
-function ModuleView({ module, bar, dark, run, toggleDrawer, switchWorkspace, interactive, moduleProps, pinned, onEngaged }) {
+function ModuleView({ module, bar, dark, run, toggleDrawer, switchWorkspace, interactive, moduleProps, pinned, onEngaged, tuck }) {
   const [hover, setHover] = useState(false);
   const [open, setOpen] = useState(false);
   // Whether a click has left the popup open until the pointer leaves it.
   const [lingering, setLingering] = useState(false);
   const ref = useRef(null);
+  // The module's width, for it to make way by, and whether it has been
+  // drawn at it: a module that starts out of the bar doesn't slide there.
+  const outer = useRef(null);
+  const [width, setWidth] = useState(0);
+  const [settled, setSettled] = useState(false);
+  useLayoutEffect(() => {
+    if (tuck && outer.current && outer.current.offsetWidth !== width) setWidth(outer.current.offsetWidth);
+  });
+  useEffect(() => setSettled(width > 0), [width > 0]);
 
   // A module that reveals on hover is in use while it shows what it
   // reveals, which the bar makes room for.
@@ -288,6 +301,9 @@ function ModuleView({ module, bar, dark, run, toggleDrawer, switchWorkspace, int
   // apart as an icon and its text.
   const edge = side => (module.slot ? 0 : module.anchor === side ? bar.iconTextSpacing : module.joined === side ? 0 : padding);
   const folded = module.folded === true;
+  // Whether the module is out of the bar for the others on its side of
+  // the notch.
+  const away = tuck?.away === true;
   // A pinned panel stays open and runs nothing, for whoever pinned it to
   // answer clicks within it.
   const held = pinned?.module === module.name ? pinned.slot : undefined;
@@ -347,8 +363,10 @@ function ModuleView({ module, bar, dark, run, toggleDrawer, switchWorkspace, int
   return (
     <div
       {...moduleProps?.(module)}
+      ref={outer}
       data-kantan-module={module.name}
-      aria-hidden={folded || undefined}
+      data-kantan-away={away || undefined}
+      aria-hidden={folded || away || undefined}
       style={{
         paddingLeft: folded ? 0 : edge("left"), paddingRight: folded ? 0 : edge("right"),
         display: "flex", alignItems: "center", height: bar.height, boxSizing: "border-box",
@@ -358,6 +376,18 @@ function ModuleView({ module, bar, dark, run, toggleDrawer, switchWorkspace, int
           maxWidth: folded ? 0 : 600, opacity: folded ? 0 : 1,
           overflow: folded ? "hidden" : "visible", pointerEvents: folded ? "none" : undefined,
           transition: `max-width ${DRAWER_TIMING}, padding ${DRAWER_TIMING}, opacity ${DRAWER_TIMING}`,
+        } : {}),
+        // A module out of the bar leaves its room to the others, which
+        // close over it. One that gives way slides its own width towards
+        // the notch, and behind it, as it fades. Any other fades where it
+        // is, leaving quickly.
+        ...(tuck ? {
+          [tuck.notch === "right" ? "marginLeft" : "marginRight"]: away ? -width : 0,
+          transform: away && tuck.givesWay ? `translateX(${tuck.notch === "right" ? width : -width}px)` : undefined,
+          opacity: away ? 0 : 1, pointerEvents: away ? "none" : undefined,
+          transition: settled
+            ? `margin ${WORKSPACE_TIMING}, transform ${WORKSPACE_TIMING}, opacity ${tuck.givesWay ? WORKSPACE_TIMING : away ? TUCK_EXIT : TUCK_ENTRANCE}`
+            : "none",
         } : {}),
       }}
     >
@@ -402,14 +432,31 @@ function ModuleView({ module, bar, dark, run, toggleDrawer, switchWorkspace, int
 // The camera housing of a screen with a notch: black, hanging from the
 // top of the screen over whatever the bar draws there, its lower corners
 // rounded and its upper ones flaring into the screen's edge.
-function Notch({ notch, gaps }) {
+function Notch({ notch, gaps, glows = {}, onHover }) {
   const flare = 6;
+  const radius = 10, reach = 26, tail = 26;
+  // The glow of one side with modules waiting behind the notch: a soft
+  // light around the notch's edge, in `color`, down its side and round its
+  // bottom corner, fading out beneath it.
+  const glow = side => (
+    <span key={side} data-kantan-glow={side} aria-hidden style={{
+      position: "absolute", top: 0, left: -reach, width: notch.width + reach * 2, height: notch.height + reach,
+      pointerEvents: "none", opacity: glows[side] ? 1 : 0, transition: `opacity ${WORKSPACE_TIMING}`,
+      maskImage: `linear-gradient(to ${side === "left" ? "right" : "left"}, #000 ${reach + radius}px, transparent ${reach + radius + tail}px)`,
+      WebkitMaskImage: `linear-gradient(to ${side === "left" ? "right" : "left"}, #000 ${reach + radius}px, transparent ${reach + radius + tail}px)`,
+    }}>
+      <span style={{
+        position: "absolute", top: 0, left: reach, width: notch.width, height: notch.height,
+        borderRadius: `0 0 ${radius}px ${radius}px`, boxShadow: glows[side] ? `0 0 14px 1px ${glows[side]}` : undefined,
+      }} />
+    </span>
+  );
   const corner = side => ({
     position: "absolute", top: 0, [side]: -flare, width: flare, height: flare,
     background: `radial-gradient(circle at ${side === "left" ? "0 100%" : "100% 100%"}, transparent ${flare}px, #000 ${flare + 0.5}px)`,
   });
   return (
-    <div data-kantan-notch style={{
+    <div data-kantan-notch onMouseEnter={onHover && (() => onHover(true))} onMouseLeave={onHover && (() => onHover(false))} style={{
       alignSelf: "flex-start", flexShrink: 0, position: "relative", zIndex: 2, width: notch.width, height: notch.height,
       background: "#000", borderRadius: "0 0 10px 10px",
       // The notch stays at the top centre of the screen wherever gaps put the bar.
@@ -417,6 +464,8 @@ function Notch({ notch, gaps }) {
     }}>
       <span style={corner("left")} />
       <span style={corner("right")} />
+      {glow("left")}
+      {glow("right")}
     </div>
   );
 }
@@ -468,7 +517,7 @@ function useOverlaps(bar, toggleDrawer) {
       const drawer = bar.placements[side].find(module => module.type === "drawer");
       if (!drawer || !outerModules.some(module => module.inDrawer) || !bar.placements[inner].length) continue;
 
-      const modules = placement => [...root.querySelectorAll(`[data-kantan-placement="${placement}"] > [data-kantan-module]`)];
+      const modules = placement => [...root.querySelectorAll(`[data-kantan-placement="${placement}"] > [data-kantan-module]:not([data-kantan-away])`)];
       const total = elements => elements.reduce((sum, each) => sum + each, 0);
       // A drawer's contents are measured at the width they open to.
       const drawerOpen = drawer.open === true;
@@ -511,6 +560,83 @@ function useOverlaps(bar, toggleDrawer) {
   };
 }
 
+// How long the pointer rests at the notch before the modules behind it come
+// out, and how long they stay once it has left, in milliseconds.
+const TUCK_DWELL = 120;
+const TUCK_LINGER = 600;
+
+// Settles how each side of the notch is shared, as kantan does: a module
+// with a `tuck` waits behind the notch while another on its side shows. It
+// stays out for its `peek` when it arrives, and comes out while the pointer
+// is at the notch. Gives each side's phase by placement, what the pointer
+// tells of being at the notch or over the modules it brought out, how a
+// module is drawn, and the colour each side of the notch glows in.
+function useTucks(bar, dark, interactive) {
+  const [hovered, setHovered] = useState(false);
+  const [peeks, setPeeks] = useState({});
+  // Whether each module that gives way was showing when last drawn.
+  const shown = useRef({});
+  const timers = useRef({});
+
+  const sides = Object.values(BESIDE_NOTCH).map(placement => {
+    const modules = bar.notch
+      ? bar.placements[placement].filter(module => !bar.menuBar.modules.includes(module.name) && module.type !== "drawer" && !module.folded)
+      : [];
+    const tucking = modules.filter(module => module.tuck && !module.hidden);
+    return { placement, modules, tucking, holding: modules.some(module => !module.tuck && !module.hidden) };
+  });
+
+  // A module arriving while another holds its side stays out for its peek.
+  useEffect(() => {
+    for (const { placement, modules, holding } of sides) {
+      for (const module of modules.filter(each => each.tuck)) {
+        const arrived = !module.hidden && shown.current[module.name] === false;
+        shown.current[module.name] = !module.hidden;
+        if (!arrived || !holding || !(module.tuck.peek > 0)) continue;
+        clearTimeout(timers.current[placement]);
+        setPeeks(current => ({ ...current, [placement]: true }));
+        timers.current[placement] = setTimeout(() => setPeeks(current => ({ ...current, [placement]: false })), module.tuck.peek * 1000);
+      }
+    }
+  }, [bar]);
+  useEffect(() => () => Object.values(timers.current).forEach(clearTimeout), []);
+
+  const phases = Object.fromEntries(sides.map(({ placement, tucking, holding }) => [
+    placement, resolveTuck({ tucking: tucking.length > 0, holding, revealing: hovered || peeks[placement] === true }),
+  ]));
+  const waiting = Object.values(phases).includes("tucked");
+
+  const hover = inside => {
+    clearTimeout(timers.current.hover);
+    if (!interactive || inside === hovered) return;
+    timers.current.hover = setTimeout(() => setHovered(inside), inside ? TUCK_DWELL : TUCK_LINGER);
+  };
+  const glow = side => {
+    const { tucking } = sides.find(each => each.placement === BESIDE_NOTCH[side]);
+    if (phases[BESIDE_NOTCH[side]] !== "tucked") return undefined;
+    return cssColor(tucking[0].icon?.color ?? bar.fg, dark);
+  };
+  return {
+    phases,
+    // The pointer brings the modules out at the notch, and keeps them out
+    // over them.
+    atNotch: inside => (inside ? (waiting || hovered) && hover(true) : hover(false)),
+    overModules: inside => hovered && hover(inside),
+    // How a module that shares its side of the notch is drawn.
+    of: (module, placement) => {
+      const side = sides.find(each => each.placement === placement);
+      if (!side?.modules.includes(module) || phases[placement] === undefined) return undefined;
+      if (!side.modules.some(each => each.tuck)) return undefined;
+      return {
+        givesWay: Boolean(module.tuck), away: tuckHides(phases[placement], Boolean(module.tuck)),
+        // The side of the module the notch is on.
+        notch: placement === "notchleft" ? "right" : "left",
+      };
+    },
+    glows: { left: glow("left"), right: glow("right") },
+  };
+}
+
 // How far the modules around the bar's centre move, measured in `element`,
 // the bar's: for the icon anchoring the centre to sit on it, or without
 // one and without a notch, for modules showing on one side of the centre
@@ -549,13 +675,18 @@ function useCenterShift(element, notch) {
 
 export function BarView({ bar, dark, run, toggleDrawer, switchWorkspace, style, interactive = true, moduleProps, pinned }) {
   const overlaps = useOverlaps(bar, toggleDrawer);
+  const tucks = useTucks(bar, dark, interactive);
   const shift = useCenterShift(overlaps.element, Boolean(bar.notch));
   const aroundCenter = { "data-kantan-around-center": true };
   const shifted = shift ? { transform: `translateX(${shift}px)` } : {};
-  const view = module => (
+  const view = (module, placement) => (
     <ModuleView key={module.name} module={module} bar={bar} dark={dark} run={run} pinned={pinned} onEngaged={overlaps.onEngaged}
-      toggleDrawer={overlaps.toggle} switchWorkspace={switchWorkspace} interactive={interactive} moduleProps={moduleProps} />
+      toggleDrawer={overlaps.toggle} switchWorkspace={switchWorkspace} interactive={interactive} moduleProps={moduleProps}
+      tuck={tucks.of(module, placement)} />
   );
+  // The pointer over the modules beside the notch keeps out those it
+  // brought out from behind it.
+  const keepsOut = { onMouseEnter: () => tucks.overModules(true), onMouseLeave: () => tucks.overModules(false) };
   // The modules beside the notch slide behind it while a drawer has their room.
   const besideNotch = placement => ({
     ...group, overflow: overlaps.displaced[placement] ? "hidden" : undefined,
@@ -565,7 +696,7 @@ export function BarView({ bar, dark, run, toggleDrawer, switchWorkspace, style, 
   });
   // Masked modules sit together over the system's menu bar items, with
   // the unmasked ones kantan holds room for among them.
-  const modules = placement => bar.placements[placement].filter(module => !bar.menuBar.modules.includes(module.name)).map(view);
+  const modules = placement => bar.placements[placement].filter(module => !bar.menuBar.modules.includes(module.name)).map(module => view(module, placement));
   const all = Object.values(bar.placements).flat();
   const masked = bar.menuBar.modules.map(name => all.find(module => module.name === name));
   const gaps = bar.gaps ?? { top: 0, left: 0, right: 0 };
@@ -597,14 +728,14 @@ export function BarView({ bar, dark, run, toggleDrawer, switchWorkspace, style, 
       }}>
         <div data-kantan-half style={half}>
           <div data-kantan-placement="left" style={group}>{modules("left")}</div>
-          <div data-kantan-placement="notchleft" {...aroundCenter} style={{ ...besideNotch("notchleft"), ...shifted, marginLeft: "auto", justifyContent: "flex-end" }}>{modules("notchleft")}</div>
+          <div data-kantan-placement="notchleft" {...aroundCenter} {...keepsOut} style={{ ...besideNotch("notchleft"), ...shifted, marginLeft: "auto", justifyContent: "flex-end" }}>{modules("notchleft")}</div>
         </div>
-        {bar.notch && <Notch notch={bar.notch} gaps={gaps} />}
+        {bar.notch && <Notch notch={bar.notch} gaps={gaps} glows={tucks.glows} onHover={tucks.atNotch} />}
         <div data-kantan-placement="center" {...aroundCenter} style={{ ...group, ...shifted, flexShrink: 0 }}>{modules("center")}</div>
         <div data-kantan-half style={{ ...half, justifyContent: "flex-end" }}>
-          <div data-kantan-placement="notchright" {...aroundCenter} style={{ ...besideNotch("notchright"), ...shifted }}>{modules("notchright")}</div>
+          <div data-kantan-placement="notchright" {...aroundCenter} {...keepsOut} style={{ ...besideNotch("notchright"), ...shifted }}>{modules("notchright")}</div>
           <div data-kantan-placement="right" style={{ ...group, marginLeft: "auto" }}>{modules("right")}</div>
-          <div data-kantan-masked style={{ ...group, paddingRight: Math.max(0, bar.menuBar.trailing - gaps.right) }}>{masked.map(view)}</div>
+          <div data-kantan-masked style={{ ...group, paddingRight: Math.max(0, bar.menuBar.trailing - gaps.right) }}>{masked.map(module => view(module))}</div>
         </div>
       </div>
     </div>
