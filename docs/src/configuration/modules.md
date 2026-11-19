@@ -23,6 +23,7 @@ All modules support these configuration fields:
 | `iconPosition` | string | no | The side of the module its icon is on: `left` or `right`. Defaults to `left` |
 | `anchor` | string | no | `icon` puts the module's icon on the bar's centre on a display without a notch (see [Centre placement](#centre-placement)) |
 | `transition` | string | no | How the module enters and leaves as it shows and hides: `slide` or `none` (see [Showing and Hiding](#showing-and-hiding)) |
+| `tuck` | bool/object | no | Makes a module beside the notch give way to the others on its side (see [Sharing the Notch](#sharing-the-notch)) |
 
 A module missing `name`, `type` or `placement`, with an unknown `type`, or whose `config` fails to parse is skipped and the error logged. The rest of the config still loads. So is a module named like one before it, in `config.yaml` and then `modules.d/` in filename order. The `text`, `clock` and `command` types require a `config` block.
 
@@ -180,6 +181,29 @@ A module beside the notch slides by default, and one elsewhere doesn't. Reduce M
   placement: notchleft   # slides rightward, behind the notch, when the sound stops
   transition: slide      # the default here
 ```
+
+## Sharing the Notch
+
+The room beside the notch is small, and some modules only matter now and then. `tuck` makes a module at `notchleft` or `notchright` give way to the others on its side:
+
+- Alone on its side, the module shows as usual.
+- While another module on its side shows, it waits behind the notch. The notch glows on that side in the module's icon colour.
+- When it starts showing while another module holds the side, it comes out in that module's place for `peek` seconds, then slides behind the notch.
+- Resting the pointer at the notch brings out the modules waiting behind it. They go back a moment after the pointer leaves the notch and them, and stay while a popup of theirs is open.
+
+```yaml
+- name: now-playing
+  type: command
+  placement: notchleft
+
+- name: reminders
+  type: command
+  placement: notchleft
+  tuck:
+    peek: 8            # seconds out on arrival; 5 by default, 0 for none
+```
+
+`tuck: true` takes the defaults. Each side of the notch is shared on its own. Only a module starting to show peeks, not its value changing. `tuck` does nothing on a display without a notch, at `left`, `right` or `center`, or for a drawer or masked module.
 
 ## Per-Module Display Filtering
 
