@@ -4,7 +4,7 @@
 // placeholders read.
 import { loadConfig, DEFAULT_ICON_FONT, DEFAULT_TEXT_FONT } from "./config.js";
 import { menuRows } from "./menu.js";
-import { MENU_BAR, NOTCH, menuBarSlots } from "./menubar.js";
+import { MENU_BAR, NOTCH, menuBarModules } from "./menubar.js";
 import { moduleType } from "./modules/index.js";
 import { barLevels, matchedBars } from "./modules/waveform.js";
 import { barColor } from "./color.js";
@@ -298,13 +298,22 @@ export function resolveBar(document, { dark = false, states = {}, samples = {}, 
   }
 
   // A masked module that is showing takes its menu bar item's place at the
-  // right of the screen, wherever the config places it.
+  // right of the screen, wherever the config places it, and the unmasked
+  // modules kantan holds room for in the menu bar sit among them.
   const all = PLACEMENTS.flatMap(placement => placements[placement]);
   const masks = Object.fromEntries(config.modules.filter(module => module.masked).map(module => [module.name, module.mask]));
-  const slots = menuBarSlots(
-    all.filter(module => module.masked && !module.hidden).map(module => ({ name: module.name, mask: masks[module.name] })),
-    menuBar);
-  for (const slot of slots) all.find(module => module.name === slot.name).slot = { width: slot.width };
+  const showing = module => !module.masked || !module.hidden;
+  const withMask = module => ({ name: module.name, mask: module.masked ? masks[module.name] : undefined });
+  const over = menuBarModules({
+    right: placements.right.filter(showing).map(withMask),
+    strays: all.filter(module => module.masked && !module.hidden && !placements.right.includes(module)).map(withMask),
+    slots: config.menuBarSlots !== false,
+  }, menuBar);
+  for (const each of over) {
+    const module = all.find(module => module.name === each.name);
+    if (each.width !== undefined) module.slot = { width: each.width };
+    if (each.fixed) module.fixed = true;
+  }
 
   const bar = {
     native: styler.native,
@@ -317,7 +326,7 @@ export function resolveBar(document, { dark = false, states = {}, samples = {}, 
     blur: config.blur,
     gaps: config.gaps,
     placements,
-    menuBar: { trailing: slots.length ? menuBar.trailing : 0, modules: slots.map(slot => slot.name) },
+    menuBar: { trailing: over.some(each => each.width !== undefined) ? menuBar.trailing : 0, modules: over.map(each => each.name) },
   };
   if (notch) bar.notch = NOTCH;
   if (config.problem !== undefined) bar.problem = config.problem;

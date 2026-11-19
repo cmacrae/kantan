@@ -190,6 +190,7 @@ export function loadConfig(document, bundledThemes = {}) {
     },
     textFont: str(yaml.fonts?.text) === undefined ? undefined : parseFont(yaml.fonts.text),
     iconFont: str(yaml.fonts?.icon) === undefined ? undefined : parseFont(yaml.fonts.icon),
+    menuBarSlots: typeof yaml.menuBarSlots === "boolean" ? yaml.menuBarSlots : true,
     modules: modules.length ? modules : WELCOME_MODULES,
   };
 }

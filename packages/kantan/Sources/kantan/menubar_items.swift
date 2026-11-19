@@ -176,6 +176,19 @@ struct MenuBarItemDetector {
     "Focus": "FocusModes",
   ]
 
+  /// Names of the items macOS keeps at the menu bar's right end, in lower case.
+  private static let pinnedNames: Set<String> = Set(
+    ["clock", "controlcenter", "bentobox-0"].flatMap {
+      [$0, MenuBarAccessibility.systemIdentifierPrefix + $0]
+    })
+
+  /// Whether a mask names the clock or Control Centre. macOS keeps both at
+  /// the menu bar's right end, and lets no item sit right of either.
+  static func isPinned(_ mask: MaskConfig) -> Bool {
+    guard let name = mask.name else { return false }
+    return pinnedNames.contains((nameAliases[name] ?? name).lowercased())
+  }
+
   /// Known Control Centre module identifiers that occupy individual menu bar slots.
   /// Used for rank-based fallback matching when absolute position matching fails.
   /// Order doesn't matter — they're sorted by preferred position at runtime.

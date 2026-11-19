@@ -1569,6 +1569,70 @@ final class MenuBarAccessibilityTests {
   }
 }
 
+// MARK: - Menu bar slots
+
+@MainActor
+final class MenuBarSlotTests {
+  private func item(_ owner: String, x: CGFloat, width: CGFloat = 38) -> NativeMenuBarItem {
+    NativeMenuBarItem(
+      index: 0, cgRect: CGRect(x: x, y: 0, width: width, height: 24), owner: owner)
+  }
+
+  @Test func testUnmaskedRunsRightOfAMaskedModuleGetSlots() {
+    // Nothing sits right of the clock, so `date` has no slot.
+    let slots = MenuBarSlot.derive(from: [
+      ("monitor", false, false), ("rift", true, false), ("focus", true, false),
+      ("drawer", false, false), ("caffeine", false, false), ("volume", true, false),
+      ("battery", false, false), ("clock", true, true), ("date", false, false),
+    ])
+    #expect(
+      slots == [
+        MenuBarSlot(
+          modules: ["drawer", "caffeine"], masksRight: ["volume", "clock"],
+          masksLeft: ["focus", "rift"]),
+        MenuBarSlot(
+          modules: ["battery"], masksRight: ["clock"], masksLeft: ["volume", "focus", "rift"]),
+      ])
+    #expect(MenuBarSlot.derive(from: [("monitor", false, false), ("clock", true, true)]).isEmpty)
+    #expect(MenuBarItemDetector.isPinned(MaskConfig(name: "ControlCenter")))
+    #expect(!MenuBarItemDetector.isPinned(MaskConfig(name: "WiFi")))
+  }
+
+  @Test func testASlotIsPlacedOnceNothingSitsBetweenItAndItsAnchor() {
+    let items = [item("rift", x: 100), item("focus", x: 140), item("volume", x: 300)]
+    let anchor = SlotAnchor(item: items[2], slotIsLeft: true)
+    func order(x: CGFloat) -> SlotOrder {
+      SlotOrder.of(
+        slot: CGRect(x: x, y: 0, width: 100, height: 24), beside: anchor, among: items)
+    }
+    #expect(order(x: 190) == .placed)
+    #expect(order(x: 0) == .tooFarLeft)
+    #expect(order(x: 340) == .tooFarRight)
+  }
+
+  @Test func testTheSeedSearchClosesInOnAPositionItCannotRead() {
+    // The item lands once its position is between 188 and 256.
+    var search = SlotSeedSearch(seed: 159.5)
+    var tries = 0
+    while !(188.0..<256.0).contains(search.seed), tries < 12 {
+      search.advance(from: search.seed < 188 ? .tooFarRight : .tooFarLeft)
+      tries += 1
+    }
+    #expect((188.0..<256.0).contains(search.seed))
+  }
+
+  @Test func testTheFirstPositionTriedIsBetweenTheAnchorAndItsNeighbour() {
+    // Content widths, right to left: 37, 26, 22.
+    let items = [
+      item("clock", x: 400, width: 53), item("cc", x: 358, width: 42),
+      item("volume", x: 320, width: 38),
+    ]
+    let seed = SlotSeedSearch.estimate(
+      beside: SlotAnchor(item: items[2], slotIsLeft: true), among: items)
+    #expect(seed == 37 + 26 + 11)
+  }
+}
+
 // MARK: - Full Disk Access
 
 final class FullDiskAccessTests {

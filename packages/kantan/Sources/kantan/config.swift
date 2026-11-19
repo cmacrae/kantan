@@ -69,6 +69,9 @@ struct Config {
   let autohide: AutohideConfig
   let displays: DisplaysConfig
   var modules: [ModuleConfig]
+  /// Whether unmasked modules listed after a masked one hold their place
+  /// in the native menu bar with a status item of kantan's own.
+  var menuBarSlots: Bool = true
 
   /// Whether this config requires the bundled tabler-icons fonts.
   /// True when the global icon font is unset (defaults to tabler-icons)
@@ -951,7 +954,8 @@ func loadConfig(from yaml: Yaml, configDir: String? = nil) -> Config? {
     gaps: gaps,
     autohide: autohide,
     displays: displays,
-    modules: modules
+    modules: modules,
+    menuBarSlots: yaml["menuBarSlots"].bool ?? true
   )
 }
 

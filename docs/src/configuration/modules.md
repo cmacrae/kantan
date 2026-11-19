@@ -57,7 +57,7 @@ The `placement` field controls where the module appears in the bar. It is a requ
 | `notchright` | Right of the notch, grows rightward (notched displays only) |
 | `center` | Centre of the bar (displays without a notch only) |
 
-Within each placement, modules appear left to right in the order they are listed: the first `left` module sits at the left edge and the last `right` module at the right edge. Masked modules sit over their native items instead. Unmasked modules are laid out inward of them (see [Menu Bar Masking](masking.md)).
+Within each placement, modules appear left to right in the order they are listed: the first `left` module sits at the left edge and the last `right` module at the right edge. Masked modules sit over their native items instead. Unmasked modules are laid out inward of them, or in the `right` placement over a slot that holds their place between the native items (see [Menu Bar Masking](masking.md#unmasked-modules-between-masked-ones)).
 
 ### Or-Wise Placement
 

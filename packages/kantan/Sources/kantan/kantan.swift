@@ -230,11 +230,14 @@ class DisplayInstance {
 
   private let barHeight: CGFloat
   private let config: Config
+  /// The slots that hold unmasked modules' places in the native menu bar.
+  private let slots: MenuBarSlots?
 
-  init(screenName: String, barHeight: CGFloat, config: Config) {
+  init(screenName: String, barHeight: CGFloat, config: Config, slots: MenuBarSlots? = nil) {
     self.screenName = screenName
     self.barHeight = barHeight
     self.config = config
+    self.slots = slots
   }
 
   /// `nil` displays means show everywhere.
@@ -329,6 +332,8 @@ class DisplayInstance {
     /// Center placement: grows rightward from the left edge of its modules,
     /// which sit centred in the bar.
     var centerX: CGFloat
+    /// Menu bar slots by name: each grows leftward from its right edge.
+    var slotX: [String: CGFloat] = [:]
   }
 
   typealias HostedGroup = (group: ModuleGroup, hostingView: NSHostingView<ModuleGroupView>)
@@ -456,12 +461,43 @@ class DisplayInstance {
       }
     }
 
+    // The modules of a slot are drawn over it, and the rest of the right
+    // placement left of every slot
+    var slotX: [String: CGFloat] = [:]
+    for slot in slots?.slots ?? [] {
+      guard let frame = slots?.frame(of: slot, on: screen) else { continue }
+      slotX[slot.name] = frame.maxX
+      rightX = min(rightX, frame.minX)
+    }
+
     return PlacementBounds(
       leftX: leftX, leftBound: leftBound,
       rightX: rightX, rightBound: rightBound,
       notchLeftX: notchLeftX, notchLeftBound: notchLeftBound,
       notchRightX: notchRightX, notchRightBound: notchRightBound,
-      centerX: centerX)
+      centerX: centerX, slotX: slotX)
+  }
+
+  /// Tells each menu bar slot how wide its modules are on this display,
+  /// with the contents of a closed drawer counted as they are once open.
+  private func updateSlotWidths(of groups: [HostedGroup]) {
+    guard let slots else { return }
+    for slot in slots.slots {
+      let width = groups.filter { slots.slot(of: $0.group) == slot }
+        .reduce(0) { $0 + $1.hostingView.fittingSize.width }
+      slots.setWidth(width, of: slot, display: screenName)
+    }
+  }
+
+  /// The frame of a masked group's panel: over the item it masks.
+  private func maskFrame(
+    of group: ModuleGroup, nativeItems: [NativeMenuBarItem], screen: NSScreen, statusBarY: CGFloat
+  ) -> NSRect? {
+    guard group.modules.count == 1, let mask = group.modules[0].moduleConfig.mask,
+      let nativeItem = MenuBarItemDetector.resolveItem(for: mask, from: nativeItems)
+    else { return nil }
+    let nativeRect = MenuBarItemDetector.appKitRect(from: nativeItem.cgRect, on: screen)
+    return NSRect(x: nativeRect.origin.x, y: statusBarY, width: nativeRect.width, height: barHeight)
   }
 
   func createPanels(for screen: NSScreen, bar: BarViewModel, theme: ThemeProvider) {
@@ -571,6 +607,7 @@ class DisplayInstance {
       }
     }
 
+    updateSlotWidths(of: hosted)
     var bounds = computePlacementBounds(
       screen: screen, nativeItems: nativeItems, maskedGroups: occupiedMasks(in: allGroups),
       groups: hosted)
@@ -583,20 +620,17 @@ class DisplayInstance {
         isDrawerContentHidden(group) || Self.isUncoveredMask(group, nativeItems: nativeItems)
 
       let panelRect: NSRect
-      if group.modules.count == 1,
-        let mask = group.modules[0].moduleConfig.mask,
-        let nativeItem = MenuBarItemDetector.resolveItem(for: mask, from: nativeItems)
+      if let frame = maskFrame(
+        of: group, nativeItems: nativeItems, screen: screen, statusBarY: statusBarY)
       {
-        let nativeRect = MenuBarItemDetector.appKitRect(from: nativeItem.cgRect, on: screen)
-        panelRect = NSRect(
-          x: nativeRect.origin.x, y: statusBarY, width: nativeRect.width, height: barHeight)
+        panelRect = frame
       } else if skipPositioning {
         // Positioned once the drawer opens or the masked item appears
         panelRect = NSRect(x: bounds.rightX, y: statusBarY, width: 0, height: barHeight)
       } else {
         let fittingWidth = hostingView.fittingSize.width
         panelRect = positionPanel(
-          placement: group.placement, fittingWidth: fittingWidth,
+          group: group, fittingWidth: fittingWidth,
           statusBarY: statusBarY, bounds: &bounds)
       }
 
@@ -622,13 +656,19 @@ class DisplayInstance {
     updateDrawerClickPanels()
   }
 
-  /// Position a panel within a placement zone and advance the boundary cursor.
+  /// Position a group's panel within its menu bar slot, or else its
+  /// placement zone, and advance the boundary cursor.
   private func positionPanel(
-    placement: String, fittingWidth: CGFloat, statusBarY: CGFloat,
+    group: ModuleGroup, fittingWidth: CGFloat, statusBarY: CGFloat,
     bounds: inout PlacementBounds
   ) -> NSRect {
+    if let slot = slots?.slot(of: group)?.name, let slotX = bounds.slotX[slot] {
+      bounds.slotX[slot] = slotX - fittingWidth
+      return NSRect(
+        x: slotX - fittingWidth, y: statusBarY, width: fittingWidth, height: barHeight)
+    }
     let panelX: CGFloat
-    switch placement {
+    switch group.placement {
     case "left":
       panelX = bounds.leftX
       bounds.leftX += fittingWidth
@@ -665,6 +705,7 @@ class DisplayInstance {
 
     let nativeItems = MenuBarItemDetector.detectItems(for: screen)
 
+    updateSlotWidths(of: hostedGroups)
     var bounds = computePlacementBounds(
       screen: screen, nativeItems: nativeItems,
       maskedGroups: occupiedMasks(in: groupPanels.map { $0.group }),
@@ -672,20 +713,19 @@ class DisplayInstance {
     resolveOverlaps(bounds: bounds)
 
     for entry in groupPanels {
-      guard entry.group.modules.count == 1,
-        let mask = entry.group.modules[0].moduleConfig.mask
+      guard entry.group.modules.count == 1, entry.group.modules[0].moduleConfig.mask != nil
       else { continue }
+      // A closed drawer keeps its masked modules folded away
+      if isDrawerContentHidden(entry.group) { continue }
 
       guard entry.group.modules[0].shouldDisplay,
-        let nativeItem = MenuBarItemDetector.resolveItem(for: mask, from: nativeItems)
+        let panelFrame = maskFrame(
+          of: entry.group, nativeItems: nativeItems, screen: screen, statusBarY: statusBarY)
       else {
         entry.panel.orderOut(nil)
         continue
       }
 
-      let nativeRect = MenuBarItemDetector.appKitRect(from: nativeItem.cgRect, on: screen)
-      let panelFrame = NSRect(
-        x: nativeRect.origin.x, y: statusBarY, width: nativeRect.width, height: barHeight)
       entry.panel.setFrame(panelFrame, display: true)
       if !entry.panel.isVisible {
         entry.panel.orderFrontRegardless()
@@ -705,7 +745,7 @@ class DisplayInstance {
 
       let fittingWidth = entry.hostingView.fittingSize.width
       let panelFrame = positionPanel(
-        placement: entry.group.placement, fittingWidth: fittingWidth,
+        group: entry.group, fittingWidth: fittingWidth,
         statusBarY: statusBarY, bounds: &bounds)
       targets.append((entry.panel, panelFrame))
     }
@@ -826,7 +866,11 @@ class DisplayInstance {
         !($0.group.modules.count == 1 && $0.group.modules[0].moduleConfig.mask != nil)
       }
       let innerGroups = unmasked.filter { $0.group.placement == inner }
-      let outerGroups = unmasked.filter { $0.group.placement == side }
+      // The modules over a menu bar slot are outside the span being shared.
+      let outerGroups = unmasked.filter { entry in
+        entry.group.placement == side
+          && slots?.slot(of: entry.group).flatMap { bounds.slotX[$0.name] } == nil
+      }
       guard !innerGroups.isEmpty, outerGroups.contains(where: { $0.group.isDrawerContent })
       else { continue }
 
@@ -935,18 +979,24 @@ class DisplayInstance {
 
       let fittingWidth = entry.hostingView.fittingSize.width
       let frame = positionPanel(
-        placement: entry.group.placement, fittingWidth: fittingWidth,
+        group: entry.group, fittingWidth: fittingWidth,
         statusBarY: statusBarY, bounds: &bounds)
       targetFrames.append((entry: entry, frame: frame))
     }
 
-    let drawerContentPanels = groupPanels.filter { isToggledDrawerContent($0.group) }
+    // The drawer's contents, but for masks with nothing to cover.
+    let drawerContentPanels = groupPanels.filter {
+      isToggledDrawerContent($0.group) && !Self.isUncoveredMask($0.group, nativeItems: nativeItems)
+    }
 
     if open {
       // Opening: position drawer-content panels at target with alpha 0, then animate in
       for entry in drawerContentPanels {
-        if let target = targetFrames.first(where: { $0.entry.panel === entry.panel }) {
-          entry.panel.setFrame(target.frame, display: true)
+        if let frame = targetFrames.first(where: { $0.entry.panel === entry.panel })?.frame
+          ?? maskFrame(
+            of: entry.group, nativeItems: nativeItems, screen: screen, statusBarY: statusBarY)
+        {
+          entry.panel.setFrame(frame, display: true)
         }
         entry.panel.alphaValue = 0
         entry.panel.orderFrontRegardless()
@@ -1144,6 +1194,7 @@ class DisplayInstance {
     for panel in allPanels {
       panel.orderOut(nil)
     }
+    slots?.forget(display: screenName)
     groupPanels.removeAll()
     drawerClickPanels.removeAll()
     bgPanel = nil
@@ -1155,6 +1206,8 @@ class DisplayInstance {
 @MainActor
 class AppDelegate: NSObject, NSApplicationDelegate {
   var displayInstances: [DisplayInstance] = []
+  /// Kept across config reloads, so a slot both configs have stays put.
+  let menuBarSlots = MenuBarSlots()
   var barViewModel: BarViewModel?
   var themeProvider: ThemeProvider?
   var config: Config?
@@ -1242,10 +1295,16 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     self.barViewModel = bar
     self.themeProvider = theme
 
+    menuBarSlots.configure(
+      modules: config.menuBarSlots ? config.modules : [],
+      hasNotch: NSScreen.screens.first?.hasNotch ?? false)
+    menuBarSlots.onChange = { [weak self] in self?.repositionAllDisplays() }
+
     let targetScreens = resolveTargetScreens(config.displays)
     for screen in targetScreens {
       let instance = DisplayInstance(
-        screenName: screen.localizedName, barHeight: barHeight, config: config)
+        screenName: screen.localizedName, barHeight: barHeight, config: config,
+        slots: menuBarSlots)
       instance.createPanels(for: screen, bar: bar, theme: theme)
       displayInstances.append(instance)
     }
@@ -1404,7 +1463,8 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
     for screen in targetScreens where diff.toAdd.contains(screen.localizedName) {
       let instance = DisplayInstance(
-        screenName: screen.localizedName, barHeight: barHeight, config: config)
+        screenName: screen.localizedName, barHeight: barHeight, config: config,
+        slots: menuBarSlots)
       // A display added later shows the drawers as the others do.
       instance.leftDrawerOpen = bar.leftDrawerOpen
       instance.rightDrawerOpen = bar.rightDrawerOpen
@@ -1419,6 +1479,9 @@ class AppDelegate: NSObject, NSApplicationDelegate {
   // MARK: - Repositioning
 
   func repositionAllDisplays(animated: Bool = false) {
+    if !menuBarSlots.slots.isEmpty, let screen = NSScreen.screens.first {
+      menuBarSlots.reconcile(items: MenuBarItemDetector.detectItems(for: screen), on: screen)
+    }
     for instance in displayInstances {
       instance.repositionPanels(animated: animated)
     }

@@ -40,6 +40,12 @@ A drawer's contents at `left` or `right` open toward the notch, where the `notch
 
 Closing a drawer this way is only for the moment: its icon shows it closed, and it comes back as it was. Opening or closing the drawer yourself in the meantime settles it.
 
+### Masked Modules in a Drawer
+
+A right-side drawer can hold [masked](../configuration/masking.md) modules. They fold away with it, and while they are folded a click on the bar where they were toggles the drawer. It doesn't reach the native items underneath.
+
+A masked module sits over its native item. The items have to be where the open drawer shows them: left of the toggle. kantan makes the room by holding a slot in the native menu bar under the toggle and the modules after it. See [Masked Modules in a Drawer](../configuration/masking.md#masked-modules-in-a-drawer) for a config and what to arrange.
+
 ## Module Ordering
 
 Order matters in your configuration. The drawer's position relative to other modules determines which modules are its contents:

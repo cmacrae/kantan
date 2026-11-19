@@ -165,12 +165,27 @@ test("masked modules take their menu bar items' places, a hidden one giving its 
     states: { focus: [{ name: "Off" }, { name: "On", output: { active: true } }] },
   };
   const bar = resolveBar(document);
-  assert.deepEqual(bar.menuBar, { trailing: 12, modules: ["other", "numbered", "battery", "clock"] });
+  assert.deepEqual(bar.menuBar, { trailing: 12, modules: ["battery", "other", "numbered", "clock"] });
   const slot = name => Object.values(bar.placements).flat().find(module => module.name === name).slot;
   assert.deepEqual([slot("clock"), slot("battery"), slot("other"), slot("plain"), slot("unmasked"), slot("focus")],
     [{ width: 54 }, { width: 44 }, { width: 36 }, undefined, undefined, undefined]);
-  assert.deepEqual(resolveBar(document, { states: { focus: "On" } }).menuBar.modules, ["other", "numbered", "focus", "battery", "clock"]);
+  assert.deepEqual(resolveBar(document, { states: { focus: "On" } }).menuBar.modules, ["battery", "other", "focus", "numbered", "clock"]);
   assert.deepEqual(resolveBar(builtIns).menuBar, { trailing: 0, modules: [] });
+});
+
+test("an unmasked module listed after a masked one keeps its place over the menu bar", () => {
+  const module = (name, mask) => ({ name, type: "text", placement: "right", config: { value: "x" }, ...(mask ? { mask: { name: mask } } : {}) });
+  const modules = [
+    module("monitor"), module("bluetooth", "Bluetooth"), module("caffeine"), module("clock", "Clock"),
+    module("volume", "Volume"), module("control", "ControlCenter"), module("date"),
+  ];
+  const over = config => {
+    const bar = resolveBar({ version: 1, config });
+    return [bar.menuBar.modules, bar.placements.right.filter(each => each.fixed).map(each => each.name)];
+  };
+  // The clock and Control Centre stay at the right end, and nothing sits right of them.
+  assert.deepEqual(over({ modules }), [["bluetooth", "caffeine", "volume", "control", "clock"], ["clock", "control"]]);
+  assert.deepEqual(over({ modules, menuBarSlots: false })[0], ["bluetooth", "volume", "control", "clock"]);
 });
 
 test("a document is checked before it's drawn", () => {

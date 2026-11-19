@@ -15,6 +15,7 @@ Top-level configuration options control the status bar's appearance and behavior
 | `blur` | integer | no | `0` | Background blur level (0-6). 0 disables blur. Lower values produce a more transparent tint with prominent blur; higher values produce a more opaque tint with subtle blur |
 | `gaps` | object | no | all `0` | Gaps around the bar (see below) |
 | `autohide` | object | no | enabled, 0s delay | Hover-to-hide behavior (see below). Enabled even when this key is omitted: the bar hides while the cursor rests at the very top of the screen, over the native macOS menu bar |
+| `menuBarSlots` | boolean | no | `true` | Whether kantan holds room in the native menu bar for unmasked `right` modules listed after a masked one, so they keep their place among the masked ones (see [Menu Bar Masking](masking.md#unmasked-modules-between-masked-ones)). `false` keeps kantan from adding status items of its own |
 | `displays` | string/array | no | `main` | Which displays to show the bar on |
 | `theme` | string/object | no | — | Theme configuration (see below) |
 | `modules` | array | no | — | Module definitions (see [Modules](modules.md)). When no modules are defined here or in `modules.d/`, kantan shows its welcome bar |
