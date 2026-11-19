@@ -53,9 +53,10 @@ func hstack(
 
 func text(
   _ content: String, size: Double? = nil, weight: String? = nil, style: String? = nil,
-  color: String? = nil, strikethrough: Bool = false
+  color: String? = nil, align: String? = nil, strikethrough: Bool = false
 ) -> JSONValue {
   var obj: [String: JSONValue] = ["type": .string("text"), "content": .string(content)]
+  if let a = align { obj["align"] = .string(a) }
   if let s = size { obj["size"] = .double(s) }
   if let w = weight { obj["weight"] = .string(w) }
   if let st = style { obj["style"] = .string(st) }
@@ -140,6 +141,47 @@ func zstack(children: [JSONValue]) -> JSONValue {
   .object(["type": .string("zstack"), "children": .array(children)])
 }
 
+func circle(size: Double, color: String? = nil) -> JSONValue {
+  var obj: [String: JSONValue] = ["type": .string("circle"), "size": .double(size)]
+  if let c = color { obj["color"] = .string(c) }
+  return .object(obj)
+}
+
+func grid(columns: Int, spacing: Double? = nil, children: [JSONValue]) -> JSONValue {
+  var obj: [String: JSONValue] = [
+    "type": .string("grid"), "columns": .int(columns), "children": .array(children),
+  ]
+  if let s = spacing { obj["spacing"] = .double(s) }
+  return .object(obj)
+}
+
+func scroll(children: [JSONValue]) -> JSONValue {
+  .object(["type": .string("scroll"), "children": .array(children)])
+}
+
+extension JSONValue {
+  /// This node with `value` as its property `key`.
+  func with(_ key: String, _ value: JSONValue) -> JSONValue {
+    guard case .object(var obj) = self else { return self }
+    obj[key] = value
+    return .object(obj)
+  }
+
+  /// This node in a frame of the sizes given, in points.
+  func framed(w: Double? = nil, h: Double? = nil, maxH: Double? = nil) -> JSONValue {
+    var frame: [String: JSONValue] = [:]
+    if let w { frame["w"] = .double(w) }
+    if let h { frame["h"] = .double(h) }
+    if let maxH { frame["maxH"] = .double(maxH) }
+    return with("frame", .object(frame))
+  }
+
+  /// This node shown only while `variable` is truthy.
+  func visible(when variable: String) -> JSONValue {
+    with("visible", .string(variable))
+  }
+}
+
 func image(url: String, width: Double, height: Double, cornerRadius: Double? = nil) -> JSONValue {
   var obj: [String: JSONValue] = [
     "type": .string("image"), "url": .string(url),
@@ -149,18 +191,24 @@ func image(url: String, width: Double, height: Double, cornerRadius: Double? = n
   return .object(obj)
 }
 
-func progress(value: Double, color: String? = nil) -> JSONValue {
+func progress(
+  value: Double, color: String? = nil, trackColor: String? = nil, style: String? = nil
+) -> JSONValue {
   var obj: [String: JSONValue] = ["type": .string("progress"), "value": .double(value)]
   if let c = color { obj["color"] = .string(c) }
+  if let tc = trackColor { obj["trackColor"] = .string(tc) }
+  if let s = style { obj["style"] = .string(s) }
   return .object(obj)
 }
 
 func button(
-  icon iconName: String, command: String, style: String? = nil, dismiss: Bool = true
+  label: String? = nil, icon iconName: String? = nil, command: String, style: String? = nil,
+  color: String? = nil, dismiss: Bool = true
 ) -> JSONValue {
-  var obj: [String: JSONValue] = [
-    "type": .string("button"), "icon": .string(iconName), "command": .string(command),
-  ]
+  var obj: [String: JSONValue] = ["type": .string("button"), "command": .string(command)]
+  if let l = label { obj["label"] = .string(l) }
+  if let i = iconName { obj["icon"] = .string(i) }
+  if let c = color { obj["color"] = .string(c) }
   if let s = style { obj["style"] = .string(s) }
   if !dismiss { obj["dismiss"] = .bool(false) }
   return .object(obj)
