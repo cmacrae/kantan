@@ -223,9 +223,16 @@ final class ModuleWidths: ObservableObject {
   static let shared = ModuleWidths()
   @Published private(set) var widths: [String: CGFloat] = [:]
 
+  /// Records a module's width once the layout pass reporting it is over:
+  /// the views following a width can't be told of it during one.
   func set(_ width: CGFloat, for module: String) {
     guard abs((widths[module] ?? -1) - width) >= 0.5 else { return }
-    widths[module] = width
+    DispatchQueue.main.async {
+      MainActor.assumeIsolated {
+        guard abs((self.widths[module] ?? -1) - width) >= 0.5 else { return }
+        self.widths[module] = width
+      }
+    }
   }
 }
 
