@@ -294,6 +294,9 @@ function ModuleView({ module, bar, dark, run, toggleDrawer, switchWorkspace, int
   // A drawer's toggle sits without the padding other modules have, and a
   // module in a closed drawer takes no room.
   const padding = module.type === "drawer" || module.slot ? 0 : bar.padding;
+  // The anchor of the bar's centre and the module joined to it sit as far
+  // apart as an icon and its text.
+  const edge = side => (module.slot ? 0 : module.anchor === side ? bar.iconTextSpacing : module.joined === side ? 0 : padding);
   const folded = module.folded === true;
   // A pinned panel stays open and runs nothing, for whoever pinned it to
   // answer clicks within it.
@@ -322,9 +325,11 @@ function ModuleView({ module, bar, dark, run, toggleDrawer, switchWorkspace, int
       })}
     </span>
   );
-  const icon = module.icon && (module.icon.reveal
+  const glyph = module.icon && (module.icon.reveal
     ? waiting(<ModuleIcon icon={module.icon} dark={dark} />)
     : <ModuleIcon icon={module.icon} dark={dark} />);
+  // The icon anchoring the bar's centre is marked for the bar to find.
+  const icon = glyph && module.anchor ? <span data-kantan-anchor style={{ display: "inline-flex" }}>{glyph}</span> : glyph;
   // The text comes before an icon at the module's right. The room between
   // them, in a revealing module, is there while both are.
   const textLeads = module.iconPosition === "right";
@@ -355,7 +360,7 @@ function ModuleView({ module, bar, dark, run, toggleDrawer, switchWorkspace, int
       data-kantan-module={module.name}
       aria-hidden={folded || undefined}
       style={{
-        paddingLeft: folded ? 0 : padding, paddingRight: folded ? 0 : padding,
+        paddingLeft: folded ? 0 : edge("left"), paddingRight: folded ? 0 : edge("right"),
         display: "flex", alignItems: "center", height: bar.height, boxSizing: "border-box",
         // A masked module is centred in the place of its menu bar item.
         ...(module.slot ? { width: module.slot.width, justifyContent: "center" } : {}),
@@ -426,8 +431,8 @@ function Notch({ notch, gaps }) {
   );
 }
 
-// The bar: its modules at the left, on either side of the notch, and at
-// the right. `run(module, command)` runs a command a module's click, menu
+// The bar: its modules at the left, on either side of the notch or of the
+// bar's centre on a screen without one, and at the right. `run(module, command)` runs a command a module's click, menu
 // or popup asks for.
 // `toggleDrawer(module)` opens or closes a drawer when its module is
 // clicked, and `switchWorkspace(module, target)` switches to the workspace
@@ -464,7 +469,7 @@ function useOverlaps(bar, toggleDrawer) {
 
   useLayoutEffect(() => {
     const root = element.current;
-    if (!root || !bar.notch) return;
+    if (!root) return;
     const next = { ...displaced };
     for (const side of ["left", "right"]) {
       const inner = BESIDE_NOTCH[side];
@@ -515,8 +520,47 @@ function useOverlaps(bar, toggleDrawer) {
   };
 }
 
+// How far the modules around the bar's centre move, measured in `element`,
+// the bar's: for the icon anchoring the centre to sit on it, or without
+// one and without a notch, for modules showing on one side of the centre
+// alone to be centred together.
+function useCenterShift(element, notch) {
+  const [shift, setShift] = useState(0);
+  const current = useRef(0);
+  useLayoutEffect(() => {
+    const root = element.current;
+    if (!root) return undefined;
+    const measure = () => {
+      const icon = root.querySelector("[data-kantan-anchor]");
+      let next = 0;
+      if (icon) {
+        const outer = root.getBoundingClientRect(), inner = icon.getBoundingClientRect();
+        const scale = outer.width / root.offsetWidth || 1;
+        next = current.current + (outer.left + outer.width / 2 - (inner.left + inner.width / 2)) / scale;
+      } else if (!notch) {
+        const width = placement => root.querySelector(`[data-kantan-placement="${placement}"]`)?.offsetWidth ?? 0;
+        const left = width("notchleft"), right = width("notchright");
+        if (width("center") === 0 && (left > 0) !== (right > 0)) next = (left - right) / 2;
+      }
+      if (Math.abs(next - current.current) < 0.5) return;
+      current.current = next;
+      setShift(next);
+    };
+    measure();
+    if (typeof ResizeObserver === "undefined") return undefined;
+    // Measured again as the modules around the centre change width.
+    const observer = new ResizeObserver(measure);
+    for (const each of root.querySelectorAll("[data-kantan-around-center]")) observer.observe(each);
+    return () => observer.disconnect();
+  });
+  return shift;
+}
+
 export function BarView({ bar, dark, run, toggleDrawer, switchWorkspace, style, interactive = true, moduleProps, pinned }) {
   const overlaps = useOverlaps(bar, toggleDrawer);
+  const shift = useCenterShift(overlaps.element, Boolean(bar.notch));
+  const aroundCenter = { "data-kantan-around-center": true };
+  const shifted = shift ? { transform: `translateX(${shift}px)` } : {};
   const view = module => (
     <ModuleView key={module.name} module={module} bar={bar} dark={dark} run={run} pinned={pinned} onEngaged={overlaps.onEngaged}
       toggleDrawer={overlaps.toggle} switchWorkspace={switchWorkspace} interactive={interactive} moduleProps={moduleProps} />
@@ -561,11 +605,12 @@ export function BarView({ bar, dark, run, toggleDrawer, switchWorkspace, style, 
       }}>
         <div data-kantan-half style={half}>
           <div data-kantan-placement="left" style={group}>{modules("left")}</div>
-          <div data-kantan-placement="notchleft" style={{ ...besideNotch("notchleft"), marginLeft: "auto", justifyContent: "flex-end" }}>{modules("notchleft")}</div>
+          <div data-kantan-placement="notchleft" {...aroundCenter} style={{ ...besideNotch("notchleft"), ...shifted, marginLeft: "auto", justifyContent: "flex-end" }}>{modules("notchleft")}</div>
         </div>
         {bar.notch && <Notch notch={bar.notch} gaps={gaps} />}
+        <div data-kantan-placement="center" {...aroundCenter} style={{ ...group, ...shifted, flexShrink: 0 }}>{modules("center")}</div>
         <div data-kantan-half style={{ ...half, justifyContent: "flex-end" }}>
-          <div data-kantan-placement="notchright" style={besideNotch("notchright")}>{modules("notchright")}</div>
+          <div data-kantan-placement="notchright" {...aroundCenter} style={{ ...besideNotch("notchright"), ...shifted }}>{modules("notchright")}</div>
           <div data-kantan-placement="right" style={{ ...group, marginLeft: "auto" }}>{modules("right")}</div>
           <div data-kantan-masked style={{ ...group, paddingRight: Math.max(0, bar.menuBar.trailing - gaps.right) }}>{masked.map(view)}</div>
         </div>
