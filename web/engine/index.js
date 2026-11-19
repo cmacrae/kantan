@@ -1,6 +1,6 @@
 // The engine: kantan's config, theme, style, template and view semantics in
 // plain JavaScript, turning a document into a bar ready to draw.
-export { resolveBar } from "./bar.js";
+export { matchWaveform, resolveBar, resolvePlacement } from "./bar.js";
 export { checkCommand, moduleCommands } from "./commands.js";
 export { barColor, parseHex, viewColor, withOpacity } from "./color.js";
 export { loadConfig, parseFont } from "./config.js";

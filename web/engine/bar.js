@@ -6,6 +6,7 @@ import { loadConfig, DEFAULT_ICON_FONT, DEFAULT_TEXT_FONT } from "./config.js";
 import { menuRows } from "./menu.js";
 import { MENU_BAR, NOTCH, menuBarSlots } from "./menubar.js";
 import { moduleType } from "./modules/index.js";
+import { barLevels, matchedBars } from "./modules/waveform.js";
 import { barColor } from "./color.js";
 import { noIcons } from "./icons.js";
 import { createStyler } from "./style.js";
@@ -102,6 +103,20 @@ function waveformColors(colors, count, resolve) {
   return Array.from({ length: count }, (_, i) => blend(low, high, count > 1 ? i / (count - 1) : 0));
 }
 
+// A resolved waveform as it is drawn beside the module it follows, once
+// that module is `matched` points wide: as many bars as fit that width, or
+// as wide a wave, and never less than its own. A module out of the bar is
+// 0 wide, and leaves the waveform as it is.
+export function matchWaveform(waveform, matched) {
+  if (waveform.matchWidth === undefined || !(matched > 0)) return waveform;
+  if (waveform.style === "wave") return { ...waveform, width: Math.max(waveform.width, matched) };
+  const bars = matchedBars(waveform.bars, matched);
+  return {
+    ...waveform, bars, levels: barLevels(waveform.bands, bars),
+    colors: waveformColors(waveform.shades, bars, color => color),
+  };
+}
+
 function resolveModule(module, state, config, styler, icons, dark) {
   const model = { name: module.name, type: module.type, hidden: state.hidden };
   if (module.masked) model.masked = true;
@@ -116,6 +131,11 @@ function resolveModule(module, state, config, styler, icons, dark) {
       ...state.waveform, color: styler.iconFg(module, dynamic),
       colors: waveformColors(state.waveform.colors, state.waveform.bars, styler.segmentFg),
     };
+    // The colours as resolved, for the bars a followed module's width adds.
+    if (state.waveform.matchWidth !== undefined && model.waveform.colors) {
+      const { palette, low, high } = state.waveform.colors;
+      model.waveform.shades = palette ? { palette: palette.map(styler.segmentFg) } : { low: styler.segmentFg(low), high: styler.segmentFg(high) };
+    }
   }
 
   const rawIcon = state.icon === "" ? module.icon : state.icon;

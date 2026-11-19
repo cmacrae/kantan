@@ -18,6 +18,23 @@ function resampled(levels, count) {
   });
 }
 
+// `levels` as the levels of `count` bars: those between them when there
+// are more bars to draw than levels measured.
+export function barLevels(levels, count) {
+  if (count <= levels.length || levels.length < 2) return resampled(levels, count);
+  return Array.from({ length: count }, (_, index) => {
+    const at = index * (levels.length - 1) / (count - 1), low = Math.floor(at);
+    return levels[low] + ((levels[low + 1] ?? levels[low]) - levels[low]) * (at - low);
+  });
+}
+
+// How many bars a waveform of at least `bars` draws beside a module
+// `matched` points wide: as many as fit that width, each 2 points wide and
+// 2 apart.
+export function matchedBars(bars, matched) {
+  return Math.min(Math.max(Math.floor((matched + 2) / 4), bars), BANDS);
+}
+
 // The colours a module's `gradient` or `rainbow` gives its bars, as
 // written: a gradient's `low` and `high`, or a rainbow's palette, shuffled
 // for `bars` unless it isn't `random`.
@@ -38,6 +55,7 @@ export default {
       width: Math.max(num(config?.width) ?? 40, 4),
       height: Math.max(num(config?.height) ?? 14, 2),
       hidesWhenSilent: str(config?.hide) !== "never",
+      matchWidth: str(config?.matchWidth),
     };
   },
 
@@ -51,6 +69,9 @@ export default {
       style: loaded.style, width: loaded.width, height: loaded.height, bars: loaded.bars, colors: loaded.colors,
       levels: resampled(levels, loaded.style === "wave" ? Math.max(levels.length, 2) : loaded.bars),
     };
+    // A waveform following another module's width keeps the levels it was
+    // given, to draw as many bars of as that width fits.
+    if (loaded.matchWidth !== undefined) Object.assign(state.waveform, { matchWidth: loaded.matchWidth, bands: levels });
     return state;
   },
 };

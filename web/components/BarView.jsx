@@ -2,7 +2,7 @@
 // value and shape, the tooltip it shows under the pointer, and the menu or
 // popup a click opens.
 import { useEffect, useId, useLayoutEffect, useRef, useState } from "react";
-import { OVERLAP_MARGIN, resolveOverlap } from "../engine/index.js";
+import { OVERLAP_MARGIN, matchWaveform, resolveOverlap } from "../engine/index.js";
 import { Glyph } from "./Glyph.jsx";
 import { Menu } from "./Menu.jsx";
 import { Unsupported } from "./Unsupported.jsx";
@@ -158,7 +158,36 @@ function ModuleIcon({ icon, dark }) {
 }
 
 // A waveform module: a bar for each level, or the levels joined as a wave.
-function WaveformView({ waveform, dark }) {
+// The width of the module a waveform follows, without its padding, as it
+// is drawn in the waveform's bar: 0 when it follows none, or one out of the
+// bar. `element` is the waveform's own.
+function useMatchedWidth(name, bar) {
+  const element = useRef(null);
+  const [width, setWidth] = useState(0);
+  useLayoutEffect(() => {
+    const followed = name === undefined ? undefined
+      : [...element.current?.closest("[data-kantan-bar]")?.querySelectorAll("[data-kantan-module]") ?? []]
+        .find(each => each.dataset.kantanModule === name);
+    if (!followed) {
+      setWidth(0);
+      return undefined;
+    }
+    const measure = () => {
+      const style = getComputedStyle(followed);
+      setWidth(Math.max(0, followed.offsetWidth - parseFloat(style.paddingLeft) - parseFloat(style.paddingRight)));
+    };
+    measure();
+    if (typeof ResizeObserver === "undefined") return undefined;
+    const observer = new ResizeObserver(measure);
+    observer.observe(followed);
+    return () => observer.disconnect();
+  }, [name, bar]);
+  return { element, width };
+}
+
+function WaveformView({ waveform: own, bar, dark }) {
+  const matched = useMatchedWidth(own.matchWidth, bar);
+  const waveform = matchWaveform(own, matched.width);
   const { style, levels, height } = waveform;
   const color = cssColor(waveform.color, dark);
   const gradient = useId();
@@ -174,7 +203,7 @@ function WaveformView({ waveform, dark }) {
     });
     const stroke = waveform.colors ? `url(#${gradient})` : color;
     return (
-      <svg width={waveform.width} height={height}
+      <svg ref={matched.element} width={waveform.width} height={height}
         style={{ flexShrink: 0, maskImage: "linear-gradient(to right, transparent, #000 20%, #000 80%, transparent)" }}>
         {waveform.colors && (
           <defs>
@@ -190,7 +219,7 @@ function WaveformView({ waveform, dark }) {
     );
   }
   return (
-    <div style={{ display: "flex", alignItems: "center", gap: 2, height }}>
+    <div ref={matched.element} style={{ display: "flex", alignItems: "center", gap: 2, height }}>
       {levels.map((level, index) => (
         <span key={index} style={{
           width: 2, height: Math.max(2, level * height), borderRadius: 1,
@@ -345,7 +374,7 @@ function ModuleView({ module, bar, dark, run, toggleDrawer, switchWorkspace, int
         <WorkspaceView workspace={module.workspace} bar={bar} dark={dark}
           activate={interactive && switchWorkspace && (target => switchWorkspace(module.name, target))} />
       )}
-      {module.waveform && <WaveformView waveform={module.waveform} dark={dark} />}
+      {module.waveform && <WaveformView waveform={module.waveform} bar={bar} dark={dark} />}
       {textLeads && text}
       {textLeads && room}
       {icon}
