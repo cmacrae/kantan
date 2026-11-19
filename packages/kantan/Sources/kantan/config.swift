@@ -461,6 +461,19 @@ func initIconFonts() {
   buildMap(fontFamily: filledFontFamily, suffix: filledSuffix)
 }
 
+/// How far into its em square the drawn part of the bundled icon `name`
+/// starts, as a fraction of the em, or 0 for a name the fonts lack.
+func iconInkLeading(_ name: String) -> CGFloat {
+  guard let entry = iconNameMap[name] else { return 0 }
+  let font = CTFontCreateWithName(entry.font as CFString, 1, nil)
+  let utf16 = Array(String(entry.scalar).utf16)
+  var glyphs = [CGGlyph](repeating: 0, count: utf16.count)
+  guard CTFontGetGlyphsForCharacters(font, utf16, &glyphs, utf16.count),
+    let path = CTFontCreatePathForGlyph(font, glyphs[0], nil)
+  else { return 0 }
+  return path.boundingBoxOfPath.minX
+}
+
 /// Resolves an icon string by looking up its name in the bundled icon fonts.
 ///
 /// Convention:

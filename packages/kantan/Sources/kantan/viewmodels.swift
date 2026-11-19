@@ -31,6 +31,9 @@ class ModuleViewModel: ObservableObject, Identifiable {
   @Published var iconFontNameOverride: String?
   @Published var iconScaleFactor: CGFloat = 1.0
   @Published var backgroundIcon: String?
+  /// How far right of its place the icon is drawn, as a fraction of its
+  /// font size, to sit on the icon behind it.
+  @Published var iconShift: CGFloat = 0
   @Published var isActive: Bool = true
   @Published var shouldDisplay: Bool = true
   @Published var templateVariables: [String: String] = [:]
@@ -197,7 +200,6 @@ class ModuleViewModel: ObservableObject, Identifiable {
 
     let icon = config.getIcon()
     let bgIcon = config.getBackgroundIcon()
-    let resolvedBgGlyph = bgIcon.map { resolveIconName($0).glyph }
 
     config.getValue { [weak self] newValue in
       DispatchQueue.main.async {
@@ -207,7 +209,7 @@ class ModuleViewModel: ObservableObject, Identifiable {
         guard self.updateGeneration == gen, self.durationTimer == nil else { return }
         // A command's icon comes from the output getValue just produced.
         let currentIcon = config is CommandConfig ? config.getIcon() : icon
-        self.show(newValue, icon: currentIcon, backgroundIcon: resolvedBgGlyph, of: config)
+        self.show(newValue, icon: currentIcon, backgroundIcon: bgIcon, of: config)
       }
     }
   }
@@ -219,6 +221,10 @@ class ModuleViewModel: ObservableObject, Identifiable {
   ) {
     let rawIcon = icon.isEmpty ? moduleConfig.icon : icon
     let resolved = rawIcon.map { resolveIconName($0) }
+    var shift: CGFloat = 0
+    if let backgroundIcon, let rawIcon, config.alignsBackgroundIconLeading() {
+      shift = iconInkLeading(backgroundIcon) - iconInkLeading(rawIcon)
+    }
     // A module showing or hiding slides when its transition says so.
     let appears = shouldDisplay != config.shouldDisplay()
     withAnimation(contentAnimation ?? (appears ? visibilityAnimation : nil)) {
@@ -226,7 +232,8 @@ class ModuleViewModel: ObservableObject, Identifiable {
       displayIcon = resolved?.glyph ?? rawIcon
       iconFontNameOverride = resolved?.fontNameOverride
       iconScaleFactor = resolved?.scaleFactor ?? 1.0
-      self.backgroundIcon = backgroundIcon
+      self.backgroundIcon = backgroundIcon.map { resolveIconName($0).glyph }
+      iconShift = shift
       isActive = config.isActive()
       shouldDisplay = config.shouldDisplay()
       templateVariables = config.getTemplateVariables()
@@ -447,7 +454,7 @@ class ModuleViewModel: ObservableObject, Identifiable {
       updateGeneration &+= 1
       show(
         value, icon: config.getIcon(),
-        backgroundIcon: config.getBackgroundIcon().map { resolveIconName($0).glyph }, of: config)
+        backgroundIcon: config.getBackgroundIcon(), of: config)
     }
   }
 
@@ -1079,9 +1086,15 @@ class ThemeProvider: ObservableObject {
 
   // MARK: - Font Resolution
 
+  /// The size the module's icon is drawn at: its font's, scaled for its glyph.
+  func iconFontSize(for vm: ModuleViewModel) -> Int {
+    let base = vm.moduleConfig.iconFont ?? config.iconFont ?? defaultIconFontConfig
+    return Int(round(base.size * vm.iconScaleFactor))
+  }
+
   func iconFont(for vm: ModuleViewModel) -> Font {
     let base = vm.moduleConfig.iconFont ?? config.iconFont ?? defaultIconFontConfig
-    let scaledSize = Int(round(base.size * vm.iconScaleFactor))
+    let scaledSize = iconFontSize(for: vm)
     // If the icon was resolved from a named glyph (e.g. "bell"), override
     // the font family name and apply the dynamic scale factor.
     if let override = vm.iconFontNameOverride {

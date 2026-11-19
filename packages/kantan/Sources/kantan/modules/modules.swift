@@ -73,6 +73,9 @@ protocol ModuleConfiguration: Sendable {
   func getDynamicStyle() -> DynamicStyleOverride?
   func getWatchCommand() -> String?
   func getBackgroundIcon() -> String?
+  /// Whether the module's icon is drawn with its left edge on that of the
+  /// icon behind it, rather than centred over it.
+  func alignsBackgroundIconLeading() -> Bool
 }
 
 extension ModuleConfiguration {
@@ -85,6 +88,7 @@ extension ModuleConfiguration {
   func getDynamicStyle() -> DynamicStyleOverride? { nil }
   func getWatchCommand() -> String? { nil }
   func getBackgroundIcon() -> String? { nil }
+  func alignsBackgroundIconLeading() -> Bool { false }
 }
 
 /// Sentinel interval for modules that don't poll (event-driven or static).

@@ -485,6 +485,7 @@ struct StandardModuleView: View {
             Text(icon)
               .font(themeProvider.iconFont(for: viewModel))
               .foregroundStyle(iconColor)
+              .offset(x: viewModel.iconShift * CGFloat(themeProvider.iconFontSize(for: viewModel)))
           }
       } else {
         Text(icon)

@@ -235,6 +235,9 @@ final class VolumeConfig: ModuleConfiguration, EventDrivenModule {
     backgroundIcon(for: cache.get())
   }
 
+  /// Every level's speaker is drawn where the full-volume icon's is.
+  func alignsBackgroundIconLeading() -> Bool { true }
+
   /// The icon for `status`: muted, its output device's, or its level.
   func icon(for status: VolumeStatus) -> String {
     if status.isMuted {
