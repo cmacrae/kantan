@@ -20,6 +20,7 @@ This plugin is bundled with kantan and requires no separate installation. It is 
 - **Undated reminders** — Optionally include reminders with no due date
 - **Completed retention** — Show recently completed reminders for a configurable duration
 - **Complete/Uncomplete** — Toggle reminder completion directly from the bar menu
+- **Today's progress** — Optionally open the menu with how many of today's reminders are done, over a bar filled that far
 - **Format string** — Customise the bar display with template variables and conditional sections
 - **Auto-hide** — Module hides automatically when there are no incomplete reminders, and, unless `persist` is off, no completed ones it keeps
 - **Dynamic bar icon** — Bar icon changes to match the displayed reminder's list icon
@@ -36,6 +37,8 @@ This plugin is bundled with kantan and requires no separate installation. It is 
 | `{list}`       | `Shopping`      | Reminders list name of the displayed reminder     |
 | `{list_icon}`  | (icon)          | Icon configured for the displayed reminder's list (unset when the list has none) |
 | `{due}`        | `in 5 min.`     | Relative due date of the displayed reminder, or its day (`today`) when it's due on a day without a time |
+| `{today_done}` | `3`             | Reminders completed today (set while `progress` is on) |
+| `{today_total}` | `8`            | Reminders completed today and those still to do today (set while `progress` is on) |
 
 The next incomplete reminder is the one due soonest across all configured lists; undated reminders come after dated ones.
 
@@ -66,6 +69,7 @@ config:
   settings:
     format: "{title}"
     persist: true
+    progress: true
     lists:
       - name: Reminders
         icon: bell-filled
@@ -93,6 +97,8 @@ Settings are passed to the plugin via the `config.settings` block. At least one 
 | `icons`  | —         | Icon overrides (see [Icon Settings](#icon-settings) below)             |
 | `persist` | `true`   | Keep the module in the bar while its only reminders are completed ones it keeps (see `completedRetention`), so they can be unticked from its menu. It then shows its icon alone, dimmed. `false` hides it once none are incomplete |
 | `persistShape` | `none` | The module's shape while it persists with nothing incomplete: `pill`, `box`, `underline`, `overline`, or `none` for just the icon |
+| `progress` | `false` | Open the menu with today's progress: `Today`, how many reminders are done of how many (`3 of 8`), and a bar filled that far (see [Today's Progress](#todays-progress) below) |
+| `progressColor` | — | The colour the progress bar fills with: a hex colour or a theme template such as `{theme(blue)}`. Left out, it takes the system's accent colour, as a highlighted menu item does |
 
 #### Icon Settings
 
@@ -133,6 +139,10 @@ The dynamic menu adapts to the current state:
 - **No items** — Shows "No reminders" text
 
 Every menu view includes a persistent "Reminders" action at the bottom that launches Apple Reminders (using the `icons.action` icon).
+
+### Today's Progress
+
+With `progress` on, the menu opens with a row reading `Today` and, say, `3 of 8`, over a bar filled that far. It counts the reminders of the configured lists as the Reminders app's Today list does: those completed today are done. The total adds the incomplete ones due by the end of today, overdue ones among them. A list's `lookahead`, `overdue` and `undated` settings don't change the count. The row is left out on a day with nothing done and nothing due.
 
 ### Data Collections
 

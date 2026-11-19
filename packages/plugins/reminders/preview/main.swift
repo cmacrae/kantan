@@ -42,6 +42,7 @@ func output(completed: Set<String>) -> PluginOutput {
       Reminder(
         id: $0.id, title: $0.title, list: $0.list, dueDate: $0.dueDate, completionDate: now)
     },
+    today: settings.progress ? TodayProgress(done: completed.count, total: reminders.count) : nil,
     settings: settings, module: module, now: now)
 }
 

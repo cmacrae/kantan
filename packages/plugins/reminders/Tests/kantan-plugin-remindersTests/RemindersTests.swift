@@ -78,6 +78,25 @@ final class ReminderRenderTests {
     #expect((left.data["completed_todo"]?.map { $0["title"] }) == ["Post"])
   }
 
+  @Test func testTodaysProgressOpensTheMenu() throws {
+    let settings: Settings = try decode(
+      ##"{"lists":[{"name":"todo"}],"progress":true,"progressColor":"#FF0000"}"##)
+    let output = render(
+      incomplete: [reminder("1", "Call")], completed: [],
+      today: TodayProgress(done: 3, total: 8), settings: settings, module: "todo", now: now)
+    #expect(output.variables["today_done"] == "3")
+    #expect(output.variables["today_total"] == "8")
+    let view = String(decoding: try JSONEncoder().encode(output.view), as: UTF8.self)
+    #expect(view.contains(#""value":0.375"#))
+    #expect(view.contains(##""color":"#FF0000""##))
+
+    let without = render(
+      incomplete: [reminder("1", "Call")], completed: [], settings: settings, module: "todo",
+      now: now)
+    #expect(
+      !String(decoding: try JSONEncoder().encode(without.view), as: UTF8.self).contains("progress"))
+  }
+
   @Test func testHiddenWithoutIncompleteReminders() throws {
     let settings: Settings = try decode(#"{"lists":[{"name":"todo"}]}"#)
     let output = render(incomplete: [], completed: [], settings: settings, module: "todo", now: now)

@@ -28,6 +28,15 @@
       "default": "none",
       "description": "The module's shape while it persists with nothing incomplete."
     },
+    "progress": {
+      "type": "boolean",
+      "default": false,
+      "description": "Open the menu with how many of today's reminders are done, over a bar filled that far."
+    },
+    "progressColor": {
+      "$ref": "module-config.schema.json#/$defs/Color",
+      "description": "The colour the progress bar fills with. Left out, it takes the system's accent colour, as a highlighted menu item does."
+    },
     "lists": {
       "type": "array",
       "description": "Reminders lists to monitor, each matched by its exact name.",

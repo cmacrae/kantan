@@ -15,6 +15,7 @@ config:
   settings:
     format: "{title}"
     persist: true
+    progress: true
     lists:
       - name: Reminders
         icon: bell-filled

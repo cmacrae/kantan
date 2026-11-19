@@ -71,9 +71,14 @@ struct Settings: Decodable {
   /// The module's shape while it persists with nothing incomplete: a shape
   /// such as `box`, or `none`.
   var persistShape: String
+  /// Whether the menu opens with how many of today's reminders are done,
+  /// over a bar filled that far.
+  var progress: Bool
+  /// The colour the bar fills with, or nil for the system's accent colour.
+  var progressColor: String?
 
   private enum CodingKeys: String, CodingKey {
-    case lists, format, icons, persist, persistShape
+    case lists, format, icons, persist, persistShape, progress, progressColor
   }
 
   init() {
@@ -82,6 +87,8 @@ struct Settings: Decodable {
     self.icons = .defaults
     self.persist = true
     self.persistShape = "none"
+    self.progress = false
+    self.progressColor = nil
   }
 
   init(from decoder: Decoder) throws {
@@ -91,6 +98,8 @@ struct Settings: Decodable {
     self.icons = container.setting(IconConfig.self, forKey: .icons) ?? .defaults
     self.persist = container.setting(Bool.self, forKey: .persist) ?? true
     self.persistShape = container.setting(String.self, forKey: .persistShape) ?? "none"
+    self.progress = container.setting(Bool.self, forKey: .progress) ?? false
+    self.progressColor = container.setting(String.self, forKey: .progressColor)
   }
 }
 
@@ -245,6 +254,35 @@ func fetch(_ store: EKEventStore, _ predicate: NSPredicate) -> [Reminder] {
   return result
 }
 
+/// How many of today's reminders are done.
+struct TodayProgress: Equatable {
+  let done: Int
+  let total: Int
+}
+
+/// Today's progress through `lists` at `now`: the reminders completed today,
+/// of those and the incomplete ones due by the end of today, overdue ones
+/// among them.
+func fetchTodayProgress(store: EKEventStore, lists: [ListConfig], now: Date) -> TodayProgress {
+  let names = Set(lists.map(\.name))
+  let calendars = store.calendars(for: .reminder).filter { names.contains($0.title) }
+  guard !calendars.isEmpty else { return TodayProgress(done: 0, total: 0) }
+
+  let dayStart = Calendar.current.startOfDay(for: now)
+  let dayEnd = Calendar.current.date(byAdding: .day, value: 1, to: dayStart) ?? now
+  let left = fetch(
+    store,
+    store.predicateForIncompleteReminders(
+      withDueDateStarting: nil, ending: dayEnd, calendars: calendars)
+  ).count
+  let done = fetch(
+    store,
+    store.predicateForCompletedReminders(
+      withCompletionDateStarting: dayStart, ending: dayEnd, calendars: calendars)
+  ).count
+  return TodayProgress(done: done, total: done + left)
+}
+
 // MARK: - Subcommands
 
 /// Complete a reminder by its calendarItemIdentifier.
@@ -329,15 +367,18 @@ func currentOutput(store: EKEventStore, settings: Settings, module: String, now:
 {
   let reminders = fetchReminders(store: store, lists: settings.lists, now: now)
   return render(
-    incomplete: reminders.incomplete, completed: reminders.completed, settings: settings,
-    module: module, now: now)
+    incomplete: reminders.incomplete, completed: reminders.completed,
+    today: settings.progress
+      ? fetchTodayProgress(store: store, lists: settings.lists, now: now) : nil,
+    settings: settings, module: module, now: now)
 }
 
 /// The module's output for its shown `incomplete` and `completed`
-/// reminders at `now`, whose menu refreshes the module named `module`.
+/// reminders at `now`, whose menu refreshes the module named `module`. With
+/// `today`, the menu opens with today's progress.
 func render(
-  incomplete: [Reminder], completed: [Reminder], settings: Settings, module modName: String,
-  now: Date
+  incomplete: [Reminder], completed: [Reminder], today: TodayProgress? = nil, settings: Settings,
+  module modName: String, now: Date
 ) -> PluginOutput {
   let hasReminders = !incomplete.isEmpty
 
@@ -374,6 +415,17 @@ func render(
 
   var dataCollections: [String: [[String: String]]] = [:]
   var viewChildren: [JSONValue] = []
+
+  // Today's progress: how many are done, over a bar filled that far.
+  if let today, today.total > 0 {
+    viewChildren.append(
+      hstack(children: [
+        text("Today"), spacer(), text("{today_done} of {today_total}", style: "secondary"),
+      ]))
+    viewChildren.append(
+      progress(value: Double(today.done) / Double(today.total), color: settings.progressColor))
+    viewChildren.append(divider())
+  }
 
   // Retained completed reminders show as a checklist, however few, so they
   // can be unchecked.
@@ -463,6 +515,11 @@ func render(
     "list": listName,
     "due": due,
   ]
+
+  if let today {
+    variables["today_done"] = "\(today.done)"
+    variables["today_total"] = "\(today.total)"
+  }
 
   // Add icon as a variable too
   if let iconName, !iconName.isEmpty {
