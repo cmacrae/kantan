@@ -28,32 +28,26 @@ class LiveContentProvider: ObservableObject {
     self.viewTree = viewModel.viewTree
     self.data = viewModel.data
 
-    viewModel.$templateVariables
+    // Everything is taken together once the module has changed, so a view
+    // is never drawn from one output's tree and another's data.
+    viewModel.objectWillChange
       .receive(on: DispatchQueue.main)
-      .sink { [weak self] vars in
-        self?.templateVariables = vars
+      .sink { [weak self, weak viewModel] _ in
+        guard let self, let viewModel else { return }
+        self.take(from: viewModel)
       }
       .store(in: &cancellables)
+  }
 
-    viewModel.$displayValue
-      .receive(on: DispatchQueue.main)
-      .sink { [weak self] val in self?.displayValue = val }
-      .store(in: &cancellables)
-
-    viewModel.$displayIcon
-      .receive(on: DispatchQueue.main)
-      .sink { [weak self] icon in self?.displayIcon = icon }
-      .store(in: &cancellables)
-
-    viewModel.$viewTree
-      .receive(on: DispatchQueue.main)
-      .sink { [weak self] tree in self?.viewTree = tree }
-      .store(in: &cancellables)
-
-    viewModel.$data
-      .receive(on: DispatchQueue.main)
-      .sink { [weak self] d in self?.data = d }
-      .store(in: &cancellables)
+  /// Takes what `viewModel` shows now, leaving alone what hasn't changed.
+  private func take(from viewModel: ModuleViewModel) {
+    if templateVariables != viewModel.templateVariables {
+      templateVariables = viewModel.templateVariables
+    }
+    if displayValue != viewModel.displayValue { displayValue = viewModel.displayValue }
+    if displayIcon != viewModel.displayIcon { displayIcon = viewModel.displayIcon }
+    if data != viewModel.data { data = viewModel.data }
+    viewTree = viewModel.viewTree
   }
 
   /// Fires once after each burst of changes, with the new values in place.
@@ -130,7 +124,6 @@ class PopupManager {
   private var activePanel: NSPanel?
   private var activePopupId: String?
   private var activeLiveContent: LiveContentProvider?
-  private var activeRefresh: AnyCancellable?
   /// The name of the module whose menu or popup is open, if one is.
   let openModule = CurrentValueSubject<String?, Never>(nil)
   /// Watches for the pointer leaving a popup a click has left open.
@@ -458,29 +451,40 @@ class PopupManager {
     .environment(\.defaultTextColor, themeFg)
     .environment(\.dismissWhenPointerLeaves) { [weak self] in self?.dismissWhenPointerLeaves() }
     .padding(.vertical, 8)
+    // The content is laid out at the height it wants, whatever the panel's,
+    // and the panel takes that height as the content is laid out, so the
+    // two change together.
+    .fixedSize(horizontal: false, vertical: true)
+    .onGeometryChange(for: CGSize.self, of: { $0.size }) { [weak self] size in
+      self?.resizePopup(effectiveId, toFit: size)
+    }
+    // The content hangs from the panel's top, so nothing above a change
+    // moves.
+    .frame(maxHeight: .infinity, alignment: .top)
 
     let hostingView = NSHostingView(rootView: dslView)
 
     presentPopupPanel(
       hostingView: hostingView,
-      panelRect: popupRect(fitting: hostingView, anchorPoint: anchorPoint),
+      panelRect: popupRect(fitting: hostingView.fittingSize, anchorPoint: anchorPoint),
       popupId: effectiveId, liveContent: liveContent)
     openModule.send(moduleName)
-
-    activeRefresh = liveContent.changes.sink { [weak self, weak hostingView] in
-      guard let self, let hostingView, let panel = self.activePanel else { return }
-      let anchor = NSPoint(x: panel.frame.midX, y: panel.frame.maxY + 4)
-      panel.setFrame(
-        self.clampToScreen(self.popupRect(fitting: hostingView, anchorPoint: anchor)),
-        display: true)
-    }
   }
 
-  /// A frame for a popup showing `hostingView`, centred below `anchorPoint`.
-  private func popupRect(fitting hostingView: NSView, anchorPoint: NSPoint) -> NSRect {
-    let fittingSize = hostingView.fittingSize
-    let panelWidth = max(fittingSize.width, 160)
-    let panelHeight = max(fittingSize.height, 20)
+  /// Sizes the popup `popupId` to fit content of `size`, keeping its top
+  /// edge, and its centre along it, where they are.
+  private func resizePopup(_ popupId: String, toFit size: CGSize) {
+    guard activePopupId == popupId, let panel = activePanel else { return }
+    let anchor = NSPoint(x: panel.frame.midX, y: panel.frame.maxY + 4)
+    let frame = clampToScreen(popupRect(fitting: size, anchorPoint: anchor))
+    if frame != panel.frame { panel.setFrame(frame, display: true) }
+  }
+
+  /// A frame for a popup whose content is of `size`, centred below
+  /// `anchorPoint`.
+  private func popupRect(fitting size: CGSize, anchorPoint: NSPoint) -> NSRect {
+    let panelWidth = max(size.width.rounded(.up), 160)
+    let panelHeight = max(size.height.rounded(.up), 20)
     return NSRect(
       x: anchorPoint.x - panelWidth / 2,
       y: anchorPoint.y - panelHeight - 4,
@@ -532,7 +536,6 @@ class PopupManager {
     activePanel = nil
     activePopupId = nil
     activeLiveContent = nil
-    activeRefresh = nil
   }
 
   // MARK: - Panel Factories
