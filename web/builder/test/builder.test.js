@@ -4,7 +4,7 @@ import { readFileSync } from "node:fs";
 import { test } from "node:test";
 import { NODE_FIELDS, NODE_TYPES, decodeJsonView, loadConfig, loadTheme, resolveBar, validateDocument } from "../../engine/index.js";
 import { SLOTS, readScheme, schemeFileName, schemeTheme, withSharedTheme } from "../base16.js";
-import { BUILT_INS, pluginOf } from "../catalog.js";
+import { BUILT_INS, inVariant, pluginOf, variantOf } from "../catalog.js";
 import { bindSettings } from "../settings.js";
 import {
   addBuiltIn, addPasted, addPlugin, addShared, boundDocument, emptyDocument, inLayout, layoutOf, modulesOf, toDir, toSingle, updateModule,
@@ -291,6 +291,34 @@ test("a document is drawn with its plugins' states bound to their modules' setti
   assert.equal(bindSettings(falling, { colors: { event: "#ff0000" } }), "#ff0000");
   assert.equal(bindSettings(falling, { colors: { calendars: { Work: "inherit" }, event: "#ff0000" } }), "#1e66f5");
   assert.equal(bindSettings(falling, { colors: { calendars: { Work: "#00ff00" }, event: "#ff0000" } }), "#00ff00");
+});
+
+test("a module takes the states of the variant its settings match, until its states are its own", () => {
+  const full = [{ name: "Month", output: { value: "full" } }];
+  const varied = { themes: {}, plugins: { caffeine: { ...catalog.plugins.caffeine, variants: [{ settings: { mode: "full" }, states: full }] } } };
+  const withSettings = (document, settings) => updateModule(document, 0, { ...modulesOf(document)[0], config: { ...modulesOf(document)[0].config, settings } }, varied);
+  let document = addPlugin(emptyDocument(), "caffeine", varied);
+  assert.deepEqual(document.states.caffeine, varied.plugins.caffeine.states);
+
+  document = withSettings(document, { mode: "full", other: 1 });
+  assert.deepEqual(document.states.caffeine, full);
+  // A setting left out is the schema's default.
+  const defaulting = { themes: {}, plugins: { caffeine: { ...varied.plugins.caffeine, settings: { properties: { mode: { default: "full" } } } } } };
+  assert.equal(variantOf({ config: { command: "kantan-plugin-caffeine" } }, defaulting), defaulting.plugins.caffeine.variants[0]);
+  assert.deepEqual(withSettings(document, { mode: "compact" }).states.caffeine, varied.plugins.caffeine.states);
+
+  // A variant's interaction comes with the change that enters it, and not after.
+  varied.plugins.caffeine.variants[0].interaction = { click: { type: "popup" } };
+  const menu = { ...modulesOf(document)[0], config: { command: "kantan-plugin-caffeine" }, interaction: { click: { type: "menu", view: { type: "divider" } } } };
+  const entered = inVariant(menu, { ...menu, config: { ...menu.config, settings: { mode: "full" } } }, varied);
+  assert.deepEqual(entered.interaction.click, { type: "popup", view: { type: "divider" } });
+  const back = { ...entered, interaction: { click: { type: "menu" } } };
+  assert.equal(inVariant(entered, back, varied), back);
+
+  // States someone has edited stay as they are.
+  const own = [{ name: "Mine", output: {} }];
+  const edited = { ...document, states: { caffeine: own } };
+  assert.deepEqual(withSettings(edited, {}).states.caffeine, own);
 });
 
 const sampleView = () => ({

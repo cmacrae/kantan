@@ -82,13 +82,16 @@ let
   # Theme templates in the settings stay as written, for the preview to
   # resolve in either appearance. With `named`, each colour and icon the
   # plugin's schema describes is given as its own name, for the preview to
-  # follow the settings a module has.
+  # follow the settings a module has. With `variant`, a JSON file whose
+  # `settings` a preview differs for, the module's settings are given with
+  # those over them.
   statesFor =
     {
       plugin,
       config,
       module ? ".",
       named ? false,
+      variant ? null,
     }:
     pkgs.runCommand "kantan-preview-states-${plugin}.json"
       {
@@ -99,6 +102,9 @@ let
       }
       ''
         KANTAN_SETTINGS=$(yq -o=json -I=0 '${module} | .config.settings // {}' ${config})
+        ${lib.optionalString (variant != null) ''
+          KANTAN_SETTINGS=$(VARIANT=$(cat ${variant}) yq -p=json -o=json -I=0 '. * (env(VARIANT) | .settings)' <<< "$KANTAN_SETTINGS")
+        ''}
         ${lib.optionalString named ''
           KANTAN_SETTINGS=$(node ${assembler}/previews/name-settings.js ${schema plugin} ${moduleSchema} "$KANTAN_SETTINGS")
         ''}
@@ -116,6 +122,40 @@ let
       (statesFor args)
       (schema args.plugin)
     ];
+
+  # What a plugin's preview differs for, each a JSON file of the `settings`
+  # and of the `interaction` the module needs with them: those its
+  # preview/variants.json lists, when it has one.
+  variantsOf =
+    name:
+    let
+      file = pluginsDir + "/${name}/preview/variants.json";
+    in
+    lib.optionals (builtins.pathExists file) (
+      map (variant: pkgs.writeText "kantan-preview-variant-${name}.json" (builtins.toJSON variant)) (
+        builtins.fromJSON (builtins.readFile file)
+      )
+    );
+
+  # What a preview is assembled from for each of a plugin's variants: its
+  # settings, the states by setting name and the states as printed.
+  generatedVariants =
+    args:
+    lib.concatMapStrings (
+      variant:
+      "="
+      + lib.concatStringsSep "=" [
+        variant
+        (statesFor (
+          args
+          // {
+            inherit variant;
+            named = true;
+          }
+        ))
+        (statesFor (args // { inherit variant; }))
+      ]
+    ) (variantsOf args.plugin);
 
   themes = pkgs.runCommand "kantan-preview-themes.json" { nativeBuildInputs = [ pkgs.yq-go ]; } ''
     yq -o=json '{"catppuccin": .}' ${themesDir + "/catppuccin.yaml"} > $out
@@ -174,12 +214,13 @@ let
         node ${assembler}/previews/assemble.js $out ${themes} ${moduleSchema} \
           ${lib.concatMapStringsSep " " (
             name:
-            "${name}=${name}.example.json=${
-              generated {
+            let
+              args = {
                 plugin = name;
                 config = example name;
-              }
-            }"
+              };
+            in
+            "${name}=${name}.example.json=${generated args}${generatedVariants args}"
           ) plugins.pluginNames}
       '';
 

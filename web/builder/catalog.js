@@ -6,7 +6,11 @@
 // bundled plugin's example `module` and the `states` its preview generator
 // printed, by plugin name, `themes` the theme files kantan bundles, by
 // name, and `example` the document of the example bar, when there is one.
+// A plugin whose preview differs for some settings also holds `variants`:
+// each those `settings`, the `states` printed with them, and the
+// `interaction` a module needs with them, when it needs one.
 import { dict, str } from "../engine/values.js";
+import { sameValue } from "./equal.js";
 
 export const EMPTY_CATALOG = { plugins: {}, themes: {} };
 
@@ -125,11 +129,35 @@ export function pluginOf(module, catalog) {
   return name !== undefined && Object.hasOwn(catalog.plugins, name) ? name : undefined;
 }
 
+// The variant of its bundled plugin's preview a module is in: the last
+// whose settings the module has, a setting left out having the default
+// the plugin's schema gives it. Undefined for a module in none.
+export function variantOf(module, catalog) {
+  const plugin = pluginOf(module, catalog);
+  if (plugin === undefined) return undefined;
+  const { variants = [], settings: schema } = catalog.plugins[plugin];
+  const settings = dict(dict(module?.config)?.settings) ?? {};
+  const has = ([key, value]) => sameValue(settings[key] ?? dict(schema?.properties)?.[key]?.default, value);
+  return variants.findLast(each => Object.entries(each.settings).every(has));
+}
+
+// `module`, changed from `before`, with the interaction its variant needs
+// when the change brought it into that variant: a popup, say, for a view a
+// menu has no rows for.
+export function inVariant(before, module, catalog) {
+  const variant = variantOf(module, catalog);
+  if (variant?.interaction === undefined || variant === variantOf(before, catalog)) return module;
+  const interaction = { ...module.interaction };
+  for (const [slot, needed] of Object.entries(variant.interaction)) interaction[slot] = { ...interaction[slot], ...needed };
+  return { ...module, interaction };
+}
+
 // The states a module starts with: its bundled plugin's, or its type's.
+// A plugin's are those of the variant the module is in, or its own.
 // Undefined for a module that needs none.
 export function defaultStates(module, catalog) {
   const plugin = pluginOf(module, catalog);
-  if (plugin !== undefined) return catalog.plugins[plugin].states;
+  if (plugin !== undefined) return variantOf(module, catalog)?.states ?? catalog.plugins[plugin].states;
   const type = str(module?.type);
   return type !== undefined && Object.hasOwn(BUILT_INS, type) ? BUILT_INS[type].states : undefined;
 }

@@ -4,6 +4,7 @@
 import { DOCUMENT_VERSION } from "../engine/document.js";
 import { dict, list, str } from "../engine/values.js";
 import { BUILT_INS, defaultStates, pluginOf } from "./catalog.js";
+import { sameValue } from "./equal.js";
 import { bindStates, settingDefaults } from "./settings.js";
 
 const isRightSide = module => (str(module?.placement) ?? "").includes("right");
@@ -127,13 +128,19 @@ export function addOwnPlugin(document, name) {
 }
 
 // The document with the module at `index` replaced by `module`. A new name
-// takes the module's states with it.
-export function updateModule(document, index, module) {
+// takes the module's states with it. With `catalog`, a module still in the
+// states it started with takes those its new settings start it with.
+export function updateModule(document, index, module, catalog) {
   const modules = [...modulesOf(document)];
   const before = str(modules[index]?.name);
+  const started = catalog && dict(modules[index]) ? defaultStates(modules[index], catalog) : undefined;
   modules[index] = module;
   let next = withModules(document, modules);
   const after = str(module.name);
+  const starts = started === undefined ? undefined : defaultStates(module, catalog);
+  if (before !== undefined && starts !== undefined && starts !== started && sameValue(next.states?.[before], started)) {
+    next = setStates(next, before, starts);
+  }
   if (before !== undefined && after !== undefined && before !== after && next.states?.[before] !== undefined) {
     next = setStates(setStates(next, after, next.states[before]), before, undefined);
   }

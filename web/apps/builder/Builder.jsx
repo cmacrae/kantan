@@ -9,7 +9,7 @@ import { useBar } from "../../components/useBar.js";
 import { useFitZoom } from "../../components/useFitZoom.js";
 import { loadConfig, loadTheme, resolveBar } from "../../engine/index.js";
 import { dict } from "../../engine/values.js";
-import { pluginOf } from "../../builder/catalog.js";
+import { inVariant, pluginOf } from "../../builder/catalog.js";
 import {
   addBuiltIn, addOwnPlugin, addPasted, addPlugin, addShared, boundDocument, documentFromConfig, emptyDocument, inLayout, layoutOf, modulesOf, placeAtEdge,
   placeModule, removeModule, setModuleStates, toSingle, updateModule,
@@ -388,10 +388,12 @@ function Workspace({ opened, iconSet, onStart }) {
   };
   const place = (from, to, after) => moved(placeModule(document, from, to, after), modules[from]?.name);
   const placeIn = (from, placement, start) => moved(placeAtEdge(document, from, placement, start), modules[from]?.name);
-  const update = next => {
+  const update = asked => {
+    // Settings that need a popup, say, bring one with them.
+    const next = inVariant(module, asked, catalog);
     const clash = next.name !== module.name && modules.some(each => each !== module && each?.name === next.name);
     if (clash) return;
-    const changed = updateModule(document, selected, next);
+    const changed = updateModule(document, selected, next, catalog);
     change(changed);
     follow(modulesOf(changed).indexOf(next));
     if (next.name !== module.name && shown[module.name] !== undefined) setState(next.name, shown[module.name]);
@@ -419,7 +421,7 @@ function Workspace({ opened, iconSet, onStart }) {
   };
   // Changes the module being built on, and its states with it.
   const commit = (nextModule, nextStates) => {
-    let next = nextModule === module ? document : updateModule(document, selected, nextModule);
+    let next = nextModule === module ? document : updateModule(document, selected, nextModule, catalog);
     if (nextStates !== undefined) next = setModuleStates(next, nextModule.name, nextStates);
     change(next);
     follow(modulesOf(next).indexOf(nextModule));
