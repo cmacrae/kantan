@@ -69,6 +69,14 @@ function branchFor(schema, branches, value) {
     && (dict(branch.additionalProperties) !== undefined || Object.keys(value).every(key => Object.hasOwn(branch.properties ?? {}, key))));
 }
 
+// The branch of a schema's alternatives that holds an icon with settings
+// of its own, when the other is the icon alone.
+function iconHolder(schema, branches) {
+  const all = branches.map(branch => deref(schema, branch));
+  const holder = all.find(branch => branch.type === "object" && deref(schema, branch.properties?.icon)?.ref === "Icon");
+  return all.length === 2 && holder && all.some(branch => branch.ref === "Icon") ? holder : undefined;
+}
+
 // `settings` with each colour and icon the bundled `schema` describes
 // replaced by its name, those left unset among them. A setting written as
 // one of several alternatives is named as written, and as the first of
@@ -79,6 +87,11 @@ export function nameSettings(settings, schema) {
     if (followed(node)) return value === undefined || typeof value === "string" ? settingName(path) : value;
     const branches = node.oneOf ?? node.anyOf;
     if (branches) {
+      // An icon written alone, where it could come with settings of its
+      // own, is named as the mapping holding it, for those to be followed
+      // once they are set.
+      const holding = typeof value === "string" ? iconHolder(schema, branches) : undefined;
+      if (holding) return name({ icon: value }, holding, path);
       const branch = value === undefined ? branches[0] : branchFor(schema, branches, value);
       return branch === undefined ? value : name(value, branch, path);
     }
@@ -135,8 +148,10 @@ export function namesSettings(value) {
 // and anything else does as it is. A setting set to `inherit` says the
 // last of them, which is the thing's own.
 export function bindSettings(value, settings, defaults = {}) {
+  // An icon written alone is the `icon` of the mapping it could be held in.
+  const within = (at, key) => (typeof at === "string" ? (key === "icon" ? at : undefined) : at === null || at === undefined ? undefined : at[key]);
   const lookup = name => {
-    const set = pathOf(name).reduce((at, key) => (at === null || at === undefined ? undefined : at[key]), settings);
+    const set = pathOf(name).reduce(within, settings);
     return typeof set === "string" && set !== "" ? set : defaults[name];
   };
   const bind = item => {

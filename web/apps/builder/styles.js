@@ -103,6 +103,7 @@ export const STYLES = `
 .kb-f > .label[title] { cursor: help; }
 .kb-f.wide { grid-template-columns: minmax(0, 1fr); }
 .kb-row { display: flex; gap: 6px; align-items: center; min-width: 0; }
+.kb-row > .kb-btn { flex-shrink: 0; }
 .kb-row > input[type="text"], .kb-row > input[type="number"], .kb-row > select, .kb-row > textarea { flex: 1; min-width: 0; }
 .kb input[type="text"], .kb input[type="number"], .kb input[type="url"], .kb select, .kb textarea {
   background: var(--field); border: 1px solid var(--line); border-radius: 6px; padding: 4px 7px; min-width: 0; width: 100%;

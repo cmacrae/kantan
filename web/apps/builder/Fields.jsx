@@ -189,6 +189,41 @@ export function IconField({ value, onChange, placeholder, label }) {
   );
 }
 
+// The settings an icon can come with, when `node` is written either as an
+// icon alone or as a mapping holding one, such as an icon with a colour of
+// its own. Undefined for any other node.
+function iconParts(schema, node) {
+  const branches = (node.oneOf ?? []).map(branch => deref(schema, branch));
+  const parts = branches.find(branch => branch.type === "object" && branch.properties?.icon);
+  return branches.length === 2 && parts && branches.some(branch => branch.ref === "Icon") ? parts : undefined;
+}
+
+// An icon alone, or with the settings of its own that `parts` describes.
+function IconPartsField({ value, onChange, parts, label }) {
+  const [own, setOwn] = useState(dict(value) !== undefined);
+  const toggle = () => {
+    onChange(own ? value?.icon : typeof value === "string" ? { icon: value } : value);
+    setOwn(!own);
+  };
+  return (
+    <div>
+      {own
+        // Each of its settings on a line of its own, the icon's first.
+        ? Object.entries(parts.properties).map(([key, child]) => (
+          <div key={key} style={{ padding: "2px 0" }}>
+            <Control node={child} value={dict(value)?.[key]} label={`${label} ${labelOf(key)}`} name={key}
+              onChange={next => onChange(prune({ ...dict(value), [key]: next }))} />
+          </div>
+        ))
+        : <IconField value={typeof value === "string" ? value : undefined} onChange={onChange} label={label} />}
+      <label className="kb-row" style={{ padding: "4px 0" }}>
+        <input type="checkbox" checked={own} onChange={toggle} />
+        <span>{spell("A colour of its own")}</span>
+      </label>
+    </div>
+  );
+}
+
 // What a new item of a list starts as: text, or a mapping holding the
 // keys it needs.
 const blankItem = node => (node.type === "object" ? Object.fromEntries((node.required ?? []).map(key => [key, ""])) : "");
@@ -300,6 +335,8 @@ function Control({ node: raw, value, onChange, iconish, label, name }) {
   if (node.ref === "Color") return <ColorField value={value} onChange={onChange} label={label} />;
   if (node.ref === "Icon") return <IconField value={value} onChange={onChange} placeholder={node.default} label={label} />;
   if (node.ref === "StateStyle") return <StateStyleField value={value} onChange={onChange} label={label} />;
+  const parts = iconParts(schema, node);
+  if (parts) return <IconPartsField value={value} onChange={onChange} parts={parts} label={label} />;
   const mode = appearanceMode(schema, node);
   if (mode) return <StyleField value={value} onChange={onChange} mode={mode} />;
   if (isLooseScalar(node)) return <LooseField value={value} onChange={onChange} label={label} placeholder={node.default === undefined ? undefined : String(node.default)} />;
