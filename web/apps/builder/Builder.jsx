@@ -119,7 +119,7 @@ function useIcons() {
     fetch("icons.json").then(response => response.json()).then(fonts => {
       const loaded = new Map();
       for (const [font, glyphs] of Object.entries(fonts)) {
-        for (const [name, [code, scale]] of Object.entries(glyphs)) loaded.set(name, { font, char: String.fromCodePoint(code), scale });
+        for (const [name, [code, scale, left]] of Object.entries(glyphs)) loaded.set(name, { font, char: String.fromCodePoint(code), scale, left });
       }
       setTable(loaded);
     });

@@ -3,13 +3,14 @@
 # "bell-filled" the filled font's.
 #
 # Given icons, cuts the fonts down to them. Writes icons.css, with each
-# font inlined, and icons.json, mapping each icon to its font, character
-# and the scale kantan draws it at, so its height fills 85% of the em, at
-# most 1.6 times its size. Fails on an icon neither font has.
+# font inlined, and icons.json, mapping each icon to its font, character,
+# the scale kantan draws it at, so its height fills 85% of the em, at
+# most 1.6 times its size, and how far into the em its outline starts, as
+# a fraction of the em. Fails on an icon neither font has.
 #
 # Given --all, keeps every icon. Writes each font as a file beside
 # icons.css, and icons.json mapping each font to its icons, each icon to
-# its character's code and its scale.
+# its character's code, its scale and where its outline starts.
 #
 # usage: preview-icons.py <outline.ttf> <filled.ttf> <out> <icon>...
 #        preview-icons.py <outline.ttf> <filled.ttf> <out> --all
@@ -31,14 +32,24 @@ paths = {"outline": outline_path, "filled": filled_path}
 fonts = {kind: TTFont(path) for kind, path in paths.items()}
 
 
-def scale(font, glyph):
+def bounds(font, glyph):
     pen = BoundsPen(font.getGlyphSet())
     font.getGlyphSet()[glyph].draw(pen)
-    if pen.bounds is None:
+    return pen.bounds
+
+
+def scale(font, glyph):
+    box = bounds(font, glyph)
+    if box is None:
         return 1.0
-    height = pen.bounds[3] - pen.bounds[1]
+    height = box[3] - box[1]
     ratio = font["head"].unitsPerEm * TARGET_RATIO / height
     return round(min(ratio, MAX_SCALE), 4) if ratio > 1 else 1.0
+
+
+def left(font, glyph):
+    box = bounds(font, glyph)
+    return 0 if box is None else round(box[0] / font["head"].unitsPerEm, 4)
 
 
 everything = names == ["--all"]
@@ -57,7 +68,7 @@ for name in sorted(set(names)):
     if not codes:
         missing.append(name)
         continue
-    icons[name] = {"font": FAMILIES[kind], "char": chr(min(codes)), "scale": scale(font, glyph)}
+    icons[name] = {"font": FAMILIES[kind], "char": chr(min(codes)), "scale": scale(font, glyph), "left": left(font, glyph)}
     wanted[kind].add(min(codes))
 
 if missing:
@@ -105,7 +116,7 @@ with open(f"{out}/icons.json", "w") as f:
     if everything:
         by_font = {family: {} for family in FAMILIES.values()}
         for name, icon in icons.items():
-            by_font[icon["font"]][name] = [ord(icon["char"]), icon["scale"]]
+            by_font[icon["font"]][name] = [ord(icon["char"]), icon["scale"], icon["left"]]
         json.dump(by_font, f, separators=(",", ":"))
     else:
         json.dump(icons, f, indent=2, ensure_ascii=False)

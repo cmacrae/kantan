@@ -4,7 +4,9 @@
 //
 // Measuring glyphs needs the fonts, so the engine is given a lookup built
 // from them when the site is: a function from an icon's name to its
-// `{ font, char, scale }`, or to undefined for a name the fonts lack.
+// `{ font, char, scale, left }`, or to undefined for a name the fonts lack.
+// `left` is how far into its em the icon's outline starts, as a fraction of
+// the em.
 
 // The lookup with no icons, where every icon is the name it was given.
 export const noIcons = () => undefined;
