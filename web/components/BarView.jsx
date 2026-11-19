@@ -1,12 +1,13 @@
 // Draws a bar the engine resolved, as kantan draws it: each module's icon,
 // value and shape, the tooltip it shows under the pointer, and the menu or
 // popup a click opens.
-import { useEffect, useId, useLayoutEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { OVERLAP_MARGIN, matchWaveform, resolveOverlap } from "../engine/index.js";
 import { Glyph } from "./Glyph.jsx";
 import { Menu } from "./Menu.jsx";
 import { Unsupported } from "./Unsupported.jsx";
 import { ViewTree } from "./ViewTree.jsx";
+import { Waveform } from "./Waveform.jsx";
 import { cssColor, faded, fontFamily, SYSTEM_FONT } from "./system.js";
 
 // The translucent materials macOS draws behind the native bar and behind
@@ -187,47 +188,7 @@ function useMatchedWidth(name, bar) {
 
 function WaveformView({ waveform: own, bar, dark }) {
   const matched = useMatchedWidth(own.matchWidth, bar);
-  const waveform = matchWaveform(own, matched.width);
-  const { style, levels, height } = waveform;
-  const color = cssColor(waveform.color, dark);
-  const gradient = useId();
-  if (style === "wave") {
-    // A wave made of a tone for each level, the lowest the slowest, drawn
-    // a point every point and a half as kantan draws the sound's own.
-    const count = Math.max(Math.round(waveform.width / 1.5), 2);
-    const loudest = levels.reduce((sum, level) => sum + level, 0) || 1;
-    const points = Array.from({ length: count }, (_, index) => {
-      const along = index / (count - 1);
-      const swing = levels.reduce((sum, level, tone) => sum + level * Math.sin(2 * Math.PI * (tone + 1) * 0.75 * along + tone * 1.7), 0) / loudest;
-      return `${(waveform.width * along).toFixed(2)},${(height / 2 * (1 - swing)).toFixed(2)}`;
-    });
-    const stroke = waveform.colors ? `url(#${gradient})` : color;
-    return (
-      <svg ref={matched.element} width={waveform.width} height={height}
-        style={{ flexShrink: 0, maskImage: "linear-gradient(to right, transparent, #000 20%, #000 80%, transparent)" }}>
-        {waveform.colors && (
-          <defs>
-            <linearGradient id={gradient} x1="0" x2="1" y1="0" y2="0">
-              {waveform.colors.map((stop, index) => (
-                <stop key={index} offset={waveform.colors.length > 1 ? index / (waveform.colors.length - 1) : 0} stopColor={cssColor(stop, dark)} />
-              ))}
-            </linearGradient>
-          </defs>
-        )}
-        <polyline points={points.join(" ")} fill="none" stroke={stroke} strokeWidth={1.2} strokeLinejoin="round" strokeLinecap="round" />
-      </svg>
-    );
-  }
-  return (
-    <div ref={matched.element} style={{ display: "flex", alignItems: "center", gap: 2, height }}>
-      {levels.map((level, index) => (
-        <span key={index} style={{
-          width: 2, height: Math.max(2, level * height), borderRadius: 1,
-          background: waveform.colors ? cssColor(waveform.colors[index % waveform.colors.length], dark) : color,
-        }} />
-      ))}
-    </div>
-  );
+  return <Waveform waveform={matchWaveform(own, matched.width)} dark={dark} element={matched.element} />;
 }
 
 // A workspace module: a segment for each workspace or window, the active
