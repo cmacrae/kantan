@@ -8,7 +8,7 @@ import { placementParts, withPlacement } from "../../builder/edit.js";
 import { ADVANCED, CLICKS, CLOCK_FORMATS, QUICK, labelOf } from "../../builder/labels.js";
 import { configSchema, deref, getIn, prune, setIn } from "../../builder/schema.js";
 import { cssColor } from "../../components/system.js";
-import { formatDate } from "../../engine/index.js";
+import { TUCK_PEEK, formatDate, parseTuck } from "../../engine/index.js";
 import { dict } from "../../engine/values.js";
 import { ColorField, Group, IconField, Properties, Row, TextField } from "./Fields.jsx";
 import { SECONDARY } from "./ModuleList.jsx";
@@ -351,6 +351,8 @@ function Design({ module, drawn, example, taken, states, masked, onChange, onVie
   const { primary, secondary } = placementParts(module.placement);
   const placements = PLACEMENTS.some(([value]) => value === primary) ? PLACEMENTS : [...PLACEMENTS, [primary, primary]];
   const besideNotch = primary === "notchleft" || primary === "notchright";
+  // A module beside the notch can give way to the others on its side.
+  const tuck = parseTuck(module.tuck);
   const place = (first, second) => onChange(withPlacement(module, first.startsWith("notch") && second ? `${first}|${second}` : first));
   // A drawer has no click to set.
   const interaction = deref(schema, schema.properties.interaction);
@@ -388,6 +390,23 @@ function Design({ module, drawn, example, taken, states, masked, onChange, onVie
               <option value="">None: hidden without a notch</option>
               {Object.entries(SECONDARY).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
             </select>
+          </Row>
+        )}
+        {besideNotch && module.type !== "drawer" && !masked && (
+          <Row label="Tuck" name="tuck" description={schema.properties.tuck.description}>
+            <select aria-label="Tuck" value={tuck ? "on" : ""} onChange={event => set("tuck", event.target.value ? true : undefined)}>
+              <option value="">Off: keeps its place</option>
+              <option value="on">On: waits behind the notch while another module shows</option>
+            </select>
+          </Row>
+        )}
+        {besideNotch && module.type !== "drawer" && !masked && tuck && (
+          <Row label="Peek" name="tuck" description={schema.properties.tuck.oneOf[1].properties.peek.description}>
+            <input type="number" aria-label="Peek" min={0} step={1} value={tuck.peek}
+              onChange={event => {
+                const peek = event.target.value === "" ? TUCK_PEEK : Math.max(0, Number(event.target.value));
+                set("tuck", peek === TUCK_PEEK ? true : { peek });
+              }} />
           </Row>
         )}
         {(module.placement ?? "").includes("center") && (
