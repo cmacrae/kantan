@@ -20,4 +20,4 @@ interaction:
     type: tooltip
     content: "{mode} — {remaining}"
   click:
-    type: menu
+    type: popup

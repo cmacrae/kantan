@@ -18,7 +18,7 @@ This plugin is bundled with kantan and requires no separate installation. It is 
 - **Auto-transitions** — Optionally auto-start breaks after work and work after breaks
 - **Session tracking** — Counts completed work sessions until the timer is reset
 - **Persistent state** — Timer state survives restarts via on-disk JSON state file
-- **Dynamic menu** — View DSL popup with contextual actions (start/pause/resume/skip/reset)
+- **Timer popup** — A ring that empties as the time runs out, a dot for each session of the round, and buttons that suit the state (start/pause/resume/skip/reset)
 - **Customizable icons** — Override the icon for any state or action
 
 ### Template Variables
@@ -51,9 +51,9 @@ The plugin sets `active: true` in its output when a timer is running (any mode o
 
 ## Subcommands
 
-The plugin binary doubles as a CLI for controlling the timer. Each subcommand modifies the persistent state file and exits immediately (no output); an unknown flag exits with status 1. The menu actions call these subcommands followed by `kantan trigger <module> refresh` to update the bar.
+The plugin binary doubles as a CLI for controlling the timer. Each subcommand modifies the persistent state file and exits immediately (no output); an unknown flag exits with status 1. The popup's buttons call these subcommands followed by `kantan trigger <module> refresh` to update the bar.
 
-`--start` and `--skip` read the segment durations from `KANTAN_SETTINGS`, which kantan also gives the menu's actions.
+`--start` and `--skip` read the segment durations from `KANTAN_SETTINGS`, which kantan also gives the popup's buttons.
 
 | Flag       | Description                                          |
 |------------|------------------------------------------------------|
@@ -69,7 +69,7 @@ The plugin is polling-based by design and intentionally does not implement the o
 
 ## Persistent State
 
-Timer state is stored at `$XDG_CACHE_HOME/kantan/pomodoro.json` (falls back to `~/.cache/kantan/pomodoro.json`). The state file tracks the current mode, start time, pause time, segment duration, and completed session count. A `pomodoro.lock` file beside it serialises concurrent updates from polls and menu actions.
+Timer state is stored at `$XDG_CACHE_HOME/kantan/pomodoro.json` (falls back to `~/.cache/kantan/pomodoro.json`). The state file tracks the current mode, start time, pause time, segment duration, and completed session count. A `pomodoro.lock` file beside it serialises concurrent updates from polls and the popup's buttons.
 
 ## Configuration
 
@@ -98,7 +98,7 @@ interaction:
     type: tooltip
     content: "{mode} — {remaining}"
   click:
-    type: menu
+    type: popup
 ```
 
 ### Plugin Settings
@@ -115,6 +115,7 @@ Settings are passed to the plugin via the `config.settings` block. All settings 
 | `auto_start_breaks`   | `true`         | Automatically start breaks when a work session ends            |
 | `auto_start_work`     | `false`        | Automatically start work when a break ends                     |
 | `icons`               | (see below)    | Override icons for specific states or actions                  |
+| `colors`              | (see below)    | Override colours of the popup                                  |
 
 ### Icon Overrides
 
@@ -127,12 +128,11 @@ Icons can be customized per state and action by providing an `icons` map in sett
 | `short_break` | `moon-filled`              | Bar icon during short break |
 | `long_break`  | `moon-filled`              | Bar icon during long break |
 | `paused`      | `player-pause-filled`      | Bar icon while paused    |
-| `sessions`    | `trophy-filled`            | Sessions row in popup    |
-| `start`       | `player-play-filled`       | Start action in popup    |
-| `resume`      | `player-play-filled`       | Resume action in popup   |
-| `pause`       | `player-pause-filled`      | Pause action in popup    |
-| `skip`        | `player-track-next-filled` | Skip action in popup     |
-| `reset`       | `x`                        | Reset action in popup    |
+| `start`       | `player-play-filled`       | Start button in popup    |
+| `resume`      | `player-play-filled`       | Resume button in popup   |
+| `pause`       | `player-pause-filled`      | Pause button in popup    |
+| `skip`        | `player-track-next-filled` | Skip button in popup     |
+| `reset`       | `x`                        | Reset button in popup    |
 
 Example override in settings:
 
@@ -143,23 +143,47 @@ settings:
     idle: "circle-dashed"
 ```
 
+### Colour Overrides
+
+The popup's colours can be set by providing a `colors` map in settings. Each is a hex colour or a theme template such as `{theme(red)}`. Any key not specified keeps its default.
+
+| Key           | Default              | Used for                              |
+|---------------|----------------------|---------------------------------------|
+| `work`        | red                  | The ring during work                  |
+| `break`       | green                | The ring during a break               |
+| `paused`      | grey                 | The ring while paused or idle         |
+| `track`       | a faint track        | The part of the ring that has emptied |
+| `dot`         | red                  | The dot of a session that is done     |
+| `dot_outline` | grey                 | The outline of each session's dot     |
+| `button`      | system accent colour | The buttons                           |
+
+Example override in settings:
+
+```yaml
+settings:
+  colors:
+    work: "{theme(peach)}"
+    break: "{theme(teal)}"
+    button: "{theme(text)}"
+```
+
 ### Module Options
 
 | Field                       | Default | Description                                                 |
 |-----------------------------|---------|-------------------------------------------------------------|
 | `config.interval`           | `1`     | Polling interval in seconds (1s recommended for live countdown) |
 | `interaction.hover.content` | --      | Template string for tooltip (see variables above)           |
-| `interaction.click`         | --      | `menu` type to display the plugin's built-in View DSL popup |
+| `interaction.click`         | --      | `popup` type to display the plugin's timer. A native `menu` has no rows for its ring and buttons |
 
 ## View DSL Output
 
-The plugin generates a View DSL tree (via the `view` field in its JSON output) containing:
+The plugin generates a View DSL tree (via the `view` field in its JSON output), made for a click of type `popup`:
 
-- A **header** ("Pomodoro")
-- A **status row** showing the current mode icon, mode label (with "(Paused)" suffix when paused), and remaining time in monospaced style
-- A **sessions row** showing the session count
-- A **divider**
-- **Contextual actions** depending on state:
+- A thick **ring** that empties as the segment's time runs out, around the time remaining and the mode (`Paused` while paused). It is red during work, green during a break and grey while paused or idle, unless `colors` says otherwise. Idle, it is full, around the length of a work session
+- A **dot** for each work session of the round that ends in a long break (`long_break_interval`), filled once the session is done, over a line such as `Session 3 of 4`. They are left out when `long_break_interval` is `0`
+- **Buttons**, centred, depending on state:
   - **Idle**: Start
   - **Running**: Pause, Skip, Reset
   - **Paused**: Resume, Skip, Reset
+
+A click on a button leaves the popup open, so the timer can be paused, skipped and reset in one visit. The popup closes once the pointer leaves it.

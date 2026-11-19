@@ -45,6 +45,46 @@
       "default": false,
       "description": "Start work when a break ends."
     },
+    "colors": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Colours of the popup. A key left out keeps its default.",
+      "properties": {
+        "work": {
+          "$ref": "module-config.schema.json#/$defs/Color",
+          "description": "The ring during work.",
+          "default": "red"
+        },
+        "break": {
+          "$ref": "module-config.schema.json#/$defs/Color",
+          "description": "The ring during a break.",
+          "default": "green"
+        },
+        "paused": {
+          "$ref": "module-config.schema.json#/$defs/Color",
+          "description": "The ring while paused or idle.",
+          "default": "gray"
+        },
+        "track": {
+          "$ref": "module-config.schema.json#/$defs/Color",
+          "description": "The part of the ring that has emptied. Left out, it is the system's faint track."
+        },
+        "dot": {
+          "$ref": "module-config.schema.json#/$defs/Color",
+          "description": "The dot of a session that is done.",
+          "default": "red"
+        },
+        "dot_outline": {
+          "$ref": "module-config.schema.json#/$defs/Color",
+          "description": "The outline of each session's dot.",
+          "default": "gray"
+        },
+        "button": {
+          "$ref": "module-config.schema.json#/$defs/Color",
+          "description": "The buttons. Left out, they take the system's accent colour."
+        }
+      }
+    },
     "icons": {
       "type": "object",
       "additionalProperties": false,
@@ -75,34 +115,29 @@
           "description": "Bar icon while paused.",
           "default": "player-pause-filled"
         },
-        "sessions": {
-          "$ref": "module-config.schema.json#/$defs/Icon",
-          "description": "Sessions row in the popup.",
-          "default": "trophy-filled"
-        },
         "start": {
           "$ref": "module-config.schema.json#/$defs/Icon",
-          "description": "Start action in the popup.",
+          "description": "Start button in the popup.",
           "default": "player-play-filled"
         },
         "resume": {
           "$ref": "module-config.schema.json#/$defs/Icon",
-          "description": "Resume action in the popup.",
+          "description": "Resume button in the popup.",
           "default": "player-play-filled"
         },
         "pause": {
           "$ref": "module-config.schema.json#/$defs/Icon",
-          "description": "Pause action in the popup.",
+          "description": "Pause button in the popup.",
           "default": "player-pause-filled"
         },
         "skip": {
           "$ref": "module-config.schema.json#/$defs/Icon",
-          "description": "Skip action in the popup.",
+          "description": "Skip button in the popup.",
           "default": "player-track-next-filled"
         },
         "reset": {
           "$ref": "module-config.schema.json#/$defs/Icon",
-          "description": "Reset action in the popup.",
+          "description": "Reset button in the popup.",
           "default": "x"
         }
       }

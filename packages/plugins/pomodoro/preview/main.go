@@ -1,6 +1,5 @@
 // Prints the states of the pomodoro module's preview: the timer a moment
-// after each command, so running a menu action from one state leads to
-// another.
+// after each command, so clicking a button in one state leads to another.
 package main
 
 import (
@@ -13,16 +12,21 @@ func main() {
 	const module = "pomodoro"
 	settings := loadSettings()
 
+	// How far into its segment each running state is, in seconds, so its
+	// ring is part empty.
+	worked := float64(settings.WorkDuration) * 60 * 0.3
+	rested := float64(settings.ShortBreak) * 60 * 0.4
+
 	type named struct {
 		name  string
 		state State
 	}
 	states := []named{
 		{"Idle", State{Mode: "idle"}},
-		{"Working", State{Mode: "work", StartedAt: now, Duration: settings.WorkDuration}},
-		{"Paused", State{Mode: "work", StartedAt: now, PausedAt: now, Duration: settings.WorkDuration}},
-		{"Short break", State{Mode: "short_break", StartedAt: now, Duration: settings.ShortBreak, Sessions: 1}},
-		{"Break paused", State{Mode: "short_break", StartedAt: now, PausedAt: now, Duration: settings.ShortBreak, Sessions: 1}},
+		{"Working", State{Mode: "work", StartedAt: now - worked, Duration: settings.WorkDuration}},
+		{"Paused", State{Mode: "work", StartedAt: now - worked, PausedAt: now, Duration: settings.WorkDuration}},
+		{"Short break", State{Mode: "short_break", StartedAt: now - rested, Duration: settings.ShortBreak, Sessions: 1}},
+		{"Break paused", State{Mode: "short_break", StartedAt: now - rested, PausedAt: now, Duration: settings.ShortBreak, Sessions: 1}},
 	}
 
 	preview := []map[string]any{}

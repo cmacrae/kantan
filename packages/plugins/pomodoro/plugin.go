@@ -20,6 +20,32 @@ type Settings struct {
 	AutoStartBreaks   bool              `json:"auto_start_breaks"`
 	AutoStartWork     bool              `json:"auto_start_work"`
 	Icons             map[string]string `json:"icons"`
+	Colors            map[string]string `json:"colors"`
+}
+
+var defaultColors = map[string]string{
+	"work":        "red",
+	"break":       "green",
+	"paused":      "gray",
+	"dot":         "red",
+	"dot_outline": "gray",
+}
+
+// colorFor is the colour of the popup's part `key`: the settings' own, or
+// the plugin's, or none for a part left to the system's colour.
+func (s Settings) colorFor(key string) string {
+	if color := s.Colors[key]; color != "" {
+		return color
+	}
+	return defaultColors[key]
+}
+
+// colored is `node` with `color` as its property `key`, when there is one.
+func colored(node map[string]interface{}, key, color string) map[string]interface{} {
+	if color != "" {
+		node[key] = color
+	}
+	return node
 }
 
 var defaultIcons = map[string]string{
@@ -28,7 +54,6 @@ var defaultIcons = map[string]string{
 	"short_break": "moon-filled",
 	"long_break":  "moon-filled",
 	"paused":      "player-pause-filled",
-	"sessions":    "trophy-filled",
 	"start":       "player-play-filled",
 	"resume":      "player-play-filled",
 	"pause":       "player-pause-filled",
@@ -364,70 +389,113 @@ func render(state State, now float64, settings Settings, pluginName string) map[
 		displayValue = replaceVar(displayValue, k, v)
 	}
 
-	// Build view tree
-	var viewChildren []interface{}
-
-	// Header
-	viewChildren = append(viewChildren, map[string]interface{}{
-		"type": "header", "content": "Pomodoro",
-	})
-
-	// Status row
+	// The ring empties as the segment's time runs out. Idle, it is full,
+	// around the length of the work session a start begins.
+	fraction := 1.0
+	ringText := formatDuration(float64(settings.WorkDuration) * 60)
+	if isActive {
+		ringText = remainStr
+		if total := float64(state.Duration) * 60; total > 0 {
+			fraction = rem / total
+		}
+	}
 	statusText := mode
 	if isPaused {
-		statusText += " (Paused)"
+		statusText = "Paused"
 	}
-	viewChildren = append(viewChildren, hstackView(
-		iconView(icon, nil),
-		textView(statusText, nil, nil),
-		spacerView(),
-		textView(remainStr, nil, strPtr("monospaced")),
-	))
 
-	// Sessions row
-	viewChildren = append(viewChildren, hstackView(
-		iconView(settings.iconFor("sessions"), nil),
-		textView("Sessions", nil, nil),
-		spacerView(),
-		textView("{sessions}", nil, nil),
-	))
+	// The ring's stroke is centred on its frame's edge, so the frame around
+	// the two is the stroke wider than the ring's.
+	viewChildren := []interface{}{
+		map[string]interface{}{
+			"type":  "zstack",
+			"frame": map[string]interface{}{"w": ringSize + ringStroke, "h": ringSize + ringStroke},
+			"children": []interface{}{
+				colored(map[string]interface{}{
+					"type": "progress", "style": "ring", "value": fraction,
+					"strokeWidth": ringStroke,
+					"color":       settings.colorFor(ringColor(state.Mode, isPaused)),
+					"frame":       map[string]interface{}{"w": ringSize, "h": ringSize},
+				}, "trackColor", settings.colorFor("track")),
+				map[string]interface{}{
+					"type": "vstack", "alignment": "center", "spacing": 2,
+					"children": []interface{}{
+						map[string]interface{}{
+							"type": "text", "content": ringText, "size": 20,
+							"weight": "semibold", "style": "monospaced",
+						},
+						map[string]interface{}{
+							"type": "text", "content": statusText, "size": 11, "style": "secondary",
+						},
+					},
+				},
+			},
+		},
+	}
 
-	viewChildren = append(viewChildren, dividerView())
-
-	// Actions depend on state
-	if !isActive {
-		viewChildren = append(viewChildren, actionView(
-			"Start", settings.iconFor("start"),
-			menuCommand("--start", pluginName),
-		))
-	} else {
-		if isPaused {
-			viewChildren = append(viewChildren, actionView(
-				"Resume", settings.iconFor("resume"),
-				menuCommand("--resume", pluginName),
-			))
-		} else {
-			viewChildren = append(viewChildren, actionView(
-				"Pause", settings.iconFor("pause"),
-				menuCommand("--pause", pluginName),
-			))
+	// A dot for each work session of the round that ends in a long break,
+	// filled once the session is done.
+	if round := settings.LongBreakInterval; round > 0 {
+		done := state.Sessions % round
+		if state.Mode == "long_break" {
+			done = round
 		}
-		viewChildren = append(viewChildren, actionView(
-			"Skip", settings.iconFor("skip"),
-			menuCommand("--skip", pluginName),
-		))
-		viewChildren = append(viewChildren, actionView(
-			"Reset", settings.iconFor("reset"),
-			menuCommand("--reset", pluginName),
-		))
+		var dots []interface{}
+		for i := 0; i < round; i++ {
+			dot := map[string]interface{}{
+				"type": "circle", "size": 10, "strokeColor": settings.colorFor("dot_outline"), "strokeWidth": 1,
+			}
+			if i < done {
+				dot["color"] = settings.colorFor("dot")
+			}
+			dots = append(dots, dot)
+		}
+		sessionText := fmt.Sprintf("%d of %d sessions done", done, round)
+		if state.Mode == "work" {
+			sessionText = fmt.Sprintf("Session %d of %d", done+1, round)
+		}
+		viewChildren = append(viewChildren,
+			centredRow(6, dots),
+			map[string]interface{}{
+				"type": "text", "content": sessionText, "size": 11, "style": "secondary",
+			},
+		)
 	}
+
+	// Buttons depend on state. With a timer on, Skip sits in the middle
+	// with a place of one width either side: the button before it ends at
+	// its place's far side and Reset starts at its own's near side, so
+	// neither Skip nor Reset moves as Pause gives way to Resume.
+	button := func(label, icon, subcommand string) map[string]interface{} {
+		return buttonView(label, settings.iconFor(icon), menuCommand(subcommand, pluginName), settings.colorFor("button"))
+	}
+	place := func(children ...interface{}) map[string]interface{} {
+		return map[string]interface{}{
+			"type": "hstack", "spacing": 0, "children": children,
+			"frame": map[string]interface{}{"w": buttonPlace},
+		}
+	}
+	buttons := []interface{}{button("Start", "start", "--start")}
+	if isActive {
+		first := button("Pause", "pause", "--pause")
+		if isPaused {
+			first = button("Resume", "resume", "--resume")
+		}
+		buttons = []interface{}{
+			place(spacerView(), first),
+			button("Skip", "skip", "--skip"),
+			place(button("Reset", "reset", "--reset"), spacerView()),
+		}
+	}
+	viewChildren = append(viewChildren, centredRow(12, buttons))
 
 	view := map[string]interface{}{
-		"type":     "vstack",
-		"spacing":  8,
-		"padding":  map[string]interface{}{"top": 12, "leading": 16, "bottom": 12, "trailing": 16},
-		"frame":    map[string]interface{}{"w": 260},
-		"children": viewChildren,
+		"type":      "vstack",
+		"alignment": "center",
+		"spacing":   10,
+		"padding":   map[string]interface{}{"top": 14, "leading": 16, "bottom": 14, "trailing": 16},
+		"frame":     map[string]interface{}{"w": 260},
+		"children":  viewChildren,
 	}
 
 	active := isActive
@@ -443,59 +511,64 @@ func render(state State, now float64, settings Settings, pluginName string) map[
 
 // --- View tree helpers ---
 
-// menuCommand is the command a menu action runs: `subcommand`, then a
-// refresh of the module `pluginName`.
+// menuCommand is the command a button runs: `subcommand`, then a refresh of
+// the module `pluginName`.
 func menuCommand(subcommand, pluginName string) string {
 	return fmt.Sprintf("kantan-plugin-pomodoro %s && kantan trigger %s refresh", subcommand, shellQuote(pluginName))
 }
 
-func hstackView(children ...interface{}) map[string]interface{} {
+// ringColor is the setting that colours the ring in `mode`: `work` while
+// working, `break` on a break, and `paused` while paused or idle.
+func ringColor(mode string, paused bool) string {
+	switch {
+	case paused || mode == "idle":
+		return "paused"
+	case mode == "work":
+		return "work"
+	default:
+		return "break"
+	}
+}
+
+// The ring's diameter and the width of its stroke, in points, and the
+// width of the place a button either side of Skip has, which holds the
+// longest of them, Resume.
+const (
+	ringSize    = 100
+	ringStroke  = 18
+	buttonPlace = 72
+)
+
+// centredRow is `children` in a row, `spacing` apart, with a spacer either
+// side that keeps them in the middle of the popup.
+func centredRow(spacing int, children []interface{}) map[string]interface{} {
 	return map[string]interface{}{
-		"type":     "hstack",
-		"children": children,
+		"type":    "hstack",
+		"spacing": 0,
+		"children": []interface{}{
+			spacerView(),
+			map[string]interface{}{"type": "hstack", "spacing": spacing, "children": children},
+			spacerView(),
+		},
 	}
 }
 
-func textView(content string, color *string, style *string) map[string]interface{} {
-	m := map[string]interface{}{
-		"type":    "text",
-		"content": content,
-	}
-	if color != nil {
-		m["color"] = *color
-	}
-	if style != nil {
-		m["style"] = *style
-	}
-	return m
-}
-
-func iconView(name string, color *string) map[string]interface{} {
-	m := map[string]interface{}{
-		"type": "icon",
-		"name": name,
-	}
-	if color != nil {
-		m["color"] = *color
-	}
-	return m
-}
-
+// spacerView is a spacer that may shrink to nothing, so what it centres
+// has the whole width to itself.
 func spacerView() map[string]interface{} {
-	return map[string]interface{}{"type": "spacer"}
+	return map[string]interface{}{"type": "spacer", "minLength": 0}
 }
 
-func dividerView() map[string]interface{} {
-	return map[string]interface{}{"type": "divider"}
-}
-
-func actionView(label, icon, command string) map[string]interface{} {
-	return map[string]interface{}{
-		"type":    "action",
+// buttonView is a button that leaves the popup open, so the timer can be
+// paused, skipped and reset in one visit.
+func buttonView(label, icon, command, color string) map[string]interface{} {
+	return colored(map[string]interface{}{
+		"type":    "button",
 		"label":   label,
 		"icon":    icon,
 		"command": command,
-	}
+		"dismiss": false,
+	}, "color", color)
 }
 
 func replaceVar(s, key, val string) string {
@@ -518,10 +591,6 @@ func indexOf(s, substr string) int {
 		}
 	}
 	return -1
-}
-
-func strPtr(s string) *string {
-	return &s
 }
 
 func shellQuote(s string) string {

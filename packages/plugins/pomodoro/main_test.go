@@ -1,7 +1,9 @@
 package main
 
 import (
+	"encoding/json"
 	"path/filepath"
+	"strings"
 	"sync"
 	"testing"
 )
@@ -55,5 +57,35 @@ func TestCmdStartIsAtomic(t *testing.T) {
 	}
 	if s.StartedAt == 0 {
 		t.Fatalf("expected StartedAt to be set")
+	}
+}
+
+// TestRenderDrawsTheRingForTheState checks the popup follows the timer: the
+// ring holds the share of the segment left, and the buttons suit the state.
+func TestRenderDrawsTheRingForTheState(t *testing.T) {
+	settings := defaultSettings()
+	view := func(s State, now float64) string {
+		data, err := json.Marshal(render(s, now, settings, "pomodoro")["view"])
+		if err != nil {
+			t.Fatal(err)
+		}
+		return string(data)
+	}
+
+	working := view(State{Mode: "work", StartedAt: 0, Duration: 20, Sessions: 1}, 300)
+	for _, want := range []string{`"value":0.75`, `"content":"15:00"`, `"content":"Session 2 of 4"`, `"label":"Pause"`, `"label":"Skip"`} {
+		if !strings.Contains(working, want) {
+			t.Errorf("working view lacks %s: %s", want, working)
+		}
+	}
+
+	idle := view(State{Mode: "idle"}, 300)
+	for _, want := range []string{`"value":1`, `"content":"25:00"`, `"label":"Start"`} {
+		if !strings.Contains(idle, want) {
+			t.Errorf("idle view lacks %s: %s", want, idle)
+		}
+	}
+	if strings.Contains(idle, `"label":"Reset"`) {
+		t.Errorf("idle view offers a reset: %s", idle)
 	}
 }
