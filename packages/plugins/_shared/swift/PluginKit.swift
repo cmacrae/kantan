@@ -192,12 +192,14 @@ func image(url: String, width: Double, height: Double, cornerRadius: Double? = n
 }
 
 func progress(
-  value: Double, color: String? = nil, trackColor: String? = nil, style: String? = nil
+  value: Double, color: String? = nil, trackColor: String? = nil, style: String? = nil,
+  command: String? = nil
 ) -> JSONValue {
   var obj: [String: JSONValue] = ["type": .string("progress"), "value": .double(value)]
   if let c = color { obj["color"] = .string(c) }
   if let tc = trackColor { obj["trackColor"] = .string(tc) }
   if let s = style { obj["style"] = .string(s) }
+  if let command { obj["command"] = .string(command) }
   return .object(obj)
 }
 
