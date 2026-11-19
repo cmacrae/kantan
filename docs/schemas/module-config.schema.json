@@ -613,9 +613,9 @@
       "properties": {
         "style": {
           "type": "string",
-          "enum": ["bars", "wave"],
+          "enum": ["bars", "wave", "flow", "scroll", "spectrogram", "line", "dots"],
           "default": "bars",
-          "description": "What is drawn: 'bars' for the level of each band of frequencies, lowest first, or 'wave' for the sound's wave as a line."
+          "description": "What is drawn: 'bars' for the level of each band of frequencies, lowest first; 'wave' for the sound's wave as a line; 'flow' for three ribbons that move with its low, middle and high frequencies; 'scroll' for how loud it has been, scrolling past; 'spectrogram' for its bands over time, scrolling past; 'line' for its bands as one curve; 'dots' for its bands as columns of dots."
         },
         "wave": {
           "type": "object",
@@ -631,18 +631,24 @@
             "stereo": { "type": "boolean", "default": false, "description": "Draws the left and right sides as a line each, in a gradient's 'low' and 'high'." }
           }
         },
+        "speed": {
+          "type": "number",
+          "minimum": 1,
+          "default": 15,
+          "description": "How fast the 'scroll' and 'spectrogram' styles scroll, in points a second."
+        },
         "bars": {
           "type": "integer",
           "minimum": 1,
           "maximum": 256,
           "default": 8,
-          "description": "How many bars the 'bars' style draws."
+          "description": "How many bars the 'bars' style draws, or columns the 'dots' style."
         },
         "width": {
           "type": "number",
           "minimum": 4,
           "default": 40,
-          "description": "Width of the 'wave' style's line in points."
+          "description": "Width in points of every style but 'bars' and 'dots', which are as wide as their bars."
         },
         "height": {
           "type": "number",

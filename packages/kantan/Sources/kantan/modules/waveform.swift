@@ -18,6 +18,7 @@ struct WaveformConfigFactory: ModuleConfigurationFactory {
       colors: WaveformColors(yaml: yaml), matchWidth: yaml["matchWidth"].string,
       sensitivity: number("sensitivity").map { max($0, 0) },
       wave: WaveOptions(yaml: yaml["wave"]),
+      speed: max(number("speed") ?? WaveformConfig.defaultSpeed, 1),
       filter: AudioFilter(
         appsOnly: yaml["sources"].string != "all",
         excluded: yaml["exclude"].array?.compactMap(\.string) ?? []))
@@ -28,11 +29,26 @@ struct WaveformConfigFactory: ModuleConfigurationFactory {
   }
 }
 
-/// How a waveform module draws the sound: the level of each band of
-/// frequencies as a bar, or the wave itself as a line.
+/// How a waveform module draws the sound.
 enum WaveformStyle: String, Sendable {
+  /// The level of each band of frequencies as a bar.
   case bars
+  /// The wave itself as a line.
   case wave
+  /// Ribbons that flow with the sound's low, middle and high frequencies.
+  case flow
+  /// How loud the sound has been, scrolling past.
+  case scroll
+  /// The level of each band of frequencies over time, scrolling past.
+  case spectrogram
+  /// The level of each band of frequencies as one curve.
+  case line
+  /// The level of each band of frequencies as a column of dots.
+  case dots
+
+  /// Whether the style draws a bar or a column for each band, and so is as
+  /// wide as its bars rather than its `width`.
+  var hasBars: Bool { self == .bars || self == .dots }
 }
 
 /// What the `wave` style does beyond drawing the wave as a line.
@@ -166,10 +182,14 @@ final class WaveformConfig: ModuleConfiguration, EventDrivenModule {
   let sensitivity: Double?
   /// What the `wave` style does beyond drawing a line.
   let wave: WaveOptions
+  /// How fast the `scroll` and `spectrogram` styles scroll, in points a
+  /// second.
+  let speed: Double
   /// Whose sound the module draws.
   let filter: AudioFilter
 
   static let defaultSilenceDelay: TimeInterval = 0.3
+  static let defaultSpeed: Double = 15
   /// The most bars a module following another's width draws.
   static let maxMatchedBars = AudioAnalysis.bandCount
 
@@ -178,7 +198,7 @@ final class WaveformConfig: ModuleConfiguration, EventDrivenModule {
     silenceDelay: TimeInterval = WaveformConfig.defaultSilenceDelay,
     colors: WaveformColors = .module, matchWidth: String? = nil,
     sensitivity: Double? = nil, wave: WaveOptions = WaveOptions(),
-    filter: AudioFilter = AudioFilter()
+    speed: Double = WaveformConfig.defaultSpeed, filter: AudioFilter = AudioFilter()
   ) {
     self.style = style
     self.bars = bars
@@ -190,6 +210,7 @@ final class WaveformConfig: ModuleConfiguration, EventDrivenModule {
     self.matchWidth = matchWidth
     self.sensitivity = sensitivity
     self.wave = wave
+    self.speed = speed
     self.filter = filter
   }
 
@@ -437,6 +458,10 @@ struct Waves: Sendable, Equatable {
 struct Sound: Sendable {
   /// How many of the latest waves are kept.
   static let trail = 4
+  /// How many measurements `history` and `spectra` go back.
+  static let historyLength = 900
+  /// How many levels each measurement's spectrum is kept as.
+  static let spectrumRows = 32
   /// How many times a second the sound is measured while there is some.
   static let rate: Double = 30
 
@@ -451,13 +476,31 @@ struct Sound: Sendable {
   /// Where the sound sits between its lowest frequencies, 0, and its
   /// highest, 1.
   var tone: Float = 0.5
+  /// How many times the sound has been measured.
+  var tick = 0
+  /// How loud each of the latest measurements was, the oldest first.
+  var history: [Float] = []
+  /// Each of the latest measurements' spectrum as `spectrumRows` levels,
+  /// one after another, the oldest first.
+  var spectra: [Float] = []
 
-  /// Leaves nothing of the sound.
+  /// Leaves nothing of the sound as it is now, keeping what it has been.
   mutating func settle() {
     bands = Sound().bands
     waves = [.silent]
     lockedWaves = [.silent]
     loudness = 0
+  }
+
+  /// Adds a measurement to what the sound has been.
+  mutating func record(loudness: Float, spectrum: [Float]) {
+    tick += 1
+    history.append(loudness)
+    spectra.append(contentsOf: spectrum)
+    if history.count > Self.historyLength {
+      history.removeFirst(history.count - Self.historyLength)
+      spectra.removeFirst(spectra.count - Self.historyLength * Self.spectrumRows)
+    }
   }
 }
 
@@ -494,6 +537,8 @@ final class AudioMeter: @unchecked Sendable {
   private var timer: Timer?
   private var interval: TimeInterval = 0
   private var sound = Sound()
+  /// How many measurements in a row have found no sound.
+  private var quietTicks = 0
   /// Where the sound has sat between low and high at each of the latest
   /// measurements, which the tone now is placed among.
   private var tones: [Float] = []
@@ -696,8 +741,16 @@ final class AudioMeter: @unchecked Sendable {
       }
     }
     // The levels hold through a quiet moment, so they don't drop away
-    // just before a module does.
-    guard sounding else { return }
+    // just before a module does, while what the sound has been goes on
+    // into the quiet until none of it is left to scroll away.
+    quietTicks = sounding ? 0 : quietTicks + 1
+    guard sounding else {
+      guard quietTicks <= Sound.historyLength else { return }
+      sound.record(
+        loudness: 0, spectrum: [Float](repeating: 0, count: Sound.spectrumRows))
+      AudioLevels.shared.sound = sound
+      return
+    }
     let spectrum = AudioAnalysis.bands(of: samples.mono, sampleRate: tap.sampleRate)
     let loudness = AudioAnalysis.loudness(of: Array(samples.mono.suffix(AudioAnalysis.window / 2)))
     let locked = AudioAnalysis.lockOffset(of: samples.mono)
@@ -714,6 +767,8 @@ final class AudioMeter: @unchecked Sendable {
       if tones.count > Self.toneMemory { tones.removeFirst(tones.count - Self.toneMemory) }
       sound.tone += (AudioAnalysis.placed(tone, among: tones) - sound.tone) * Self.toneEasing
     }
+    sound.record(
+      loudness: loudness, spectrum: AudioAnalysis.resampled(spectrum, to: Sound.spectrumRows))
     AudioLevels.shared.sound = sound
   }
 }
