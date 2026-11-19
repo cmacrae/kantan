@@ -131,14 +131,18 @@ export function pluginOf(module, catalog) {
 
 // The variant of its bundled plugin's preview a module is in: the last
 // whose settings the module has, a setting left out having the default
-// the plugin's schema gives it. Undefined for a module in none.
+// the plugin's schema gives it. A variant's setting that holds settings of
+// its own, such as `show`, asks only for those it names. Undefined for a
+// module in none.
 export function variantOf(module, catalog) {
   const plugin = pluginOf(module, catalog);
   if (plugin === undefined) return undefined;
   const { variants = [], settings: schema } = catalog.plugins[plugin];
   const settings = dict(dict(module?.config)?.settings) ?? {};
-  const has = ([key, value]) => sameValue(settings[key] ?? dict(schema?.properties)?.[key]?.default, value);
-  return variants.findLast(each => Object.entries(each.settings).every(has));
+  const has = (value, schema, wanted) => (dict(wanted)
+    ? Object.entries(wanted).every(([key, each]) => has(dict(value)?.[key], dict(dict(schema)?.properties)?.[key], each))
+    : sameValue(value ?? dict(schema)?.default, wanted));
+  return variants.findLast(each => has(settings, schema, each.settings));
 }
 
 // `module`, changed from `before`, with the interaction its variant needs
