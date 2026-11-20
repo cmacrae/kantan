@@ -1,7 +1,8 @@
 import Foundation
 
 // Prints the states of the now-playing module's preview: a track playing
-// and the same track paused, each leading to the other by its play button.
+// and the same track paused, and a live stream playing and paused, each
+// leading to the other of its pair by its play button.
 
 /// A state of the preview: its name, the output the plugin prints in it,
 /// and the output each command run from it leads to.
@@ -24,6 +25,15 @@ func output(playing: Bool) -> PluginOutput {
     settings: settings, now: now)
 }
 
+/// The preview's live stream, playing or paused.
+func live(playing: Bool) -> PluginOutput {
+  render(
+    track: Track(
+      title: "Twitch stream", elapsed: 0, timestamp: now.timeIntervalSince1970,
+      rate: playing ? 1 : 0, live: true),
+    artwork: nil, source: nil, settings: settings, now: now)
+}
+
 let encoder = JSONEncoder()
 encoder.outputFormatting = [.sortedKeys]
 let preview = [
@@ -34,6 +44,12 @@ let preview = [
     PreviewState(
       name: "Paused", output: output(playing: false),
       after: [toggleCommand: output(playing: true)]),
+    PreviewState(
+      name: "Live", output: live(playing: true),
+      after: [toggleCommand: live(playing: false)]),
+    PreviewState(
+      name: "Live, paused", output: live(playing: false),
+      after: [toggleCommand: live(playing: true)]),
   ]
 ]
 print(String(decoding: try encoder.encode(preview), as: UTF8.self))
