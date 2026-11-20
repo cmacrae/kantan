@@ -192,7 +192,11 @@ macOS says only that the stream has no end, not where it plays from: a stream in
 
 ### Which Player Shows
 
-With several apps holding a track, the module shows the one that is playing. With none playing, or more than one, it shows the one macOS itself counts as current, as Control Centre does. So a video started in a browser while a music app sits paused is what shows, and the popup's buttons control it. macOS sends a command only to the app it counts as current, so a button pressed for another app makes that app the current one first, for Control Centre and the media keys too.
+With several apps holding a track, the module shows the one that most recently started playing, and with none playing, the one that most recently stopped. Music started while a stream plays takes over, and once it is paused, the stream still playing shows again. The app shown while it plays becomes the one macOS counts as current too, so Control Centre and the media keys follow it.
+
+With more than one app holding a track, the popup has a switcher at its top: a button for each app, with its icon from `icons`. Picking one pins it: the module shows it and the popup's buttons control it. The pin lasts until the app stops playing, another app starts playing, or the app has no track.
+
+macOS sends a command only to the app it counts as current, so a button pressed for another app makes that app the current one first, for Control Centre and the media keys too.
 
 `exclude` passes apps over, by name or bundle identifier in any case:
 
@@ -212,13 +216,14 @@ interaction:
     type: toggle
 ```
 
-| Command      | Does                                            |
-|--------------|-------------------------------------------------|
-| `--open`     | Brings the app that is playing to the front     |
-| `--toggle`   | Plays or pauses                                 |
-| `--next`     | Skips to the next track                         |
-| `--previous` | Goes back to the previous track                 |
-| `--seek <n>` | Moves through the track: 0 its start, 1 its end |
+| Command          | Does                                                    |
+|------------------|---------------------------------------------------------|
+| `--open`         | Brings the app that is playing to the front             |
+| `--toggle`       | Plays or pauses                                         |
+| `--next`         | Skips to the next track                                 |
+| `--previous`     | Goes back to the previous track                         |
+| `--select <app>` | Pins an app, by bundle identifier, as the switcher does |
+| `--seek <n>`     | Moves through the track: 0 its start, 1 its end         |
 
 ## Update Model
 

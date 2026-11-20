@@ -200,6 +200,11 @@ struct Track: Decodable, Equatable, Sendable {
   var seekable: Bool?
   /// Whether it is a live stream, whose duration has no end.
   var live: Bool?
+  /// When it last played, in seconds since 1970: now, while it plays.
+  var lastPlayed: Double?
+
+  /// What tells the player apart from the others.
+  var key: String { bundle ?? name ?? "" }
 
   var isPlaying: Bool { playing ?? ((rate ?? 0) > 0) }
   var isLive: Bool { live == true }
@@ -228,13 +233,127 @@ struct Track: Decodable, Equatable, Sendable {
     return (try? JSONDecoder().decode(Line.self, from: line))?.players ?? []
   }
 
+  /// The players of `players` with a track loaded, passing over apps
+  /// among `excluded`.
+  static func loaded(of players: [Track], excluding excluded: [String]) -> [Track] {
+    players.filter { !($0.title ?? "").isEmpty && !$0.plays(fromOneOf: excluded) }
+  }
+
   /// The track to show of `players`, or nil while none has anything
-  /// loaded: one that is playing before one that isn't, and of those, the
-  /// one macOS counts as playing now. Apps among `excluded` are passed over.
-  static func shown(of players: [Track], excluding excluded: [String]) -> Track? {
-    let loaded = players.filter { !($0.title ?? "").isEmpty && !$0.plays(fromOneOf: excluded) }
-    let rank = { (track: Track) in (track.isPlaying ? 2 : 0) + (track.current == true ? 1 : 0) }
+  /// loaded: the player `pinned` names, while it has a track, or else one
+  /// playing before one that isn't, and of those, the one whose playing most
+  /// recently started or stopped, by `changed`, the times of those changes
+  /// by each player's key, or when it last played. Of players as recent, the
+  /// one macOS counts as playing now comes first. Apps among `excluded` are
+  /// passed over.
+  static func shown(
+    of players: [Track], excluding excluded: [String], changed: [String: Double] = [:],
+    pinned: String? = nil
+  ) -> Track? {
+    let loaded = loaded(of: players, excluding: excluded)
+    if let pinned, let track = loaded.first(where: { $0.key == pinned }) { return track }
+    let rank = { (track: Track) in
+      (
+        track.isPlaying ? 1 : 0, changed[track.key] ?? track.lastPlayed ?? 0,
+        track.current == true ? 1 : 0
+      )
+    }
     return loaded.max { rank($0) < rank($1) }
+  }
+}
+
+/// A player picked in the popup, by its key, and when, in seconds since 1970.
+struct Pin: Codable, Equatable {
+  var player: String
+  var at: Double
+}
+
+/// Which player the module shows, kept as the host reports each change: the
+/// one picked in the popup, until it stops or another starts playing, or
+/// else the one playing that started last, or with none playing, the one
+/// that stopped last.
+struct Selection {
+  var pin: Pin?
+  /// When each player's playing last started or stopped, by its key.
+  private(set) var changed: [String: Double] = [:]
+  private var wasPlaying: [String: Bool] = [:]
+
+  /// Notes `players` as reported at `now`, and returns the keys of those
+  /// that started or stopped playing since the last report. A player seen
+  /// for the first time changed when it last played, or now when it plays.
+  /// The pin goes when its player stops playing or has no track, or another
+  /// player starts playing.
+  @discardableResult
+  mutating func note(_ players: [Track], excluding excluded: [String], at now: Double)
+    -> [String]
+  {
+    let loaded = Track.loaded(of: players, excluding: excluded)
+    var playing: [String: Bool] = [:]
+    var switched: [String] = []
+    for track in loaded {
+      playing[track.key] = track.isPlaying
+      if let was = wasPlaying[track.key] {
+        guard was != track.isPlaying else { continue }
+        changed[track.key] = now
+        switched.append(track.key)
+        // The pinned player stopping, or another starting, ends the pin.
+        if let pin, now > pin.at, pin.player == track.key ? !track.isPlaying : track.isPlaying {
+          self.pin = nil
+        }
+      } else {
+        changed[track.key] = track.isPlaying ? now : track.lastPlayed ?? 0
+      }
+    }
+    wasPlaying = playing
+    changed = changed.filter { playing[$0.key] != nil }
+    if let pin, playing[pin.player] == nil { self.pin = nil }
+    return switched
+  }
+
+  /// The track to show of `players`.
+  func shown(of players: [Track], excluding excluded: [String]) -> Track? {
+    Track.shown(of: players, excluding: excluded, changed: changed, pinned: pin?.player)
+  }
+}
+
+/// The pin and the player the watch shows, kept in files, so the popup can
+/// pin a player and the plugin's commands act on the one that shows.
+struct SelectionStore {
+  let directory: URL
+
+  static var standard: SelectionStore {
+    let caches = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask)[0]
+    return SelectionStore(directory: caches.appendingPathComponent("kantan/now-playing-selection"))
+  }
+
+  private var pinFile: URL { directory.appendingPathComponent("pin.json") }
+  private var shownFile: URL { directory.appendingPathComponent("shown") }
+
+  var pin: Pin? {
+    (try? Data(contentsOf: pinFile)).flatMap { try? JSONDecoder().decode(Pin.self, from: $0) }
+  }
+
+  /// The key of the player the watch shows.
+  var shown: String? {
+    (try? String(contentsOf: shownFile, encoding: .utf8)).flatMap { $0.isEmpty ? nil : $0 }
+  }
+
+  func save(pin: Pin?) {
+    if let pin {
+      write(try? JSONEncoder().encode(pin), to: pinFile)
+    } else {
+      try? FileManager.default.removeItem(at: pinFile)
+    }
+  }
+
+  func save(shown: String?) {
+    write(Data((shown ?? "").utf8), to: shownFile)
+  }
+
+  private func write(_ data: Data?, to file: URL) {
+    guard let data else { return }
+    try? FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+    try? data.write(to: file, options: .atomic)
   }
 }
 
@@ -336,6 +455,19 @@ let openCommand = "\(plugin) --open"
 /// Moves the track to where its position bar was clicked or dragged to.
 let seekCommand = "\(plugin) --seek {value}"
 
+/// Pins the player with the key `player`, so the module shows it.
+func selectCommand(_ player: String) -> String {
+  "\(plugin) --select \(shellQuote(player))"
+}
+
+/// A player the popup's switcher offers, by its key, with its icon and the
+/// icon's colour.
+struct Choice: Equatable {
+  var player: String
+  var icon: String
+  var color: String?
+}
+
 /// The length of the text `segments` show before a hover.
 func restingLength(_ segments: [ValueSegment]) -> Int {
   segments.reduce(0) { $0 + ($1.reveal == true ? 0 : $1.text.count) }
@@ -434,9 +566,10 @@ func barContent(
 
 /// The module for `track` at `now`: the parts its state shows, its
 /// variables, and the popup showing `artwork` and the controls.
-func render(track: Track?, artwork: URL?, source: Source?, settings: Settings, now: Date)
-  -> PluginOutput
-{
+func render(
+  track: Track?, artwork: URL?, source: Source?, settings: Settings, now: Date,
+  choices: [Choice] = []
+) -> PluginOutput {
   guard let track else {
     let bar = barContent(
       showing: settings.show.stopped, hover: [], variables: [:], source: nil,
@@ -482,11 +615,21 @@ func render(track: Track?, artwork: URL?, source: Source?, settings: Settings, n
   for line in [variables["artist"]!, variables["album"]!] where !line.isEmpty {
     details.append(text(line, size: 11, style: "secondary"))
   }
-  var rows = [
+  var rows: [JSONValue] = []
+  // With more than one player holding a track, a switcher picks the one shown.
+  if choices.count > 1 {
+    let buttons = choices.map { choice in
+      button(
+        icon: choice.icon, command: selectCommand(choice.player),
+        style: choice.player == track.key ? "bordered" : "borderless", color: choice.color,
+        dismiss: false)
+    }
+    rows.append(hstack(spacing: 4, children: [spacer()] + buttons + [spacer()]))
+  }
+  rows.append(
     hstack(
       spacing: 12, command: openCommand,
-      children: [cover, vstack(spacing: 2, alignment: "leading", children: details), spacer()])
-  ]
+      children: [cover, vstack(spacing: 2, alignment: "leading", children: details), spacer()]))
   if track.isLive {
     rows.append(
       hstack(
@@ -570,7 +713,8 @@ func hostProcess(_ arguments: [String]) -> Process? {
   return process
 }
 
-/// The track to show now, read by running the host once.
+/// The track to show now, read by running the host once: the one the watch
+/// shows, when it still has a track, so commands act on what the popup shows.
 func currentTrack(excluding excluded: [String]) -> Track? {
   guard let host = hostProcess(["once"]) else { return nil }
   let output = Pipe()
@@ -578,8 +722,20 @@ func currentTrack(excluding excluded: [String]) -> Track? {
   host.standardOutput = output
   guard (try? host.run()) != nil else { return nil }
   DispatchQueue.global().asyncAfter(deadline: .now() + 3) { host.terminate() }
-  let line = output.fileHandleForReading.readDataToEndOfFile()
-  return Track.shown(of: Track.players(in: line), excluding: excluded)
+  let players = Track.players(in: output.fileHandleForReading.readDataToEndOfFile())
+  let store = SelectionStore.standard
+  if let shown = store.shown,
+    let track = Track.loaded(of: players, excluding: excluded).first(where: { $0.key == shown })
+  {
+    return track
+  }
+  return Track.shown(of: players, excluding: excluded, pinned: store.pin?.player)
+}
+
+/// Pins the player with the key `player`, which the watch then shows.
+func select(_ player: String) -> Int32 {
+  SelectionStore.standard.save(pin: Pin(player: player, at: Date().timeIntervalSince1970))
+  return 0
 }
 
 /// Sends `command` to the player whose track is shown.
@@ -648,7 +804,13 @@ final class NowPlayingWatch {
   private let settings: Settings
   private let output = WatchOutput()
   private let cache = ArtworkCache.standard
+  private let store = SelectionStore.standard
+  /// The players the host last reported.
+  private var players: [Track] = []
+  private var selection = Selection()
   private var track: Track?
+  /// Watches the store's directory for a pin made in the popup.
+  private var pins: DispatchSourceFileSystemObject?
   /// The host's exits since it last wrote a line.
   private var failures = 0
 
@@ -656,11 +818,68 @@ final class NowPlayingWatch {
     self.settings = settings
   }
 
+  /// Notes the players the host reported, then shows the one chosen. When a
+  /// player has started or stopped playing, the one now shown, while it
+  /// plays, is made the one macOS counts as playing now, so the media keys
+  /// and Control Centre follow it too.
+  private func receive(_ players: [Track]) {
+    self.players = players
+    let switched = selection.note(
+      players, excluding: settings.exclude, at: Date().timeIntervalSince1970)
+    if selection.pin != store.pin { store.save(pin: selection.pin) }
+    choose()
+    if !switched.isEmpty, let track, track.isPlaying, track.current != true,
+      let bundle = track.bundle
+    {
+      let host = hostProcess(["current", bundle])
+      host?.standardInput = FileHandle.nullDevice
+      host?.standardOutput = FileHandle.nullDevice
+      try? host?.run()
+    }
+  }
+
+  /// Chooses the track to show, keeps which it is for the plugin's
+  /// commands, and shows it.
+  private func choose() {
+    track = selection.shown(of: players, excluding: settings.exclude)
+    if store.shown != track?.key { store.save(shown: track?.key) }
+    show()
+  }
+
   private func show() {
+    let choices = Track.loaded(of: players, excluding: settings.exclude)
+      .sorted { ($0.name ?? $0.key).lowercased() < ($1.name ?? $1.key).lowercased() }
+      .map { player in
+        let source = sourceApp(of: player)
+        return Choice(
+          player: player.key, icon: settings.icon(for: source),
+          color: settings.iconColor(for: source))
+      }
     output.show(
       render(
         track: track, artwork: track.flatMap(cache.file), source: track.flatMap(sourceApp),
-        settings: settings, now: Date()))
+        settings: settings, now: Date(), choices: choices))
+  }
+
+  /// Shows the player pinned in the popup as soon as the pin is written.
+  private func watchPins() {
+    try? FileManager.default.createDirectory(
+      at: store.directory, withIntermediateDirectories: true)
+    let descriptor = open(store.directory.path, O_EVTONLY)
+    guard descriptor >= 0 else { return }
+    let source = DispatchSource.makeFileSystemObjectSource(
+      fileDescriptor: descriptor, eventMask: .write, queue: .main)
+    source.setEventHandler {
+      MainActor.assumeIsolated {
+        let pin = self.store.pin
+        guard pin != self.selection.pin else { return }
+        self.selection.pin = pin
+        self.choose()
+      }
+    }
+    source.setCancelHandler { close(descriptor) }
+    source.resume()
+    pins = source
   }
 
   /// Runs the host, starting it again when it exits: after a second at
@@ -678,8 +897,7 @@ final class NowPlayingWatch {
       DispatchQueue.main.async {
         MainActor.assumeIsolated {
           self.failures = 0
-          self.track = Track.shown(of: players, excluding: self.settings.exclude)
-          self.show()
+          self.receive(players)
         }
       }
     }
@@ -687,6 +905,7 @@ final class NowPlayingWatch {
       stdout.fileHandleForReading.readabilityHandler = nil
       DispatchQueue.main.async {
         MainActor.assumeIsolated {
+          self.players = []
           self.track = nil
           self.show()
           self.failures += 1
@@ -701,6 +920,8 @@ final class NowPlayingWatch {
   }
 
   func run() -> Never {
+    selection.pin = store.pin
+    watchPins()
     launch()
     let seconds = Timer(timeInterval: 1, repeats: true) { _ in
       MainActor.assumeIsolated {
@@ -730,6 +951,12 @@ func main() -> Int32 {
     return send(.previous, settings: settings)
   case "--open":
     return openSource(settings: settings)
+  case "--select":
+    guard let player = CommandLine.arguments.dropFirst(2).first else {
+      FileHandle.standardError.write(Data("\(plugin): --select takes a player\n".utf8))
+      return 2
+    }
+    return select(player)
   case "--seek":
     guard let fraction = CommandLine.arguments.dropFirst(2).first.flatMap(Double.init) else {
       FileHandle.standardError.write(Data("\(plugin): --seek takes a number from 0 to 1\n".utf8))

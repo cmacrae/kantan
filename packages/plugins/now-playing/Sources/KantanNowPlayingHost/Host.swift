@@ -167,6 +167,7 @@ private struct PlayerRequests: @unchecked Sendable {
     "requestNowPlayingItemArtworkOnQueue:completion:")
   private static let send = NSSelectorFromString("sendCommand:options:queue:completion:")
   private static let commands = NSSelectorFromString("requestSupportedCommandsOnQueue:completion:")
+  private static let lastPlaying = NSSelectorFromString("requestLastPlayingDateOnQueue:completion:")
 
   /// Nil on a macOS whose MediaRemote lacks any of what the requests use.
   init?() {
@@ -246,6 +247,15 @@ private struct PlayerRequests: @unchecked Sendable {
     }
   }
 
+  /// When the player last played, which is now while it plays, or nil on a
+  /// macOS that can't be asked.
+  func lastPlayed(_ request: AnyObject, then done: @escaping (Date?) -> Void) {
+    guard class_respondsToSelector(requestClass, Self.lastPlaying) else { return done(nil) }
+    method(Self.lastPlaying, of: requestClass, as: AskObject.self)(
+      request, Self.lastPlaying, .main
+    ) { date, _ in done(date as? Date) }
+  }
+
   func send(
     _ command: UInt32, options: [String: Any]?, to request: AnyObject,
     then done: @escaping () -> Void
@@ -269,8 +279,9 @@ private func write(_ line: [String: Any]) {
 }
 
 /// Writes every player as a line of JSON, `{"players": [...]}`: each one's
-/// track, whether it plays, whether it takes a position to move to, and
-/// whether it is the one MediaRemote counts as playing now. Then calls `done`.
+/// track, whether it plays, whether it takes a position to move to, when it
+/// last played, and whether it is the one MediaRemote counts as playing now.
+/// Then calls `done`.
 private func writeLine(
   _ remote: MediaRemote, _ requests: PlayerRequests?,
   then done: @escaping @Sendable () -> Void = {}
@@ -301,6 +312,11 @@ private func writeLine(
       group.enter()
       requests.seekable(request) { seekable in
         if let seekable { gathering.players[index]["seekable"] = seekable }
+        group.leave()
+      }
+      group.enter()
+      requests.lastPlayed(request) { date in
+        if let date { gathering.players[index]["lastPlayed"] = date.timeIntervalSince1970 }
         group.leave()
       }
       group.enter()
@@ -380,7 +396,8 @@ private func send(
 /// that number to the player with that bundle identifier, or without one,
 /// to the one MediaRemote counts as playing now, and
 /// `seek <seconds> [<bundle>]` moves that player to that position in its
-/// track.
+/// track, and `current <bundle>` makes the app with that bundle identifier
+/// the one macOS counts as playing now.
 @_cdecl("kantan_now_playing_host")
 public func host() {
   let arguments = Array(CommandLine.arguments.drop { $0 != "--" }.dropFirst(2))
@@ -419,6 +436,11 @@ public func host() {
     send(
       seekCommand, options: [positionOption: seconds], to: arguments.dropFirst(2).first, remote,
       requests)
+  case "current":
+    guard let bundle = arguments.dropFirst().first, let makeCurrent = remote.setOverriddenApp
+    else { exit(1) }
+    _ = makeCurrent(bundle as CFString)
+    DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) { exit(0) }
   default:
     exit(1)
   }

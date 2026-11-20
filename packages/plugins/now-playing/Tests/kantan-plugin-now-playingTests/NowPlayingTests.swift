@@ -114,6 +114,67 @@ final class NowPlayingTests {
       ])
   }
 
+  @Test func testThePlayerThatStartedLastIsShownUnlessOneIsPinned() {
+    let player = { (bundle: String, playing: Bool) in
+      var track = track()
+      track.bundle = bundle
+      track.playing = playing
+      return track
+    }
+    let players = { (arc: Bool, spotify: Bool) in [player("arc", arc), player("spotify", spotify)] }
+    var selection = Selection()
+    let shown = { (players: [Track]) in selection.shown(of: players, excluding: [])?.bundle }
+
+    // A stream plays, then music starts beside it: the music shows.
+    selection.note([player("arc", true)], excluding: [], at: 0)
+    selection.note(players(true, true), excluding: [], at: 10)
+    #expect(shown(players(true, true)) == "spotify")
+    // Paused, the music gives way to the stream still playing.
+    selection.note(players(true, false), excluding: [], at: 20)
+    #expect(shown(players(true, false)) == "arc")
+    #expect(selection.note(players(true, true), excluding: [], at: 25) == ["spotify"])
+
+    // The stream picked, then paused: the pin goes, and the music shows.
+    selection.pin = Pin(player: "arc", at: 30)
+    #expect(shown(players(true, true)) == "arc")
+    selection.note(players(false, true), excluding: [], at: 40)
+    #expect(selection.pin == nil)
+    #expect(shown(players(false, true)) == "spotify")
+
+    // A paused player picked stays shown, and through its own start.
+    selection.pin = Pin(player: "arc", at: 45)
+    #expect(shown(players(false, true)) == "arc")
+    selection.note(players(true, true), excluding: [], at: 50)
+    #expect(selection.pin?.player == "arc")
+    // Another stopping leaves the pin; with nothing playing, the last to stop shows.
+    selection.note(players(true, false), excluding: [], at: 60)
+    #expect(selection.pin?.player == "arc")
+    selection.note(players(false, false), excluding: [], at: 70)
+    #expect(selection.pin == nil)
+    #expect(shown(players(false, false)) == "arc")
+
+    // Another starting ends a pin, as does its player having no track.
+    selection.pin = Pin(player: "arc", at: 75)
+    selection.note(players(false, true), excluding: [], at: 80)
+    #expect(selection.pin == nil)
+    selection.pin = Pin(player: "arc", at: 85)
+    selection.note([player("spotify", true)], excluding: [], at: 90)
+    #expect(selection.pin == nil)
+  }
+
+  @Test func testTheSwitcherOffersEachPlayerWhenThereIsMoreThanOne() throws {
+    let view = { (choices: [Choice]) in
+      let output = render(
+        track: track(), artwork: nil, source: nil, settings: Settings(), now: now,
+        choices: choices)
+      return String(decoding: try JSONEncoder().encode(output.view), as: UTF8.self)
+    }
+    let arc = Choice(player: "company.thebrowser.Browser", icon: "brand-arc")
+    let spotify = Choice(player: "com.spotify.client", icon: "brand-spotify")
+    #expect(try view([arc, spotify]).contains("--select 'com.spotify.client'"))
+    #expect(try !view([arc]).contains("--select"))
+  }
+
   @Test func testThePlayerThatIsPlayingIsShown() {
     var spotify = track(rate: 0)
     spotify.bundle = "com.spotify.client"
