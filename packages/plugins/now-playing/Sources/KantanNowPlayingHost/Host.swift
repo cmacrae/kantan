@@ -73,15 +73,19 @@ private let seekCommand: UInt32 = 24
 private let positionOption = "kMRMediaRemoteOptionPlaybackPosition"
 
 /// What `info`, MediaRemote's info for a player, says of its track. A
-/// number that isn't finite, such as the duration of a live stream, is left
-/// out, as the track has no such value.
+/// number that isn't finite is left out, as the track has no such value. A
+/// duration without end, as a live stream has, makes the track `live`.
 private func track(from info: [String: Any]) -> [String: Any] {
   var track: [String: Any] = [:]
   for (key, name) in infoKeys {
     if let value = info[key] as? String {
       track[name] = value
-    } else if let value = info[key] as? NSNumber, value.doubleValue.isFinite {
-      track[name] = value.doubleValue
+    } else if let value = info[key] as? NSNumber {
+      if value.doubleValue.isFinite {
+        track[name] = value.doubleValue
+      } else if name == "duration", value.doubleValue > 0 {
+        track["live"] = true
+      }
     }
   }
   if let timestamp = info["kMRMediaRemoteNowPlayingInfoTimestamp"] as? Date {

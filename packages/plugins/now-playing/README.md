@@ -28,8 +28,8 @@ This plugin is bundled with kantan and requires no separate installation. It is 
 | `{artist}`   | `Aphex Twin`            | The artist; empty when the source gives none        |
 | `{album}`    | `…I Care Because You Do` | The album; empty when the source gives none        |
 | `{app}`      | `Spotify`               | The app the track plays from                        |
-| `{state}`    | `Playing`               | `Playing`, `Paused` or `Stopped`                    |
-| `{elapsed}`  | `1:24`                  | The position in the track                           |
+| `{state}`    | `Playing`               | `Playing`, `Live`, `Paused` or `Stopped`            |
+| `{elapsed}`  | `1:24`                  | The position in the track; empty for a live stream  |
 | `{duration}` | `5:10`                  | The track's length; empty when the source gives none |
 | `{artwork}`  | `file:///…/artwork.jpg` | The album art's file, for an `image` in a view of your own |
 
@@ -77,6 +77,7 @@ This one shows the icon and the title while a track plays, the icon alone while 
 | `format`    | string or array | artist, then title | What the `text` part writes: a template, or a list of segments                           |
 | `separator` | string          | `" · "`            | What goes between the `artist`, `title` and `album` parts                                |
 | `exclude`   | array           | —                  | Apps whose playing is never shown, by name or bundle identifier                          |
+| `colors`    | object          | see below          | The colour of the popup's live dot, as `live`                                            |
 | `maxChars`  | integer         | `40`               | Most characters of text in the bar before a hover. `0` sets no limit                     |
 | `drop`      | array           | `[album, artist]`  | The parts left out of text longer than `maxChars`, the first listed going first          |
 
@@ -88,6 +89,7 @@ This one shows the icon and the title while a track plays, the icon alone while 
 |-----------|----------------|---------------------------------------------------|
 | `playing` | `[icon, text]` | A track is playing                                |
 | `paused`  | `[icon, text]` | A track is paused                                 |
+| `live`    | `playing`'s    | A live stream is playing                          |
 | `stopped` | `[]`           | No player has a track loaded                      |
 | `hover`   | `[]`           | Added to the state's parts while the pointer is over the module |
 
@@ -173,6 +175,20 @@ format:
     reveal: true
   - text: "{title}"
 ```
+
+### Live Streams
+
+A stream with no end, such as one on Twitch, is in the `Live` state while it plays and `Paused` while it doesn't. Its popup has no position bar or times, as there is no length to be a position in: a `● LIVE` mark sits in their place, and only the play button stays, as there is no track before or after it to skip to. `show.live` sets what the bar shows for it, and `colors.live` the colour of the mark's dot:
+
+```yaml
+show:
+  playing: [icon, text]
+  live: [icon, artist]   # a stream's channel, without its title
+colors:
+  live: "{theme(red)}"
+```
+
+macOS says only that the stream has no end, not where it plays from: a stream in a browser has the browser's icon from `icons`.
 
 ### Which Player Shows
 

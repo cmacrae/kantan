@@ -18,13 +18,15 @@ enum Part: String, Decodable, CaseIterable {
 struct Show: Decodable, Equatable {
   var playing: [Part] = [.icon, .text]
   var paused: [Part] = [.icon, .text]
+  /// While a live stream plays. Unset, it is what `playing` shows.
+  var live: [Part]?
   /// While no player has anything loaded.
   var stopped: [Part] = []
   /// The parts added while the pointer is over a module whose hover reveals.
   var hover: [Part] = []
 
   private enum CodingKeys: String, CodingKey {
-    case playing, paused, stopped, hover
+    case playing, paused, live, stopped, hover
   }
 
   init() {}
@@ -37,6 +39,7 @@ struct Show: Decodable, Equatable {
     }
     playing = parts(.playing) ?? playing
     paused = parts(.paused) ?? paused
+    live = parts(.live)
     stopped = parts(.stopped) ?? stopped
     hover = parts(.hover) ?? hover
   }
@@ -69,6 +72,23 @@ struct AppIcon: Decodable, Equatable {
   }
 }
 
+/// The colours of the popup's own marks.
+struct Colors: Decodable, Equatable {
+  /// The dot beside `LIVE` while a live stream shows.
+  var live = "red"
+
+  private enum CodingKeys: String, CodingKey {
+    case live
+  }
+
+  init() {}
+
+  init(from decoder: Decoder) throws {
+    let container = try decoder.container(keyedBy: CodingKeys.self)
+    live = container.setting(String.self, forKey: .live) ?? live
+  }
+}
+
 struct Settings: Decodable {
   /// What the `text` part writes.
   var format: Format
@@ -88,6 +108,7 @@ struct Settings: Decodable {
   var separator: String
   /// The apps whose playing is never shown, by name or bundle identifier.
   var exclude: [String]
+  var colors: Colors
 
   /// The artist, when there is one, then the title.
   static let defaultFormat = Format.segments([
@@ -96,7 +117,7 @@ struct Settings: Decodable {
   ])
 
   private enum CodingKeys: String, CodingKey {
-    case format, maxChars, drop, show, icon, icons, separator, exclude
+    case format, maxChars, drop, show, icon, icons, separator, exclude, colors
   }
 
   init() {
@@ -108,6 +129,7 @@ struct Settings: Decodable {
     self.icons = [:]
     self.separator = " · "
     self.exclude = []
+    self.colors = Colors()
   }
 
   init(from decoder: Decoder) throws {
@@ -122,6 +144,7 @@ struct Settings: Decodable {
     self.icons = container.setting([String: AppIcon].self, forKey: .icons) ?? [:]
     self.separator = container.setting(String.self, forKey: .separator) ?? " · "
     self.exclude = container.setting([String].self, forKey: .exclude) ?? []
+    self.colors = container.setting(Colors.self, forKey: .colors) ?? Colors()
   }
 
   /// What `icons` gives the app `source`, by its name or bundle
@@ -175,8 +198,11 @@ struct Track: Decodable, Equatable, Sendable {
   var current: Bool?
   /// Whether the player takes a position to move to, when macOS tells.
   var seekable: Bool?
+  /// Whether it is a live stream, whose duration has no end.
+  var live: Bool?
 
   var isPlaying: Bool { playing ?? ((rate ?? 0) > 0) }
+  var isLive: Bool { live == true }
 
   /// The position at `now`, in seconds, within the track's duration. It
   /// keeps time only once the rate says it plays too, as until then
@@ -422,18 +448,25 @@ func render(track: Track?, artwork: URL?, source: Source?, settings: Settings, n
         padding: .int(14), children: [text("Nothing is playing", style: "secondary")]))
   }
 
+  // A live stream has no length to be a position in.
   let position = track.position(at: now)
-  let duration = track.duration ?? 0
+  let duration = track.isLive ? 0 : track.duration ?? 0
+  let state = !track.isPlaying ? "Paused" : track.isLive ? "Live" : "Playing"
   var variables = [
     "title": track.title ?? "",
     "artist": track.artist ?? "",
     "album": track.album ?? "",
     "app": source?.name ?? "",
-    "state": track.isPlaying ? "Playing" : "Paused",
-    "elapsed": clockTime(position),
+    "state": state,
+    "elapsed": track.isLive ? "" : clockTime(position),
     "duration": duration > 0 ? clockTime(duration) : "",
   ]
-  let shown = track.isPlaying ? settings.show.playing : settings.show.paused
+  let shown =
+    switch state {
+    case "Paused": settings.show.paused
+    case "Live": settings.show.live ?? settings.show.playing
+    default: settings.show.playing
+    }
   let bar = barContent(
     showing: shown, hover: settings.show.hover, variables: variables, source: source,
     settings: settings)
@@ -454,7 +487,15 @@ func render(track: Track?, artwork: URL?, source: Source?, settings: Settings, n
       spacing: 12, command: openCommand,
       children: [cover, vstack(spacing: 2, alignment: "leading", children: details), spacer()])
   ]
-  if duration > 0 {
+  if track.isLive {
+    rows.append(
+      hstack(
+        spacing: 5,
+        children: [
+          spacer(), circle(size: 7, color: settings.colors.live),
+          text("LIVE", size: 10, weight: "semibold", style: "secondary"), spacer(),
+        ]))
+  } else if duration > 0 {
     rows += [
       progress(
         value: position / duration, color: "accent",
@@ -465,21 +506,21 @@ func render(track: Track?, artwork: URL?, source: Source?, settings: Settings, n
       ]),
     ]
   }
-  rows.append(
-    hstack(
-      spacing: 6,
-      children: [
-        spacer(),
-        button(
-          icon: "player-skip-back", command: previousCommand, style: "borderless",
-          dismiss: false),
-        button(
-          icon: track.isPlaying ? "player-pause" : "player-play", command: toggleCommand,
-          style: "bordered", dismiss: false),
-        button(
-          icon: "player-skip-forward", command: nextCommand, style: "borderless", dismiss: false),
-        spacer(),
-      ]))
+  // A live stream has no track before or after it to skip to.
+  let toggle = button(
+    icon: track.isPlaying ? "player-pause" : "player-play", command: toggleCommand,
+    style: "bordered", dismiss: false)
+  let controls =
+    track.isLive
+    ? [toggle]
+    : [
+      button(
+        icon: "player-skip-back", command: previousCommand, style: "borderless", dismiss: false),
+      toggle,
+      button(
+        icon: "player-skip-forward", command: nextCommand, style: "borderless", dismiss: false),
+    ]
+  rows.append(hstack(spacing: 6, children: [spacer()] + controls + [spacer()]))
 
   return PluginOutput(
     value: bar.value, segments: bar.segments, icon: bar.icon, hidden: shown.isEmpty,

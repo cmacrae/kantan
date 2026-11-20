@@ -90,6 +90,20 @@
             "text"
           ]
         },
+        "live": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": [
+              "icon",
+              "artist",
+              "title",
+              "album",
+              "text"
+            ]
+          },
+          "description": "What shows while a live stream plays, one with no end, such as a stream on Twitch. Left out, it is what 'playing' shows."
+        },
         "stopped": {
           "type": "array",
           "items": {
@@ -180,6 +194,18 @@
         "type": "string"
       },
       "description": "Apps whose playing is never shown, by name (such as 'Spotify') or bundle identifier (such as 'com.spotify.client'), in any case."
+    },
+    "colors": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "The colours of the popup's own marks.",
+      "properties": {
+        "live": {
+          "$ref": "module-config.schema.json#/$defs/Color",
+          "default": "red",
+          "description": "The dot beside 'LIVE' in the popup while a live stream shows."
+        }
+      }
     }
   }
 }

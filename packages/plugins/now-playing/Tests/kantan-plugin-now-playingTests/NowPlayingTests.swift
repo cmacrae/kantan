@@ -83,6 +83,25 @@ final class NowPlayingTests {
     #expect(shown(nil, quiet).icon == "music")
   }
 
+  @Test func testALiveStreamShowsItsOwnState() throws {
+    var live = track()
+    live.duration = nil
+    live.live = true
+    let view = { (output: PluginOutput) in
+      String(decoding: try JSONEncoder().encode(output.view), as: UTF8.self)
+    }
+    let output = shown(live, try settings(#"{"show":{"live":["title"]},"colors":{"live":"F00"}}"#))
+    #expect(output.variables["state"] == "Live")
+    #expect(output.value == "While You Doooo")
+    #expect(output.variables["elapsed"] == "")
+    #expect(try view(output).contains(#""color":"F00""#))
+    #expect(try view(output).contains("LIVE"))
+    #expect(try !view(output).contains("--seek"))
+    #expect(try !view(output).contains("--next"))
+    // Unset, the live state shows what playing does.
+    #expect(shown(live, Settings()).value == "Teebs · While You Doooo")
+  }
+
   @Test func testHoverPartsWaitForTheHover() throws {
     let hover = try settings(#"{"show":{"playing":["title"],"hover":["icon","artist"]}}"#)
     let output = shown(track(), hover)
