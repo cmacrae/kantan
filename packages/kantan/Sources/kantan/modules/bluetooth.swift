@@ -334,6 +334,7 @@ final class BluetoothConfig: NSObject, ModuleConfiguration, EventDrivenModule,
         guard let props = props as? [String: Any],
           let address = props["device_address"] as? String
         else { return nil }
+        if isConnected && isBackgroundLink(props) { return nil }
         return BluetoothDeviceInfo(
           name: name,
           address: address.lowercased(),
@@ -341,6 +342,23 @@ final class BluetoothConfig: NSObject, ModuleConfiguration, EventDrivenModule,
         )
       }
     }
+  }
+
+  /// Whether a connected entry is the background link macOS keeps to nearby
+  /// devices on the same iCloud account (e.g. AirPods playing from an iPhone):
+  /// services are BLE alone (`"0x400000 < BLE >"`), with no device type and
+  /// no vendor ID. Real BLE peripherals list further services such as HID,
+  /// and identify their type and vendor.
+  private static func isBackgroundLink(_ props: [String: Any]) -> Bool {
+    guard let services = props["device_services"] as? String,
+      let open = services.firstIndex(of: "<"),
+      let close = services.lastIndex(of: ">"),
+      open < close
+    else { return false }
+    let names = services[services.index(after: open)..<close].split(separator: " ")
+    return names == ["BLE"]
+      && props["device_minorType"] == nil
+      && props["device_vendorID"] == nil
   }
 
 }

@@ -3695,6 +3695,28 @@ final class BluetoothSystemProfilerParserTests {
     #expect(status.connectedDevices.map(\.name) == ["Magic Trackpad"])
   }
 
+  @Test func testIgnoresBackgroundBLELinkButKeepsBLEPeripherals() throws {
+    let json = """
+      {
+        "SPBluetoothDataType": [{
+          "controller_properties": { "controller_state": "attrib_on" },
+          "device_connected": [
+            { "AirPods Pro": {
+                "device_address": "02:00:00:00:00:03",
+                "device_services": "0x400000 < BLE >" } },
+            { "MX Master 3S": {
+                "device_address": "02:00:00:00:00:04",
+                "device_services": "0x400020 < HID BLE >",
+                "device_minorType": "Mouse",
+                "device_vendorID": "0x046D" } }
+          ]
+        }]
+      }
+      """
+    let status = try #require(parse(json))
+    #expect(status.connectedDevices.map(\.name) == ["MX Master 3S"])
+  }
+
   @Test func testReportsPoweredOffWhenControllerStateIsOff() throws {
     let json = """
       {
