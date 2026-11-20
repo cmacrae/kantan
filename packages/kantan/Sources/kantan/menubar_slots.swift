@@ -88,7 +88,9 @@ struct SlotSeedSearch: Equatable {
   private var high: Double?
   private var step = 8.0
 
-  /// The least position macOS takes: it reads zero as none.
+  /// The least position tried. The menu bar reads zero as no position, puts
+  /// such an item at the left end, and from then on keeps every item where
+  /// it is, whatever position it is next made at.
   static let minimum = 0.25
 
   init(seed: Double) {
@@ -120,6 +122,7 @@ struct SlotSeedSearch: Equatable {
       high = seed
       seed = low.map { (seed + $0) / 2 } ?? max(seed - step, seed / 2)
     }
+    seed = max(seed, Self.minimum)
     step *= 2
   }
 }
@@ -134,11 +137,17 @@ final class MenuBarSlots {
   private struct Entry {
     var item: NSStatusItem?
     var search: SlotSeedSearch?
-    /// Whether the search began from the position kept from an earlier run.
+    /// Whether the search began with the name kept from an earlier run,
+    /// which the menu bar may have a place for.
     var searchIsKept = false
     /// The masked module the item was last placed beside.
     var anchor: String?
+    /// An anchor other than the item's, or none, and when it was first found.
+    var unsettled: (anchor: String?, since: Date)?
     var attempts = 0
+    /// The menu bar's items as the last position was tried and no place
+    /// was found.
+    var gaveUpAmong: [String]?
     var changedAt = Date.distantPast
     /// The run's width on each display.
     var widths: [String: CGFloat] = [:]
@@ -175,6 +184,16 @@ final class MenuBarSlots {
     for name in entries.keys where !slots.contains(where: { $0.name == name }) {
       remove(name)
       entries[name] = nil
+    }
+    prunePositions()
+  }
+
+  /// Drops the positions kept under names no slot's item has.
+  private func prunePositions() {
+    let current = Set(slots.map { positionKey(of: $0.name) })
+    for key in defaults.dictionaryRepresentation().keys
+    where key.hasPrefix("NSStatusItem Preferred Position slot-") && !current.contains(key) {
+      defaults.removeObject(forKey: key)
     }
   }
 
@@ -223,11 +242,29 @@ final class MenuBarSlots {
       for name in entries.keys { remove(name) }
       return
     }
+    // Behind the lock screen the items are as they were last read, and the
+    // slots' own frames can't be relied on.
+    guard !MenuBarAccessibility.isScreenLocked else { return }
+    let now = Date()
     for slot in slots {
       var entry = entries[slot.name, default: Entry()]
       defer { entries[slot.name] = entry }
 
-      guard let (module, anchor) = anchor(of: slot, among: items) else {
+      // One read of the menu bar can miss items. An item moves or goes only
+      // once its anchor has been another, or missing, for as long as the
+      // menu bar takes to settle.
+      let found = anchor(of: slot, among: items)
+      if entry.item != nil, found?.module != entry.anchor {
+        guard let unsettled = entry.unsettled, unsettled.anchor == found?.module else {
+          entry.unsettled = (found?.module, now)
+          scheduleChange()
+          continue
+        }
+        guard now.timeIntervalSince(unsettled.since) >= Self.settleTime else { continue }
+      }
+      entry.unsettled = nil
+
+      guard let (module, anchor) = found else {
         if let item = entry.item {
           discard(item, named: slot.name)
           entry.item = nil
@@ -238,13 +275,14 @@ final class MenuBarSlots {
         entry.anchor = module
         entry.search = nil
         entry.attempts = 0
+        entry.gaveUpAmong = nil
       }
 
-      let key = "NSStatusItem Preferred Position \(slot.name)"
       guard entry.item != nil else {
         if entry.search == nil {
-          let kept = defaults.double(forKey: key)
-          entry.searchIsKept = kept > 0
+          entry.searchIsKept = itemName(of: slot.name) != nil
+          if !entry.searchIsKept { rename(slot.name) }
+          let kept = defaults.double(forKey: positionKey(of: slot.name))
           entry.search = SlotSeedSearch(
             seed: kept > 0 ? kept : SlotSeedSearch.estimate(beside: anchor, among: items))
         }
@@ -254,16 +292,29 @@ final class MenuBarSlots {
         continue
       }
 
-      guard Date().timeIntervalSince(entry.changedAt) >= Self.settleTime,
-        entry.attempts < Self.maxAttempts, let frame = frame(of: slot, on: screen)
+      guard now.timeIntervalSince(entry.changedAt) >= Self.settleTime,
+        let frame = frame(of: slot, on: screen)
       else { continue }
       let order = SlotOrder.of(slot: frame, beside: anchor, among: items)
       guard order != .placed else {
         entry.attempts = 0
+        entry.gaveUpAmong = nil
         continue
       }
+      // A slot no place was found for is tried again once the menu bar's
+      // items have changed.
+      let among = items.map { "\($0.owner)/\($0.identifier ?? "")" }
+      if entry.attempts >= Self.maxAttempts {
+        guard entry.gaveUpAmong != among else { continue }
+        entry.attempts = 0
+        entry.search = nil
+      }
 
-      if entry.searchIsKept {
+      // An item under a kept name may be where the menu bar kept it, not at
+      // the position tried, so a miss tells the search nothing and it starts
+      // from an estimate. An item whose anchor changed has no search yet,
+      // and starts from one too.
+      if entry.searchIsKept || entry.search == nil {
         entry.searchIsKept = false
         entry.search = SlotSeedSearch(
           seed: SlotSeedSearch.estimate(beside: anchor, among: items))
@@ -272,11 +323,13 @@ final class MenuBarSlots {
       }
       entry.attempts += 1
       if entry.attempts == Self.maxAttempts {
+        entry.gaveUpAmong = among
         print("warning: no place found for the menu bar slot of '\(slot.modules[0])'")
       }
       if let item = entry.item {
         NSStatusBar.system.removeStatusItem(item)
       }
+      rename(slot.name)
       entry.item = makeItem(named: slot.name, at: entry.search?.seed ?? 0)
       entry.changedAt = Date()
       scheduleChange()
@@ -308,19 +361,45 @@ final class MenuBarSlots {
     return max(width - PersistedMenuBarLayout.moduleSpacing, 1)
   }
 
-  /// Makes an empty status item at a preferred position, which macOS reads
+  private func nameKey(of slot: String) -> String {
+    "MenuBarSlot Name \(slot)"
+  }
+
+  /// The name of a slot's status item, kept from when it was last named.
+  private func itemName(of slot: String) -> String? {
+    defaults.string(forKey: nameKey(of: slot))
+  }
+
+  /// Gives a slot's item a name no item has had. The menu bar keeps the
+  /// place of an item it has seen under its name, and puts it back there
+  /// whatever position it is made at, so an item that has to move is made
+  /// under a new name. The name is random, so it is new whatever is kept
+  /// of the names before it.
+  private func rename(_ slot: String) {
+    let suffix = UUID().uuidString.prefix(8).lowercased()
+    defaults.set("\(slot)-\(suffix)", forKey: nameKey(of: slot))
+  }
+
+  private func positionKey(of name: String) -> String {
+    "NSStatusItem Preferred Position \(itemName(of: name) ?? name)"
+  }
+
+  /// Makes a blank status item at a preferred position, which macOS reads
   /// from the defaults as the item takes its name.
   private func makeItem(named name: String, at seed: Double) -> NSStatusItem {
-    defaults.set(seed, forKey: "NSStatusItem Preferred Position \(name)")
+    defaults.set(max(seed, SlotSeedSearch.minimum), forKey: positionKey(of: name))
     let item = NSStatusBar.system.statusItem(withLength: length(of: name))
-    item.autosaveName = name
+    item.autosaveName = itemName(of: name) ?? name
+    // The menu bar makes no room for an item with nothing to draw, so the
+    // item draws a clear image.
+    item.button?.image = NSImage(size: NSSize(width: 1, height: 1))
     return item
   }
 
   /// Takes an item out of the menu bar, keeping its position for when it
   /// is next made.
   private func discard(_ item: NSStatusItem, named name: String) {
-    let key = "NSStatusItem Preferred Position \(name)"
+    let key = positionKey(of: name)
     let seed = defaults.double(forKey: key)
     NSStatusBar.system.removeStatusItem(item)
     if seed > 0 { defaults.set(seed, forKey: key) }
@@ -333,7 +412,9 @@ final class MenuBarSlots {
     entries[name]?.item = nil
     entries[name]?.search = nil
     entries[name]?.anchor = nil
+    entries[name]?.unsettled = nil
     entries[name]?.attempts = 0
+    entries[name]?.gaveUpAmong = nil
   }
 
   private func scheduleChange() {
