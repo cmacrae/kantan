@@ -14,6 +14,11 @@ displays: all
 # native macOS menu bar. Uncomment to keep the bar always visible instead:
 # autohide:
 #   enabled: false
+# Over the app's menus (File, Edit, ...) the top edge shows them in the bar
+# instead, once kantan has Accessibility permission. true also asks for it,
+# false always hides the bar:
+# autohide:
+#   appMenus: true
 
 modules:
   - name: spaces

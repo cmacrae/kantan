@@ -66,7 +66,7 @@ How kantan finds native menu bar items depends on whether it has Accessibility p
 
 ### Granting Accessibility
 
-Once per launch, kantan asks for Accessibility permission when it loads a config in which any module has a `mask` (or a [focus module](../modules/focus.md#behavior) can't read the Focus database). macOS then lists kantan in *System Settings → Privacy & Security → Accessibility*. Switching it on moves masks to live positions within a second. kantan doesn't need a restart. kantan uses the permission only to read menu bar items.
+Once per launch, kantan asks for Accessibility permission when it loads a config in which any module has a `mask` (or a [focus module](../modules/focus.md#behavior) can't read the Focus database, or [`autohide.appMenus`](bar.md#app-menus) is `true`). macOS then lists kantan in *System Settings → Privacy & Security → Accessibility*. Switching it on moves masks to live positions within a second. kantan doesn't need a restart. kantan uses the permission only to read the menu bar's items and menu titles.
 
 macOS ties the permission to the binary it was granted to. A Nix rebuild that changes kantan's store path needs it granted again. kantan asks again on its next launch.
 

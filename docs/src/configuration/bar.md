@@ -14,7 +14,7 @@ Top-level configuration options control the status bar's appearance and behavior
 | `cornerRadius` | number | no | `0` | Corner radius of the bar background |
 | `blur` | integer | no | `0` | Background blur level (0-6). 0 disables blur. Lower values produce a more transparent tint with prominent blur; higher values produce a more opaque tint with subtle blur |
 | `gaps` | object | no | all `0` | Gaps around the bar (see below) |
-| `autohide` | object | no | enabled, 0s delay | Hover-to-hide behavior (see below). Enabled even when this key is omitted: the bar hides while the cursor rests at the very top of the screen, over the native macOS menu bar |
+| `autohide` | object | no | enabled, 0s delay | Hover-to-hide behavior (see below). Enabled even when this key is omitted: the bar hides while the cursor rests at the very top of the screen, over the native macOS menu bar. Over the app's menus, it shows those in the bar instead, once kantan has Accessibility permission |
 | `menuBarSlots` | boolean | no | `true` | Whether kantan holds room in the native menu bar for unmasked `right` modules listed after a masked one, so they keep their place among the masked ones (see [Menu Bar Masking](masking.md#unmasked-modules-between-masked-ones)). `false` keeps kantan from adding status items of its own |
 | `displays` | string/array | no | `main` | Which displays to show the bar on |
 | `theme` | string/object | no | — | Theme configuration (see below) |
@@ -145,6 +145,7 @@ autohide:
 |----------|------|---------|-------------|
 | `enabled` | boolean | `true` | Whether the bar should hide itself while the cursor is at the top of the screen |
 | `delay` | number | `0.0` | Seconds the cursor must dwell at the top edge before the bar hides, clamped to 0-5. With `delay: 0` (the default) the bar hides immediately on hover |
+| `appMenus` | boolean | unset | Whether the top edge over the app's menus shows them in the bar instead of hiding it (see [App menus](#app-menus)). Unset, it does once kantan has Accessibility permission, without asking for it. `true` also asks for the permission. `false` always hides the bar |
 
 ### How it works
 
@@ -154,6 +155,26 @@ autohide:
 4. **Reveal trigger.** Once hidden, the bar fades back in as soon as the cursor moves below the menu bar region or off the screen. There is no reveal delay.
 
 > Autohide is enabled by default: omitting the `autohide` key is equivalent to `autohide: { enabled: true, delay: 0 }`. The bar hides whenever the cursor reaches the very top of the screen, where macOS reveals its own menu bar. To keep the bar always visible, set `autohide: { enabled: false }`.
+
+### App menus
+
+You can reach the Apple menu and the app's menus (*File*, *Edit*, *View* and the rest) without the whole bar hiding.
+
+When the cursor enters the trigger zone over those menus, the modules there fade out and the menus fade in, in the bar's text font and `fg` colour. Clicks go through to the native menus. The modules come back once the cursor has left and no menu is open. Anywhere else along the top edge, the bar hides as described above. `delay` applies to both.
+
+- **Accessibility.** kantan needs the permission to read the menus. Until it has it, the whole bar hides. The menus show without a restart once it's granted.
+  - With `appMenus` unset (the default), kantan doesn't ask for the permission. If you've granted it for [masks](masking.md#granting-accessibility), the menus show.
+  - `appMenus: true` has kantan [ask for it](masking.md#granting-accessibility).
+  - `appMenus: false` always hides the whole bar, as before.
+
+  ```yaml
+  autohide:
+    appMenus: true
+  ```
+- **Modules fade by group.** Modules side by side share a group, so one reaching past the last menu fades with the others.
+- **Titles keep the native positions.** A font too wide for them is drawn smaller.
+- **Some layouts fall back to hiding the whole bar.** This happens when `gaps.top` leaves less than half of the menu bar's height under the bar. It also happens on a second display when a notch splits the menus on either display.
+- **`enabled: false` turns app menus off too.**
 
 ## Multi-Display Support
 

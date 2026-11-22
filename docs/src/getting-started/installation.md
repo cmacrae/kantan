@@ -10,7 +10,7 @@ kantan targets aarch64-darwin only (Apple Silicon Macs). It can be installed wit
 
 kantan only asks for a permission when your config uses something that needs it:
 
-- **Accessibility** — requested when kantan loads a config in which a module has a `mask`, or a `focus` module can't read the Focus database. kantan uses it only to read menu bar items. See [Granting Accessibility](../configuration/masking.md#granting-accessibility).
+- **Accessibility** — requested when kantan loads a config in which a module has a `mask`, a `focus` module can't read the Focus database, or `autohide.appMenus` is `true`. kantan uses it only to read the menu bar's items and menu titles. See [Granting Accessibility](../configuration/masking.md#granting-accessibility).
 - **Bluetooth** — requested by the `bluetooth` module the first time it reads Bluetooth state.
 - **Optional Full Disk Access** — only lets the `focus` module name the active Focus mode. kantan never asks: macOS has no prompt for it. See [Granting Full Disk Access](../modules/focus.md#granting-full-disk-access).
 
