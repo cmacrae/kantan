@@ -1,7 +1,7 @@
 import Foundation
 
-// Prints the states of the system-monitor module's preview: a quiet machine
-// and a busy one.
+// Prints the states of the system-monitor module's preview: a quiet machine,
+// a busy one, and one at its critical CPU and thermal levels.
 
 /// A state of the preview: its name and the output the plugin prints in it.
 struct PreviewState: Encodable {
@@ -39,6 +39,10 @@ let preview = [
     PreviewState(
       name: "Busy",
       output: render(sample(cpu: 64, thermal: ("Fair", 1)), settings: settings, colors: colors)),
+    PreviewState(
+      name: "Critical",
+      output: render(
+        sample(cpu: 93, thermal: ("Critical", 3)), settings: settings, colors: colors)),
   ]
 ]
 print(String(decoding: try encoder.encode(preview), as: UTF8.self))
