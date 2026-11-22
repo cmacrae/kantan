@@ -37,6 +37,8 @@ export const BUILT_INS = {
     states: [
       { name: "Discharging", output: { level: 78 } },
       { name: "Charging", output: { level: 42, charging: true, plugged: true } },
+      { name: "Plugged in, full", output: { level: 100, plugged: true } },
+      { name: "Low Power Mode", output: { level: 54, lowPowerMode: true } },
       { name: "Low", output: { level: 9 } },
     ],
   },
@@ -46,6 +48,8 @@ export const BUILT_INS = {
     module: { placement: "right" },
     states: [
       { name: "Fair signal", output: { connected: true, rssi: -62 } },
+      { name: "Weak signal", output: { connected: true, rssi: -82 } },
+      { name: "Personal hotspot", output: { connected: true, rssi: -50, hotspot: true } },
       { name: "Disconnected", output: { connected: false } },
     ],
   },
@@ -56,6 +60,7 @@ export const BUILT_INS = {
     states: [
       { name: "64%", output: { volume: 0.64, device: "MacBook Pro Speakers" } },
       { name: "Muted", output: { volume: 0.64, muted: true, device: "MacBook Pro Speakers" } },
+      { name: "AirPods", output: { volume: 0.4, device: "AirPods Pro" } },
     ],
   },
   bluetooth: {
@@ -64,6 +69,7 @@ export const BUILT_INS = {
     module: { placement: "right" },
     states: [
       { name: "Connected", output: { on: true, devices: [{ name: "AirPods Pro", connected: true }] } },
+      { name: "Nothing connected", output: { on: true, devices: [{ name: "AirPods Pro", connected: false }] } },
       { name: "Off", output: { on: false, devices: [] } },
     ],
   },
