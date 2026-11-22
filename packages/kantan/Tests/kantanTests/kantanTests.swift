@@ -944,10 +944,15 @@ final class LoadConfigTests {
       autohide:
         enabled: false
         delay: 0.5
+        appMenus: true
       """)
     let config = try #require(loadConfig(from: yaml))
     #expect(config.autohide.enabled == false)
     #expect(config.autohide.delay == 0.5)
+    #expect(config.autohide.appMenus == true)
+    #expect(AutohideConfig.default.appMenus == nil)
+    let unset = try #require(loadConfig(from: try Yaml.load("autohide: {delay: 0.5}")))
+    #expect(unset.autohide.appMenus == nil)
   }
 }
 

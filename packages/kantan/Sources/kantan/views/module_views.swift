@@ -200,11 +200,12 @@ class PassthroughHoverReaderView: NSView {
     ].compactMap { $0 }
   }
 
-  /// Whether `window` is on screen and not faded out. A panel kantan hides,
-  /// such as a masked module's while its menu bar item is gone, keeps its
-  /// last frame.
+  /// Whether `window` is on screen and neither it nor its content is faded
+  /// out. A panel kantan hides, such as a masked module's while its menu bar
+  /// item is gone, keeps its last frame, and one under the app menus keeps
+  /// its opacity.
   static func isShown(_ window: NSWindow) -> Bool {
-    window.isVisible && window.alphaValue > 0
+    window.isVisible && window.alphaValue > 0 && (window.contentView?.alphaValue ?? 1) > 0
   }
 
   private func pointerMoved(pressed: Bool) {

@@ -49,6 +49,10 @@ struct GapsConfig: Sendable {
 struct AutohideConfig: Codable, Sendable {
   let enabled: Bool
   let delay: Double
+  /// Whether the top edge over the app menus shows them in the bar rather
+  /// than hiding it: `true` asks for the Accessibility permission this
+  /// needs, and nil shows them only once kantan has it.
+  var appMenus: Bool? = nil
 
   static let `default` = AutohideConfig(enabled: true, delay: 0.0)
 }
@@ -940,7 +944,8 @@ func loadConfig(from yaml: Yaml, configDir: String? = nil) -> Config? {
     let enable = autohideYaml["enabled"]?.bool ?? true
     let delay = Double(
       yamlCGFloat(autohideYaml["delay"], max: 5, fallback: CGFloat(AutohideConfig.default.delay)))
-    autohide = AutohideConfig(enabled: enable, delay: delay)
+    autohide = AutohideConfig(
+      enabled: enable, delay: delay, appMenus: autohideYaml["appMenus"]?.bool)
   } else {
     autohide = AutohideConfig.default
   }

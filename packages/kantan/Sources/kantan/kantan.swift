@@ -252,12 +252,23 @@ class DisplayInstance {
   private let config: Config
   /// The slots that hold unmasked modules' places in the native menu bar.
   private let slots: MenuBarSlots?
+  /// Reads the app menus, when the config has the bar show them.
+  private let appMenuReader: AppMenuReader?
+  private var appMenus: AppMenusReveal?
+  /// Whether the pointer's rest at the top edge waits on the menus' read.
+  private var awaitsAppMenus = false
+  /// How near the top of the screen the pointer has the app menus read ahead.
+  static let appMenusReadAheadDistance: CGFloat = 120
 
-  init(screenName: String, barHeight: CGFloat, config: Config, slots: MenuBarSlots? = nil) {
+  init(
+    screenName: String, barHeight: CGFloat, config: Config, slots: MenuBarSlots? = nil,
+    appMenuReader: AppMenuReader? = nil
+  ) {
     self.screenName = screenName
     self.barHeight = barHeight
     self.config = config
     self.slots = slots
+    self.appMenuReader = appMenuReader
   }
 
   /// `nil` displays means show everywhere.
@@ -675,6 +686,7 @@ class DisplayInstance {
     }
 
     createGlowPanel(on: screen, theme: theme, level: moduleGroupLevel)
+    createAppMenus(theme: theme, level: NSWindow.Level(rawValue: moduleGroupLevel.rawValue + 1))
     updateDrawerClickPanels()
   }
 
@@ -808,6 +820,9 @@ class DisplayInstance {
   /// None are made while the bar is slid out for the native menu bar, which
   /// they would cover.
   func updateDrawerClickPanels() {
+    // Run however this returns, so new and moved panels under the app menus
+    // are covered before a click can land on them.
+    defer { appMenus?.update() }
     for panel in drawerClickPanels { panel.orderOut(nil) }
     drawerClickPanels.removeAll()
     guard !isMenuBarShowing else { return }
@@ -1300,12 +1315,15 @@ class DisplayInstance {
 
     let atTopEdge = inTriggerZone && !enteredFromAbove
 
-    if !isMenuBarShowing && atTopEdge {
+    if onScreen && mouseY >= screenTop - Self.appMenusReadAheadDistance {
+      appMenuReader?.refreshIfStale()
+    }
+
+    if !isMenuBarShowing && atTopEdge && appMenus?.isShowing != true {
       if !isHoveringTopEdge {
         isHoveringTopEdge = true
         if autohideConfig.delay <= 0 {
-          isMenuBarShowing = true
-          slideOut()
+          yieldToMenuBar(at: mouseLocation)
         } else {
           autohideDelayTimer?.invalidate()
           autohideDelayTimer = Timer.scheduledTimer(
@@ -1313,8 +1331,7 @@ class DisplayInstance {
           ) { [weak self] _ in
             MainActor.assumeIsolated {
               guard let self = self, self.isHoveringTopEdge else { return }
-              self.isMenuBarShowing = true
-              self.slideOut()
+              self.yieldToMenuBar(at: NSEvent.mouseLocation)
             }
           }
         }
@@ -1322,6 +1339,7 @@ class DisplayInstance {
     } else if !atTopEdge {
       if isHoveringTopEdge {
         isHoveringTopEdge = false
+        awaitsAppMenus = false
         autohideDelayTimer?.invalidate()
         autohideDelayTimer = nil
       }
@@ -1333,6 +1351,60 @@ class DisplayInstance {
   }
 
   // MARK: - Slide Animation
+
+  /// Gives way to the menu bar under the pointer at the top edge: to the app
+  /// menus alone when it's over them, and by sliding out otherwise.
+  private func yieldToMenuBar(at point: NSPoint) {
+    switch appMenus?.reveal(at: point) ?? .menuBar {
+    case .menus:
+      barViewModel?.popupManager.dismissPopup()
+      barViewModel?.popupManager.hideTooltip()
+    case .pending:
+      awaitsAppMenus = true
+    case .menuBar:
+      isMenuBarShowing = true
+      slideOut()
+    }
+  }
+
+  private func createAppMenus(theme: ThemeProvider, level: NSWindow.Level) {
+    guard let appMenuReader else { return }
+    appMenus = AppMenusReveal(
+      reader: appMenuReader, theme: theme, level: level,
+      screen: { [weak self] in self?.resolveScreen() },
+      barFrame: { [weak self] in self?.bgPanel?.frame },
+      coverable: { [weak self] in
+        guard let self else { return [] }
+        return self.groupPanels.map { $0.panel }.filter { $0.isVisible } + self.drawerClickPanels
+      },
+      onCover: { [weak self] in self?.endHover(in: $0) },
+      onHide: { [weak self] in
+        guard let self else { return }
+        // The pointer may rest at the top edge beside the menus, where the
+        // bar slides out, and no move may follow to say so.
+        self.isHoveringTopEdge = false
+        self.checkMenuBar(
+          mouseLocation: NSEvent.mouseLocation, autohideConfig: self.config.autohide)
+      })
+  }
+
+  /// Ends the hover of the modules in panels that stop taking the mouse,
+  /// which are never told the pointer left.
+  private func endHover(in panels: [NSPanel]) {
+    for entry in groupPanels where panels.contains(entry.panel) {
+      for module in entry.group.modules where module.isHovered {
+        module.isHovered = false
+      }
+    }
+  }
+
+  /// Follows a read of the app menus.
+  func appMenusChanged() {
+    appMenus?.update()
+    guard awaitsAppMenus else { return }
+    awaitsAppMenus = false
+    if isHoveringTopEdge { yieldToMenuBar(at: NSEvent.mouseLocation) }
+  }
 
   /// All panels that should be visible: excludes drawer-content panels when
   /// their side is closed, and masked panels with nothing to cover.
@@ -1399,6 +1471,8 @@ class DisplayInstance {
   func teardown() {
     autohideDelayTimer?.invalidate()
     autohideDelayTimer = nil
+    appMenus?.teardown()
+    appMenus = nil
     bgColorCancellable?.cancel()
     bgColorCancellable = nil
     themedBackgroundView = nil
@@ -1424,6 +1498,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
   var displayInstances: [DisplayInstance] = []
   /// Kept across config reloads, so a slot both configs have stays put.
   let menuBarSlots = MenuBarSlots()
+  let appMenuReader = AppMenuReader()
   var barViewModel: BarViewModel?
   var themeProvider: ThemeProvider?
   var config: Config?
@@ -1522,7 +1597,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     for screen in targetScreens {
       let instance = DisplayInstance(
         screenName: screen.localizedName, barHeight: barHeight, config: config,
-        slots: menuBarSlots)
+        slots: menuBarSlots, appMenuReader: appMenuReader(for: config))
       instance.createPanels(for: screen, bar: bar, theme: theme)
       displayInstances.append(instance)
     }
@@ -1596,6 +1671,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     updateModuleSuspension()
     restartRepositionTimer()
     startMenuBarAccessibility(for: config)
+    startAppMenus(for: config)
 
     if autohideConfig.enabled {
       startMenuBarMonitoring()
@@ -1616,14 +1692,33 @@ class AppDelegate: NSObject, NSApplicationDelegate {
       MenuBarAccessibility.isNeeded(
         by: config.modules, fullDiskAccess: FullDiskAccess.isGranted)
     else { return }
-    if !requestedAccessibility {
-      requestedAccessibility = true
-      MenuBarAccessibility.requestAccess()
-    }
+    requestAccessibility()
     MenuBarAccessibility.shared.start { [weak self] in
       DispatchQueue.main.async {
         MainActor.assumeIsolated { self?.repositionAllDisplays() }
       }
+    }
+  }
+
+  private func requestAccessibility() {
+    guard !requestedAccessibility else { return }
+    requestedAccessibility = true
+    MenuBarAccessibility.requestAccess()
+  }
+
+  /// The reader of the app menus, for a config whose bar can show them.
+  private func appMenuReader(for config: Config) -> AppMenuReader? {
+    config.autohide.enabled && config.autohide.appMenus != false ? appMenuReader : nil
+  }
+
+  /// Reads the app menus when the config can show them. Only a config that
+  /// sets `appMenus` asks for the Accessibility permission they need; the
+  /// reader reads nothing until kantan has it.
+  private func startAppMenus(for config: Config) {
+    guard let reader = appMenuReader(for: config) else { return }
+    if config.autohide.appMenus == true { requestAccessibility() }
+    reader.start { [weak self] in
+      self?.displayInstances.forEach { $0.appMenusChanged() }
     }
   }
 
@@ -1632,6 +1727,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     barViewModel?.popupManager.dismissPopup()
     barViewModel?.popupManager.hideTooltip()
     MenuBarAccessibility.shared.stop()
+    appMenuReader.stop()
     stopMenuBarMonitoring()
     stopTuckMonitoring()
     repositionTimer?.invalidate()
@@ -1686,7 +1782,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     for screen in targetScreens where diff.toAdd.contains(screen.localizedName) {
       let instance = DisplayInstance(
         screenName: screen.localizedName, barHeight: barHeight, config: config,
-        slots: menuBarSlots)
+        slots: menuBarSlots, appMenuReader: appMenuReader(for: config))
       // A display added later shows the drawers as the others do.
       instance.leftDrawerOpen = bar.leftDrawerOpen
       instance.rightDrawerOpen = bar.rightDrawerOpen

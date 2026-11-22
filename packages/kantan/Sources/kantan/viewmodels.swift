@@ -1112,8 +1112,13 @@ class ThemeProvider: ObservableObject {
     return base.swiftUIFont
   }
 
+  /// The font of text without one of its own.
+  var globalTextFont: FontConfig {
+    config.textFont ?? defaultTextFontConfig
+  }
+
   func textFont(for vm: ModuleViewModel) -> Font {
-    let fontConfig = vm.moduleConfig.textFont ?? config.textFont ?? defaultTextFontConfig
+    let fontConfig = vm.moduleConfig.textFont ?? globalTextFont
     return fontConfig.swiftUIFont
   }
 
