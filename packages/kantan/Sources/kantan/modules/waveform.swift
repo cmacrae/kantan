@@ -924,9 +924,15 @@ enum AudioSource {
     let helper =
       (property(process, kAudioProcessPropertyBundleID, "" as CFString) as String?)
       ?? NSRunningApplication(processIdentifier: pid)?.bundleIdentifier
-    // A helper may itself be started by a helper.
+    // A helper may itself be started by a helper. Apps are matched whole, as
+    // one that replaced its process image with `exec` can report -1 as its
+    // process identifier.
     for _ in 0..<4 {
-      if let app = running.first(where: { $0.processIdentifier == pid }) { return app }
+      if let player = NSRunningApplication(processIdentifier: pid),
+        let app = running.first(where: { $0 == player })
+      {
+        return app
+      }
       guard let started = parent(of: pid) else { break }
       pid = started
     }
