@@ -33,7 +33,12 @@ export const BUILT_INS = {
   power: {
     label: "Battery",
     icon: "battery-3",
-    module: { placement: "right" },
+    module: {
+      placement: "right",
+      config: {
+        style: { charging: "{theme(yellow)}", plugged: "{theme(green)}", low: "{theme(red)}", lowPowerMode: "{theme(peach)}" },
+      },
+    },
     states: [
       { name: "Discharging", output: { level: 78 } },
       { name: "Charging", output: { level: 42, charging: true, plugged: true } },
