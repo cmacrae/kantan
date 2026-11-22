@@ -137,19 +137,12 @@ final class AppMenuReader {
     if isFirst || changed { onChange?() }
   }
 
-  /// The process whose menus the menu bar shows. `NSRunningApplication`
-  /// reports some running apps' identifiers as -1, though looking one up by
-  /// its real identifier still finds it.
+  /// The process whose menus the menu bar shows.
   private static func menuBarOwner() -> pid_t? {
-    guard let app = NSWorkspace.shared.menuBarOwningApplication else { return nil }
-    let pid = app.processIdentifier
-    if pid > 0 { return pid == ProcessInfo.processInfo.processIdentifier ? nil : pid }
-    // Room for processes started between counting and listing them.
-    var pids = [pid_t](repeating: 0, count: Int(proc_listallpids(nil, 0)) + 64)
-    let count = proc_listallpids(&pids, Int32(pids.count * MemoryLayout<pid_t>.stride))
-    return pids.prefix(max(Int(count), 0)).first {
-      $0 > 0 && NSRunningApplication(processIdentifier: $0)?.isEqual(app) == true
-    }
+    guard let pid = NSWorkspace.shared.menuBarOwningApplication?.resolvedProcessIdentifier,
+      pid != ProcessInfo.processInfo.processIdentifier
+    else { return nil }
+    return pid
   }
 
   /// An app's menus, or nil when it doesn't answer or has none on screen.

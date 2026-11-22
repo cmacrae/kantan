@@ -1,6 +1,21 @@
 import AppKit
 import ApplicationServices
 
+extension NSRunningApplication {
+  /// The app's process identifier. `processIdentifier` is -1 for an app that
+  /// replaced its process image with `exec` and registered again before this
+  /// process first saw it, though a lookup by its real identifier finds it.
+  var resolvedProcessIdentifier: pid_t? {
+    if processIdentifier > 0 { return processIdentifier }
+    // Room for processes started between counting and listing them.
+    var pids = [pid_t](repeating: 0, count: Int(proc_listallpids(nil, 0)) + 64)
+    let count = proc_listallpids(&pids, Int32(pids.count * MemoryLayout<pid_t>.stride))
+    return pids.prefix(max(Int(count), 0)).first {
+      $0 > 0 && NSRunningApplication(processIdentifier: $0)?.isEqual(self) == true
+    }
+  }
+}
+
 /// A status item as the Accessibility API reports it.
 struct AccessibleMenuBarItem: Equatable, Sendable {
   /// Global frame in CG coordinates (origin at the primary display's top-left).
@@ -32,6 +47,10 @@ final class MenuBarAccessibility: @unchecked Sendable {
   static let refreshInterval: TimeInterval = 1
   /// Longest wait for one app's reply, so an unresponsive app can't stall a read.
   static let messagingTimeout: Float = 0.25
+  /// How far from its display's top an item in the menu bar can start.
+  /// macOS reports one it hasn't placed across the bottom edge of the main
+  /// display, where its middle can fall on the display below.
+  static let menuBarTopRange: ClosedRange<CGFloat> = -2...40
 
   /// Control Centre identifiers of system items whose Accessibility name
   /// differs from them other than by case.
@@ -125,9 +144,9 @@ final class MenuBarAccessibility: @unchecked Sendable {
     // system-wide element, it also covers the elements read from each app.
     AXUIElementSetMessagingTimeout(AXUIElementCreateSystemWide(), messagingTimeout)
     var result: [AccessibleMenuBarItem] = []
-    for app in NSWorkspace.shared.runningApplications
-    where app.activationPolicy != .prohibited && app.processIdentifier != ownPID {
-      let application = AXUIElementCreateApplication(app.processIdentifier)
+    for app in NSWorkspace.shared.runningApplications where app.activationPolicy != .prohibited {
+      guard let pid = app.resolvedProcessIdentifier, pid != ownPID else { continue }
+      let application = AXUIElementCreateApplication(pid)
       AXUIElementSetMessagingTimeout(application, messagingTimeout)
       guard let menuBar = element(application, kAXExtrasMenuBarAttribute) else { continue }
       let executable = app.executableURL?.lastPathComponent
@@ -191,7 +210,8 @@ final class MenuBarAccessibility: @unchecked Sendable {
   /// The items shown on a screen, right to left (index 0 = rightmost), each
   /// spanning its full slot. Every display's menu bar shows the same items
   /// at the same distance from its right edge, so items reported on another
-  /// display are moved across. Screen frames are in AppKit coordinates.
+  /// display are moved across. Items outside every menu bar are left out.
+  /// Screen frames are in AppKit coordinates.
   static func items(
     from accessible: [AccessibleMenuBarItem],
     screenFrame: NSRect,
@@ -209,7 +229,8 @@ final class MenuBarAccessibility: @unchecked Sendable {
       guard
         let source = cgScreens.first(where: {
           $0.contains(CGPoint(x: item.frame.midX, y: item.frame.midY))
-        })
+        }),
+        menuBarTopRange.contains(item.frame.minY - source.minY)
       else { return nil }
       var slot = item.frame
       slot.origin.x += screenFrame.maxX - source.maxX

@@ -1604,11 +1604,16 @@ final class MenuBarAccessibilityTests {
     #expect(resolve("rift", in: items)?.cgRect.minX == (1150 + secondary.maxX - screen.maxX))
   }
 
-  @Test func testItemsOffEveryScreenAreDropped() {
+  @Test func testItemsOutsideEveryMenuBarAreDropped() {
     let offscreen = AccessibleMenuBarItem(
       frame: CGRect(x: -500, y: 0, width: 22, height: 33), identifier: nil, owner: "Ghost",
       appNames: ["Ghost"], isMenuBarAgentItem: false)
     #expect(layout([offscreen]).isEmpty)
+    let unplaced = AccessibleMenuBarItem(
+      frame: CGRect(x: 7, y: 970, width: 24, height: 24), identifier: nil, owner: "Ghost",
+      appNames: ["Ghost"], isMenuBarAgentItem: false)
+    let below = NSRect(x: 0, y: -1080, width: 1920, height: 1080)
+    #expect(layout([unplaced], screens: [screen, below]).isEmpty)
   }
 
   @Test func testControlCentreIdentifierForName() {
