@@ -27,6 +27,7 @@ func main() {
 		{"Paused", State{Mode: "work", StartedAt: now - worked, PausedAt: now, Duration: settings.WorkDuration}},
 		{"Short break", State{Mode: "short_break", StartedAt: now - rested, Duration: settings.ShortBreak, Sessions: 1}},
 		{"Break paused", State{Mode: "short_break", StartedAt: now - rested, PausedAt: now, Duration: settings.ShortBreak, Sessions: 1}},
+		{"Long break", State{Mode: "long_break", StartedAt: now - rested, Duration: settings.LongBreak, Sessions: settings.LongBreakInterval}},
 	}
 
 	preview := []map[string]any{}
