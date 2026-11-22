@@ -4,7 +4,7 @@ import { readFileSync } from "node:fs";
 import { test } from "node:test";
 import { NODE_FIELDS, NODE_TYPES, decodeJsonView, loadConfig, loadTheme, resolveBar, validateDocument } from "../../engine/index.js";
 import { SLOTS, readScheme, schemeFileName, schemeTheme, withSharedTheme } from "../base16.js";
-import { BUILT_INS, inVariant, pluginOf, variantOf } from "../catalog.js";
+import { BUILT_INS, inVariant, kindIcon, pluginOf, variantOf } from "../catalog.js";
 import { bindSettings } from "../settings.js";
 import {
   addBuiltIn, addPasted, addPlugin, addShared, boundDocument, emptyDocument, inLayout, layoutOf, modulesOf, toDir, toSingle, updateModule, placeAtEdge, placeModule,
@@ -71,6 +71,13 @@ test("adding a module gives it a name of its own and its starting states", () =>
   document = addPlugin(document, "caffeine", catalog);
   assert.equal(pluginOf(modulesOf(document)[2], catalog), "caffeine");
   assert.deepEqual(document.states.caffeine, catalog.plugins.caffeine.states);
+});
+
+test("a module is shown by its bundled plugin's icon, else its type's", () => {
+  const icon = name => kindIcon(modulesOf(everything()).find(module => module.name === name), catalog);
+  assert.equal(icon("power"), BUILT_INS.power.icon);
+  assert.equal(icon("command"), BUILT_INS.command.icon);
+  assert.equal(icon("caffeine"), "mug");
 });
 
 test("either layout draws the same bar", () => {

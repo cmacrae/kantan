@@ -131,6 +131,25 @@ export const PLUGIN_ABOUT = {
   tailscale: "Tailscale status",
 };
 
+// The icon that stands for each bundled plugin.
+export const PLUGIN_ICONS = {
+  caffeine: "mug",
+  calendar: "calendar-event",
+  "now-playing": "music",
+  pomodoro: "alarm",
+  reminders: "bell",
+  "rift-indicator": "layout-board-split",
+  "system-monitor": "activity",
+  tailscale: "network",
+};
+
+// The icon that stands for what a module is: its bundled plugin's, or its
+// type's.
+export function kindIcon(module, catalog) {
+  const plugin = pluginOf(module, catalog);
+  return (plugin !== undefined && PLUGIN_ICONS[plugin]) || BUILT_INS[str(module?.type)]?.icon || "puzzle";
+}
+
 // The bundled plugin behind a module: the one its command runs, or
 // undefined when the command is someone's own.
 export function pluginOf(module, catalog) {

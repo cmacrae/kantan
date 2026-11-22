@@ -3,7 +3,7 @@
 // few people change are folded under Advanced, and the module's YAML is a
 // tab over.
 import { useEffect, useState } from "react";
-import { BUILT_INS, pluginOf } from "../../builder/catalog.js";
+import { BUILT_INS, kindIcon, pluginOf } from "../../builder/catalog.js";
 import { placementParts, withPlacement } from "../../builder/edit.js";
 import { ADVANCED, CLICKS, CLOCK_FORMATS, QUICK, labelOf } from "../../builder/labels.js";
 import { configSchema, deref, getIn, prune, setIn } from "../../builder/schema.js";
@@ -457,7 +457,7 @@ export function ModuleEditor({ module, drawn, accepted, masked, taken, states, s
   return (
     <>
       <h2>
-        <Ic name={BUILT_INS[module.type]?.icon ?? "puzzle"} />
+        <Ic name={kindIcon(module, catalog)} />
         <span>{module.name} · {kindOf(module, catalog)}</span>
         {onShare && <Button kind="plain" icon="share" onClick={onShare}>Share</Button>}
         <Button kind="plain" icon="trash" onClick={onRemove}>Remove</Button>

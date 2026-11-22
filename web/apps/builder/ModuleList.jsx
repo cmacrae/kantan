@@ -1,7 +1,7 @@
 // The bar's modules where they're drawn, for picking one to edit, moving
 // it, removing it, or adding another beside it.
 import { useState } from "react";
-import { BUILT_INS } from "../../builder/catalog.js";
+import { kindIcon } from "../../builder/catalog.js";
 import { placementParts } from "../../builder/edit.js";
 import { Button, Ic, useBuilder } from "./ui.jsx";
 
@@ -16,7 +16,7 @@ import { Button, Ic, useBuilder } from "./ui.jsx";
 export const SECONDARY = { left: "Left", right: "Right", center: "Centre" };
 
 export function ModuleList({ modules, sections, accepted, selected, onSelect, onPlace, onPlaceIn, onAdd, onRemove }) {
-  const { icons } = useBuilder();
+  const { icons, catalog } = useBuilder();
   const [dragged, setDragged] = useState();
   const [over, setOver] = useState();
   const end = () => { setDragged(undefined); setOver(undefined); };
@@ -34,7 +34,7 @@ export function ModuleList({ modules, sections, accepted, selected, onSelect, on
       <li key={index} className={`kb-item ${selected === index ? "on" : ""} ${over === index && dragged !== index ? "over" : ""}`}
         draggable={!section.fixed} onClick={() => onSelect(index)} onDragEnd={end} {...drop}
         onDragStart={event => { setDragged(index); event.dataTransfer.effectAllowed = "move"; event.dataTransfer.setData("text/plain", String(index)); }}>
-        <span className="kb-glyph"><Ic name={icons(module?.icon ?? "") ? module.icon : BUILT_INS[module?.type]?.icon ?? "puzzle"} size={16} /></span>
+        <span className="kb-glyph"><Ic name={icons(module?.icon ?? "") ? module.icon : kindIcon(module, catalog)} size={16} /></span>
         <span className="name">{module?.name ?? "(no name)"}</span>
         {secondary !== undefined && (
           <span className="pill" title={`Without a notch: ${SECONDARY[secondary].toLowerCase()}`}>{SECONDARY[secondary]}</span>
