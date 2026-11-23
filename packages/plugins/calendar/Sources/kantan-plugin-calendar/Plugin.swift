@@ -275,14 +275,22 @@ func isAttended(status: EKEventStatus, participation: EKParticipantStatus?) -> B
   status != .canceled && participation != .declined
 }
 
-func fetchEvents(store: EKEventStore, calendars: [EKCalendar], from start: Date, to end: Date)
+/// The events of `calendars` in any of `spans`, each once. EventKit reads
+/// at most four years at a time, so each span is read on its own.
+func fetchEvents(store: EKEventStore, calendars: [EKCalendar], in spans: [DateInterval])
   -> [CalendarEvent]
 {
-  let predicate = store.predicateForEvents(withStart: start, end: end, calendars: calendars)
-  let events = store.events(matching: predicate).filter { event in
-    isAttended(
-      status: event.status,
-      participation: event.attendees?.first(where: \.isCurrentUser)?.participantStatus)
+  var seen = Set<String>()
+  let events = spans.flatMap { span in
+    store.events(
+      matching: store.predicateForEvents(
+        withStart: span.start, end: span.end, calendars: calendars))
+  }.filter { event in
+    seen.insert("\(event.calendarItemIdentifier)\n\(event.startDate.timeIntervalSince1970)")
+      .inserted
+      && isAttended(
+        status: event.status,
+        participation: event.attendees?.first(where: \.isCurrentUser)?.participantStatus)
   }
 
   return events.map { event in
@@ -482,20 +490,21 @@ func currentOutput(
   }
   let calendar = Calendar.current
   let todayStart = calendar.startOfDay(for: now)
-  var start = todayStart
-  var end = calendar.date(byAdding: .day, value: 2, to: todayStart)!
+  var spans = [
+    DateInterval(start: todayStart, end: calendar.date(byAdding: .day, value: 2, to: todayStart)!)
+  ]
   // The full calendar also shows the month's events, and the picked day's.
   let state = settings.mode == .full ? loadViewState() : ViewState()
   if settings.mode == .full {
     let month = state.shownMonth(at: now)
     let selected = state.selectedDay(at: now)
-    start = min(start, month, selected)
-    end = max(
-      end, calendar.date(byAdding: .month, value: 1, to: month)!,
-      calendar.date(byAdding: .day, value: 1, to: selected)!)
+    spans += [
+      DateInterval(start: month, end: calendar.date(byAdding: .month, value: 1, to: month)!),
+      DateInterval(start: selected, end: calendar.date(byAdding: .day, value: 1, to: selected)!),
+    ]
   }
   return render(
-    events: fetchEvents(store: store, calendars: calendars, from: start, to: end),
+    events: fetchEvents(store: store, calendars: calendars, in: spans),
     settings: settings, now: now, state: state, module: module)
 }
 
