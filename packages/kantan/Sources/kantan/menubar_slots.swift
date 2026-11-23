@@ -195,12 +195,15 @@ final class MenuBarSlots {
     prunePositions()
   }
 
-  /// Drops the positions kept under names no slot's item has.
+  /// Drops the positions kept under names no slot's item has, and the
+  /// names kept for slots the config no longer has.
   private func prunePositions() {
-    let current = Set(slots.map { positionKey(of: $0.name) })
+    let current = Set(slots.map { positionKey(of: $0.name) } + slots.map { nameKey(of: $0.name) })
     for key in defaults.dictionaryRepresentation().keys
-    where key.hasPrefix("NSStatusItem Preferred Position slot-") && !current.contains(key) {
-      defaults.removeObject(forKey: key)
+    where key.hasPrefix("NSStatusItem Preferred Position slot-")
+      || key.hasPrefix(nameKey(of: "slot-"))
+    {
+      if !current.contains(key) { defaults.removeObject(forKey: key) }
     }
   }
 
