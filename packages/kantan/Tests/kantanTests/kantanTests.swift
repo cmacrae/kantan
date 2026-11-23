@@ -506,6 +506,15 @@ final class CommandTemplateTests {
     }
   }
 
+  @Test func testAURLCommandNeverRunsInTheShell() {
+    #expect(
+      commandAction(for: "https://example.com/a") == .open(URL(string: "https://example.com/a")!))
+    #expect(commandAction(for: "open -a Mail") == .run("open -a Mail"))
+    for unparsed in ["ssh://a:b;touch$IFS/tmp/P", "http://1.2.3.4:x;touch$IFS/tmp/P;"] {
+      #expect(commandAction(for: unparsed) == .ignore, "\(unparsed)")
+    }
+  }
+
   @Test func testAnEmptyBareValueLeavesNothing() {
     #expect(resolver.resolveCommand("cmd {empty} --x {id}") == "cmd  --x 'x-1'")
   }

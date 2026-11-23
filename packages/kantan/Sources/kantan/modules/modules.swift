@@ -467,26 +467,46 @@ func shellSingleQuoteEscaped(_ value: String) -> String {
   value.replacingOccurrences(of: "'", with: #"'\''"#, options: .literal)
 }
 
-/// Run a command asynchronously (fire-and-forget).
-/// If the command matches a URL scheme (e.g. "calshow:123", "https://..."),
-/// it is opened via NSWorkspace. Otherwise it is executed as a shell command,
-/// with `environment` added to kantan's own.
-func runCommand(_ command: String, environment: [String: String] = [:]) {
+/// What running a command does with it.
+enum CommandAction: Equatable {
+  /// Opens it as a URL.
+  case open(URL)
+  /// Runs it with `/bin/sh -c`.
+  case run(String)
+  /// Nothing: it has a URL's shape and isn't one.
+  case ignore
+}
+
+/// What running `command` does. A command with a URL's shape (e.g.
+/// "calshow:123", "https://...") is opened and never reaches the shell,
+/// whether or not it parses as a URL.
+func commandAction(for command: String) -> CommandAction {
   let trimmed = command.trimmingCharacters(in: .whitespaces)
-  if isURLCommand(trimmed), let url = URL(string: trimmed) {
+  guard isURLCommand(trimmed) else { return .run(command) }
+  return URL(string: trimmed).map { .open($0) } ?? .ignore
+}
+
+/// Run a command asynchronously (fire-and-forget): a URL is opened via
+/// NSWorkspace, and anything else is executed as a shell command, with
+/// `environment` added to kantan's own.
+func runCommand(_ command: String, environment: [String: String] = [:]) {
+  switch commandAction(for: command) {
+  case .open(let url):
     DispatchQueue.main.async {
       NSWorkspace.shared.open(url)
     }
-    return
-  }
-  DispatchQueue.global(qos: .userInitiated).async {
-    let process = Process()
-    process.executableURL = URL(fileURLWithPath: "/bin/sh")
-    process.arguments = ["-c", command]
-    process.environment = ProcessInfo.processInfo.environment.merging(environment) { $1 }
-    process.standardOutput = FileHandle.nullDevice
-    process.standardError = FileHandle.nullDevice
-    try? process.run()
+  case .run(let command):
+    DispatchQueue.global(qos: .userInitiated).async {
+      let process = Process()
+      process.executableURL = URL(fileURLWithPath: "/bin/sh")
+      process.arguments = ["-c", command]
+      process.environment = ProcessInfo.processInfo.environment.merging(environment) { $1 }
+      process.standardOutput = FileHandle.nullDevice
+      process.standardError = FileHandle.nullDevice
+      try? process.run()
+    }
+  case .ignore:
+    break
   }
 }
 
