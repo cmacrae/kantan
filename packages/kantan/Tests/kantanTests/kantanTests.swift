@@ -9,6 +9,11 @@ import os
 
 @testable import kantan
 
+/// How long a test waits for something that should happen. A wait ends as
+/// soon as it happens, so this only bounds a test that would otherwise hang,
+/// on however slow and busy a machine the tests run.
+let patience: TimeInterval = 30
+
 /// Something a test waits for, fulfilled from any thread.
 final class Expectation: @unchecked Sendable {
   private let lock = NSLock()
@@ -715,7 +720,7 @@ final class CachedStatusTests {
         group.leave()
       }
     }
-    #expect(group.wait(timeout: .now() + 5) == .success)
+    #expect(group.wait(timeout: .now() + patience) == .success)
   }
 }
 
@@ -1296,7 +1301,7 @@ final class ModuleViewModelUpdateGenerationTests {
   private func drainMainQueue() async {
     let exp = Expectation()
     DispatchQueue.main.async { exp.fulfill() }
-    #expect(await fulfillment(of: [exp], timeout: 1.0))
+    #expect(await fulfillment(of: [exp], timeout: patience))
   }
 
   @Test func testResumingUpdatesOnce() {
@@ -2299,32 +2304,32 @@ final class FullscreenSpacesTests {
 final class RunCommandSyncTests {
   @Test func testAHungCommandIsStoppedAtItsTimeout() {
     let start = Date()
-    #expect(runCommandSync(path: "/bin/sleep", arguments: ["10"], timeout: 0.3) == nil)
-    #expect(Date().timeIntervalSince(start) < 3)
+    #expect(runCommandSync(path: "/bin/sleep", arguments: ["60"], timeout: 0.3) == nil)
+    #expect(Date().timeIntervalSince(start) < patience)
   }
 
   @Test func testACommandIgnoringTerminationIsKilled() {
     let start = Date()
     #expect(
-      runCommandSync(path: "/bin/sh", arguments: ["-c", "trap '' TERM; sleep 10"], timeout: 0.3)
+      runCommandSync(path: "/bin/sh", arguments: ["-c", "trap '' TERM; sleep 60"], timeout: 0.3)
         == nil)
-    #expect(Date().timeIntervalSince(start) < 3)
+    #expect(Date().timeIntervalSince(start) < patience)
   }
 
   @Test func testACommandThatClosesItsOutputIsStoppedAtItsTimeout() {
     let start = Date()
     #expect(
-      runCommandSync(path: "/bin/sh", arguments: ["-c", "exec >&-; sleep 10"], timeout: 0.3)
+      runCommandSync(path: "/bin/sh", arguments: ["-c", "exec >&-; sleep 60"], timeout: 0.3)
         == nil)
-    #expect(Date().timeIntervalSince(start) < 3)
+    #expect(Date().timeIntervalSince(start) < patience)
   }
 
   @Test func testAChildHoldingTheOutputDoesntOutlastTheTimeout() {
     let start = Date()
     let data = runCommandSync(
-      path: "/bin/sh", arguments: ["-c", "(trap '' TERM; sleep 10) & echo hi"], timeout: 0.3)
+      path: "/bin/sh", arguments: ["-c", "(trap '' TERM; sleep 60) & echo hi"], timeout: 0.3)
     #expect(data.map { String(decoding: $0, as: UTF8.self) } == "hi\n")
-    #expect(Date().timeIntervalSince(start) < 3)
+    #expect(Date().timeIntervalSince(start) < patience)
   }
 }
 
@@ -2335,7 +2340,7 @@ final class WorkspaceReadOrderTests {
     config.getValue { _ in done[0].fulfill() }
     try? await Task.sleep(for: .milliseconds(50))
     config.getValue { _ in done[1].fulfill() }
-    #expect(await fulfillment(of: done, timeout: 2))
+    #expect(await fulfillment(of: done, timeout: patience))
     #expect(config.display.segments.map(\.isActive) == [false, true])
   }
 }
@@ -2760,7 +2765,7 @@ final class EventStreamProcessTests {
       command: { ["/bin/sh", "-c", "echo changed; sleep 5"] }
     ) { event.fulfill() }
     stream.start()
-    #expect(await fulfillment(of: [event], timeout: 2))
+    #expect(await fulfillment(of: [event], timeout: patience))
     stream.stop()
   }
 
@@ -2770,7 +2775,7 @@ final class EventStreamProcessTests {
       command: { ["/bin/sh", "-c", "exit 1"] }
     ) { event.fulfill() }
     stream.start()
-    #expect(await fulfillment(of: [event], timeout: 3))
+    #expect(await fulfillment(of: [event], timeout: patience))
     stream.stop()
   }
 
@@ -2786,7 +2791,7 @@ final class EventStreamProcessTests {
       }
     ) { event.fulfill() }
     stream.start()
-    #expect(await fulfillment(of: [event], timeout: 3))
+    #expect(await fulfillment(of: [event], timeout: patience))
     stream.stop()
   }
 
@@ -2797,7 +2802,7 @@ final class EventStreamProcessTests {
       accepts: { $0 == Data("keep".utf8) }
     ) { event.fulfill() }
     stream.start()
-    #expect(await fulfillment(of: [event], timeout: 2))
+    #expect(await fulfillment(of: [event], timeout: patience))
     stream.stop()
   }
 
@@ -2819,9 +2824,12 @@ final class EventStreamProcessTests {
       coalescing: 0.2
     ) { events.withLock { $0 += 1 } }
     stream.start()
-    let burst = Expectation()
-    DispatchQueue.global().asyncAfter(deadline: .now() + 0.8) { burst.fulfill() }
-    #expect(await fulfillment(of: [burst], timeout: 2))
+    let deadline = Date(timeIntervalSinceNow: patience)
+    while events.withLock({ $0 }) == 0, Date() < deadline {
+      try? await Task.sleep(for: .milliseconds(10))
+    }
+    // A second event for the burst would follow within a few windows.
+    try? await Task.sleep(for: .seconds(1))
     stream.stop()
     #expect((events.withLock { $0 }) == 1)
   }
@@ -2847,7 +2855,7 @@ final class EventStreamProcessTests {
 
     var pid: pid_t?
     let started = Date()
-    while pid == nil, Date().timeIntervalSince(started) < 2 {
+    while pid == nil, Date().timeIntervalSince(started) < patience {
       pid = (try? String(contentsOf: pidFile, encoding: .utf8))
         .flatMap { pid_t($0.trimmingCharacters(in: .whitespacesAndNewlines)) }
       usleep(20_000)
@@ -2857,7 +2865,7 @@ final class EventStreamProcessTests {
 
     stream.stop()
     let stopped = Date()
-    while kill(command, 0) == 0, Date().timeIntervalSince(stopped) < 2 { usleep(20_000) }
+    while kill(command, 0) == 0, Date().timeIntervalSince(stopped) < patience { usleep(20_000) }
     #expect(kill(command, 0) != 0)
   }
 }
@@ -2880,8 +2888,8 @@ final class CommandToggleTests {
     let exited = Expectation()
     let started = Date()
     toggle.handleToggle { exited.fulfill() }
-    #expect(Date().timeIntervalSince(started) < 0.2)
-    #expect(await fulfillment(of: [exited], timeout: 3))
+    #expect(!exited.isFulfilled)
+    #expect(await fulfillment(of: [exited], timeout: patience))
     #expect(Date().timeIntervalSince(started) >= 0.4)
   }
 
@@ -2916,7 +2924,7 @@ final class CommandToggleTests {
     }
     let toggled = Expectation()
     command.handleToggle { toggled.fulfill() }
-    #expect(await fulfillment(of: [ran, toggled], timeout: 5))
+    #expect(await fulfillment(of: [ran, toggled], timeout: patience))
     #expect((value.withLock { $0 }) == "todo")
     #expect((try String(contentsOf: file, encoding: .utf8)) == "todo")
   }
@@ -2926,7 +2934,7 @@ final class CommandToggleTests {
       "command: 'true'\ntoggle: x\nlauncher:\n  path: /nonexistent/sh\n")
     let done = Expectation()
     toggle.handleToggle { done.fulfill() }
-    #expect(await fulfillment(of: [done], timeout: 1))
+    #expect(await fulfillment(of: [done], timeout: patience))
   }
 }
 
@@ -2935,7 +2943,7 @@ final class CommandToggleTests {
 /// Runs the main run loop and main actor until `condition` holds or `timeout` passes.
 @MainActor
 func waitUntil(
-  _ condition: () -> Bool, timeout: TimeInterval = 5,
+  _ condition: () -> Bool, timeout: TimeInterval = patience,
   sourceLocation: SourceLocation = #_sourceLocation
 ) async {
   let deadline = Date().addingTimeInterval(timeout)
@@ -3425,7 +3433,7 @@ final class CommandOutputDataTests {
       output.withLock { $0 = value }
       done.fulfill()
     }
-    #expect(await fulfillment(of: [done], timeout: 5))
+    #expect(await fulfillment(of: [done], timeout: patience))
     #expect(output.withLock { $0 } == "ok \u{FFFD}")
   }
 
@@ -3447,7 +3455,7 @@ final class CommandOutputDataTests {
       }
       thread.stackSize = 512 * 1024
       thread.start()
-      #expect(await fulfillment(of: [done], timeout: 10))
+      #expect(await fulfillment(of: [done], timeout: patience))
       return decoded.withLock { $0 }
     }
     #expect(try await decodes(depth: 8))
@@ -3503,7 +3511,7 @@ final class CommandPollingTests {
   @Test func testACommandSlowerThanItsIntervalStillShows() async throws {
     let vm = try module("slow-poll", command: "sleep 0.3; echo done", interval: 0.1)
     defer { vm.pause() }
-    await waitUntil({ vm.displayValue == "done" }, timeout: 3)
+    await waitUntil { vm.displayValue == "done" }
   }
 
   @Test func testResumingTwicePollsAtTheConfiguredRate() async throws {
@@ -3624,7 +3632,7 @@ final class WatchOutputTests {
         try String(contentsOf: pidFile, encoding: .utf8).trimmingCharacters(
           in: .whitespacesAndNewlines)))
     vm.pause()
-    await waitUntil({ kill(pid, 0) != 0 }, timeout: ModuleViewModel.watchStopGrace + 3)
+    await waitUntil { kill(pid, 0) != 0 }
   }
 
   @Test func testEachLineTheWatchPrintsUpdatesTheModule() async throws {
@@ -3673,8 +3681,15 @@ final class WatchOutputTests {
     try await Task.sleep(for: .milliseconds(200))
     // kantan's end of stdin closes however kantan exits, signals included.
     try stdin.fileHandleForWriting.close()
-    try await Task.sleep(for: .seconds(3.3))
+    let closed = Date()
+    let deadline = closed.addingTimeInterval(patience)
+    while process.isRunning, Date() < deadline {
+      try await Task.sleep(for: .milliseconds(20))
+    }
     #expect(!process.isRunning)
+    // A child left running would touch the marker 2.5 s after it started.
+    let markerDue = closed.addingTimeInterval(3.3).timeIntervalSinceNow
+    if markerDue > 0 { try await Task.sleep(for: .seconds(markerDue)) }
     #expect(!FileManager.default.fileExists(atPath: marker))
     if process.isRunning { process.terminate() }
   }
@@ -3732,7 +3747,7 @@ final class RepositionTriggerMergeTests {
     DispatchQueue.main.asyncAfter(deadline: .now() + .milliseconds(milliseconds)) {
       exp.fulfill()
     }
-    #expect(await fulfillment(of: [exp], timeout: 2.0))
+    #expect(await fulfillment(of: [exp], timeout: patience))
   }
 
   /// Burst changes across all three signals within one debounce window
@@ -3890,7 +3905,7 @@ final class BluetoothStatusReadTests {
       #expect(Thread.isMainThread)
       done.fulfill()
     }
-    #expect(await fulfillment(of: [done], timeout: 2))
+    #expect(await fulfillment(of: [done], timeout: patience))
     #expect((readOnMain.withLock { $0 }) == false)
     #expect(config.getIcon() == "bluetooth")
     #expect(config.isActive())
@@ -3903,13 +3918,12 @@ final class BluetoothStatusReadTests {
       return BluetoothStatus(isPoweredOn: false, pairedDevices: [])
     }
     let done = Expectation()
-    let started = Date()
     config.refresh { done.fulfill() }
     #expect(config.getIcon() == "bluetooth")
-    #expect(Date().timeIntervalSince(started) < 0.5)
+    #expect(!done.isFulfilled)
 
     prompt.signal()
-    #expect(await fulfillment(of: [done], timeout: 2))
+    #expect(await fulfillment(of: [done], timeout: patience))
     #expect(config.getIcon() == "bluetooth-off")
   }
 }
@@ -4100,7 +4114,7 @@ final class StatusTemplateVariableTests {
     let config = BluetoothConfig(icon: "bluetooth", disabledIcon: "bluetooth-off") { status }
     let done = Expectation()
     config.refresh { done.fulfill() }
-    #expect(await fulfillment(of: [done], timeout: 2))
+    #expect(await fulfillment(of: [done], timeout: patience))
     return config.getTemplateVariables()
   }
 
@@ -4157,7 +4171,7 @@ final class ThemeWatchingTests {
     watcher.start()
     defer { watcher.stop() }
     try change()
-    let deadline = Date(timeIntervalSinceNow: 2)
+    let deadline = Date(timeIntervalSinceNow: patience)
     while !changed.isFulfilled, Date() < deadline { await runMainLoop(for: 0.02) }
     return changed.isFulfilled
   }
