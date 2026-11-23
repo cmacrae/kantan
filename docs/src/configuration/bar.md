@@ -30,7 +30,7 @@ fonts:
   icon: "system:Font Awesome 6 Free:Solid:14"
 ```
 
-The font descriptor format is `Name:Weight:Size`, `Name:Size` (weight defaults to regular), or just `Name` (weight defaults to regular, size defaults to 14). Fonts are looked up by name among the fonts installed on the system and those bundled with kantan.
+The font descriptor format is `Name:Weight:Size`, `Name:Size` (weight defaults to regular), or just `Name` (weight defaults to regular, size defaults to 14). A size outside 1 to 512 points is read as 14. Fonts are looked up by name among the fonts installed on the system and those bundled with kantan.
 
 Prefix a descriptor with `system:` to mark it as a system-installed font. kantan loads its bundled icon fonts for an icon font without the prefix. A global icon font with the prefix stops kantan loading them unless a module's icon font needs them (see [Icons](icons.md#custom-icon-fonts)).
 

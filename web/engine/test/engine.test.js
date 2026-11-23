@@ -302,6 +302,11 @@ test("a waveform is no larger than a bar could hold", () => {
   assert.deepEqual(waveform.load({}).width, 40);
 });
 
+test("a font size a bar couldn't draw is the default", () => {
+  for (const size of ["1e30", "0", "-4", "513", "Infinity"]) assert.equal(parseFont(`Menlo:bold:${size}`).size, 14, size);
+  assert.equal(parseFont("tabler-icons:512").size, 512);
+});
+
 // The names every object inherits, which no document defines.
 const INHERITED = ["constructor", "toString", "__proto__", "hasOwnProperty", "valueOf"];
 

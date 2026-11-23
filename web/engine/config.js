@@ -19,11 +19,12 @@ export function parseFont(raw) {
   const parts = (system ? raw.slice("system:".length) : raw).split(":");
   const number = text => (text.trim() !== "" && Number.isFinite(Number(text)) ? Number(text) : undefined);
   const sizeOnly = parts.length === 2 ? number(parts[1]) : undefined;
+  const size = parts.length === 2 ? sizeOnly : parts.length > 2 ? number(parts[2]) : undefined;
   return {
     name: parts[0],
     system,
     weight: parts.length > 1 && sizeOnly === undefined ? own(WEIGHTS, parts[1].toLowerCase()) ?? 400 : 400,
-    size: parts.length === 2 ? sizeOnly ?? 14 : parts.length > 2 ? number(parts[2]) ?? 14 : 14,
+    size: size >= 1 && size <= 512 ? size : 14,
   };
 }
 

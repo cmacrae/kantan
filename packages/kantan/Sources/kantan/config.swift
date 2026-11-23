@@ -208,19 +208,28 @@ struct FontConfig: Codable {
     if components.count == 2 {
       // Two components: could be Name:Weight or Name:Size.
       // If the second parses as a number it is the size, not a weight.
-      if Double(components[1]) != nil { return .regular }
+      if Self.number(components[1]) != nil { return .regular }
     }
     return Self.parseWeight(components[1]) ?? .regular
   }
 
+  /// The font's size in points: the one given when it is from 1 to 512,
+  /// otherwise the default.
   var size: CGFloat {
+    let given: Double?
     if components.count == 2 {
       // Two components: second may be a size (Name:Size) or a weight (Name:Weight).
-      if let s = Double(components[1]) { return CGFloat(s) }
-      return Self.defaultSize
+      given = Self.number(components[1])
+    } else {
+      given = components.count > 2 ? Self.number(components[2]) : nil
     }
-    guard components.count > 2 else { return Self.defaultSize }
-    return Double(components[2]).map { CGFloat($0) } ?? Self.defaultSize
+    guard let given, (1...512).contains(given) else { return Self.defaultSize }
+    return CGFloat(given)
+  }
+
+  /// `text` as a finite number, or nil.
+  private static func number(_ text: String) -> Double? {
+    Double(text).flatMap { $0.isFinite ? $0 : nil }
   }
 
   var symbolicTraits: NSFontDescriptor.SymbolicTraits {

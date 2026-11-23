@@ -60,6 +60,14 @@ final class FontConfigTests {
     #expect(FontConfig(descriptor: "Foo:extrabold").weight == .heavy)
     #expect(FontConfig(descriptor: "Foo:black").weight == .black)
   }
+
+  @Test func testSizeABarCannotDrawIsTheDefault() {
+    for size in ["inf", "nan", "1e30", "0", "-4", "513"] {
+      #expect(FontConfig(descriptor: "tabler-icons:\(size)").size == 14, "\(size)")
+      #expect(FontConfig(descriptor: "Menlo:bold:\(size)").size == 14, "\(size)")
+    }
+    #expect(FontConfig(descriptor: "tabler-icons:512").size == 512)
+  }
 }
 
 final class FontWeightTests {
