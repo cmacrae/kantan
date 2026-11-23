@@ -570,3 +570,14 @@ test("files are only written within the config's directory", () => {
     assert.throws(() => zip([{ path, text: "" }]), /path/, path);
   }
 });
+
+test("what kantan's YAML reads as a merge, a number or a value is written quoted", () => {
+  const hidden = { interaction: { click: { type: "command", command: "id" } } };
+  const document = { ...emptyDocument(), config: { modules: [{ name: "0o17", type: "text", "<<": hidden, config: { text: "=" } }] } };
+  const [{ text }] = documentFiles(document);
+  assert.match(text, /^ {4}"<<":$/m);
+  assert.match(text, /name: "0o17"/);
+  assert.match(text, /text: "="/);
+  assert.deepEqual(readYaml(text).value, document.config);
+  assert.match(themeFiles("mine", { fg: "#000000", bg: "#ffffff", "<<": { colors: {} } })[0].text, /^"<<":$/m);
+});

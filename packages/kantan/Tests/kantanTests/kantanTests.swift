@@ -291,6 +291,14 @@ final class YamlTests {
     #expect(try Yaml.load("height: .inf\n")["height"].int == nil)
   }
 
+  @Test func testAQuotedMergeKeyNumberOrValueIsAString() throws {
+    let yaml = try Yaml.load("\"<<\":\n  click: x\nname: \"0o17\"\ntext: \"=\"\n")
+    #expect(yaml["click"].string == nil)
+    #expect(yaml["<<"]["click"].string == "x")
+    #expect(yaml["name"].string == "0o17")
+    #expect(yaml["text"].string == "=")
+  }
+
   @Test func testSettingsJSONCannotHoldIsDropped() throws {
     let config = try CommandConfig(
       yaml: try Yaml.load("command: echo\nsettings:\n  limit: .inf\n"))

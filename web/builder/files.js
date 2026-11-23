@@ -1,6 +1,6 @@
 // A document's config as the YAML files kantan reads, and a YAML file
 // someone wrote as the value kantan would load from it.
-import { parse, stringify } from "yaml";
+import { Document, parse, visit } from "yaml";
 import { dict, list } from "../engine/values.js";
 import { nameProblem, selectedThemes, themeKind } from "./theme.js";
 
@@ -20,10 +20,26 @@ function ordered(value, keys) {
 
 const orderedModule = module => ordered(module, MODULE_KEYS);
 
+// The strings kantan's parser reads as something else that YAML 1.1 leaves
+// plain: `<<`, which as a key merges its mapping into the one around it,
+// `=`, and an octal number written with `0o`.
+const READ_AS_ANOTHER = /^(<<|=|[-+]?0o[0-7_]+)$/;
+
 // YAML for `value` that kantan reads back as the same value. Its parser
 // takes more plain words for numbers than YAML 1.2 does, so strings are
-// quoted wherever YAML 1.1 would read them as anything else.
-const write = value => stringify(value, { version: "1.1", lineWidth: 0, aliasDuplicateObjects: false });
+// quoted wherever YAML 1.1 would read them as anything else, keys
+// included, and wherever kantan's parser would. A `<<` is a string like
+// any other here, and never a merge.
+const withoutMerge = tags => tags.filter(tag => tag.tag !== "tag:yaml.org,2002:merge");
+function write(value) {
+  const document = new Document(value, { version: "1.1", aliasDuplicateObjects: false, customTags: withoutMerge });
+  visit(document, {
+    Scalar(_, scalar) {
+      if (typeof scalar.value === "string" && READ_AS_ANOTHER.test(scalar.value)) scalar.type = "QUOTE_DOUBLE";
+    },
+  });
+  return document.toString({ lineWidth: 0 });
+}
 
 const orderedPalette = palette => ordered(palette, PALETTE_KEYS);
 
