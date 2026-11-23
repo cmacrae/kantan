@@ -155,7 +155,7 @@ struct CommandConfig: ModuleConfiguration {
   }
 
   private static func shellQuote(_ s: String) -> String {
-    "'" + s.replacingOccurrences(of: "'", with: "'\\''") + "'"
+    "'" + shellSingleQuoteEscaped(s) + "'"
   }
 
   var redrawInterval: TimeInterval { interval }

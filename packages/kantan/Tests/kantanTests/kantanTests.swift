@@ -493,6 +493,19 @@ final class CommandTemplateTests {
     }
   }
 
+  @Test func testAQuoteStaysEscapedWithACombiningMarkAfterIt() throws {
+    for mark in ["\u{301}", "\u{FE0F}"] {
+      for (template, value) in [
+        ("printf '[%s]' {v}", "a'\(mark); echo pwned; #"),
+        ("printf '[%s]' '{v}'", "a'\(mark); echo pwned; #"),
+        (#"printf '[%s]' "{v}""#, "a\"\(mark); echo pwned; #"),
+      ] {
+        let r = TemplateResolver(variables: ["v": value], data: [:])
+        #expect((try shell(r.resolveCommand(template))) == "[\(value)]", "\(template)")
+      }
+    }
+  }
+
   @Test func testAnEmptyBareValueLeavesNothing() {
     #expect(resolver.resolveCommand("cmd {empty} --x {id}") == "cmd  --x 'x-1'")
   }

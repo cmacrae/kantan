@@ -106,13 +106,16 @@ class TemplateResolver {
     }
     return substitute(template) { quote, value in
       switch quote {
-      case "'": value.replacingOccurrences(of: "'", with: #"'\''"#)
+      case "'": shellSingleQuoteEscaped(value)
       case "\"":
-        value.reduce(into: "") { escaped, char in
-          if "\\\"$`".contains(char) { escaped.append("\\") }
-          escaped.append(char)
-        }
-      default: value.isEmpty ? "" : "'" + value.replacingOccurrences(of: "'", with: #"'\''"#) + "'"
+        // By scalar: a quote with a combining mark after it is one
+        // character to Swift, and still a quote to the shell.
+        String(
+          value.unicodeScalars.reduce(into: String.UnicodeScalarView()) { escaped, scalar in
+            if "\\\"$`".unicodeScalars.contains(scalar) { escaped.append("\\") }
+            escaped.append(scalar)
+          })
+      default: value.isEmpty ? "" : "'" + shellSingleQuoteEscaped(value) + "'"
       }
     }
   }

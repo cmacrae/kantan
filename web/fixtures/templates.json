@@ -57,6 +57,16 @@
     ]
   },
   {
+    "name": "a quote stays escaped with a combining mark after it",
+    "variables": { "single": "a'\u0301; touch P; #", "double": "a\"\u0301; touch P; #", "selector": "a'\ufe0f; touch P; #" },
+    "checks": [
+      { "command": "echo {single}", "expect": "echo 'a'\\''\u0301; touch P; #'" },
+      { "command": "echo '{single}'", "expect": "echo 'a'\\''\u0301; touch P; #'" },
+      { "command": "echo \"{double}\"", "expect": "echo \"a\\\"\u0301; touch P; #\"" },
+      { "command": "echo {selector}", "expect": "echo 'a'\\''\ufe0f; touch P; #'" }
+    ]
+  },
+  {
     "name": "a URL command's values are percent-encoded",
     "variables": { "id": "a b&c=d/e?f#g+h", "accent": "café" },
     "checks": [

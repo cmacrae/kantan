@@ -460,6 +460,13 @@ func isURLCommand(_ command: String) -> Bool {
     && !command.contains(" ")
 }
 
+/// `value` for inside a shell's single quotes: each `'` closes them, adds
+/// an escaped quote and opens them again. The match is literal, as a quote
+/// with a combining mark after it is still a quote to the shell.
+func shellSingleQuoteEscaped(_ value: String) -> String {
+  value.replacingOccurrences(of: "'", with: #"'\''"#, options: .literal)
+}
+
 /// Run a command asynchronously (fire-and-forget).
 /// If the command matches a URL scheme (e.g. "calshow:123", "https://..."),
 /// it is opened via NSWorkspace. Otherwise it is executed as a shell command,
