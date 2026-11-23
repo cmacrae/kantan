@@ -192,6 +192,12 @@ kantan takes the native menu bar's place, so it shows where that would show and 
 - **Drawers.** One opened or closed while the bar is hidden shows that way once it's back.
 - **Setting changes** apply straight away.
 
+### App menus in fullscreen
+
+On a fullscreen app's space, the bar shows the Apple menu and the app's menus whenever it shows, in place of the modules where they go, as the native menu bar does. A workspace module, which has no workspaces to show there, gives way to them.
+
+This needs what [App menus](#app-menus) needs: Accessibility permission, and `autohide` with `appMenus` left unset or `true`. Without it, the modules stay.
+
 ## Multi-Display Support
 
 The `displays` option controls which connected displays show the kantan bar:
