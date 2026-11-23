@@ -7,7 +7,7 @@ import { SLOTS, readScheme, schemeFileName, schemeTheme, withSharedTheme } from 
 import { BUILT_INS, inVariant, kindIcon, pluginOf, variantOf } from "../catalog.js";
 import { bindSettings } from "../settings.js";
 import {
-  addBuiltIn, addPasted, addPlugin, addShared, boundDocument, emptyDocument, inLayout, layoutOf, modulesOf, toDir, toSingle, updateModule, placeAtEdge, placeModule,
+  addBuiltIn, addPasted, addPlugin, addShared, boundDocument, documentCommands, emptyDocument, inLayout, layoutOf, modulesOf, toDir, toSingle, updateModule, placeAtEdge, placeModule,
 } from "../edit.js";
 import { documentFiles, readYaml, themeFiles, variantsYaml } from "../files.js";
 import { themeVariants } from "../shared.js";
@@ -600,4 +600,48 @@ test("a state naming a setting that isn't written as one is drawn as it is", () 
   };
   assert.equal(boundDocument(document, catalog).states.x[0].name, "a");
   assert.equal(describeNode({ type: "text", content: "{setting(%)}" }), "settings.%");
+});
+
+test("a document's commands are every one its config has kantan run", () => {
+  const view = {
+    type: "vstack",
+    children: [
+      { type: "action", label: "Open", command: "open -a Mail" },
+      { type: "foreach", items: "rows", child: { type: "check", label: "{title}", command: "tick {id}", uncheckedCommand: "untick {id}" } },
+      { type: "if", condition: "on", then: { type: "button", label: "Stop", command: "stop" }, else: { type: "text", content: "off" } },
+    ],
+  };
+  const document = {
+    ...emptyDocument(),
+    config: {
+      modules: [
+        { name: "mail", type: "command", config: { command: "count-mail", watch: "watch-mail", toggle: "toggle-mail", launcher: { path: "/bin/zsh", args: ["-c"] } }, interaction: { click: { type: "menu", view } } },
+        { name: "clock", type: "clock", config: { format: "HH:mm" }, interaction: { hover: { type: "tooltip", view: { type: "button", command: "hover-run" } } } },
+        { name: "plain", type: "text", config: { value: "hi", command: "" } },
+        null,
+      ],
+    },
+    modulesDir: { "10-extra.yaml": { name: "extra", type: "command", config: { command: "from-a-file" } }, "notes.txt": { name: "unread", type: "command", config: { command: "not-loaded" } } },
+    // A state's view is what the plugin prints, not what the config runs.
+    states: { mail: [{ name: "s", output: { view: { type: "action", command: "printed-by-the-plugin" } } }] },
+  };
+  assert.deepEqual(documentCommands(document), [
+    { module: "mail", where: "command", command: "count-mail" },
+    { module: "mail", where: "watch", command: "watch-mail" },
+    { module: "mail", where: "toggle", command: "toggle-mail" },
+    { module: "mail", where: "launcher", command: "/bin/zsh -c" },
+    { module: "mail", where: "click", command: "open -a Mail" },
+    { module: "mail", where: "click", command: "tick {id}" },
+    { module: "mail", where: "click", command: "untick {id}" },
+    { module: "mail", where: "click", command: "stop" },
+    { module: "clock", where: "hover", command: "hover-run" },
+    { module: "extra", where: "command", command: "from-a-file" },
+  ]);
+  assert.deepEqual(documentCommands(emptyDocument()), []);
+
+  // A view nested deeper than a call stack is walked all the same.
+  let deep = { type: "action", command: "deep" };
+  for (let i = 0; i < 20_000; i++) deep = { type: "group", children: [deep] };
+  const nested = { ...emptyDocument(), config: { modules: [{ name: "m", type: "text", interaction: { click: { view: deep } } }] } };
+  assert.deepEqual(documentCommands(nested), [{ module: "m", where: "click", command: "deep" }]);
 });

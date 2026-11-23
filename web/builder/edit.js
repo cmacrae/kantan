@@ -24,6 +24,49 @@ export function modulesOf(document) {
   ];
 }
 
+// The commands a view as a config writes it runs, in the order written.
+// It is walked without recursion, as a view from a link nests as deep as
+// its sender likes.
+function viewCommands(view) {
+  const found = [];
+  const pending = [view];
+  while (pending.length) {
+    const node = pending.pop();
+    if (Array.isArray(node)) {
+      for (let i = node.length - 1; i >= 0; i--) pending.push(node[i]);
+    } else if (dict(node)) {
+      for (const key of ["command", "uncheckedCommand"]) if (typeof node[key] === "string") found.push(node[key]);
+      const within = Object.values(node);
+      for (let i = within.length - 1; i >= 0; i--) pending.push(within[i]);
+    }
+  }
+  return found;
+}
+
+// Every command the document's config has kantan run, each `{ module,
+// where, command }`: a command module's `command`, `watch` and `toggle`
+// and the `launcher` that runs them, and the commands in the views its
+// modules open on a `click` or a `hover`. What a plugin prints isn't the
+// config's, so a state's view isn't among them.
+export function documentCommands(document) {
+  const found = [];
+  for (const module of modulesOf(document)) {
+    if (!dict(module)) continue;
+    const name = str(module.name) ?? "";
+    const add = (where, command) => {
+      if (typeof command === "string" && command.trim() !== "") found.push({ module: name, where, command });
+    };
+    const config = dict(module.config) ?? {};
+    for (const key of ["command", "watch", "toggle"]) add(key, config[key]);
+    const launcher = dict(config.launcher);
+    if (launcher) add("launcher", [launcher.path, ...(list(launcher.args) ?? [])].filter(part => typeof part === "string").join(" "));
+    for (const slot of ["click", "hover"]) {
+      for (const command of viewCommands(dict(dict(module.interaction)?.[slot])?.view)) add(slot, command);
+    }
+  }
+  return found;
+}
+
 // Which layout a document is in: "dir" when any module is in modules.d.
 export const layoutOf = document => (yamlFiles(document.modulesDir).length ? "dir" : "single");
 

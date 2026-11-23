@@ -57,6 +57,13 @@ export const STYLES = `
 .kb-banner { max-width: 1500px; margin: 0 auto 10px; padding: 8px 12px; border-radius: 8px; border: 1px solid var(--warn); color: var(--warn); display: flex; gap: 8px; align-items: center; }
 .kb-banner span { flex: 1; }
 .kb-banner.note { border-color: var(--line); color: var(--muted); }
+.kb-banner.elsewhere { display: block; }
+.kb-banner.elsewhere p { margin: 0; }
+.kb-banner.elsewhere ul { list-style: none; margin: 8px 0 0; padding: 0; display: grid; gap: 4px; max-height: 220px; overflow-y: auto; }
+.kb-banner.elsewhere li { display: flex; gap: 8px; align-items: baseline; font-size: 12px; color: var(--fg); }
+.kb-banner.elsewhere li i { font-style: normal; color: var(--muted); }
+.kb-banner.elsewhere li code { flex: 1; min-width: 0; overflow-wrap: anywhere; font-family: 'SF Mono', Menlo, Monaco, monospace; font-size: 11.5px; }
+.kb-banner.elsewhere ul + p { margin-top: 6px; }
 
 .kb-tabs { display: none; gap: 4px; padding: 0 20px 10px; }
 .kb-tabs button { flex: 1; justify-content: center; }

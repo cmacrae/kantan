@@ -33,10 +33,10 @@ function download(name, data, type) {
 // from kantan's config directory. `layouts` are the ways they can be laid
 // out, each `[key, label]`, with `layout` the one they're in. `note` says
 // where they go, and `archive` names the ZIP file that holds them when
-// there are several.
-export function Output({ title, files, layouts = [], layout, onLayout, note, archive }) {
+// there are several. `unfolded` starts every file open.
+export function Output({ title, files, layouts = [], layout, onLayout, note, archive, unfolded = false }) {
   const single = files.length === 1;
-  const [open, setOpen] = useState(() => new Set());
+  const [open, setOpen] = useState(() => new Set(unfolded ? files.map(file => file.path) : []));
   const toggle = path => setOpen(now => {
     const next = new Set(now);
     if (!next.delete(path)) next.add(path);

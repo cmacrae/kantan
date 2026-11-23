@@ -11,7 +11,7 @@ import { loadConfig, loadTheme, resolveBar } from "../../engine/index.js";
 import { dict } from "../../engine/values.js";
 import { inVariant, pluginOf } from "../../builder/catalog.js";
 import {
-  addBuiltIn, addOwnPlugin, addPasted, addPlugin, addShared, boundDocument, documentFromConfig, emptyDocument, inLayout, isMasked, layoutOf, modulesOf, placeAtEdge, sectionOf,
+  addBuiltIn, addOwnPlugin, addPasted, addPlugin, addShared, boundDocument, documentCommands, documentFromConfig, emptyDocument, inLayout, isMasked, layoutOf, modulesOf, placeAtEdge, sectionOf,
   placeModule, removeModule, setModuleStates, toSingle, updateModule,
 } from "../../builder/edit.js";
 import { adoptSlots, importSchemes, withSharedTheme } from "../../builder/base16.js";
@@ -91,7 +91,8 @@ function inTheme(shared) {
   };
 }
 
-// What the page's address asks for: `{ document }` from a shared link,
+// What the page's address asks for: `{ document, from }` from a shared
+// link, `from` saying where the bar came from,
 // `{ shared }` from a link to one module, with the `theme` that came with
 // it and `themeLink`, the fragment that holds that theme alone,
 // `{ sharedTheme }` from a link to a theme, `{ document, source }` from a
@@ -100,7 +101,7 @@ function inTheme(shared) {
 async function fromAddress() {
   const asked = readFragment(window.location.hash);
   if (asked === undefined) return undefined;
-  if (asked.link !== undefined) return { document: await decodeLink(asked.link, catalog) };
+  if (asked.link !== undefined) return { document: await decodeLink(asked.link, catalog), from: "a link" };
   if (asked.module !== undefined) {
     const shared = await decodeModuleLink(asked.module, catalog);
     return asked.theme === undefined ? { shared } : { shared: { ...shared, theme: await decodeThemeLink(asked.theme), themeLink: asked.theme } };
@@ -108,7 +109,7 @@ async function fromAddress() {
   if (asked.theme !== undefined) return { sharedTheme: await decodeThemeLink(asked.theme) };
   const response = await fetch(asked.url);
   if (!response.ok) throw new Error(`The config couldn't be fetched: ${asked.url} answered ${response.status}`);
-  return { document: documentFromText(configText(await response.text(), asked)), source: window.location.href };
+  return { document: documentFromText(configText(await response.text(), asked)), source: window.location.href, from: "a config file someone linked to" };
 }
 
 // Every Tabler icon, once their table has loaded: `icons`, the lookup the
@@ -266,8 +267,9 @@ function Workspace({ opened, iconSet, onStart }) {
   const hinted = trying || HINTED.every(action => learned.includes(action));
   // Whether the editor below the bar is showing: the settings, the
   // modules and the config. It starts folded away, and stays as it was
-  // last left. A module the address asked for opens it.
-  const [editing, setEditingState] = useState(() => opened.pick !== undefined || remembered(EDITOR_KEY) === "open");
+  // last left. A module the address asked for opens it, and so does a bar
+  // from elsewhere, whose YAML is there to be read.
+  const [editing, setEditingState] = useState(() => opened.pick !== undefined || opened.from !== undefined || remembered(EDITOR_KEY) === "open");
   const setEditing = open => { setEditingState(open); remember(EDITOR_KEY, open ? "open" : "closed"); };
 
   // Space folds the editor away or brings it back, unless the keyboard is
@@ -579,6 +581,8 @@ function Workspace({ opened, iconSet, onStart }) {
   const barFor = appearance => resolveBar(drawnDocument, { dark: appearance, notch, icons: iconSet.icons, themes: catalog.themes, states: shown, samples });
 
   const files = useMemo(() => documentFiles(inLayout(document, layout)), [document, layout]);
+  // What the config of a bar from elsewhere has kantan run, as it is now.
+  const commands = useMemo(() => (opened.from === undefined ? [] : documentCommands(document)), [opened.from, document]);
   const themeOutput = useMemo(() => theme && themeFiles(themeName, theme, themeLayout), [themeName, theme, themeLayout]);
   const palette = config.theme?.[dark ? "dark" : "light"];
   const context = useMemo(() => ({ ...iconSet, catalog, schema, outputSchema, palette, dark }), [iconSet, palette, dark]);
@@ -836,6 +840,7 @@ function Workspace({ opened, iconSet, onStart }) {
 
       {opened.problem !== undefined && <div style={{ padding: "0 20px" }}><div className="kb-banner"><span>{opened.problem}</span></div></div>}
       {opened.note !== undefined && <div style={{ padding: "0 20px" }}><div className="kb-banner note"><span>{opened.note}</span></div></div>}
+      {opened.from !== undefined && <FromElsewhere from={opened.from} commands={commands} />}
 
       <div className="kb-tabs" role="tablist" hidden={!editing}>
         {[["modules", "Modules"], ["edit", "Edit"], ["yaml", "YAML"]].map(([key, label]) => (
@@ -887,7 +892,7 @@ function Workspace({ opened, iconSet, onStart }) {
                 )} />
             )
             : (
-              <Output title="Config" files={files} layout={layout} onLayout={setLayout} archive="kantan-config.zip"
+              <Output title="Config" files={files} layout={layout} onLayout={setLayout} archive="kantan-config.zip" unfolded={opened.from !== undefined}
                 layouts={[["single", "One config.yaml"], ["dir", "A file per module in modules.d"]]}
                 note={<>{files.length === 1 ? "Save it as" : "Unpack them into"} <code>~/.config/kantan/</code> and kantan reloads.</>} />
             )}
@@ -919,6 +924,39 @@ function Workspace({ opened, iconSet, onStart }) {
           onClose={() => setSharing(false)} />
       )}
     </BuilderContext.Provider>
+  );
+}
+
+// The most commands the notice on a bar from elsewhere lists.
+const LISTED_COMMANDS = 30;
+const COMMAND_PLACES = { command: "command", watch: "watch", toggle: "toggle", launcher: "launcher", click: "click view", hover: "hover view" };
+
+// The notice on a bar that came `from` someone else: the `commands` its
+// config has kantan run, to read before the config is saved.
+function FromElsewhere({ from, commands }) {
+  if (commands.length === 0) {
+    return (
+      <div style={{ padding: "0 20px" }}>
+        <div className="kb-banner note"><span>This bar came from {from}. Its config has no commands for kantan to run.</span></div>
+      </div>
+    );
+  }
+  const one = commands.length === 1;
+  return (
+    <div style={{ padding: "0 20px" }}>
+      <div className="kb-banner elsewhere">
+        <p>
+          This bar came from {from}. Saved as your config, kantan runs {one ? "this command" : `these ${commands.length} commands`} as you.
+          {" "}Read {one ? "it" : "them"} before you save it.
+        </p>
+        <ul>
+          {commands.slice(0, LISTED_COMMANDS).map((each, i) => (
+            <li key={i}><b>{each.module}</b><i>{COMMAND_PLACES[each.where]}</i><code>{each.command}</code></li>
+          ))}
+        </ul>
+        {commands.length > LISTED_COMMANDS && <p>And {commands.length - LISTED_COMMANDS} more, in the YAML.</p>}
+      </div>
+    </div>
   );
 }
 
