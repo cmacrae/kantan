@@ -713,11 +713,14 @@ func hostLibrary() -> URL? {
 }
 
 /// The host, ready to run with `arguments`, or nil without its library.
+/// Perl runs without the environment's Perl settings, which could load
+/// other modules or code in place of its own.
 func hostProcess(_ arguments: [String]) -> Process? {
   guard let library = hostLibrary() else { return nil }
   let process = Process()
   process.executableURL = URL(fileURLWithPath: "/usr/bin/perl")
   process.arguments = ["-MDynaLoader", "-e", hostScript, "--", library.path] + arguments
+  process.environment = ProcessInfo.processInfo.environment.filter { !$0.key.hasPrefix("PERL") }
   process.standardError = FileHandle.nullDevice
   return process
 }
