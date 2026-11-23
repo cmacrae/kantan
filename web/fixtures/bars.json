@@ -249,7 +249,7 @@
       "config": {
         "theme": "fx-clicks",
         "modules": [
-          { "name": "tooltip", "type": "command", "placement": "left", "icon": "bell", "config": { "command": "x", "output": "json" }, "interaction": { "hover": { "type": "tooltip", "content": "{status}: {value} {icon} {unknown} {theme(blue)}" } } },
+          { "name": "tooltip", "type": "command", "placement": "left", "icon": "bell", "config": { "command": "x", "output": "json" }, "interaction": { "hover": { "type": "tooltip", "content": "{status}: {value} {icon} {unknown} {theme(blue)} {a}{b}" } } },
           { "name": "default-tooltip", "type": "command", "placement": "left", "config": { "command": "x", "output": "json" }, "interaction": { "hover": {} } },
           { "name": "not-a-tooltip", "type": "command", "placement": "left", "config": { "command": "x", "output": "json" }, "interaction": { "hover": { "type": "other", "content": "x" } } },
           { "name": "toggle", "type": "command", "placement": "left", "config": { "command": "x", "output": "json", "toggle": "x --toggle" }, "interaction": { "click": { "type": "toggle" } } },
@@ -263,7 +263,7 @@
       },
       "themes": { "fx-clicks": { "fg": "#111111", "bg": "#EEEEEE", "colors": { "blue": "#0000FF" } } },
       "states": {
-        "tooltip": [{ "name": "s", "output": { "value": "val", "variables": { "status": "On" } } }],
+        "tooltip": [{ "name": "s", "output": { "value": "val", "variables": { "status": "On", "a": "{b}", "b": "{a}" } } }],
         "default-tooltip": [{ "name": "s", "output": { "value": "val" } }],
         "plugin-menu": [{ "name": "s", "output": { "value": "val", "variables": { "status": "On" }, "view": { "type": "action", "label": "{status}", "command": "run {value}" } } }],
         "config-menu": [{ "name": "s", "output": { "value": "val", "variables": { "status": "On" }, "view": { "type": "header", "content": "from the plugin" } } }]
@@ -275,7 +275,7 @@
         "expect": {
           "placements": {
             "left": [
-              { "name": "tooltip", "tooltip": { "text": "On: val bell {unknown} {theme(blue)}" }, "click": null },
+              { "name": "tooltip", "tooltip": { "text": "On: val bell {unknown} {theme(blue)} {b}{a}" }, "click": null },
               { "name": "default-tooltip", "tooltip": { "text": "val" } },
               { "name": "not-a-tooltip", "tooltip": null },
               { "name": "toggle", "tooltip": null, "click": { "type": "toggle", "command": "x --toggle" } },

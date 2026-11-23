@@ -133,19 +133,37 @@ struct StyleResolver {
 }
 
 /// `template` as a plain tooltip shows it: `{value}`, `{icon}` and each
-/// variable filled in, and any other placeholder left as written.
+/// variable filled in, and any other placeholder left as written. Each
+/// placeholder is filled once, with its value as it is: a placeholder
+/// within a value stays as written.
 func plainTooltipText(
   _ template: String, value: String?, icon: String?, variables: [String: String]
 ) -> String {
-  var result = template
-  if let value {
-    result = result.replacingOccurrences(of: "{value}", with: value)
+  var result = String.UnicodeScalarView()
+  var pending = String.UnicodeScalarView()
+  var inPlaceholder = false
+  for scalar in template.unicodeScalars {
+    if scalar == "{" {
+      result.append(contentsOf: pending)
+      pending = String.UnicodeScalarView([scalar])
+      inPlaceholder = true
+    } else if inPlaceholder && scalar == "}" {
+      let key = String(String.UnicodeScalarView(pending.dropFirst()))
+      let filled: String? =
+        key == "value" && value != nil
+        ? value
+        : key == "icon" && icon != nil
+          ? icon
+          : variables[key]
+      result.append(contentsOf: (filled ?? "{\(key)}").unicodeScalars)
+      pending = String.UnicodeScalarView()
+      inPlaceholder = false
+    } else if inPlaceholder {
+      pending.append(scalar)
+    } else {
+      result.append(scalar)
+    }
   }
-  if let icon {
-    result = result.replacingOccurrences(of: "{icon}", with: icon)
-  }
-  for (key, val) in variables {
-    result = result.replacingOccurrences(of: "{\(key)}", with: val)
-  }
-  return result
+  result.append(contentsOf: pending)
+  return String(result)
 }
