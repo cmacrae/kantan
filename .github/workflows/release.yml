@@ -71,6 +71,14 @@ jobs:
       - name: Write release notes
         run: nix develop --command cog changelog --at "$GITHUB_REF_NAME" > notes.md
 
+      # The formulae for the tap go up before the release is published, as a
+      # re-run stops at a release that's already there.
+      - uses: actions/upload-artifact@v7.0.2
+        with:
+          name: formulae
+          path: tap/Formula
+          if-no-files-found: error
+
       - name: Publish the release
         env:
           GH_TOKEN: ${{ github.token }}
@@ -79,12 +87,6 @@ jobs:
             --verify-tag \
             --title "$GITHUB_REF_NAME" \
             --notes-file notes.md
-
-      - uses: actions/upload-artifact@v7.0.2
-        with:
-          name: formulae
-          path: tap/Formula
-          if-no-files-found: error
 
   # Publishes the site with the new release's docs. A release published with
   # the workflow's token starts no other workflow, so this calls the site's.

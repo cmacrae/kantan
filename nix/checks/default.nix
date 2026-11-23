@@ -113,12 +113,12 @@ in
         grep -qE 'uses: actions/attest-build-provenance@v' .github/workflows/release.yml \
           && grep -qE 'subject-path: dist/\*' .github/workflows/release.yml \
           || { echo "release.yml must attest the release assets' provenance" >&2; exit 1; }
-        # The release checks its tag is on main and runs the checks
-        # before it publishes anything.
-        steps=$(grep -nE 'is-ancestor "\$GITHUB_SHA" origin/main|run: nix flake check|gh release create' \
+        # The release checks its tag is on main, runs the checks and
+        # uploads the formulae before it publishes anything.
+        steps=$(grep -nE 'is-ancestor "\$GITHUB_SHA" origin/main|run: nix flake check|uses: actions/upload-artifact|gh release create' \
           .github/workflows/release.yml | cut -d: -f2-)
-        if [ "$(grep -c . <<<"$steps")" -ne 3 ] || ! grep -q 'gh release create' <<<"$(tail -1 <<<"$steps")"; then
-          echo "release.yml must check the tag is on main and run the checks before publishing" >&2
+        if [ "$(grep -c . <<<"$steps")" -ne 4 ] || ! grep -q 'gh release create' <<<"$(tail -1 <<<"$steps")"; then
+          echo "release.yml must check the tag is on main, run the checks and upload the formulae before publishing" >&2
           exit 1
         fi
         touch $out
