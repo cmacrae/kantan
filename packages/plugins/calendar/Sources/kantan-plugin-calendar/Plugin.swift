@@ -430,7 +430,7 @@ struct ViewState: Codable, Equatable {
 func viewStateURL() -> URL {
   let environment = ProcessInfo.processInfo.environment
   let cache =
-    environment["XDG_CACHE_HOME"].flatMap { $0.isEmpty ? nil : URL(fileURLWithPath: $0) }
+    environment["XDG_CACHE_HOME"].flatMap { $0.hasPrefix("/") ? URL(fileURLWithPath: $0) : nil }
     ?? FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent(".cache")
   return cache.appendingPathComponent("kantan").appendingPathComponent("calendar.json")
 }

@@ -1,7 +1,11 @@
 #!/bin/sh
 set -e
 
-STATE_DIR="${XDG_CACHE_HOME:-$HOME/.cache}/kantan"
+# The cache directory XDG_CACHE_HOME names, when it is an absolute path.
+case "${XDG_CACHE_HOME:-}" in
+/*) STATE_DIR="$XDG_CACHE_HOME/kantan" ;;
+*) STATE_DIR="$HOME/.cache/kantan" ;;
+esac
 PID_FILE="$STATE_DIR/caffeine.pid"
 
 # Whether the PID file names a running caffeinate, and not another process

@@ -67,7 +67,7 @@ State only changes when the user clicks the module. The plugin uses `interval: 0
 
 The plugin is a simple shell script that wraps the macOS `caffeinate` command.
 
-**Default mode** (no arguments) --- Checks whether a background `caffeinate` process is alive by reading a PID file at `$XDG_CACHE_HOME/kantan/caffeine.pid` (falls back to `~/.cache/kantan/caffeine.pid` when `XDG_CACHE_HOME` is unset). Outputs JSON with the current `active` state and `{status}` template variable. When inactive, kantan renders the module icon at reduced opacity.
+**Default mode** (no arguments) --- Checks whether a background `caffeinate` process is alive by reading a PID file at `$XDG_CACHE_HOME/kantan/caffeine.pid` (falls back to `~/.cache/kantan/caffeine.pid` when `XDG_CACHE_HOME` is unset or not an absolute path). Outputs JSON with the current `active` state and `{status}` template variable. When inactive, kantan renders the module icon at reduced opacity.
 
 **Toggle mode** (`--toggle`) --- Flips the current state. If active, kills the `caffeinate` process and removes the PID file. If inactive, spawns `caffeinate -d` in the background and writes its PID to the state file. When `KANTAN_PID` is available, the process is started with `caffeinate -d -w $KANTAN_PID` so it automatically exits if kantan terminates.
 

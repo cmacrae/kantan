@@ -107,7 +107,7 @@ type State struct {
 }
 
 func stateDir() string {
-	if d := os.Getenv("XDG_CACHE_HOME"); d != "" {
+	if d := os.Getenv("XDG_CACHE_HOME"); filepath.IsAbs(d) {
 		return filepath.Join(d, "kantan")
 	}
 	home, _ := os.UserHomeDir()
