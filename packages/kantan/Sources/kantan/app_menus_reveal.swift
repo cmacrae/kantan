@@ -63,8 +63,14 @@ final class AppMenusReveal {
   }
 
   private(set) var isShowing = false
+  /// Whether the menus show whatever the pointer does, as the native menu
+  /// bar shows them on a fullscreen app's space.
+  private(set) var isPinned = false
   /// Whether one of the menus is open.
   private(set) var isMenuOpen = false
+  /// How near the top of the screen the pointer has pinned menus read
+  /// again; away from it, they're read as each app comes to the front.
+  static let pinnedReadDistance: CGFloat = 120
   private let reader: AppMenuReader
   private let model = AppMenusModel()
   private let cover = PanelCover()
@@ -190,12 +196,31 @@ final class AppMenusReveal {
 
   /// Follows the menus and the bar's panels as either changes.
   func update() {
-    guard isShowing, let layout = currentLayout() else { return }
-    apply(layout)
+    guard let layout = currentLayout() else { return }
+    if isShowing {
+      apply(layout)
+    } else if isPinned {
+      show(layout)
+    }
+  }
+
+  /// Shows the menus until unpinned, then leaves them to the pointer.
+  func pin(_ pinned: Bool) {
+    guard pinned != isPinned else { return }
+    isPinned = pinned
+    if pinned {
+      reader.refresh()
+      update()
+    } else {
+      lastHeld = Date()
+    }
   }
 
   private func poll() {
-    reader.refresh()
+    let point = NSEvent.mouseLocation
+    if !isPinned || (screen().map { $0.frame.maxY - point.y <= Self.pinnedReadDistance } ?? false) {
+      reader.refresh()
+    }
     guard let layout = currentLayout() else {
       // The app coming to the front has its menus read in a moment.
       if !reader.isPending { hide() }
@@ -204,7 +229,6 @@ final class AppMenusReveal {
     apply(layout)
     isMenuOpen = layout.titles.contains(where: \.isOpen)
 
-    let point = NSEvent.mouseLocation
     let x = point.x - layout.screen.minX
     let depth = layout.screen.maxY - point.y
     let inMenuBar = depth >= -1 && depth <= layout.menuBarHeight
@@ -217,7 +241,7 @@ final class AppMenusReveal {
     let overMenus =
       inMenuBar
       && x >= (layout.runs.first?.lowerBound ?? 0) && x <= (layout.runs.last?.upperBound ?? 0)
-    if overMenus || NSEvent.pressedMouseButtons != 0 || isMenuOpen {
+    if isPinned || overMenus || NSEvent.pressedMouseButtons != 0 || isMenuOpen {
       lastHeld = Date()
     } else if Date().timeIntervalSince(lastHeld) > Self.linger {
       hide()
@@ -252,6 +276,7 @@ final class AppMenusReveal {
   }
 
   func teardown() {
+    isPinned = false
     stopShowing()
     panel.orderOut(nil)
   }

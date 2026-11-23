@@ -1334,7 +1334,8 @@ class DisplayInstance {
     }
     guard autohideConfig.enabled else { return }
 
-    if !isMenuBarShowing && atTopEdge && appMenus?.isShowing != true {
+    if !isMenuBarShowing && atTopEdge && (appMenus?.isShowing != true || appMenus?.isPinned == true)
+    {
       if !isHoveringTopEdge {
         isHoveringTopEdge = true
         if autohideConfig.delay <= 0 {
@@ -1368,7 +1369,8 @@ class DisplayInstance {
   // MARK: - Native Menu Bar
 
   /// Follows the native menu bar on the space this display is on: out of
-  /// view where `hiding` has it hide.
+  /// view where `hiding` has it hide, and with the app's menus in the bar
+  /// on a fullscreen app's space, where the native menu bar has them.
   func updateSpace(hiding: NativeMenuBarHiding) {
     guard let screen = resolveScreen() else { return }
     isOnFullscreenSpace = FullscreenSpaces.isFullscreen(screen)
@@ -1387,6 +1389,7 @@ class DisplayInstance {
         slideIn()
       }
     }
+    pinAppMenus()
   }
 
   /// Takes the bar out of view with the native menu bar.
@@ -1421,6 +1424,11 @@ class DisplayInstance {
     if (!onScreen || point.y < barBottom) && !held {
       hideWithMenuBar()
     }
+  }
+
+  /// Pins the app's menus in the bar while it shows on a fullscreen app's space.
+  private func pinAppMenus() {
+    appMenus?.pin(isOnFullscreenSpace && !isMenuBarShowing)
   }
 
   // MARK: - Slide Animation
@@ -1502,6 +1510,7 @@ class DisplayInstance {
   }
 
   func slideOut() {
+    pinAppMenus()
     let panels = visiblePanels
     NSAnimationContext.runAnimationGroup(
       { context in
@@ -1539,6 +1548,7 @@ class DisplayInstance {
         panel.animator().alphaValue = 1
       }
     }
+    pinAppMenus()
   }
 
   func teardown() {
