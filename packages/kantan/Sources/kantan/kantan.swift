@@ -1885,8 +1885,13 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     updateSpaces()
   }
 
+  /// Follows a change of space or of the native menu bar's setting, and
+  /// again once the setting the change wrote has reached this process.
   @objc func menuBarSpaceDidChange(_ notification: Notification) {
     updateSpaces()
+    DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { [weak self] in
+      MainActor.assumeIsolated { self?.updateSpaces() }
+    }
   }
 
   /// Has each display's bar follow the native menu bar on its space.
