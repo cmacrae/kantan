@@ -123,7 +123,7 @@ Native macOS spaces can't be switched from the bar. macOS has no public interfac
 
 The workspace module does not poll. Updates are driven by:
 
-- **Native**: `NSWorkspace.activeSpaceDidChangeNotification` (via EventObserver)
+- **Native**: `NSWorkspace.activeSpaceDidChangeNotification` (via EventObserver) for a switch of space. macOS reports nothing when a space is added or removed in Mission Control, so kantan reads the list of spaces every 2 seconds and updates within that time
 - **Aerospace**: CLI triggers, run from AeroSpace's `exec-on-workspace-change` (see [Aerospace](#aerospace))
 - **Rift**: `workspace_changed` events from a `rift-cli subscribe mach` process kantan keeps running. Rift needs no configuration. If Rift restarts or the subscription exits, kantan relaunches the process, waiting 1s doubling to 16s between failed attempts. It resynchronises once the process is back
 

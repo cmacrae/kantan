@@ -2210,6 +2210,16 @@ final class NativeWorkspacesTests {
     #expect(workspaces.map(\.label) == ["1", "3", "5"])
   }
 
+  @Test func testTheSpacesThereAreChangeAsOneIsAddedOrRemovedAndNotOnASwitch() {
+    let two = [display(current: 1, spaces: [(1, 0), (2, 0)])]
+    let switched = [display(current: 2, spaces: [(1, 0), (2, 0)])]
+    let added = [display(current: 1, spaces: [(1, 0), (2, 0), (3, 0)])]
+    let removed = [display(current: 1, spaces: [(1, 0)])]
+    #expect(NativeWorkspaces.spaceIDs(of: two) == NativeWorkspaces.spaceIDs(of: switched))
+    #expect(NativeWorkspaces.spaceIDs(of: two) != NativeWorkspaces.spaceIDs(of: added))
+    #expect(NativeWorkspaces.spaceIDs(of: two) != NativeWorkspaces.spaceIDs(of: removed))
+  }
+
   @Test func testADisplayNamingNoCurrentSpaceUsesTheActiveOne() {
     let workspaces = NativeWorkspaces.workspaces(
       of: [display(current: nil, spaces: [(1, 0), (2, 0)])], activeSpace: 2)

@@ -236,9 +236,9 @@ extension WorkspaceProvider {
 
 // MARK: - Configuration
 
-/// Workspace module. No provider requires polling: native spaces refresh
-/// via EventObserver, aerospace via `kantan trigger` and Rift via its own
-/// event subscription.
+/// Workspace module. Its timer isn't used: native spaces refresh via
+/// EventObserver and their own read of the spaces there are, aerospace via
+/// `kantan trigger` and Rift via its own event subscription.
 final class WorkspaceConfig: ModuleConfiguration, EventDrivenModule {
   var type: String { "workspace" }
 
