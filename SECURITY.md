@@ -18,7 +18,8 @@ Reports are read and answered as soon as possible. When the fix is released, its
 
 ## Scope
 
-kantan runs the commands and plugins your config names, with your permissions. A config or plugin you chose to run doing something harmful isn't a vulnerability in kantan. These are vulnerabilities:
+kantan runs the commands and plugins your config names, with your permissions. A config or plugin you chose to run doing something harmful isn't a vulnerability in kantan. A config you download from a share link and run is one you chose. These are vulnerabilities:
 
 - kantan doing something its config didn't ask for
 - another app, website or user changing what kantan runs without your permission
+- the builder page itself running something when you open a link in it
