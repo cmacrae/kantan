@@ -194,16 +194,17 @@ private struct PlayerRequests: @unchecked Sendable {
     unsafeBitCast(class_getMethodImplementation(cls, selector), to: T.self)
   }
 
-  /// A request of the player `client` is.
+  /// A request of the player `client` is. Each init takes the object
+  /// alloc returned and returns one the caller owns.
   func request(for client: AnyObject) -> AnyObject? {
     let alloc = NSSelectorFromString("alloc")
     guard let path = (pathClass as AnyObject).perform(alloc)?.takeUnretainedValue(),
       let made = method(Self.initPath, of: pathClass, as: InitPath.self)(
-        path, Self.initPath, origin, client, nil)?.takeUnretainedValue(),
+        path, Self.initPath, origin, client, nil)?.takeRetainedValue(),
       let request = (requestClass as AnyObject).perform(alloc)?.takeUnretainedValue()
     else { return nil }
     return method(Self.initRequest, of: requestClass, as: InitRequest.self)(
-      request, Self.initRequest, made)?.takeUnretainedValue()
+      request, Self.initRequest, made)?.takeRetainedValue()
   }
 
   func isPlaying(_ request: AnyObject, then done: @escaping (Bool) -> Void) {
