@@ -529,31 +529,71 @@ func runCommandSync(path: String, arguments: [String], timeout: TimeInterval? = 
   process.executableURL = URL(fileURLWithPath: path)
   process.arguments = arguments
 
+  process.standardError = FileHandle.nullDevice
+  guard let data = runToExit(process, timeout: timeout), process.terminationStatus == 0
+  else { return nil }
+  return data
+}
+
+/// What a running command has written so far.
+private final class OutputBuffer: @unchecked Sendable {
+  private let lock = NSLock()
+  private var data = Data()
+
+  func append(_ chunk: Data) { lock.withLock { data.append(chunk) } }
+  var contents: Data { lock.withLock { data } }
+}
+
+/// Runs `process` until it exits and returns what it wrote to its standard
+/// output, or nil when it can't start. Once `timeout` passes without the
+/// output ending and the process exiting, the process's group is sent
+/// SIGTERM, then SIGKILL a second later, and reading stops.
+func runToExit(_ process: Process, timeout: TimeInterval?) -> Data? {
   let stdoutPipe = Pipe()
   process.standardOutput = stdoutPipe
-  process.standardError = FileHandle.nullDevice
+  let reader = stdoutPipe.fileHandleForReading
+  let output = OutputBuffer()
+  let ended = DispatchSemaphore(value: 0)
+  reader.readabilityHandler = { handle in
+    let chunk = handle.availableData
+    if chunk.isEmpty {
+      handle.readabilityHandler = nil
+      ended.signal()
+    } else {
+      output.append(chunk)
+    }
+  }
+
+  let exited = DispatchSemaphore(value: 0)
+  process.terminationHandler = { _ in exited.signal() }
 
   do {
     try process.run()
   } catch {
+    reader.readabilityHandler = nil
     return nil
   }
 
-  var timeoutWorkItem: DispatchWorkItem?
-  if let timeout = timeout {
-    let item = DispatchWorkItem {
-      if process.isRunning { process.terminate() }
-    }
-    DispatchQueue.global().asyncAfter(deadline: .now() + timeout, execute: item)
-    timeoutWorkItem = item
+  var outputEnded = false
+  var processExited = false
+  // Whether the output has ended and the process exited by `deadline`.
+  func finished(by deadline: DispatchTime) -> Bool {
+    if !outputEnded { outputEnded = ended.wait(timeout: deadline) == .success }
+    if !processExited { processExited = exited.wait(timeout: deadline) == .success }
+    return outputEnded && processExited
   }
 
-  let data = stdoutPipe.fileHandleForReading.readDataToEndOfFile()
+  if !finished(by: timeout.map { .now() + $0 } ?? .distantFuture) {
+    // Foundation starts each process as the leader of its own group.
+    let group = -process.processIdentifier
+    kill(group, SIGTERM)
+    if !finished(by: .now() + 1) {
+      kill(group, SIGKILL)
+    }
+    reader.readabilityHandler = nil
+  }
   process.waitUntilExit()
-  timeoutWorkItem?.cancel()
-
-  guard process.terminationStatus == 0 else { return nil }
-  return data
+  return output.contents
 }
 
 /// Splits output arriving in chunks into lines, holding back what follows

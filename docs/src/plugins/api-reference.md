@@ -393,7 +393,7 @@ See the [View DSL documentation](../view-dsl/index.md) for complete specificatio
 **Error scenarios:**
 - Non-zero exit code: The value is empty and the output's icon, segments, variables, data, style, view, `hidden` and `active` are cleared. The module shows its configured icon alone
 - Invalid JSON: The same fields are cleared and the raw stdout is shown as plain text
-- Execution timeout: The process is terminated with SIGTERM and treated as a non-zero exit
+- Execution timeout: The process and the processes it started are sent SIGTERM, then SIGKILL a second later, and it is treated as a non-zero exit
 
 kantan trims trailing newlines from stdout and discards stderr.
 

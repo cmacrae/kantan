@@ -503,31 +503,10 @@ struct CommandConfig: ModuleConfiguration {
     env["KANTAN_PID"] = "\(ProcessInfo.processInfo.processIdentifier)"
     process.environment = env
 
-    let stdoutPipe = Pipe()
-    process.standardOutput = stdoutPipe
     process.standardError = FileHandle.nullDevice
 
-    do {
-      try process.run()
-    } catch {
-      return ""
-    }
-
-    let timeoutWorkItem = DispatchWorkItem {
-      if process.isRunning {
-        process.terminate()
-      }
-    }
-    DispatchQueue.global().asyncAfter(
-      deadline: .now() + timeout,
-      execute: timeoutWorkItem
-    )
-
-    let outdata = stdoutPipe.fileHandleForReading.readDataToEndOfFile()
-    process.waitUntilExit()
-    timeoutWorkItem.cancel()
-
-    guard process.terminationStatus == 0 else {
+    guard let outdata = runToExit(process, timeout: timeout), process.terminationStatus == 0
+    else {
       return ""
     }
 

@@ -2212,6 +2212,30 @@ final class RunCommandSyncTests {
     #expect(runCommandSync(path: "/bin/sleep", arguments: ["10"], timeout: 0.3) == nil)
     #expect(Date().timeIntervalSince(start) < 3)
   }
+
+  @Test func testACommandIgnoringTerminationIsKilled() {
+    let start = Date()
+    #expect(
+      runCommandSync(path: "/bin/sh", arguments: ["-c", "trap '' TERM; sleep 10"], timeout: 0.3)
+        == nil)
+    #expect(Date().timeIntervalSince(start) < 3)
+  }
+
+  @Test func testACommandThatClosesItsOutputIsStoppedAtItsTimeout() {
+    let start = Date()
+    #expect(
+      runCommandSync(path: "/bin/sh", arguments: ["-c", "exec >&-; sleep 10"], timeout: 0.3)
+        == nil)
+    #expect(Date().timeIntervalSince(start) < 3)
+  }
+
+  @Test func testAChildHoldingTheOutputDoesntOutlastTheTimeout() {
+    let start = Date()
+    let data = runCommandSync(
+      path: "/bin/sh", arguments: ["-c", "(trap '' TERM; sleep 10) & echo hi"], timeout: 0.3)
+    #expect(data.map { String(decoding: $0, as: UTF8.self) } == "hi\n")
+    #expect(Date().timeIntervalSince(start) < 3)
+  }
 }
 
 final class WorkspaceReadOrderTests {

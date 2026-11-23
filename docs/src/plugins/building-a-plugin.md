@@ -586,7 +586,7 @@ See the built-in plugins for complete reference implementations:
 - **Non-zero exit code**: The value is empty. The output's icon, segments, variables, data, style, view, `hidden` and `active` are cleared. The module shows its configured icon alone
 - **Invalid JSON**: The same fields are cleared and the raw stdout is shown as plain text
 - **Invalid `view`**: A `view` that doesn't decode as a View DSL tree, such as one with an unknown node type, is dropped. The rest of the output still applies
-- **Timeout**: If execution exceeds configured `timeout`, kantan terminates the process with SIGTERM and treats it as a non-zero exit
+- **Timeout**: If execution exceeds configured `timeout`, kantan sends SIGTERM to the process and the processes it started, then SIGKILL a second later, and treats it as a non-zero exit
 
 For watch processes, crashes trigger automatic restart with exponential backoff.
 
