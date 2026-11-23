@@ -5,8 +5,11 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { parseHex } from "../color.js";
 import waveform from "../modules/waveform.js";
+import { parseFont } from "../config.js";
+import { nextState } from "../document.js";
+import { decodeYamlView } from "../view.js";
 import {
-  createResolver, fillTooltip, menuRows, decodeJsonView, formatDate, iconTable, ordinalSuffix, resolveBar, resolveOverlap, resolveTuck, resolveView, tuckHides,
+  createResolver, fillTooltip, menuRows, decodeJsonView, formatDate, iconTable, ordinalSuffix, resolveBar, resolveOverlap, resolveTuck, resolveThemeTemplate, resolveView, tuckHides,
   validateDocument,
 } from "../index.js";
 
@@ -297,4 +300,52 @@ test("a waveform is no larger than a bar could hold", () => {
   const { width, height } = waveform.load({ width: 1e13, height: 3e6 });
   assert.deepEqual({ width, height }, { width: 2000, height: 200 });
   assert.deepEqual(waveform.load({}).width, 40);
+});
+
+// The names every object inherits, which no document defines.
+const INHERITED = ["constructor", "toString", "__proto__", "hasOwnProperty", "valueOf"];
+
+test("a name every object inherits is a name nothing defines", () => {
+  const palette = { fg: "#111111", bg: "#222222", colors: { red: "#ff0000" } };
+  for (const name of INHERITED) {
+    const r = createResolver({ variables: {}, data: {}, scopes: [{}] });
+    assert.equal(r.resolve(`a{${name}}b`), "ab", name);
+    assert.equal(r.truthy(name), false, name);
+    assert.equal(r.resolveCommand(`{${name}}`), "", name);
+    assert.deepEqual(view({ type: "foreach", items: name, child: { type: "text", content: "x" } }), [], name);
+    const { node } = decodeJsonView({ type: "foreach", items: name, child: { type: "text", content: "x" } });
+    assert.deepEqual(menuRows(node, createResolver({}), icons), [], name);
+    assert.equal(resolveThemeTemplate(`{theme(${name})}`, palette), `{theme(${name})}`, name);
+    assert.equal(parseFont(`Menlo:${name}:12`).weight, 400, name);
+    assert.equal(nextState({ states: { clock: [{ name: "a", transitions: {} }] } }, "clock", "a", name), undefined, name);
+    assert.equal(nextState({ states: {} }, name, "a", "x"), undefined, name);
+
+    // A module by that name shows no state of its own.
+    const document = { version: 1, config: { modules: [{ name, type: "text", placement: "left", config: { value: "hello" } }] }, states: {} };
+    assert.equal(resolveBar(document).placements.left[0].name, name);
+  }
+});
+
+test("a document's odd values draw as nothing rather than failing", () => {
+  const bar = sample => resolveBar({
+    version: 1, config: { modules: [{ name: "clock", type: "clock", placement: "left", config: { format: "HH:mm" } }] },
+    states: { clock: [{ name: "a", output: sample }] },
+  });
+  for (const time of [1e20, -1e20, 8.64e15 + 1]) assert.equal(bar({ time }).placements.left.length, 1, String(time));
+
+  // A foreach over rows that aren't mappings fills nothing in.
+  const rows = view({ type: "foreach", items: "rows", child: { type: "text", content: "[{n}]" } }, { data: { rows: [null, "text", 3, { n: "1" }] } });
+  assert.deepEqual(rows.map(row => row.text), ["[]", "[]", "[]", "[1]"]);
+});
+
+test("a view nested deeper than kantan reads is left out, however it is written", () => {
+  let deep = { type: "text", content: "x" };
+  for (let i = 0; i < 5000; i++) deep = { type: "group", children: [deep] };
+  assert.equal(decodeYamlView(deep), undefined);
+  assert.match(decodeJsonView(deep).problem, /nested deeper/);
+
+  // A node with more children than a call takes arguments.
+  const wide = { type: "vstack", children: Array.from({ length: 200_000 }, () => ({ type: "divider" })) };
+  assert.equal(decodeJsonView(wide).problem, undefined);
+  assert.equal(decodeYamlView(wide).children.length, 200_000);
 });

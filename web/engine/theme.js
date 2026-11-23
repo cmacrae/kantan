@@ -1,6 +1,6 @@
 // kantan's themes: a config's `theme` picks one of the theme files by name,
 // and optionally a flavour of it, giving a palette for each appearance.
-import { dict, str } from "./values.js";
+import { dict, own, str } from "./values.js";
 
 // A palette from a theme file's mapping: `fg` and `bg`, an optional `shape`
 // and its named `colors`. Undefined without both `fg` and `bg`.
@@ -81,7 +81,7 @@ export function resolveThemeTemplate(value, palette) {
   if (name === "fg") return palette.fg;
   if (name === "bg") return palette.bg;
   if (name === "shape" && palette.shape !== undefined) return palette.shape;
-  return palette.colors[name] ?? value;
+  return own(palette.colors, name) ?? value;
 }
 
 // `input` with every `{theme(name)}` template within it resolved.

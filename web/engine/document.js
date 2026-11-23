@@ -11,7 +11,7 @@
 //   view        how the bar is being looked at: `dark` for the dark
 //               appearance, `notch` for a screen with one, and `shown`, the
 //               state each module shows, by module name
-import { dict, list } from "./values.js";
+import { dict, list, own } from "./values.js";
 
 export const DOCUMENT_VERSION = 1;
 
@@ -75,7 +75,7 @@ export function validateDocument(document) {
 // shows the state named `state`, or undefined when the command leads
 // nowhere.
 export function nextState(document, module, state, command) {
-  const states = document.states?.[module] ?? [];
+  const states = (list(own(document.states, module)) ?? []).filter(dict);
   const current = states.find(s => s.name === state) ?? states[0];
-  return current?.transitions?.[command];
+  return own(current?.transitions, command);
 }

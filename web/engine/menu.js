@@ -7,6 +7,7 @@
 // within the hstack that went into it.
 import { parseHex, viewColor } from "./color.js";
 import { resolveIcon } from "./icons.js";
+import { list, own } from "./values.js";
 import { viewBudget } from "./view.js";
 
 const MENU_FONT_SIZE = 13;
@@ -139,7 +140,7 @@ export function menuRows(node, r, icons, budget = viewBudget()) {
       }];
     }
     case "foreach":
-      return (r.data[node.items] ?? []).flatMap(element => menuRows(node.child, r.scoped(element), icons, budget));
+      return (list(own(r.data, node.items)) ?? []).flatMap(element => menuRows(node.child, r.scoped(element), icons, budget));
     case "if":
       return menuRows(r.truthy(node.condition) ? node.then : node.else, r, icons, budget);
     default:

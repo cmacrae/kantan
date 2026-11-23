@@ -4,7 +4,7 @@ import { moduleType } from "./modules/index.js";
 import { parseStyle } from "./style.js";
 import { loadTheme } from "./theme.js";
 import { parseTuck } from "./tuck.js";
-import { bool, dict, int, list, num, str } from "./values.js";
+import { bool, dict, int, list, num, own, str } from "./values.js";
 import { decodeYamlView } from "./view.js";
 
 // A font descriptor, `Name:Size` or `Name:Weight:Size`, with `system:` in
@@ -22,7 +22,7 @@ export function parseFont(raw) {
   return {
     name: parts[0],
     system,
-    weight: parts.length > 1 && sizeOnly === undefined ? WEIGHTS[parts[1].toLowerCase()] ?? 400 : 400,
+    weight: parts.length > 1 && sizeOnly === undefined ? own(WEIGHTS, parts[1].toLowerCase()) ?? 400 : 400,
     size: parts.length === 2 ? sizeOnly ?? 14 : parts.length > 2 ? number(parts[2]) ?? 14 : 14,
   };
 }

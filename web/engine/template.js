@@ -1,6 +1,8 @@
 // kantan's template resolution: `{key}` placeholders filled from foreach
 // scopes, a module's variables and the theme palette.
 
+import { own } from "./values.js";
+
 // `template` with each `{key}` placeholder replaced by
 // `replacement(key, placeholder)`. A `{` with no `}` after it is left alone.
 function replacePlaceholders(template, replacement) {
@@ -42,9 +44,11 @@ function percentEncode(value) {
 export function createResolver({ variables = {}, data = {}, theme = () => undefined, scopes = [] } = {}) {
   const lookup = key => {
     for (let i = scopes.length - 1; i >= 0; i--) {
-      if (scopes[i][key] !== undefined) return scopes[i][key];
+      const scoped = own(scopes[i], key);
+      if (scoped !== undefined) return scoped;
     }
-    if (variables[key] !== undefined) return variables[key];
+    const variable = own(variables, key);
+    if (variable !== undefined) return variable;
     return isThemeKey(key) ? theme(key) : undefined;
   };
 

@@ -16,7 +16,7 @@ import { decodeLink, decodeModuleLink, decodeThemeLink, encodeLink, encodeModule
 import { configSchema, deref } from "../schema.js";
 import { newTheme, paletteFor, palettesOf, previewRef, themeKind, themeProblems, toKind } from "../theme.js";
 import {
-  NODE_INFO, NODE_KINDS, STARTERS, VIEW_KINDS, insertNode, moveNode, moveView, starterScript, newNode, nodeAt, nudgeNode, removeNode, replaceNode, shows,
+  NODE_INFO, NODE_KINDS, STARTERS, VIEW_KINDS, describeNode, insertNode, moveNode, moveView, starterScript, newNode, nodeAt, nudgeNode, removeNode, replaceNode, shows,
   wrapNode,
 } from "../view.js";
 import { zip } from "../zip.js";
@@ -587,4 +587,14 @@ test("a link that inflates to more than a bar could hold is refused", async () =
   assert.ok(fragment.length < 10_000);
   await assert.rejects(decodeLink(fragment, catalog), /more than/);
   await assert.rejects(decodeThemeLink(`t${fragment}`), /more than/);
+});
+
+test("a state naming a setting that isn't written as one is drawn as it is", () => {
+  const document = {
+    ...emptyDocument(),
+    config: { modules: [{ name: "x", type: "command", config: { command: "x", output: "json" } }] },
+    states: { x: [{ name: "a", output: { value: "{setting(%)} {setting(%E0%A4%A)}" } }] },
+  };
+  assert.equal(boundDocument(document, catalog).states.x[0].name, "a");
+  assert.equal(describeNode({ type: "text", content: "{setting(%)}" }), "settings.%");
 });

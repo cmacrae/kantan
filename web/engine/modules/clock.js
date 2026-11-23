@@ -7,6 +7,9 @@ import { plainState } from "../output.js";
 import { num, str } from "../values.js";
 import { stringEntries } from "./levels.js";
 
+// The furthest moment from 1970 a date holds, in milliseconds.
+const LATEST = 8.64e15;
+
 export default {
   // A clock module needs a `format`.
   load(config) {
@@ -17,7 +20,8 @@ export default {
 
   state(loaded, sample) {
     const parsed = num(sample?.time) ?? Date.parse(str(sample?.time) ?? "");
-    const time = Number.isFinite(parsed) ? parsed : Date.now();
+    // A time no date can hold is no time given.
+    const time = Number.isFinite(parsed) && Math.abs(parsed) <= LATEST ? parsed : Date.now();
     const zone = { timezone: loaded.timezone ?? str(sample?.timezone), locale: str(sample?.locale) };
     const state = plainState("");
     const value = formatDate(time, loaded.format, zone);

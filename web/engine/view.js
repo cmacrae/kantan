@@ -2,7 +2,7 @@
 // against a module's variables and data into a tree ready to draw.
 import { viewColor } from "./color.js";
 import { isSymbolName, resolveIcon } from "./icons.js";
-import { bool, dict, int, list, num, str } from "./values.js";
+import { bool, dict, int, list, num, own, str } from "./values.js";
 
 const ALIGNMENTS = [
   "leading", "trailing", "center", "top", "bottom",
@@ -161,20 +161,22 @@ function decodeNode(value, strict, path) {
   return decoded;
 }
 
-// How many objects deep `value` nests.
-function nesting(value) {
-  if (Array.isArray(value)) return Math.max(0, ...value.map(nesting));
-  if (dict(value)) return 1 + Math.max(0, ...Object.values(value).map(nesting));
-  return 0;
-}
-
 export const MAX_VIEW_NESTING = 64;
+
+// Whether `value` nests more than `MAX_VIEW_NESTING` objects deep. It
+// walks no deeper than that, so a value of any depth or width is safe to
+// ask about.
+function nestsTooDeep(value, depth = 0) {
+  if (Array.isArray(value)) return value.some(item => nestsTooDeep(item, depth));
+  if (!dict(value)) return false;
+  return depth >= MAX_VIEW_NESTING || Object.values(value).some(item => nestsTooDeep(item, depth + 1));
+}
 
 // A plugin's `view`, decoded as kantan decodes JSON: a field of the wrong
 // type, or a node type it doesn't know, rejects the whole view. Returns
 // `{ node }`, or `{ problem }` saying what's wrong.
 export function decodeJsonView(value) {
-  if (nesting(value) > MAX_VIEW_NESTING) {
+  if (nestsTooDeep(value)) {
     return { problem: `nested deeper than ${MAX_VIEW_NESTING} objects` };
   }
   try {
@@ -187,9 +189,9 @@ export function decodeJsonView(value) {
 
 // A config's view, decoded as kantan reads YAML: a field of the wrong type
 // reads as missing, and a node it can't read is left out. Undefined when
-// the root is one.
+// the root is one, or when the view nests deeper than kantan reads.
 export function decodeYamlView(value) {
-  return decodeNode(value, false, []);
+  return nestsTooDeep(value) ? undefined : decodeNode(value, false, []);
 }
 
 const HORIZONTAL = {
@@ -335,7 +337,7 @@ export function resolveView(node, context, depth = 0) {
       });
     }
     case "foreach":
-      return wrap((r.data[node.items] ?? []).flatMap(element =>
+      return wrap((list(own(r.data, node.items)) ?? []).flatMap(element =>
         resolveView(node.child, { ...context, resolver: r.scoped(element) }, depth + 1)));
     case "if":
       return wrap(resolveView(r.truthy(node.condition) ? node.then : node.else, context, depth + 1));

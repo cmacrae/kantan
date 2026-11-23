@@ -13,6 +13,7 @@
 // what it draws the same paths.
 import { NODE_SLOTS } from "../engine/index.js";
 import { dict } from "../engine/values.js";
+import { unescapeKey } from "./settings.js";
 import { prune, setIn } from "./schema.js";
 import { exampleRows, listFields, listsOf, mainValue, printingJson, withList } from "./values.js";
 import { spell } from "./spelling.js";
@@ -693,7 +694,7 @@ export function describeNode(node) {
   if (node.type === "foreach") return `each of ${node.items || "…"}`;
   if (node.type === "if") return `if ${node.condition || "…"}`;
   if (typeof said !== "string") return "";
-  return said.replace(/\{setting\(([^(){}]*)\)\}/g, (_, path) => `settings.${path.split(".").map(decodeURIComponent).join(".")}`);
+  return said.replace(/\{setting\(([^(){}]*)\)\}/g, (_, path) => `settings.${path.split(".").map(unescapeKey).join(".")}`);
 }
 
 // The paths of the nodes the drawn module `model` shows in its `slot`, as

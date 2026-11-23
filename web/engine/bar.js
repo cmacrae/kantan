@@ -11,6 +11,7 @@ import { barColor } from "./color.js";
 import { noIcons } from "./icons.js";
 import { createStyler } from "./style.js";
 import { createResolver, fillTooltip } from "./template.js";
+import { dict, list, own } from "./values.js";
 import { resolveView, viewBudget } from "./view.js";
 
 const PLACEMENTS = ["left", "notchleft", "center", "notchright", "right"];
@@ -37,7 +38,7 @@ export function resolvePlacement(raw, notch) {
 // or its first, made from that state's output, or from `sample` when the
 // caller has a reading of its own.
 function moduleState(module, document, chosen, sample) {
-  const states = document.states?.[module.name] ?? [];
+  const states = (list(own(document.states, module.name)) ?? []).filter(dict);
   const picked = states.find(state => state.name === chosen) ?? states[0];
   return moduleType(module.type).state(module.loaded, sample ?? picked?.output, module);
 }

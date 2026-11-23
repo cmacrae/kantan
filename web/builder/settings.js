@@ -53,7 +53,16 @@ const NAME = /\{setting\(([^(){}]*)\)\}/g;
 // A name followed by what it falls back to: more names, or a value with
 // no space in it.
 const ALTERNATIVES = /^\{setting\([^(){}]*\)\}(\|(\{setting\([^(){}]*\)\}|[^\s|{}]+))+$/;
-const pathOf = name => name.split(".").map(decodeURIComponent);
+// A key as it was before `escapeKey`, or as written when it isn't one
+// that made.
+export function unescapeKey(key) {
+  try {
+    return decodeURIComponent(key);
+  } catch {
+    return key;
+  }
+}
+const pathOf = name => name.split(".").map(unescapeKey);
 
 // Whether `node` describes a colour or an icon, which a plugin prints as
 // given.

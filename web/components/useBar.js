@@ -3,6 +3,7 @@
 // time is.
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { nextState, resolveBar } from "../engine/index.js";
+import { dict, list, own } from "../engine/values.js";
 
 // The bar `document` draws, with what `BarView` needs to answer clicks.
 // `options` are `resolveBar`'s. `states` and `samples` among them say how
@@ -50,13 +51,14 @@ export function useBar(document, { dark, icons, themes, notch, states: initialSt
   // window of the active workspace's scroll.
   const switchWorkspace = useCallback((name, target) => {
     setSamples(current => {
-      const listed = document.states?.[name] ?? [];
-      const picked = listed.find(state => state.name === states[name]) ?? listed[0];
-      const sample = current[name] ?? picked?.output ?? {};
-      const workspaces = (sample.workspaces ?? []).map((space, position) => (
+      const listed = (list(own(document.states, name)) ?? []).filter(dict);
+      const picked = listed.find(state => state.name === own(states, name)) ?? listed[0];
+      const sample = dict(own(current, name)) ?? dict(picked?.output) ?? {};
+      // The workspaces as the engine reads them: the mappings among them.
+      const workspaces = (list(sample.workspaces) ?? []).filter(dict).map((space, position) => (
         target.workspace !== undefined
           ? { ...space, active: (space.index ?? position) === target.workspace }
-          : { ...space, scroll: space.scroll?.map(window => ({ ...window, selected: window.id === target.window })) }
+          : { ...space, scroll: list(space.scroll)?.filter(dict).map(window => ({ ...window, selected: window.id === target.window })) }
       ));
       return { ...current, [name]: { ...sample, workspaces } };
     });
