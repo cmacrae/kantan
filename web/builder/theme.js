@@ -151,10 +151,12 @@ export function freeThemeName(themes, wanted) {
 }
 
 // Why `name` can't be a theme's or a flavour's name, or undefined when it
-// can: it is written in a reference as `theme[flavour]`, and names a file.
+// can: it is written in a reference as `theme[flavour]`, and names a file,
+// which has to be one within the directory it is written to.
 export function nameProblem(name) {
   if (name.trim() === "") return "It needs a name";
   if (name !== name.trim() || /[[\]/\\]/.test(name)) return "A name can't hold brackets or slashes, nor start or end with a space";
+  if (name === "." || name === ".." || /[\u0000-\u001f\u007f]/.test(name)) return "A name can't be . or .., nor hold a control character";
   return undefined;
 }
 

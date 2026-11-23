@@ -20,11 +20,17 @@ function fields(...values) {
   return out;
 }
 
-// The archive's bytes for `files`, each `{ path, text }`.
+// Whether `path` names a file beneath the directory an archive is unpacked
+// into: relative, with no part that is empty, `.` or `..`.
+const within = path => !/[\\\u0000-\u001f\u007f]/.test(path) && path.split("/").every(part => part !== "" && part !== "." && part !== "..");
+
+// The archive's bytes for `files`, each `{ path, text }`. Throws for a
+// path that would unpack outside the archive's directory.
 export function zip(files) {
   const encoder = new TextEncoder();
   const local = [], central = [];
   for (const { path, text } of files) {
+    if (!within(path)) throw new Error(`An archive can't hold a file at the path ${JSON.stringify(path)}`);
     const name = encoder.encode(path), data = encoder.encode(text);
     // Version 2.0, names in UTF-8, stored, no timestamp
     const shared = [[20, 2], [0x0800, 2], [0, 2], [0, 2], [0x21, 2], [crc32(data), 4], [data.length, 4], [data.length, 4], [name.length, 2], [0, 2]];

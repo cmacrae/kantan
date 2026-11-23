@@ -20,6 +20,15 @@ import {
   wrapNode,
 } from "../view.js";
 import { zip } from "../zip.js";
+import { deflateSync } from "fflate";
+import { DICTIONARY } from "../dictionary.js";
+
+// The fragment that holds `packed` after `version`, as a link's sender
+// could write it by hand.
+function rawFragment(version, packed) {
+  const deflated = deflateSync(new TextEncoder().encode(JSON.stringify(packed)), { dictionary: new TextEncoder().encode(DICTIONARY) });
+  return `${version}.${Buffer.from(deflated).toString("base64url")}`;
+}
 
 const catalog = {
   themes: {},
@@ -523,4 +532,41 @@ test("a masked module moves among the right placement's modules and nowhere else
   assert.deepEqual(names(placeModule(document, 2, 1)), ["spaces:left", "wifi:right", "caffeine:right"]);
   assert.equal(placeModule(document, 2, 0), document);
   assert.equal(placeAtEdge(document, 2, "left", true), document);
+});
+
+test("a link is refused when a name in it would be a file outside the config's directory", async () => {
+  const palette = { fg: "#000000", bg: "#ffffff" };
+  const config = { modules: [{ name: "x", type: "command", config: { command: "id" } }] };
+  for (const name of ["../config", "..", ".", "a/b", "a\\b", "a\u0000b", " a"]) {
+    // A theme's link is refused too, or comes without the file.
+    const themes = await decodeThemeLink(rawFragment("t1", { k: name, t: { [name]: config } })).then(shared => shared.themes, error => error);
+    assert.ok(themes instanceof Error ? /name/.test(themes.message) : Object.keys(themes).length === 0, name);
+    await assert.rejects(decodeLink(rawFragment("1", { c: { theme: "day" }, t: { day: palette, [name]: config } }), catalog), /name/, name);
+    await assert.rejects(decodeLink(rawFragment("1", { c: {}, t: { day: { flavours: { [name]: palette } } } }), catalog), /name/, name);
+    await assert.rejects(decodeLink(rawFragment("1", { c: {}, m: { [`${name}/x.yaml`]: config.modules[0] } }), catalog), /name/, name);
+  }
+});
+
+test("a theme's link holds only the themes it selects", async () => {
+  const day = { fg: "#000000", bg: "#ffffff" };
+  const shared = await decodeThemeLink(rawFragment("t1", { k: "day", t: { day, config: { modules: [] }, "not a mapping": 1 } }));
+  assert.deepEqual(shared, { selection: "day", themes: { day } });
+});
+
+test("files are only written within the config's directory", () => {
+  const palette = { fg: "#000000", bg: "#ffffff" };
+  const module = { name: "x", type: "text" };
+  assert.deepEqual(themeFiles("../config", palette), []);
+  assert.deepEqual(themeFiles("..", { flavours: { a: palette } }, "dir"), []);
+  assert.deepEqual(themeFiles("mine", { flavours: { "../../config": palette, day: palette } }, "dir").map(file => file.path), ["themes/mine/day.yaml"]);
+  const document = {
+    ...emptyDocument(),
+    config: { theme: { light: "../config", dark: "day" } },
+    themes: { "../config": palette, day: palette },
+    modulesDir: { "00-x.yaml": module, "../config.yaml": module, "a/b.yaml": module, "notes.txt": module },
+  };
+  assert.deepEqual(documentFiles(document).map(file => file.path), ["config.yaml", "modules.d/00-x.yaml", "themes/day.yaml"]);
+  for (const path of ["themes/../config.yaml", "../config.yaml", "/config.yaml", "themes//day.yaml", "themes/./day.yaml", "themes\\day.yaml", ""]) {
+    assert.throws(() => zip([{ path, text: "" }]), /path/, path);
+  }
 });

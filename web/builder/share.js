@@ -28,7 +28,7 @@ import { DOCUMENT_VERSION } from "../engine/document.js";
 import { dict, str } from "../engine/values.js";
 import { defaultStates } from "./catalog.js";
 import { modulesOf } from "./edit.js";
-import { selectedThemes } from "./theme.js";
+import { nameProblem, selectedThemes } from "./theme.js";
 import { WORDS } from "./words.js";
 
 export const CODEC_VERSION = "1";
@@ -70,6 +70,20 @@ function mapStrings(value, each) {
 
 const present = value => dict(value) !== undefined && Object.keys(value).length > 0;
 
+// Throws when a name among `names` can't be a file's. A link's themes,
+// their flavours and its modules.d files are written under their names, so
+// a name such as `../config` would be a file outside its directory.
+function checkNames(names, what) {
+  for (const name of names) {
+    if (nameProblem(name) !== undefined) throw new Error(`The link holds a ${what} whose name can't be a file's`);
+  }
+}
+
+function checkThemeNames(themes) {
+  checkNames(Object.keys(themes), "theme");
+  for (const theme of Object.values(themes)) checkNames(Object.keys(dict(dict(theme)?.flavours) ?? {}), "flavour");
+}
+
 // The packed form of `document`: `c` its config, `m` its modules.d, `t`
 // its themes, `s` the states that are its own, `b` the modules whose
 // states are the ones they start with, `e` those whose states are the
@@ -105,6 +119,8 @@ export function unpackDocument(packed, catalog) {
   if (!dict(packed)) throw new Error("The link doesn't hold a bar");
   const { c, m, t, s, b, e, v } = mapStrings(packed, unpackString);
   const document = { version: DOCUMENT_VERSION, config: dict(c) ?? {} };
+  checkNames(Object.keys(dict(m) ?? {}), "file");
+  checkThemeNames(dict(t) ?? {});
   if (present(m)) document.modulesDir = m;
   if (present(t)) document.themes = t;
   const states = { ...dict(s) };
@@ -203,12 +219,16 @@ export function packTheme(document, name = "") {
 }
 
 // The theme a packed form holds, as `{ selection, themes }`, with the
-// `name` it was given when it was given one.
+// `name` it was given when it was given one. Of the theme files it came
+// with, only those it selects are kept.
 export function unpackTheme(packed) {
   if (!dict(packed)) throw new Error("The link doesn't hold a theme");
   const { k, t, n } = mapStrings(packed, unpackString);
-  if (selectedThemes(k).length === 0) throw new Error("The link doesn't hold a theme");
-  return { selection: k, themes: dict(t) ?? {}, ...(str(n) === undefined ? {} : { name: n }) };
+  const selected = selectedThemes(k);
+  if (selected.length === 0) throw new Error("The link doesn't hold a theme");
+  const themes = Object.fromEntries(selected.filter(name => Object.hasOwn(dict(t) ?? {}, name) && dict(t[name])).map(name => [name, t[name]]));
+  checkThemeNames(themes);
+  return { selection: k, themes, ...(str(n) === undefined ? {} : { name: n }) };
 }
 
 // The fragment, without its `#`, that shares the theme `document` is

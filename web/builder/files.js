@@ -2,7 +2,7 @@
 // someone wrote as the value kantan would load from it.
 import { parse, stringify } from "yaml";
 import { dict, list } from "../engine/values.js";
-import { selectedThemes, themeKind } from "./theme.js";
+import { nameProblem, selectedThemes, themeKind } from "./theme.js";
 
 // The order keys are written in: a config's and a module's own keys as the
 // docs list them, and any others after, as they came.
@@ -30,8 +30,10 @@ const orderedPalette = palette => ordered(palette, PALETTE_KEYS);
 // The files a theme called `name` is written as, each `{ path, text }`
 // from the config's directory: one file, or for a theme with flavours in
 // the "dir" layout, a directory with a file for each flavour and one for
-// its defaults.
+// its defaults. A theme or a flavour whose name can't be a file's is
+// written to none, so every path stays within `themes`.
 export function themeFiles(name, theme, layout = "file") {
+  if (nameProblem(name) !== undefined) return [];
   const kind = themeKind(theme);
   if (kind === "single") return [{ path: `themes/${name}.yaml`, text: write(orderedPalette(theme)) }];
   if (kind === "modes") {
@@ -43,7 +45,8 @@ export function themeFiles(name, theme, layout = "file") {
   if (layout === "dir") {
     return [
       ...(defaults ? [{ path: `themes/${name}/defaults.yaml`, text: write(defaults) }] : []),
-      ...flavours.map(([flavour, palette]) => ({ path: `themes/${name}/${flavour}.yaml`, text: write(palette) })),
+      ...flavours.filter(([flavour]) => nameProblem(flavour) === undefined)
+        .map(([flavour, palette]) => ({ path: `themes/${name}/${flavour}.yaml`, text: write(palette) })),
     ];
   }
   // A blank line between the defaults and the flavours, and between each
@@ -73,6 +76,8 @@ export function variantsYaml(variants, key) {
 // The files a document's config is written as: `{ path, text }` for
 // config.yaml, then for each file of modules.d in the order kantan loads
 // them, then for each theme of the document's own that the config selects.
+// Only the YAML files of modules.d are written, as only they are loaded,
+// and only under a name that keeps them within it.
 export function documentFiles(document) {
   const config = ordered(dict(document.config) ?? {}, CONFIG_KEYS);
   if (list(config.modules)?.length) config.modules = config.modules.map(orderedModule);
@@ -86,6 +91,7 @@ export function documentFiles(document) {
     : `${text.slice(0, at)}${at > 0 ? "\n" : ""}modules:\n${text.slice(at + "modules:\n".length).replace(/\n(  - )/g, "\n\n$1")}`;
   const files = [{ path: "config.yaml", text: spaced }];
   for (const name of Object.keys(dict(document.modulesDir) ?? {}).sort()) {
+    if (nameProblem(name) !== undefined || !/\.ya?ml$/.test(name)) continue;
     files.push({ path: `modules.d/${name}`, text: write(orderedModule(document.modulesDir[name])) });
   }
   for (const name of selectedThemes(document.config?.theme)) {
