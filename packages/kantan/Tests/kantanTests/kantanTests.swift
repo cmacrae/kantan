@@ -506,6 +506,16 @@ final class CommandTemplateTests {
     }
   }
 
+  @Test func testADollarSignBeforeAPlaceholderDoesNotMakeItsValueRun() throws {
+    for (template, value) in [
+      (#"printf '[%s]' "${v}""#, "(echo pwned)"),
+      ("printf '[%s]' ${v}", #"\'; echo pwned; #"#),
+    ] {
+      let r = TemplateResolver(variables: ["v": value], data: [:])
+      #expect((try shell(r.resolveCommand(template))) == "[\(value)]", "\(template)")
+    }
+  }
+
   @Test func testAURLCommandNeverRunsInTheShell() {
     #expect(
       commandAction(for: "https://example.com/a") == .open(URL(string: "https://example.com/a")!))

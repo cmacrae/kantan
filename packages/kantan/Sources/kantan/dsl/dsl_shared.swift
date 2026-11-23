@@ -85,12 +85,13 @@ class TemplateResolver {
 
   /// Resolve a view command's placeholders, each value quoted for where its
   /// placeholder sits: bare, inside single quotes, or inside double quotes.
-  /// There, no value can change what the command does. `$'…'` quotes and
-  /// command substitutions aren't tracked. An empty bare value leaves
-  /// nothing, as it always has. In a URL command
-  /// values are percent-encoded. A command that is a single placeholder
-  /// is a command the plugin built, and runs as the value, exactly as
-  /// written.
+  /// There, no value can change what the command does. A `$` straight
+  /// before a bare or double-quoted placeholder is dropped, as it would
+  /// have the shell expand the value. `$'…'` quotes and command
+  /// substitutions aren't tracked. An empty bare value leaves nothing, as
+  /// it always has. In a URL command values are percent-encoded. A command
+  /// that is a single placeholder is a command the plugin built, and runs
+  /// as the value, exactly as written.
   func resolveCommand(_ template: String) -> String {
     let trimmed = template.trimmingCharacters(in: .whitespaces)
     if trimmed.hasPrefix("{"), trimmed.hasSuffix("}"),
@@ -126,21 +127,28 @@ class TemplateResolver {
 
   /// Replaces each placeholder in a command with `encode(quote, value)`,
   /// `quote` being the shell quote character the placeholder sits within,
-  /// or nil.
+  /// or nil. A `$` that would expand a bare or double-quoted placeholder's
+  /// value is left out.
   private func substitute(
     _ template: String, encode: (Character?, String) -> String
   ) -> String {
     var result = ""
     var quote: Character?
+    // Whether the last character is a `$` the shell would expand with
+    // what follows: not escaped, and not the second of a `$$`.
+    var expands = false
     var index = template.startIndex
     while index < template.endIndex {
       let char = template[index]
       if char == "{", let close = template[index...].firstIndex(of: "}") {
+        if expands, quote != "'" { result.removeLast() }
+        expands = false
         result += encode(quote, resolve(String(template[index...close])))
         index = template.index(after: close)
         continue
       }
       result.append(char)
+      expands = char == "$" && !expands
       if char == "\\", quote != "'", template.index(after: index) < template.endIndex {
         index = template.index(after: index)
         result.append(template[index])

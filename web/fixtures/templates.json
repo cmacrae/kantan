@@ -67,6 +67,18 @@
     ]
   },
   {
+    "name": "a dollar sign before a placeholder goes, so the value stays quoted",
+    "variables": { "plain": "word", "sub": "(touch P)" },
+    "checks": [
+      { "command": "echo ${plain}", "expect": "echo 'word'" },
+      { "command": "echo \"${sub}\"", "expect": "echo \"(touch P)\"" },
+      { "command": "echo '${plain}'", "expect": "echo '$word'" },
+      { "command": "echo $${plain}", "expect": "echo $$'word'" },
+      { "command": "echo \\${plain}", "expect": "echo \\$'word'" },
+      { "command": "echo $HOME/{plain}", "expect": "echo $HOME/'word'" }
+    ]
+  },
+  {
     "name": "a URL command's values are percent-encoded",
     "variables": { "id": "a b&c=d/e?f#g+h", "accent": "café" },
     "checks": [

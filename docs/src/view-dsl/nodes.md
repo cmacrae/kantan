@@ -145,7 +145,7 @@ Interactive nodes respond to user input and can trigger commands. A command is r
 | `open-note '{title}'` | `it's` | `open-note 'it'\''s'` |
 | `open-note "{title}"` | `$HOME` | `open-note "\$HOME"` |
 
-Only those three positions are covered. Don't put a placeholder for outside text inside `$'…'`, or inside a command substitution (`$(…)` or backticks), where its value can run commands. A value can also start with `-`, which the command may read as an option. Put `--` before it where the command accepts that.
+Only those three positions are covered. Don't put a placeholder for outside text inside `$'…'`, or inside a command substitution (`$(…)` or backticks), where its value can run commands. A placeholder takes no `$`: write `{title}`, not `${title}`. A `$` straight before a bare or double-quoted placeholder is dropped, as the shell would expand the value after it. A value can also start with `-`, which the command may read as an option. Put `--` before it where the command accepts that.
 
 A bare placeholder whose value is empty leaves nothing. A command that is a single placeholder, such as `"command": "{complete_cmd}"`, runs as the value, exactly as written: placeholders within it aren't resolved. The plugin builds that command itself and quotes what it puts in it. In a URL command, values are percent-encoded instead. A URL command is only ever opened: one that doesn't make a valid URL does nothing.
 

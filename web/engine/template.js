@@ -57,19 +57,27 @@ export function createResolver({ variables = {}, data = {}, theme = () => undefi
         isThemeKey(inner) ? theme(inner) ?? placeholder : placeholder));
 
   // `template` with each placeholder replaced by `encode(quote, value)`,
-  // `quote` being the shell quote character it sits within, or null.
+  // `quote` being the shell quote character it sits within, or null. A `$`
+  // that would expand a bare or double-quoted placeholder's value is left
+  // out.
   const substitute = (template, encode) => {
     let result = "";
     let quote = null;
+    // Whether the last character is a `$` the shell would expand with what
+    // follows: not escaped, and not the second of a `$$`.
+    let expands = false;
     for (let i = 0; i < template.length; i++) {
       const char = template[i];
       const close = char === "{" ? template.indexOf("}", i) : -1;
       if (close >= 0) {
+        if (expands && quote !== "'") result = result.slice(0, -1);
+        expands = false;
         result += encode(quote, resolve(template.slice(i, close + 1)));
         i = close;
         continue;
       }
       result += char;
+      expands = char === "$" && !expands;
       if (char === "\\" && quote !== "'" && i + 1 < template.length) {
         result += template[++i];
       } else if (char === "'" || char === '"') {
@@ -85,9 +93,10 @@ export function createResolver({ variables = {}, data = {}, theme = () => undefi
     resolve,
 
     // A view command with its placeholders filled, each value quoted for
-    // where it sits: bare, in single quotes or in double quotes. A command
-    // that is one placeholder runs as that value, exactly as written, and a
-    // URL command's values are percent-encoded.
+    // where it sits: bare, in single quotes or in double quotes. A `$`
+    // straight before a bare or double-quoted placeholder is dropped. A
+    // command that is one placeholder runs as that value, exactly as
+    // written, and a URL command's values are percent-encoded.
     resolveCommand(template) {
       const trimmed = template.trim();
       if (/^\{[^{}]*\}$/.test(trimmed)) return lookup(trimmed.slice(1, -1)) ?? "";
