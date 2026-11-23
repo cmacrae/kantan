@@ -10,6 +10,10 @@ private func decode<T: Decodable>(_ json: String) throws -> T {
 final class ReminderFilterTests {
   private let now = Date()
 
+  @Test func testShellQuoteEscapesAQuoteWithACombiningMarkAfterIt() {
+    #expect(shellQuote("a'\u{301}; id") == #"'a'\''"# + "\u{301}; id'")
+  }
+
   @Test func testIncompleteRemindersShowAsTheListSays() throws {
     let list: ListConfig = try decode(
       #"{"name":"todo","lookahead":"10m","overdue":false,"undated":true}"#)

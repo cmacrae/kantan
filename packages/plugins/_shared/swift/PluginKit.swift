@@ -425,9 +425,11 @@ extension KeyedDecodingContainer {
 
 // MARK: - Helpers
 
-/// Single-quote shell escape for safe command embedding.
+/// Single-quote shell escape for safe command embedding. The match is
+/// literal, as a quote with a combining mark after it is still a quote to
+/// the shell.
 func shellQuote(_ s: String) -> String {
-  "'" + s.replacingOccurrences(of: "'", with: "'\\''") + "'"
+  "'" + s.replacingOccurrences(of: "'", with: "'\\''", options: .literal) + "'"
 }
 
 /// Parses a duration string like "10m", "12h", "2d" into seconds.
