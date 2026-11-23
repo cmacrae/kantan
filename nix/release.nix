@@ -26,7 +26,8 @@ let
       '') components}
       chmod +x staging/bin/*
 
-      tar -czf $out -C staging .
+      # The same files give the same tarball, whenever and by whom it's built.
+      tar --sort=name --mtime=@1 --owner=0 --group=0 --numeric-owner -czf $out -C staging .
     '';
 in
 {
