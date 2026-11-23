@@ -176,6 +176,22 @@ When the cursor enters the trigger zone over those menus, the modules there fade
 - **Some layouts fall back to hiding the whole bar.** This happens when `gaps.top` leaves less than half of the menu bar's height under the bar. It also happens on a second display when a notch splits the menus on either display.
 - **`enabled: false` turns app menus off too.**
 
+## Native Menu Bar Hiding
+
+kantan takes the native menu bar's place, so it shows where that would show and hides where that would hide. It follows **Automatically hide and show the menu bar** in System Settings, on each display's current space:
+
+| Setting | Desktop | Fullscreen app |
+|---------|---------|----------------|
+| **Never** | shows | shows |
+| **In Full Screen Only** | shows | hides |
+| **On Desktop Only** | hides | shows |
+| **Always** | hides | hides |
+
+- **Coming in at the top edge.** Where it hides, the bar comes in when the cursor reaches the very top of the screen, with the native menu bar beneath. Over the app's menus, it shows them, as [App menus](#app-menus) describes. It goes again once the cursor moves below the bar, unless one of the app's menus or a module's popup is open.
+- **Autohide.** Where the bar shows, the top edge works as [Auto-Hide](#auto-hide-configuration) describes.
+- **Drawers.** One opened or closed while the bar is hidden shows that way once it's back.
+- **Setting changes** apply straight away.
+
 ## Multi-Display Support
 
 The `displays` option controls which connected displays show the kantan bar:

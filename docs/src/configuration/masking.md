@@ -257,7 +257,7 @@ Third-party items can only be masked with Accessibility permission. Without it, 
 
 ### Hidden Menu Bar
 
-Masks sit over the native menu bar and don't line up when macOS hides it. kantan logs a warning at startup when the system menu bar is set to hide automatically on the desktop or in full screen.
+Where macOS hides the native menu bar, kantan hides with it and comes in at the top edge as it does (see [Native Menu Bar Hiding](bar.md#native-menu-bar-hiding)). Masks then show only with the items they cover.
 
 ## Example Configurations
 
