@@ -4065,4 +4065,20 @@ final class ThemeWatchingTests {
       })
   }
 
+  @Test func testAThemesSymlinkPointedElsewhereIsAChange() async throws {
+    try write("fg: '#000000'", to: "old/plain.yaml")
+    try write("fg: '#ffffff'", to: "new/plain.yaml")
+    let fm = FileManager.default
+    let themes = dir.appendingPathComponent("themes").path
+    try fm.createSymbolicLink(
+      atPath: themes, withDestinationPath: dir.appendingPathComponent("old").path)
+    #expect(
+      try await reports(watching: themes) {
+        // The link is replaced in one step.
+        let next = dir.appendingPathComponent("themes.next").path
+        try fm.createSymbolicLink(
+          atPath: next, withDestinationPath: dir.appendingPathComponent("new").path)
+        if rename(next, themes) != 0 { throw POSIXError(.init(rawValue: errno) ?? .EIO) }
+      })
+  }
 }

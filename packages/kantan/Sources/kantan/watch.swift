@@ -68,17 +68,35 @@ final class YamlTreeWatcher {
     }
 
     for watched in paths {
-      let fd = open(watched, O_EVTONLY)
-      guard fd >= 0 else { continue }
-      let source = DispatchSource.makeFileSystemObjectSource(
-        fileDescriptor: fd, eventMask: [.write, .delete, .rename], queue: .main)
-      source.setEventHandler { [weak self] in
-        MainActor.assumeIsolated { self?.changed() }
-      }
-      source.setCancelHandler { close(fd) }
-      sources.append(source)
-      source.resume()
+      watch(watched, for: [.write, .delete, .rename]) { $0.changed() }
     }
+
+    // A directory reached through a symlink is watched at the link's
+    // target, which nothing changes when the link is pointed elsewhere: the
+    // link's own directory is watched for that.
+    if let target = try? FileManager.default.destinationOfSymbolicLink(atPath: path) {
+      watch((path as NSString).deletingLastPathComponent, for: .write) { watcher in
+        let now = try? FileManager.default.destinationOfSymbolicLink(atPath: watcher.path)
+        if now != target { watcher.changed() }
+      }
+    }
+  }
+
+  /// Has `handler` called on the main thread as `watched` has `events`.
+  private func watch(
+    _ watched: String, for events: DispatchSource.FileSystemEvent,
+    _ handler: @escaping @MainActor (YamlTreeWatcher) -> Void
+  ) {
+    let fd = open(watched, O_EVTONLY)
+    guard fd >= 0 else { return }
+    let source = DispatchSource.makeFileSystemObjectSource(
+      fileDescriptor: fd, eventMask: events, queue: .main)
+    source.setEventHandler { [weak self] in
+      MainActor.assumeIsolated { if let self { handler(self) } }
+    }
+    source.setCancelHandler { close(fd) }
+    sources.append(source)
+    source.resume()
   }
 
   func stop() {
