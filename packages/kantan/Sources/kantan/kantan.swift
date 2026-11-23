@@ -244,6 +244,13 @@ class DisplayInstance {
   private weak var barViewModel: BarViewModel?
 
   var isMenuBarShowing: Bool = false
+  /// Whether the native menu bar hides on the space this display is on,
+  /// so the bar hides with it and comes in at the top edge as it does.
+  private(set) var followsHiddenMenuBar = false
+  /// Whether the bar is out of view with the hidden native menu bar.
+  private(set) var isAutoHidden = false
+  /// Whether this display is on a fullscreen app's space.
+  private(set) var isOnFullscreenSpace = false
   var isHoveringTopEdge: Bool = false
   var enteredFromAbove: Bool = false
   nonisolated(unsafe) var autohideDelayTimer: Timer?
@@ -1163,6 +1170,8 @@ class DisplayInstance {
     } else {
       rightDrawerOpen = open
     }
+    // A bar out of view shows its drawers as they are once back.
+    guard !isAutoHidden else { return }
     let statusBarY = screenLayout(for: screen).statusBarY
 
     let nativeItems = MenuBarItemDetector.detectItems(for: screen)
@@ -1319,6 +1328,12 @@ class DisplayInstance {
       appMenuReader?.refreshIfStale()
     }
 
+    if followsHiddenMenuBar {
+      followHiddenMenuBar(at: mouseLocation, atTopEdge: atTopEdge, onScreen: onScreen)
+      return
+    }
+    guard autohideConfig.enabled else { return }
+
     if !isMenuBarShowing && atTopEdge && appMenus?.isShowing != true {
       if !isHoveringTopEdge {
         isHoveringTopEdge = true
@@ -1347,6 +1362,64 @@ class DisplayInstance {
         isMenuBarShowing = false
         slideIn()
       }
+    }
+  }
+
+  // MARK: - Native Menu Bar
+
+  /// Follows the native menu bar on the space this display is on: out of
+  /// view where `hiding` has it hide.
+  func updateSpace(hiding: NativeMenuBarHiding) {
+    guard let screen = resolveScreen() else { return }
+    isOnFullscreenSpace = FullscreenSpaces.isFullscreen(screen)
+    let hides = hiding.hides(fullscreen: isOnFullscreenSpace)
+    if hides != followsHiddenMenuBar {
+      followsHiddenMenuBar = hides
+      isHoveringTopEdge = false
+      awaitsAppMenus = false
+      autohideDelayTimer?.invalidate()
+      autohideDelayTimer = nil
+      if hides {
+        hideWithMenuBar()
+      } else if isMenuBarShowing {
+        isAutoHidden = false
+        isMenuBarShowing = false
+        slideIn()
+      }
+    }
+  }
+
+  /// Takes the bar out of view with the native menu bar.
+  private func hideWithMenuBar() {
+    barViewModel?.popupManager.dismissPopup()
+    barViewModel?.popupManager.hideTooltip()
+    isAutoHidden = true
+    guard !isMenuBarShowing else { return }
+    isMenuBarShowing = true
+    slideOut()
+  }
+
+  /// Brings the bar in at the top edge as the hidden native menu bar comes
+  /// in there, with the app's menus when the pointer is over them, and
+  /// takes it out again once the pointer leaves the bar with no menu or
+  /// popup of the bar's open.
+  private func followHiddenMenuBar(at point: NSPoint, atTopEdge: Bool, onScreen: Bool) {
+    if isAutoHidden {
+      guard atTopEdge else { return }
+      isAutoHidden = false
+      isMenuBarShowing = false
+      slideIn()
+    }
+    if atTopEdge {
+      if appMenus?.isShowing != true { _ = appMenus?.reveal(at: point) }
+      return
+    }
+    let barBottom = bgPanel?.frame.minY ?? (resolveScreen()?.frame.maxY ?? 0) - barHeight
+    let held =
+      appMenus?.isMenuOpen == true || barViewModel?.popupManager.isPopupActive == true
+      || NSEvent.pressedMouseButtons != 0
+    if (!onScreen || point.y < barBottom) && !held {
+      hideWithMenuBar()
     }
   }
 
@@ -1565,6 +1638,14 @@ class AppDelegate: NSObject, NSApplicationDelegate {
       self, selector: #selector(screenDidChange),
       name: NSApplication.didChangeScreenParametersNotification, object: nil
     )
+    NSWorkspace.shared.notificationCenter.addObserver(
+      self, selector: #selector(menuBarSpaceDidChange),
+      name: NSWorkspace.activeSpaceDidChangeNotification, object: nil
+    )
+    DistributedNotificationCenter.default().addObserver(
+      self, selector: #selector(menuBarSpaceDidChange),
+      name: NSNotification.Name("AppleInterfaceMenuBarHidingChangedNotification"), object: nil
+    )
 
     if let configPath = configFilePath {
       startWatchingConfig(path: configPath)
@@ -1673,15 +1754,12 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     startMenuBarAccessibility(for: config)
     startAppMenus(for: config)
 
-    if autohideConfig.enabled {
-      startMenuBarMonitoring()
-    }
+    startMenuBarMonitoring()
     if config.modules.contains(where: { $0.tuck != nil }) {
       startTuckMonitoring()
     }
 
-    warnIfMenuBarAutoHides()
-
+    updateSpaces()
   }
 
   /// Reads menu bar items through Accessibility when the config uses them,
@@ -1792,6 +1870,19 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
     updateModuleSuspension()
     restartRepositionTimer()
+    updateSpaces()
+  }
+
+  @objc func menuBarSpaceDidChange(_ notification: Notification) {
+    updateSpaces()
+  }
+
+  /// Has each display's bar follow the native menu bar on its space.
+  func updateSpaces() {
+    let hiding = NativeMenuBarHiding.current
+    for instance in displayInstances {
+      instance.updateSpace(hiding: hiding)
+    }
   }
 
   // MARK: - Repositioning
@@ -1885,38 +1976,6 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     for instance in displayInstances {
       instance.checkMenuBar(mouseLocation: mouseLocation, autohideConfig: autohideConfig)
     }
-  }
-
-  // MARK: - Menu Bar Auto-Hide Warning
-
-  /// Emit a warning at startup if the user's system menu bar is configured to auto-hide.
-  /// Masked menu bar items won't render correctly when the native menu bar is hidden.
-  func warnIfMenuBarAutoHides() {
-    let defaults = UserDefaults.standard
-    let hideOnDesktop = defaults.bool(forKey: "_HIHideMenuBar")
-    let visibleInFullscreen: Bool
-    if defaults.object(forKey: "AppleMenuBarVisibleInFullscreen") != nil {
-      visibleInFullscreen = defaults.bool(forKey: "AppleMenuBarVisibleInFullscreen")
-    } else {
-      visibleInFullscreen = false
-    }
-
-    let mode: String
-    switch (hideOnDesktop, visibleInFullscreen) {
-    case (false, true):
-      return  // "Never" — nothing to warn about
-    case (false, false):
-      mode = "In Full Screen Only"
-    case (true, true):
-      mode = "On Desktop Only"
-    case (true, false):
-      mode = "Always"
-    }
-
-    print(
-      "warning: system menu bar is set to hide (\(mode)). "
-        + "Masked menu bar items may not render correctly when the native menu bar is hidden."
-    )
   }
 
   // MARK: - Config Discovery Polling

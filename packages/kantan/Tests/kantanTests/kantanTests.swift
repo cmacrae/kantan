@@ -2084,6 +2084,40 @@ final class NativeWorkspacesTests {
   }
 }
 
+final class FullscreenSpacesTests {
+  private func display(_ name: String, currentType: Int) -> [String: Any] {
+    ["Display Identifier": name, "Current Space": ["id64": 1, "type": currentType]]
+  }
+
+  @Test func testADisplayIsFullscreenOnAFullscreenAppsSpace() {
+    let spaces = [display("A", currentType: 0), display("B", currentType: 4)]
+    #expect(FullscreenSpaces.isFullscreen(display: "A", in: spaces) == false)
+    #expect(FullscreenSpaces.isFullscreen(display: "B", in: spaces))
+    #expect(FullscreenSpaces.isFullscreen(display: "C", in: spaces) == false)
+  }
+
+  @Test func testDisplaysSharingSpacesFollowTheMainEntry() {
+    let spaces = [display("Main", currentType: 4)]
+    #expect(FullscreenSpaces.isFullscreen(display: "A", in: spaces))
+  }
+
+  @Test func testEachMenuBarSettingHidesWhereSystemSettingsSays() {
+    // _HIHideMenuBar and AppleMenuBarVisibleInFullscreen as System Settings writes them.
+    let settings = [
+      "Never": (false, true), "In Full Screen Only": (false, false),
+      "On Desktop Only": (true, true), "Always": (true, false),
+    ].mapValues { NativeMenuBarHiding(hideMenuBar: $0.0, visibleInFullscreen: $0.1) }
+    #expect(
+      settings.filter { $0.value.hides(fullscreen: false) }.keys.sorted() == [
+        "Always", "On Desktop Only",
+      ])
+    #expect(
+      settings.filter { $0.value.hides(fullscreen: true) }.keys.sorted() == [
+        "Always", "In Full Screen Only",
+      ])
+  }
+}
+
 final class RunCommandSyncTests {
   @Test func testAHungCommandIsStoppedAtItsTimeout() {
     let start = Date()

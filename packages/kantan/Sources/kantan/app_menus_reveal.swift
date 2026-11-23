@@ -63,6 +63,8 @@ final class AppMenusReveal {
   }
 
   private(set) var isShowing = false
+  /// Whether one of the menus is open.
+  private(set) var isMenuOpen = false
   private let reader: AppMenuReader
   private let model = AppMenusModel()
   private let cover = PanelCover()
@@ -200,6 +202,7 @@ final class AppMenusReveal {
       return
     }
     apply(layout)
+    isMenuOpen = layout.titles.contains(where: \.isOpen)
 
     let point = NSEvent.mouseLocation
     let x = point.x - layout.screen.minX
@@ -214,7 +217,7 @@ final class AppMenusReveal {
     let overMenus =
       inMenuBar
       && x >= (layout.runs.first?.lowerBound ?? 0) && x <= (layout.runs.last?.upperBound ?? 0)
-    if overMenus || NSEvent.pressedMouseButtons != 0 || layout.titles.contains(where: \.isOpen) {
+    if overMenus || NSEvent.pressedMouseButtons != 0 || isMenuOpen {
       lastHeld = Date()
     } else if Date().timeIntervalSince(lastHeld) > Self.linger {
       hide()
@@ -242,6 +245,7 @@ final class AppMenusReveal {
 
   private func stopShowing() {
     isShowing = false
+    isMenuOpen = false
     timer?.invalidate()
     timer = nil
     cover.update([], spans: [])
