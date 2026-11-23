@@ -4,8 +4,9 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { parseHex } from "../color.js";
+import waveform from "../modules/waveform.js";
 import {
-  createResolver, decodeJsonView, formatDate, iconTable, ordinalSuffix, resolveBar, resolveOverlap, resolveTuck, resolveView, tuckHides,
+  createResolver, fillTooltip, menuRows, decodeJsonView, formatDate, iconTable, ordinalSuffix, resolveBar, resolveOverlap, resolveTuck, resolveView, tuckHides,
   validateDocument,
 } from "../index.js";
 
@@ -261,4 +262,39 @@ test("a colour is read in a time that grows with its length", { timeout: 5000 },
   assert.equal(parseHex("ff00"), undefined);
   assert.equal(parseHex(`a${"#".repeat(1_000_000)}a`), undefined);
   assert.equal(parseHex(`${"#".repeat(1_000_000)}ff0000${"\u{1F600}".repeat(500_000)}`), "#ff0000");
+});
+
+// A `foreach` over `rows`, nested `depth` deep around a text node.
+function nestedForeach(depth) {
+  let node = { type: "text", content: "{n}" };
+  for (let i = 0; i < depth; i++) node = { type: "foreach", items: "rows", child: node };
+  return node;
+}
+
+test("a view comes to no more nodes than a popup could show", { timeout: 5000 }, () => {
+  const data = { rows: [{ n: "1" }, { n: "2" }, { n: "3" }, { n: "4" }] };
+  assert.equal(view(nestedForeach(3), { data }).length, 64);
+  // Twenty deep is four to the twentieth: a million million text nodes.
+  const nodes = view(nestedForeach(20), { data });
+  assert.ok(nodes.length > 0 && nodes.length <= 10_000, `${nodes.length} nodes`);
+  const { node } = decodeJsonView(nestedForeach(20));
+  const rows = menuRows(node, createResolver({ data }), icons);
+  assert.ok(rows.length > 0 && rows.length <= 10_000, `${rows.length} rows`);
+  const [grid] = view({ type: "grid", columns: 1e15, children: [] });
+  assert.equal(grid.columns, 64);
+});
+
+test("a plain tooltip fills each placeholder once, with the value as written", () => {
+  const variables = Object.fromEntries(Array.from({ length: 40 }, (_, i) => [`v${i}`, `{v${i + 1}}{v${i + 1}}`]));
+  assert.equal(fillTooltip("{v0}", { variables }), "{v1}{v1}");
+  assert.equal(fillTooltip("vol {value}! {icon} {status} {unknown}", { value: "$& and $' and $`", icon: "$$", variables: { status: "{value}" } }),
+    "vol $& and $' and $`! $$ {value} {unknown}");
+  assert.equal(fillTooltip("{value} {icon}", { variables: { value: "x" } }), "x {icon}");
+  assert.equal(fillTooltip("{a{b}", { variables: { b: "B" } }), "{aB");
+});
+
+test("a waveform is no larger than a bar could hold", () => {
+  const { width, height } = waveform.load({ width: 1e13, height: 3e6 });
+  assert.deepEqual({ width, height }, { width: 2000, height: 200 });
+  assert.deepEqual(waveform.load({}).width, 40);
 });

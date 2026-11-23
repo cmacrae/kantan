@@ -65,6 +65,10 @@ function colors(config, bars) {
   return { palette: (bool(rainbow.random) ?? true) ? shuffledRainbow(palette, bars) : palette };
 }
 
+// The largest waveform the preview draws, in points. kantan sets no limit
+// of its own, and no bar is as wide or as tall.
+const MAX_WIDTH = 2000, MAX_HEIGHT = 200;
+
 export default {
   load(config) {
     const bars = Math.min(Math.max(int(config?.bars) ?? 8, 1), BANDS);
@@ -73,8 +77,8 @@ export default {
       style: STYLES.includes(style) ? style : STYLES[0],
       options: Object.fromEntries(WAVE_OPTIONS.map(option => [option, bool(wave?.[option]) ?? false])),
       bars, colors: colors(config, bars),
-      width: Math.max(num(config?.width) ?? 40, 4),
-      height: Math.max(num(config?.height) ?? 14, 2),
+      width: Math.min(Math.max(num(config?.width) ?? 40, 4), MAX_WIDTH),
+      height: Math.min(Math.max(num(config?.height) ?? 14, 2), MAX_HEIGHT),
       hidesWhenSilent: str(config?.hide) !== "never",
       matchWidth: str(config?.matchWidth),
     };

@@ -7,6 +7,7 @@
 // within the hstack that went into it.
 import { parseHex, viewColor } from "./color.js";
 import { resolveIcon } from "./icons.js";
+import { viewBudget } from "./view.js";
 
 const MENU_FONT_SIZE = 13;
 const INTERACTIVE = ["action", "check", "toggle", "button"];
@@ -80,10 +81,13 @@ function hstackRow(node, r, icons) {
 }
 
 // The rows of the menu the decoded view `node` makes, with `r` resolving
-// its placeholders and `icons` its icons.
-export function menuRows(node, r, icons) {
-  if (!node) return [];
-  const each = nodes => nodes.flatMap(child => menuRows(child, r, icons));
+// its placeholders and `icons` its icons. Its nodes count against
+// `budget`, which a bar shares among its views, and once that is spent the
+// menu has no more rows.
+export function menuRows(node, r, icons, budget = viewBudget()) {
+  if (!node || budget.left <= 0) return [];
+  budget.left -= 1;
+  const each = nodes => nodes.flatMap(child => menuRows(child, r, icons, budget));
   const command = value => (value === undefined ? undefined : r.resolveCommand(value));
   const source = node.path;
   switch (node.type) {
@@ -135,9 +139,9 @@ export function menuRows(node, r, icons) {
       }];
     }
     case "foreach":
-      return (r.data[node.items] ?? []).flatMap(element => menuRows(node.child, r.scoped(element), icons));
+      return (r.data[node.items] ?? []).flatMap(element => menuRows(node.child, r.scoped(element), icons, budget));
     case "if":
-      return menuRows(r.truthy(node.condition) ? node.then : node.else, r, icons);
+      return menuRows(r.truthy(node.condition) ? node.then : node.else, r, icons, budget);
     default:
       return [];
   }

@@ -131,11 +131,13 @@ export function createResolver({ variables = {}, data = {}, theme = () => undefi
 }
 
 // `template` as a plain tooltip shows it: `{value}`, `{icon}` and each
-// variable filled in, and any other placeholder left as written.
+// variable filled in, and any other placeholder left as written. Each
+// placeholder is filled once, with its value as it is: a placeholder
+// within a value stays as written.
 export function fillTooltip(template, { value, icon, variables = {} }) {
-  let result = template;
-  if (value !== undefined) result = result.replaceAll("{value}", value);
-  if (icon !== undefined) result = result.replaceAll("{icon}", icon);
-  for (const [key, val] of Object.entries(variables)) result = result.replaceAll(`{${key}}`, val);
-  return result;
+  return template.replace(/\{([^{}]*)\}/g, (placeholder, key) => {
+    if (key === "value" && value !== undefined) return value;
+    if (key === "icon" && icon !== undefined) return icon;
+    return Object.hasOwn(variables, key) ? String(variables[key]) : placeholder;
+  });
 }

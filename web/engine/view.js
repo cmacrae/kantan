@@ -205,6 +205,18 @@ const VERTICAL = {
 
 const MAX_DEPTH = 32;
 
+// The most nodes a bar's views are resolved through. Nested `foreach`
+// nodes multiply: a few hundred bytes of view can ask for more nodes than
+// could ever be drawn. A popup that shows a month of days comes to a few
+// hundred.
+export const MAX_VIEW_NODES = 10_000;
+
+// What is left of the nodes a bar's views may come to.
+export const viewBudget = () => ({ left: MAX_VIEW_NODES });
+
+// The most columns a grid is drawn with.
+const MAX_GRID_COLUMNS = 64;
+
 // Something kantan draws that the preview can't yet, to mark in its place.
 export const unsupported = what => ({ type: "unsupported", what });
 
@@ -213,9 +225,14 @@ export const unsupported = what => ({ type: "unsupported", what });
 // colours and icons resolved. `context` holds the module's `resolver`, the
 // `native` flag, the default text colour `fg` and the `icons` lookup.
 // Returns the nodes the view comes to, as a list, each with its `source`:
-// the path of the node it came from in the view as written.
+// the path of the node it came from in the view as written. `context` may
+// hold the `budget` its nodes count against, shared with a bar's other
+// views. Once it is spent the view comes to nothing more.
 export function resolveView(node, context, depth = 0) {
   if (!node || depth > MAX_DEPTH) return [];
+  if (context.budget === undefined) context = { ...context, budget: viewBudget() };
+  if (context.budget.left <= 0) return [];
+  context.budget.left -= 1;
   const { resolver: r, icons } = context;
   const { common } = node;
   if (common.visible !== undefined && !r.truthy(common.visible)) return [];
@@ -339,7 +356,7 @@ export function resolveView(node, context, depth = 0) {
         color: color(node.color, "accent"), textColor: color(node.textColor, "white"),
       });
     case "grid":
-      return one({ type: "grid", columns: Math.max(1, node.columns ?? 2), spacing: node.spacing ?? 8, children: children() });
+      return one({ type: "grid", columns: Math.min(Math.max(1, node.columns ?? 2), MAX_GRID_COLUMNS), spacing: node.spacing ?? 8, children: children() });
     default:
       return [];
   }

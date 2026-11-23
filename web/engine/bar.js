@@ -11,7 +11,7 @@ import { barColor } from "./color.js";
 import { noIcons } from "./icons.js";
 import { createStyler } from "./style.js";
 import { createResolver, fillTooltip } from "./template.js";
-import { resolveView } from "./view.js";
+import { resolveView, viewBudget } from "./view.js";
 
 const PLACEMENTS = ["left", "notchleft", "center", "notchright", "right"];
 
@@ -127,7 +127,7 @@ export function matchWaveform(waveform, matched) {
   };
 }
 
-function resolveModule(module, state, config, styler, icons, dark) {
+function resolveModule(module, state, config, styler, icons, dark, budget) {
   const model = { name: module.name, type: module.type, hidden: state.hidden };
   if (module.masked) model.masked = true;
   if (state.unsupported !== undefined) return { ...model, unsupported: state.unsupported };
@@ -195,7 +195,7 @@ function resolveModule(module, state, config, styler, icons, dark) {
   const glyph = model.icon?.glyph ?? model.icon?.text;
   const variables = { ...state.variables, value: state.value, ...(glyph === undefined ? {} : { icon: glyph }) };
   const resolver = createResolver({ variables, data: state.data, theme: key => styler.resolve(`{${key}}`) });
-  const context = { resolver, native: styler.native, fg: styler.native ? "primary" : styler.barFg, icons };
+  const context = { resolver, native: styler.native, fg: styler.native ? "primary" : styler.barFg, icons, budget };
   model.placeholders = { variables, data: state.data };
 
   const { hover, click } = module.interaction ?? {};
@@ -222,7 +222,7 @@ function resolveModule(module, state, config, styler, icons, dark) {
     case undefined:
       break;
     case "menu":
-      if (view) model.click = { type: "menu", rows: menuRows(view, resolver, icons), fg: styler.native ? undefined : styler.barFg };
+      if (view) model.click = { type: "menu", rows: menuRows(view, resolver, icons, budget), fg: styler.native ? undefined : styler.barFg };
       break;
     case "popup":
       if (view) model.click = { type: "popup", view: resolveView(view, context) };
@@ -256,10 +256,12 @@ export function resolveBar(document, { dark = false, states = {}, samples = {}, 
   const styler = createStyler(config, dark);
 
   const placements = Object.fromEntries(PLACEMENTS.map(placement => [placement, []]));
+  // The nodes the modules' views may come to between them.
+  const budget = viewBudget();
   for (const module of config.modules) {
     const placement = resolvePlacement(module.placement, notch);
     if (!Object.hasOwn(placements, placement ?? "")) continue;
-    const model = resolveModule(module, moduleState(module, document, states[module.name], samples[module.name]), config, styler, icons, dark);
+    const model = resolveModule(module, moduleState(module, document, states[module.name], samples[module.name]), config, styler, icons, dark, budget);
     // A module slides in and out as it shows and hides when its transition
     // says so, or without one, when it sits beside the notch.
     if ((module.transition ?? (placement.startsWith("notch") ? "slide" : "none")) === "slide") model.transition = "slide";
