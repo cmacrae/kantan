@@ -612,9 +612,10 @@ func render(
       rect(width: 48, height: 48, color: "accent", cornerRadius: 8),
       icon("music", size: 22, color: "white"),
     ])
-  var details = [text(variables["title"]!, weight: "semibold")]
-  for line in [variables["artist"]!, variables["album"]!] where !line.isEmpty {
-    details.append(text(line, size: 11, style: "secondary"))
+  // The track's text is given as variables, which kantan writes as they are.
+  var details = [text("{title}", weight: "semibold")]
+  for line in ["artist", "album"] where !variables[line]!.isEmpty {
+    details.append(text("{\(line)}", size: 11, style: "secondary"))
   }
   var rows: [JSONValue] = []
   // With more than one player holding a track, a switcher picks the one shown.

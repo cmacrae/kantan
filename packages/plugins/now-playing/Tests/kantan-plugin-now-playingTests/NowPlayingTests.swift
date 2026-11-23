@@ -68,6 +68,16 @@ final class NowPlayingTests {
     #expect(clockTime(-5) == "0:00")
   }
 
+  @Test func testThePopupShowsTheTrackThroughItsVariables() throws {
+    var braced = track()
+    braced.title = "Intro {Live}"
+    let output = shown(braced, Settings())
+    let view = String(decoding: try JSONEncoder().encode(output.view), as: UTF8.self)
+    #expect(output.variables["title"] == "Intro {Live}")
+    #expect(view.contains(#""{title}""#))
+    #expect(!view.contains("Intro"))
+  }
+
   @Test func testThePositionBarSeeksUnlessThePlayerCant() throws {
     let view = { (track: Track) in
       String(decoding: try JSONEncoder().encode(shown(track, Settings()).view), as: UTF8.self)
