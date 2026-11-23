@@ -282,12 +282,19 @@ struct Selection {
   /// that started or stopped playing since the last report. A player seen
   /// for the first time changed when it last played, or now when it plays.
   /// The pin goes when its player stops playing or has no track, or another
-  /// player starts playing.
+  /// player starts playing. At the first report, it goes when its player
+  /// isn't playing and another is.
   @discardableResult
   mutating func note(_ players: [Track], excluding excluded: [String], at now: Double)
     -> [String]
   {
     let loaded = Track.loaded(of: players, excluding: excluded)
+    if wasPlaying.isEmpty, let pin,
+      loaded.contains(where: { $0.isPlaying && $0.key != pin.player }),
+      !loaded.contains(where: { $0.isPlaying && $0.key == pin.player })
+    {
+      self.pin = nil
+    }
     var playing: [String: Bool] = [:]
     var switched: [String] = []
     for track in loaded {

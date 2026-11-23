@@ -181,6 +181,27 @@ final class NowPlayingTests {
     #expect(selection.pin == nil)
   }
 
+  @Test func testAPinFromBeforeTheWatchStartedGivesWayToAPlayerPlaying() {
+    let player = { (bundle: String, playing: Bool) in
+      var track = track()
+      track.bundle = bundle
+      track.playing = playing
+      return track
+    }
+    var selection = Selection()
+    selection.pin = Pin(player: "arc", at: 0)
+    selection.note([player("arc", false), player("spotify", true)], excluding: [], at: 10)
+    #expect(selection.pin == nil)
+    #expect(
+      selection.shown(of: [player("arc", false), player("spotify", true)], excluding: [])?.bundle
+        == "spotify")
+
+    var playing = Selection()
+    playing.pin = Pin(player: "arc", at: 0)
+    playing.note([player("arc", true), player("spotify", true)], excluding: [], at: 10)
+    #expect(playing.pin?.player == "arc")
+  }
+
   @Test func testTheSwitcherOffersEachPlayerWhenThereIsMoreThanOne() throws {
     let view = { (choices: [Choice]) in
       let output = render(
