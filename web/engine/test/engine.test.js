@@ -3,6 +3,7 @@
 // document itself.
 import assert from "node:assert/strict";
 import { test } from "node:test";
+import { parseHex } from "../color.js";
 import {
   createResolver, decodeJsonView, formatDate, iconTable, ordinalSuffix, resolveBar, resolveOverlap, resolveTuck, resolveView, tuckHides,
   validateDocument,
@@ -252,4 +253,12 @@ test("a waveform's gradient passes through each of its colours, and a wave follo
   assert.deepEqual(waveform({ style: "wave", wave: { tone: true }, rainbow }).colors, ["#ff0000", "#00ff00"]);
   assert.equal(waveform({ style: "spectrogram" }).style, "spectrogram");
   assert.equal(waveform({ style: "unknown" }).style, "bars");
+});
+
+test("a colour is read in a time that grows with its length", { timeout: 5000 }, () => {
+  assert.equal(parseHex("##FF0000;"), "#ff0000");
+  assert.equal(parseHex(" «11223344» "), "#11223344");
+  assert.equal(parseHex("ff00"), undefined);
+  assert.equal(parseHex(`a${"#".repeat(1_000_000)}a`), undefined);
+  assert.equal(parseHex(`${"#".repeat(1_000_000)}ff0000${"\u{1F600}".repeat(500_000)}`), "#ff0000");
 });

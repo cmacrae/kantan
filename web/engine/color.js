@@ -2,12 +2,31 @@
 // case, or a token naming a colour the system supplies, such as `label`
 // for the native text colour or `clear` for none.
 
-const edges = /^[^\p{L}\p{N}]+|[^\p{L}\p{N}]+$/gu;
+const LETTER_OR_DIGIT = /[\p{L}\p{N}]/u;
+
+// `text` without what comes before its first letter or digit and after
+// its last, walked from each end so the time taken grows with its length.
+function trimmed(text) {
+  let start = 0, end = text.length;
+  while (start < end) {
+    const character = String.fromCodePoint(text.codePointAt(start));
+    if (LETTER_OR_DIGIT.test(character)) break;
+    start += character.length;
+  }
+  while (end > start) {
+    // The last character is two units long when they are a surrogate pair.
+    const paired = end - start > 1 && /[\uDC00-\uDFFF]/.test(text[end - 1]) && /[\uD800-\uDBFF]/.test(text[end - 2]);
+    const from = end - (paired ? 2 : 1);
+    if (LETTER_OR_DIGIT.test(text.slice(from, end))) break;
+    end = from;
+  }
+  return text.slice(start, end);
+}
 
 // The colour `hex` writes as RRGGBB or RRGGBBAA, with or without a leading
 // `#`, or undefined for anything else.
 export function parseHex(hex) {
-  const cleaned = String(hex).replace(edges, "");
+  const cleaned = trimmed(String(hex));
   return /^([0-9a-f]{6}|[0-9a-f]{8})$/i.test(cleaned) ? `#${cleaned.toLowerCase()}` : undefined;
 }
 

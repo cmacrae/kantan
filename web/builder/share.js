@@ -155,13 +155,25 @@ async function encodeFragment(version, packed) {
   return `${version}.${toBase64Url(deflated)}`;
 }
 
+// The most bytes a fragment may inflate to. A few bytes of a link can
+// stand for megabytes of the same character, which nothing here would
+// draw: the largest bar the site offers packs to a few thousand.
+const LARGEST_PACKED = 1 << 20;
+
 // The packed form a fragment of `version` holds. Throws an error saying
 // what's wrong with a fragment that isn't one.
 async function decodeFragment(version, fragment) {
   const dot = fragment.indexOf(".");
   if (dot < 0 || fragment.slice(0, dot) !== version) throw new Error("The link is in a format this site doesn't read");
+  let inflated;
   try {
-    const inflated = inflateSync(fromBase64Url(fragment.slice(dot + 1)), { dictionary: DICTIONARY_BYTES });
+    // Inflating stops once the room it is given is full.
+    inflated = inflateSync(fromBase64Url(fragment.slice(dot + 1)), { dictionary: DICTIONARY_BYTES, out: new Uint8Array(LARGEST_PACKED + 1) });
+  } catch {
+    throw new Error("The link is damaged");
+  }
+  if (inflated.length > LARGEST_PACKED) throw new Error("The link holds more than a bar could");
+  try {
     return JSON.parse(new TextDecoder().decode(inflated));
   } catch {
     throw new Error("The link is damaged");

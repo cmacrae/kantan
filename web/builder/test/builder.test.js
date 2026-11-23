@@ -581,3 +581,10 @@ test("what kantan's YAML reads as a merge, a number or a value is written quoted
   assert.deepEqual(readYaml(text).value, document.config);
   assert.match(themeFiles("mine", { fg: "#000000", bg: "#ffffff", "<<": { colors: {} } })[0].text, /^"<<":$/m);
 });
+
+test("a link that inflates to more than a bar could hold is refused", async () => {
+  const fragment = rawFragment("1", { c: { style: { fg: "#".repeat(5_000_000) } } });
+  assert.ok(fragment.length < 10_000);
+  await assert.rejects(decodeLink(fragment, catalog), /more than/);
+  await assert.rejects(decodeThemeLink(`t${fragment}`), /more than/);
+});
