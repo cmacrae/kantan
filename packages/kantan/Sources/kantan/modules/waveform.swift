@@ -669,12 +669,13 @@ final class AudioMeter: @unchecked Sendable {
   }
 
   /// Starts the tap again when the processes it leaves out have changed:
-  /// as one starts or quits, or an observer with another filter joins.
+  /// as one starts, or an observer with another filter joins or leaves. A
+  /// process that has quit is left out already.
   /// Stops it, leaving every observer with silence, when it can't start.
   private func retap() {
     guard tapRunning else { return }
     let excluded = AudioSource.processes(outside: filter)
-    guard excluded != self.excluded else { return }
+    guard excluded != self.excluded.filter(AudioSource.isKnown) else { return }
     self.excluded = excluded
     tap.stop()
     if !tap.start(excluding: excluded) { MainActor.assumeIsolated { stopTap() } }
@@ -888,6 +889,11 @@ enum AudioSource {
       guard let pid = property(process, kAudioProcessPropertyPID, pid_t(0)) else { return false }
       return !leavesOut(filter, pid: pid, app: app(of: process, among: apps))
     }
+  }
+
+  /// Whether `process` is still known to Core Audio.
+  static func isKnown(_ process: AudioObjectID) -> Bool {
+    property(process, kAudioProcessPropertyPID, pid_t(0)) != nil
   }
 
   /// The audio objects of the processes whose sound `filter` leaves out.
