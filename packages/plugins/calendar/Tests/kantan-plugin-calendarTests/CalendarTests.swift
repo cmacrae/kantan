@@ -151,6 +151,17 @@ final class FullCalendarTests {
     #expect(picked.applying("--select", "tomorrow", at: now) == nil)
     #expect(picked.applying("--sideways", nil, at: now) == nil)
   }
+
+  @Test func testEveryDayOfACalendarWithThirteenMonthsCanBePicked() throws {
+    for identifier in [Calendar.Identifier.hebrew, .coptic] {
+      let calendar = Calendar(identifier: identifier)
+      var day = calendar.startOfDay(for: at(day: 18))
+      for _ in 0..<400 {
+        #expect(parseDay(dayKey(day, in: calendar), in: calendar) == day)
+        day = try #require(calendar.date(byAdding: .day, value: 1, to: day))
+      }
+    }
+  }
 }
 
 // MARK: - PluginKit formats

@@ -341,20 +341,22 @@ func formatCountdown(from now: Date, to target: Date) -> String {
 
 // MARK: - Days
 
-/// `date`'s day as `yyyy-MM-dd`.
-func dayKey(_ date: Date) -> String {
-  let parts = Calendar.current.dateComponents([.year, .month, .day], from: date)
+/// `date`'s day as `yyyy-MM-dd` in `calendar`.
+func dayKey(_ date: Date, in calendar: Calendar = .current) -> String {
+  let parts = calendar.dateComponents([.year, .month, .day], from: date)
   return String(format: "%04d-%02d-%02d", parts.year ?? 0, parts.month ?? 0, parts.day ?? 0)
 }
 
-/// The start of the day `key` names as `yyyy-MM-dd`, or of its month for
-/// `yyyy-MM`.
-func parseDay(_ key: String) -> Date? {
+/// The start of the day `key` names as `yyyy-MM-dd` in `calendar`, or of
+/// its month for `yyyy-MM`. A month is any `calendar` has, such as the
+/// Hebrew calendar's 13th.
+func parseDay(_ key: String, in calendar: Calendar = .current) -> Date? {
   let parts = key.split(separator: "-").map { Int($0) }
   guard (2...3).contains(parts.count), let year = parts[0], let month = parts[1],
-    (1...12).contains(month), let day = parts.count == 3 ? parts[2] : 1, (1...31).contains(day)
+    calendar.maximumRange(of: .month)?.contains(month) == true,
+    let day = parts.count == 3 ? parts[2] : 1, (1...31).contains(day)
   else { return nil }
-  return Calendar.current.date(from: DateComponents(year: year, month: month, day: day))
+  return calendar.date(from: DateComponents(year: year, month: month, day: day))
 }
 
 /// The start of `date`'s month.
@@ -384,14 +386,14 @@ struct ViewState: Codable, Equatable {
   func selectedDay(at now: Date) -> Date {
     let today = Calendar.current.startOfDay(for: now)
     guard setOn == dayKey(now) else { return today }
-    return selected.flatMap(parseDay) ?? today
+    return selected.flatMap { parseDay($0) } ?? today
   }
 
   /// The month shown at `now`, as the start of it.
   func shownMonth(at now: Date) -> Date {
     let fromDay = startOfMonth(selectedDay(at: now))
     guard setOn == dayKey(now) else { return fromDay }
-    return month.flatMap(parseDay) ?? fromDay
+    return month.flatMap { parseDay($0) } ?? fromDay
   }
 
   /// The state after the subcommand `command` is run with `argument` at
