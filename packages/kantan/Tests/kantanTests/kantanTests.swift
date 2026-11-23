@@ -617,6 +617,34 @@ final class CommandTemplateTests {
   }
 }
 
+final class DSLFileImageTests {
+  @Test func testAFileImageIsReadOnceAndAPipeIsNoImage() throws {
+    let dir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+    try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+    defer { try? FileManager.default.removeItem(at: dir) }
+
+    let file = dir.appendingPathComponent("art.png")
+    let bitmap = try #require(
+      NSBitmapImageRep(
+        bitmapDataPlanes: nil, pixelsWide: 2, pixelsHigh: 2, bitsPerSample: 8,
+        samplesPerPixel: 4, hasAlpha: true, isPlanar: false, colorSpaceName: .deviceRGB,
+        bytesPerRow: 0, bitsPerPixel: 0))
+    let png = try #require(bitmap.representation(using: .png, properties: [:]))
+    try png.write(to: file)
+    let first = try #require(dslFileImage(at: file))
+    #expect(dslFileImage(at: file) === first)
+
+    // A link to the file shows the file's image.
+    let link = dir.appendingPathComponent("link.png")
+    try FileManager.default.createSymbolicLink(at: link, withDestinationURL: file)
+    #expect(dslFileImage(at: link) != nil)
+
+    let pipe = dir.appendingPathComponent("art.fifo")
+    #expect(mkfifo(pipe.path, 0o600) == 0)
+    #expect(dslFileImage(at: pipe) == nil)
+  }
+}
+
 final class DSLCanonicalNormalisationTests {
   @Test func testCanonicalBoolRoundTripsThroughResolveBool() {
     let r = TemplateResolver(

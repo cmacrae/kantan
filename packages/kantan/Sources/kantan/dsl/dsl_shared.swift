@@ -225,6 +225,31 @@ func dslScaledFontSize(_ size: Double, scale: Double) -> Int {
   return Int(round(min(max(scaled, 1), 1000)))
 }
 
+// MARK: - File Images
+
+/// Images read from files on this Mac, by path and modification date.
+nonisolated(unsafe) private let dslFileImages: NSCache<NSString, NSImage> = {
+  let cache = NSCache<NSString, NSImage>()
+  cache.countLimit = 32
+  return cache
+}()
+
+/// The image in the regular file at `url`, or the one a symlink there leads
+/// to, read again only once the file has changed. Anything but a regular
+/// file, such as a pipe, is no image.
+func dslFileImage(at url: URL) -> NSImage? {
+  let url = url.resolvingSymlinksInPath()
+  guard let attributes = try? FileManager.default.attributesOfItem(atPath: url.path),
+    attributes[.type] as? FileAttributeType == .typeRegular,
+    let modified = attributes[.modificationDate] as? Date
+  else { return nil }
+  let key = "\(modified.timeIntervalSinceReferenceDate) \(url.path)" as NSString
+  if let image = dslFileImages.object(forKey: key) { return image }
+  guard let image = NSImage(contentsOf: url) else { return nil }
+  dslFileImages.setObject(image, forKey: key)
+  return image
+}
+
 // MARK: - Gauge Range
 
 /// The range a gauge spans: `min` (default 0) to `max` (default 1), in

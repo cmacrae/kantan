@@ -450,7 +450,7 @@ struct DSLRendererView: View {
     let radius = cornerRadius ?? 0
 
     if let parsedURL = URL(string: resolvedURL), parsedURL.isFileURL,
-      let local = NSImage(contentsOf: parsedURL)
+      let local = dslFileImage(at: parsedURL)
     {
       // A file on this Mac is read at once, with nothing to wait for.
       Image(nsImage: local)

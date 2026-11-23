@@ -85,7 +85,7 @@ The `style` property affects rendering: `secondary` reduces opacity to 50%. The 
 
 Icons are resolved by name from bundled icon fonts (tabler-icons). Use the `-filled` suffix convention (e.g., `"bell-filled"`) for filled variants. An ASCII name that isn't a tabler icon is shown as the SF Symbol of that name (e.g., `"gear"`). Any other name is drawn as literal text. A glyph character can be used directly. The `style` property (`regular`/`filled`) is accepted but does not currently have a visual effect; use the `-filled` name suffix instead.
 
-kantan fetches an image's `url` whenever the view shows it, so the image's server learns when you looked and from where. An image `url` built from outside text, such as an invitation or a feed item, lets whoever wrote that text track you. Only show images from sources you trust. A spinner shows while an image loads. An image that fails to load shows a placeholder `photo` symbol. The image fills its `width`×`height`, cropping to keep its aspect ratio. `cornerRadius` here also rounds the node's `background`.
+kantan fetches an image's `url` whenever the view shows it, so the image's server learns when you looked and from where. An image `url` built from outside text, such as an invitation or a feed item, lets whoever wrote that text track you. Only show images from sources you trust. A spinner shows while an image loads. An image that fails to load shows a placeholder `photo` symbol. A `file://` image is read once, and again only when the file changes. The image fills its `width`×`height`, cropping to keep its aspect ratio. `cornerRadius` here also rounds the node's `background`.
 
 **Image Example:**
 ```json
