@@ -937,15 +937,22 @@ class Drawn extends Component {
   }
 }
 
-// What shows in place of a bar that couldn't be drawn.
+// What shows in place of a bar that couldn't be drawn: the page's header,
+// with the way back to the example bar, over a line saying why.
 function Undrawn({ onExample }) {
   return (
-    <div style={{ padding: 20 }}>
-      <div className="kb-banner">
-        <span>This bar holds something the builder can't draw, so it isn't shown.</span>
-        <button type="button" className="kb-btn primary" onClick={onExample}>Open the example bar</button>
+    <>
+      <header className="kb-top">
+        <a className="kb-brand" href="/"><b>kantan</b><span>builder</span></a>
+        <div className="kb-actions">
+          <Button kind="primary" icon="file-text" onClick={onExample}>Open the example bar</Button>
+          <SiteLinks />
+        </div>
+      </header>
+      <div style={{ padding: "0 20px" }}>
+        <div className="kb-banner"><span>This bar holds something the builder can't draw, so it isn't shown.</span></div>
       </div>
-    </div>
+    </>
   );
 }
 
@@ -986,7 +993,13 @@ export default function Builder() {
   return (
     <div className="kb">
       <style>{STYLES}</style>
-      <Drawn key={session} fallback={<Undrawn onExample={() => start({ document: exampleDocument() })} />}>
+      <Drawn
+        key={session}
+        fallback={(
+          <BuilderContext.Provider value={{ ...iconSet, catalog, schema }}>
+            <Undrawn onExample={() => start({ document: exampleDocument() })} />
+          </BuilderContext.Provider>
+        )}>
         {opened?.shared && (
           <BuilderContext.Provider value={{ ...iconSet, catalog, schema }}>
             <SharedModule key={session} shared={opened.shared} systemDark={systemDark} onBuild={() => open(onExample(opened.shared))} />
