@@ -788,9 +788,12 @@ struct AudioFilter: Sendable, Equatable {
 enum AudioSource {
   /// Called when the processes that make sound change.
   nonisolated(unsafe) private static var processesChanged: (@Sendable () -> Void)?
-  nonisolated(unsafe) private static let listener: AudioObjectPropertyListenerBlock = { _, _ in
-    // The processes to listen to follow those there are.
-    if processesChanged != nil { watchOutputs(of: Set(allProcesses())) }
+
+  /// Follows a change Core Audio reports, on the main thread: the processes
+  /// listened to become those there are, and `processesChanged` is called.
+  fileprivate static func processesDidChange() {
+    guard processesChanged != nil else { return }
+    watchOutputs(of: Set(allProcesses()))
     processesChanged?()
   }
 
@@ -807,10 +810,10 @@ enum AudioSource {
   private static func watchOutputs(of processes: Set<AudioObjectID>) {
     var address = outputAddress
     for gone in watched.subtracting(processes) {
-      AudioObjectRemovePropertyListenerBlock(gone, &address, .main, listener)
+      AudioObjectRemovePropertyListener(gone, &address, audioSourceListener, nil)
     }
     for new in processes.subtracting(watched) {
-      AudioObjectAddPropertyListenerBlock(new, &address, .main, listener)
+      AudioObjectAddPropertyListener(new, &address, audioSourceListener, nil)
     }
     watched = processes
   }
@@ -823,11 +826,11 @@ enum AudioSource {
       mScope: kAudioObjectPropertyScopeGlobal, mElement: kAudioObjectPropertyElementMain)
     let system = AudioObjectID(kAudioObjectSystemObject)
     if processesChanged != nil {
-      AudioObjectRemovePropertyListenerBlock(system, &address, .main, listener)
+      AudioObjectRemovePropertyListener(system, &address, audioSourceListener, nil)
     }
     processesChanged = changed
     if changed != nil {
-      AudioObjectAddPropertyListenerBlock(system, &address, .main, listener)
+      AudioObjectAddPropertyListener(system, &address, audioSourceListener, nil)
     }
     watchOutputs(of: changed == nil ? [] : Set(allProcesses()))
   }
@@ -969,4 +972,15 @@ enum AudioSource {
     taps.forEach { $0?.stop() }
     return zip(sources, peaks).max { $0.1 < $1.1 }?.0.app
   }
+}
+
+/// Called by Core Audio, on its own thread, as a process comes to or leaves
+/// it, or starts or stops playing. A C function, unlike a Swift closure,
+/// is the same listener each time it is added and removed.
+private func audioSourceListener(
+  _: AudioObjectID, _: UInt32, _: UnsafePointer<AudioObjectPropertyAddress>,
+  _: UnsafeMutableRawPointer?
+) -> OSStatus {
+  DispatchQueue.main.async { AudioSource.processesDidChange() }
+  return noErr
 }
