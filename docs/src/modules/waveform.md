@@ -141,6 +141,8 @@ config:
 
 An app plays its own notification sounds as it plays anything else, so those are drawn unless the app is excluded.
 
+kantan listens once for every waveform module, so they all draw the same sound. An app any of them excludes is left out of them all. `sources: all` takes effect only when every waveform module sets it: one left at `apps` keeps them all to the sound of apps.
+
 ### Detail and Sensitivity
 
 The sound is measured in 256 bands of frequency. A waveform shows as many of them as it has bars: 8 bars each take the loudest of 32 bands, and 128 bars show two bands each. So a wider waveform shows more of the sound's detail rather than a smoother copy of it. The lowest bands are closer together than the sound can be told apart in the moment, so the bars at the low end of a very wide waveform rise and fall together.
