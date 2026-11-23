@@ -7,7 +7,6 @@
       { "resolve": "Next: {missing}!", "expect": "Next: !" },
       { "resolve": "no placeholders", "expect": "no placeholders" },
       { "resolve": "an {unclosed brace", "expect": "an {unclosed brace" },
-      { "resolve": "{}", "expect": "" },
       { "resolve": "}{title}{", "expect": "}Standup{" }
     ]
   },
@@ -88,6 +87,45 @@
       { "command": "file:///covers/{up}", "expect": "file:///covers/..%2F..%2Fx" },
       { "command": "https://example.com/?q={accent}", "expect": "https://example.com/?q=caf%C3%A9" },
       { "command": "open https://example.com/{id}", "expect": "open https://example.com/'a b&c=d/e?f#g+h'" }
+    ]
+  },
+  {
+    "name": "a brace that isn't a placeholder stays as written",
+    "variables": {"title": "T", "my var": "odd", "empty": "", "t": "true"},
+    "checks": [
+      { "resolve": "{print $2}", "expect": "{print $2}" },
+      { "resolve": "{}", "expect": "{}" },
+      { "resolve": "{ title }", "expect": "{ title }" },
+      { "resolve": "{a,b}", "expect": "{a,b}" },
+      { "resolve": "{1st}", "expect": "{1st}" },
+      { "resolve": "{título}", "expect": "{título}" },
+      { "resolve": "{my var}", "expect": "odd" },
+      { "resolve": "{missing}", "expect": "" },
+      { "resolve": "{_missing-name_1.x}", "expect": "" },
+      { "resolve": "{a{title}", "expect": "{aT" },
+      { "resolve": "{{title}}", "expect": "{T}" },
+      { "resolve": "{print \"{title}\"}", "expect": "{print \"T\"}" },
+      { "resolve": "}{", "expect": "}{" },
+      { "resolve": "{title", "expect": "{title" },
+      { "resolve": "{́title}", "expect": "{́title}" },
+      { "command": "ps aux | awk '{print $2}'", "expect": "ps aux | awk '{print $2}'" },
+      { "command": "find . -name '*.log' -exec rm {} +", "expect": "find . -name '*.log' -exec rm {} +" },
+      { "command": "cp file.{txt,bak} /tmp", "expect": "cp file.{txt,bak} /tmp" },
+      { "command": "{ ls; }", "expect": "{ ls; }" },
+      { "command": "awk '{ if ($1) { print } }' {title}", "expect": "awk '{ if ($1) { print } }' 'T'" },
+      { "command": "awk '{print \"{title}\"}'", "expect": "awk '{print \"T\"}'" },
+      { "command": "echo \"{ {title} }\"", "expect": "echo \"{ T }\"" },
+      { "command": "echo ${HOME:-none} {title}", "expect": "echo ${HOME:-none} 'T'" },
+      { "command": "echo '{print}' '{ print }'", "expect": "echo '' '{ print }'" },
+      { "command": "echo {my var}", "expect": "echo 'odd'" },
+      { "command": "{my var}", "expect": "odd" },
+      { "command": "{}", "expect": "{}" },
+      { "command": "echo \\{title} {title}", "expect": "echo \\{title} 'T'" },
+      { "truthy": "my var", "expect": true },
+      { "truthy": "no such var", "expect": false },
+      { "truthy": "missing", "expect": false },
+      { "bool": "{t}", "expect": true },
+      { "bool": "{missing}", "expect": false }
     ]
   },
   {

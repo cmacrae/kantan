@@ -10,7 +10,9 @@ Any string value in a view node can contain placeholders in the form `{variable_
 2. **Top-level variables**: The module's template variables (for command modules, the `variables` object in plugin JSON output) plus the built-in `{value}` and `{icon}`, which replace any variables of the same name
 3. **Theme templates**: `{theme(name)}` patterns resolved via the theme palette (see [Theme Colour Templates](#theme-colour-templates))
 
-A placeholder that matches none of these is replaced with an empty string. There is no escape for literal braces: any `{` followed later by `}` is treated as a placeholder. A substituted value is used as it is: placeholders within it aren't resolved, except `{theme(name)}` templates, so a variable can hold one.
+A placeholder that matches none of these is replaced with an empty string, when what its braces hold has the shape of a name: a letter or `_`, then letters, digits, `_`, `.` and `-`. `{titel}`, a name nothing defines, comes to nothing.
+
+Braces that hold anything else are text, and stay as written, unless a variable has exactly that name: `{print $2}`, `{}`, `{a,b}` and `{ title }` are left alone. So a literal brace needs no escape. Braces that hold a name are still a placeholder: to write `{print}` as text, put a space in it, `{ print }`. A substituted value is used as it is: placeholders within it aren't resolved, except `{theme(name)}` templates, so a variable can hold one.
 
 The only template syntax is `{name}` and `{theme(name)}`. Conditionals like `{?name:...}` in plugin `format` settings are expanded by the plugin before output, not by the View DSL.
 

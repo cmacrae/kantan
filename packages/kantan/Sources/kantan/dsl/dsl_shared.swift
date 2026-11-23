@@ -48,6 +48,11 @@ class TemplateResolver {
 
   /// Resolve `{key}` placeholders in a template string.
   ///
+  /// A brace pair is a placeholder when a variable of that name exists, or
+  /// when what it holds has the shape of a name (`isName`). One with a name
+  /// nothing defines comes to nothing. Any other brace is text, and stays
+  /// as written: `awk '{print $2}'` keeps its braces.
+  ///
   /// Resolution order:
   /// 1. Innermost foreach scope (top of stack)
   /// 2. Outer foreach scopes (walking down the stack)
@@ -57,30 +62,72 @@ class TemplateResolver {
   /// templates within it resolve against the palette, so a variable can hold
   /// one. A theme template the palette can't resolve is kept as written.
   func resolve(_ template: String) -> String {
-    replacePlaceholders(in: template) { key, _ in
-      replacePlaceholders(in: lookupValue(for: key) ?? "") { inner, placeholder in
-        inner.hasPrefix("theme(") && inner.hasSuffix(")")
-          ? fallbackResolver?(inner) ?? placeholder : placeholder
-      }
+    Self.filling(template, with: placeholderValue)
+  }
+
+  /// The value of the variable `key`, with the theme templates within it
+  /// resolved, or nothing when no variable has that name.
+  func value(of key: String) -> String {
+    guard let value = lookupValue(for: key) else { return "" }
+    return Self.filling(value) { inner in
+      inner.hasPrefix("theme(") && inner.hasSuffix(")") ? fallbackResolver?(inner) : nil
     }
   }
 
-  /// `template` with each `{key}` placeholder replaced by
-  /// `replacement(key, placeholder)`.
-  private func replacePlaceholders(
-    in template: String, with replacement: (String, String) -> String
-  ) -> String {
-    var result = ""
-    var rest = template[...]
-    while let open = rest.firstIndex(of: "{"),
-      let close = rest[rest.index(after: open)...].firstIndex(of: "}")
-    {
-      result += rest[..<open]
-      result += replacement(
-        String(rest[rest.index(after: open)..<close]), String(rest[open...close]))
-      rest = rest[rest.index(after: close)...]
+  /// What the placeholder `{key}` comes to, or nil when `{key}` isn't one.
+  private func placeholderValue(_ key: String) -> String? {
+    lookupValue(for: key) != nil || Self.isName(key) ? value(of: key) : nil
+  }
+
+  /// Whether `key` has the shape of a variable's name: a letter or `_`,
+  /// then letters, digits, `_`, `.` and `-`, all of them ASCII.
+  static func isName(_ key: String) -> Bool {
+    let letter = { (scalar: Unicode.Scalar) in
+      ("a"..."z").contains(scalar) || ("A"..."Z").contains(scalar) || scalar == "_"
     }
-    return result + rest
+    guard let first = key.unicodeScalars.first, letter(first) else { return false }
+    return key.unicodeScalars.allSatisfy {
+      letter($0) || ("0"..."9").contains($0) || $0 == "." || $0 == "-"
+    }
+  }
+
+  /// What the `{` at `open` holds when the next brace after it is a `}`,
+  /// with where that pair ends. Braces are read by scalar, as the shell
+  /// reads them: one with a combining mark after it is still a brace.
+  private static func bracePair(
+    in scalars: String.UnicodeScalarView, at open: String.UnicodeScalarView.Index
+  ) -> (key: String, end: String.UnicodeScalarView.Index)? {
+    let start = scalars.index(after: open)
+    var index = start
+    while index < scalars.endIndex {
+      if scalars[index] == "}" {
+        return (String(scalars[start..<index]), scalars.index(after: index))
+      }
+      if scalars[index] == "{" { return nil }
+      index = scalars.index(after: index)
+    }
+    return nil
+  }
+
+  /// `template` with each brace pair `fill` gives a value for replaced by
+  /// that value. A brace it gives none for is left where it is, and what
+  /// follows it is read on.
+  private static func filling(_ template: String, with fill: (String) -> String?) -> String {
+    let scalars = template.unicodeScalars
+    var result = String.UnicodeScalarView()
+    var index = scalars.startIndex
+    while index < scalars.endIndex {
+      if scalars[index] == "{", let pair = bracePair(in: scalars, at: index),
+        let value = fill(pair.key)
+      {
+        result.append(contentsOf: value.unicodeScalars)
+        index = pair.end
+        continue
+      }
+      result.append(scalars[index])
+      index = scalars.index(after: index)
+    }
+    return String(result)
   }
 
   /// Resolve a view command's placeholders, each value quoted for where its
@@ -91,14 +138,15 @@ class TemplateResolver {
   /// substitutions aren't tracked. An empty bare value leaves nothing, as
   /// it always has. In a URL command values are percent-encoded. A command
   /// that is a single placeholder is a command the plugin built, and runs
-  /// as the value, exactly as written.
+  /// as the value, exactly as written. Braces that aren't placeholders are
+  /// the command's own, and stay as written.
   func resolveCommand(_ template: String) -> String {
     let trimmed = template.trimmingCharacters(in: .whitespaces)
-    if trimmed.hasPrefix("{"), trimmed.hasSuffix("}"),
-      trimmed.dropFirst().firstIndex(where: { $0 == "{" || $0 == "}" })
-        == trimmed.index(before: trimmed.endIndex)
+    let scalars = trimmed.unicodeScalars
+    if scalars.first == "{", let pair = Self.bracePair(in: scalars, at: scalars.startIndex),
+      pair.end == scalars.endIndex, lookupValue(for: pair.key) != nil || Self.isName(pair.key)
     {
-      return lookupValue(for: String(trimmed.dropFirst().dropLast())) ?? ""
+      return lookupValue(for: pair.key) ?? ""
     }
     if isURLCommand(trimmed) {
       return substitute(template) {
@@ -130,36 +178,41 @@ class TemplateResolver {
   /// Replaces each placeholder in a command with `encode(quote, value)`,
   /// `quote` being the shell quote character the placeholder sits within,
   /// or nil. A `$` that would expand a bare or double-quoted placeholder's
-  /// value is left out.
+  /// value is left out. The command is read by scalar, as the shell reads
+  /// it.
   private func substitute(
-    _ template: String, encode: (Character?, String) -> String
+    _ template: String, encode: (Unicode.Scalar?, String) -> String
   ) -> String {
-    var result = ""
-    var quote: Character?
-    // Whether the last character is a `$` the shell would expand with
-    // what follows: not escaped, and not the second of a `$$`.
+    let scalars = template.unicodeScalars
+    var result = String.UnicodeScalarView()
+    var quote: Unicode.Scalar?
+    // Whether the last scalar is a `$` the shell would expand with what
+    // follows: not escaped, and not the second of a `$$`.
     var expands = false
-    var index = template.startIndex
-    while index < template.endIndex {
-      let char = template[index]
-      if char == "{", let close = template[index...].firstIndex(of: "}") {
+    var index = scalars.startIndex
+    while index < scalars.endIndex {
+      let scalar = scalars[index]
+      if scalar == "{", let pair = Self.bracePair(in: scalars, at: index),
+        let value = placeholderValue(pair.key)
+      {
         if expands, quote != "'" { result.removeLast() }
         expands = false
-        result += encode(quote, resolve(String(template[index...close])))
-        index = template.index(after: close)
+        result.append(contentsOf: encode(quote, value).unicodeScalars)
+        index = pair.end
         continue
       }
-      result.append(char)
-      expands = char == "$" && !expands
-      if char == "\\", quote != "'", template.index(after: index) < template.endIndex {
-        index = template.index(after: index)
-        result.append(template[index])
-      } else if char == "'" || char == "\"" {
-        quote = quote == nil ? char : (quote == char ? nil : quote)
+      result.append(scalar)
+      expands = scalar == "$" && !expands
+      let next = scalars.index(after: index)
+      if scalar == "\\", quote != "'", next < scalars.endIndex {
+        result.append(scalars[next])
+        index = next
+      } else if scalar == "'" || scalar == "\"" {
+        quote = quote == nil ? scalar : (quote == scalar ? nil : quote)
       }
-      index = template.index(after: index)
+      index = scalars.index(after: index)
     }
-    return result
+    return String(result)
   }
 
   /// Resolve a template string to a boolean value.
@@ -321,6 +374,6 @@ func dslCanonicalNumber(_ value: Double) -> String {
 /// the standard truthy rules (non-empty, not `0`/`false`/`no`). Unknown variables
 /// resolve to the empty string and therefore read as falsy.
 func dslEvaluateTruthy(_ condition: String, resolver: TemplateResolver) -> Bool {
-  let resolved = resolver.resolve("{\(condition)}").lowercased()
+  let resolved = resolver.value(of: condition).lowercased()
   return !resolved.isEmpty && resolved != "0" && resolved != "false" && resolved != "no"
 }

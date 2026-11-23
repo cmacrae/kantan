@@ -581,6 +581,41 @@ final class CommandTemplateTests {
     #expect(web.user == nil)
   }
 
+  @Test func testTheShellsOwnBracesRunAsWritten() throws {
+    for template in [
+      "echo 'a b' | awk '{print $2}'", "{ printf x; printf y; }", "printf '[%s]' x{a,b}",
+      "printf '[%s]' {} '{}' \"{ }\"", "f() { printf z; }; f", "printf '%s' ${NOPE:-none}",
+    ] {
+      let command = resolver.resolveCommand(template)
+      #expect(command == template)
+      #expect((try shell(command)) == (try shell(template)), "\(template)")
+    }
+    #expect((try shell(resolver.resolveCommand("echo 'a b' | awk '{print $2}'"))) == "b\n")
+  }
+
+  @Test func testAPlaceholderAmongTheShellsBracesIsFilledAndQuoted() throws {
+    for template in [
+      "{ printf '[%s]' {v}; }", "printf '[%s]' {v} | awk '{ print }'",
+      "printf '[%s]' '{v}' {} | awk '{ print $0 }'", #"f() { printf '[%s]' "{v}"; }; f"#,
+    ] {
+      let printed = try shell(resolver.resolveCommand(template))
+      #expect(printed.hasPrefix("[\(hostile)]"), "\(template)")
+      #expect(!printed.contains("pwned\n"), "\(template)")
+    }
+  }
+
+  @Test func testOnlyANameOrAVariableMakesBracesAPlaceholder() {
+    for name in ["title", "_x", "a.b-c_1", "A"] {
+      #expect(TemplateResolver.isName(name), "\(name)")
+    }
+    for text in ["", "1st", "a b", "print $2", "a,b", " title", "t\u{ED}tulo", "theme(red)"] {
+      #expect(!TemplateResolver.isName(text), "\(text)")
+    }
+    let r = TemplateResolver(variables: ["my var": "odd", "title": "T"], data: [:])
+    #expect(r.resolve("{my var} {title} {missing} {no such} {}") == "odd T  {no such} {}")
+    #expect(!dslEvaluateTruthy("no such", resolver: r))
+  }
+
   @Test func testAnEmptyBareValueLeavesNothing() {
     #expect(resolver.resolveCommand("cmd {empty} --x {id}") == "cmd  --x 'x-1'")
   }

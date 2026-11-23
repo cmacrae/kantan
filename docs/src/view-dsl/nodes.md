@@ -147,6 +147,8 @@ Interactive nodes respond to user input and can trigger commands. A command is r
 
 Only those three positions are covered. Don't put a placeholder for outside text inside `$'…'`, or inside a command substitution (`$(…)` or backticks), where its value can run commands. A placeholder takes no `$`: write `{title}`, not `${title}`. A `$` straight before a bare or double-quoted placeholder is dropped, as the shell would expand the value after it. A value can also start with `-`, which the command may read as an option. Put `--` before it where the command accepts that.
 
+The shell's own braces stay as written, as [any braces that aren't a placeholder do](templates.md): `awk '{print $2}'`, `find . -exec rm {} +`, `cp file.{txt,bak} /tmp` and `{ a; b; }` run as they are. A placeholder among them is still filled, and quoted for where it sits.
+
 A bare placeholder whose value is empty leaves nothing. A command that is a single placeholder, such as `"command": "{complete_cmd}"`, runs as the value, exactly as written: placeholders within it aren't resolved. The plugin builds that command itself and quotes what it puts in it. In a URL command, values are percent-encoded instead: a value keeps only letters, digits, `-`, `.`, `_` and `~`, so it is one piece of the URL and can't add a host, a port or a path segment. To open a whole URL or a path a plugin built, make it the command's single placeholder. A URL command is only ever opened: one that doesn't make a valid URL does nothing.
 
 | Type | Description | Properties |
