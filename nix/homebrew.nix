@@ -55,38 +55,49 @@ let
     }:
     let
       bottle = bottles.${name};
+
+      # The formula with @tarballSha256@ and @bottleSha256@ in place of the
+      # hashes, which are filled in at build time so evaluating the formula
+      # doesn't build the tarball and bottle.
+      template = pkgs.writeText "${name}.rb.in" ''
+        class ${className} < Formula
+          desc "${desc}"
+          homepage "https://github.com/cmacrae/kantan"
+          license "MIT"
+          version "${version}"
+          url "${tarballUrl tarball}"
+          sha256 "@tarballSha256@"
+
+          bottle do
+            root_url "${bottleRootUrl bottle}"
+            sha256 cellar: :any_skip_relocation, ${bottleTag}: "@bottleSha256@"
+          end
+
+          depends_on arch: :arm64
+          depends_on macos: :sequoia
+          conflicts_with "${conflictsWith}", because: "both install a kantan binary"
+
+          def install
+            prefix.install "bin", "share"
+          end
+
+          service do
+            run [opt_bin/"kantan"]
+            environment_variables PATH: std_service_path_env
+            log_path var/"log/kantan.log"
+            error_log_path var/"log/kantan.log"
+            keep_alive true
+            process_type :interactive
+          end
+        end
+      '';
     in
-    pkgs.writeText "${name}.rb" ''
-      class ${className} < Formula
-        desc "${desc}"
-        homepage "https://github.com/cmacrae/kantan"
-        license "MIT"
-        version "${version}"
-        url "${tarballUrl tarball}"
-        sha256 "${builtins.hashFile "sha256" tarball}"
-
-        bottle do
-          root_url "${bottleRootUrl bottle}"
-          sha256 cellar: :any_skip_relocation, ${bottleTag}: "${builtins.hashFile "sha256" "${bottle}/${bottle.file}"}"
-        end
-
-        depends_on arch: :arm64
-        depends_on macos: :sequoia
-        conflicts_with "${conflictsWith}", because: "both install a kantan binary"
-
-        def install
-          prefix.install "bin", "share"
-        end
-
-        service do
-          run [opt_bin/"kantan"]
-          environment_variables PATH: std_service_path_env
-          log_path var/"log/kantan.log"
-          error_log_path var/"log/kantan.log"
-          keep_alive true
-          process_type :interactive
-        end
-      end
+    pkgs.runCommand "${name}.rb" { } ''
+      tarballSha256=$(sha256sum ${tarball} | cut -d' ' -f1)
+      bottleSha256=$(sha256sum ${bottle}/${bottle.file} | cut -d' ' -f1)
+      substitute ${template} $out \
+        --subst-var tarballSha256 \
+        --subst-var bottleSha256
     '';
 
   # Both formulae, downloading each tarball from `tarballUrl tarball` and
