@@ -237,11 +237,12 @@ Unmasked modules are then laid out inward of every masked module, whatever their
 - **A slot needs a native item to sit against.** While none of the masked modules listed before a run has an item in the menu bar (say Focus is off, or the app isn't running), the run has no slot and sits inward of the masked modules.
 - **Slots use the menu bar's own room.** macOS squeezes together, then hides, items that no longer fit between the screen's right edge and the notch or the frontmost app's menus. A hidden item has nothing for its mask to cover. Keep the modules after a masked one few and narrow on a small display.
 - **Several displays share one set of slots.** Each slot is as wide as its modules are on the display where they are widest.
+- **macOS keeps old slots' positions.** A slot that has to move is made again under a new name. On macOS 27 and later, MenuBarAgent may have saved the position of the item under its old name, and kantan can't remove what it saved. The saved positions are in `~/Library/Group Containers/com.apple.MenuBar/Library/Preferences/com.apple.MenuBar.plist`, under keys holding `slot-` and the first module's name.
 
 ### Troubleshooting
 
 - **A module isn't where the config lists it.** Check the native items are arranged in the config's order: move the pointer to the top of the screen and compare. kantan orders its slots against them. It doesn't move them.
-- **`warning: no place found for the menu bar slot of '<module>'`** in the log. kantan tried a dozen positions and none put the slot beside its item. It leaves the slot where it is until a different item becomes the one it belongs beside.
+- **`warning: no place found for the menu bar slot of '<module>'`** in the log. kantan tried a dozen positions and none put the slot beside its item. It leaves the slot where it is until the menu bar's items change.
 - **The native menu bar shows gaps.** Those are the slots. They are empty by design, and gone when kantan quits.
 - **Positions are kept** in kantan's own defaults, as `NSStatusItem Preferred Position slot-<first module of the run>`. Deleting a key makes kantan find that slot's place afresh.
 
