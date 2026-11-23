@@ -421,6 +421,23 @@ extension KeyedDecodingContainer {
   func setting<T: Decodable>(_ type: T.Type, forKey key: Key) -> T? {
     (try? decodeIfPresent(type, forKey: key)) ?? nil
   }
+
+  /// The entries of the list at `key` that are of the right kind, in order,
+  /// so one bad entry is left out without discarding the others. Nil when
+  /// the setting is missing or isn't a list.
+  func entries<T: Decodable>(of type: T.Type, forKey key: Key) -> [T]? {
+    setting([Entry<T>].self, forKey: key)?.compactMap(\.value)
+  }
+}
+
+/// An entry of a list in the settings: its value, or nil when it is of
+/// the wrong kind.
+private struct Entry<T: Decodable>: Decodable {
+  let value: T?
+
+  init(from decoder: Decoder) {
+    value = try? T(from: decoder)
+  }
 }
 
 // MARK: - Helpers

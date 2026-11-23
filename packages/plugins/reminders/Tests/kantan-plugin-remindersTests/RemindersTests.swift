@@ -14,6 +14,14 @@ final class ReminderFilterTests {
     #expect(shellQuote("a'\u{301}; id") == #"'a'\''"# + "\u{301}; id'")
   }
 
+  @Test func testAListEntryWithoutANameIsLeftOutAndTheOthersKept() throws {
+    let settings: Settings = try decode(
+      #"{"lists":[{"name":"todo"},{"icon":"home"},{"name":7},"work",{"name":"work"}]}"#)
+    #expect(settings.lists.map(\.name) == ["todo", "work"])
+    let none: Settings = try decode(#"{"lists":"todo"}"#)
+    #expect(none.lists.isEmpty)
+  }
+
   @Test func testIncompleteRemindersShowAsTheListSays() throws {
     let list: ListConfig = try decode(
       #"{"name":"todo","lookahead":"10m","overdue":false,"undated":true}"#)

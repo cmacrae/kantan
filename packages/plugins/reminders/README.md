@@ -88,7 +88,7 @@ interaction:
 
 ### Plugin Settings
 
-Settings are passed to the plugin via the `config.settings` block. At least one list is needed; with none, the module stays hidden. A setting with the wrong type takes its default. A list entry without a `name` makes all of `lists` invalid. The module then stays hidden.
+Settings are passed to the plugin via the `config.settings` block. At least one list is needed; with none, the module stays hidden. A setting with the wrong type takes its default. A list entry without a `name` is left out, and the other lists still show.
 
 | Setting  | Default   | Description                                                            |
 |----------|-----------|------------------------------------------------------------------------|

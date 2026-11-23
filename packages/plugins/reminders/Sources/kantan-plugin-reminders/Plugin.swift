@@ -93,7 +93,7 @@ struct Settings: Decodable {
 
   init(from decoder: Decoder) throws {
     let container = try decoder.container(keyedBy: CodingKeys.self)
-    self.lists = container.setting([ListConfig].self, forKey: .lists) ?? []
+    self.lists = container.entries(of: ListConfig.self, forKey: .lists) ?? []
     self.format = container.setting(String.self, forKey: .format) ?? "{title}"
     self.icons = container.setting(IconConfig.self, forKey: .icons) ?? .defaults
     self.persist = container.setting(Bool.self, forKey: .persist) ?? true
