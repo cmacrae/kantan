@@ -57,6 +57,12 @@ head -n "$(($(grep -n 'mv "$tmp/keg" "$keg"' "$installer" | cut -d: -f1) - 1))" 
 sh truncated.sh --version "$version" 2>/dev/null || true
 test "$("$local/bin/kantan" --version)" = "kantan $version"
 
+# An install whose release was removed by hand, leaving its links, is
+# replaced.
+rm -rf "$local/lib/kantan"
+install
+test "$("$local/bin/kantan" --version)" = "kantan $version"
+
 # A prefix holding characters XML escapes reaches the agent intact.
 odd="$HOME/a&b<c>"
 mkdir -p "$odd"

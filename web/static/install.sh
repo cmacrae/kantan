@@ -131,8 +131,9 @@ main() {
     fi
   done
 
-  # Replaces any earlier install.
-  [ ! -d "$keg" ] || uninstall
+  # Replaces any earlier install, and any links left from one whose
+  # release is gone.
+  uninstall
   mkdir -p "$prefix/lib" "$bin"
   mv "$tmp/keg" "$keg"
   for exe in "$keg"/bin/*; do
