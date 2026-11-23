@@ -43,6 +43,7 @@
           web
           previews
           docs
+          tabler-icons
           buildSwiftPackage
           siteUrl
           ;

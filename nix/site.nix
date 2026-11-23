@@ -3,6 +3,7 @@
   web,
   previews,
   docs,
+  tabler-icons,
   version,
   buildSwiftPackage,
   siteUrl,
@@ -55,6 +56,53 @@ let
         EOF
       '';
 
+  # The licences of the third-party code, icons, palettes and fonts the
+  # site ships, in the form of kantan's THIRD_PARTY_NOTICES. Catppuccin's
+  # is the one there.
+  licenses =
+    pkgs.runCommand "kantan-site-licenses.txt"
+      {
+        nativeBuildInputs = [ pkgs.jq ];
+        modules = web.nodeModules;
+      }
+      ''
+        v() { jq -r .version "$modules/$1/package.json"; }
+        rule=$(printf '=%.0s' $(seq 80))
+        section() {
+          printf '\n%s\n%s\n%s\n%s\n\n' "$rule" "$1" "$2" "$rule"
+          cat "$3"
+        }
+        awk -v rule="$rule" '
+          $0 == "Catppuccin" && previous == rule { on = 1 }
+          on && $0 == rule { if (++rules == 2) exit; next }
+          on && rules == 1 && (started || NF) { started = 1; print }
+          { previous = $0 }
+        ' ${../THIRD_PARTY_NOTICES} > catppuccin
+        grep -q 'MIT License' catppuccin
+        {
+          cat <<EOF
+        kantan.bar includes the following third-party software, icons, palettes
+        and fonts. Each part is distributed under the licence reproduced below.
+
+        - React and React DOM $(v react): compiled into the site's scripts.
+        - scheduler $(v scheduler): compiled into the site's scripts as part of React DOM.
+        - fflate $(v fflate): compiled into the builder, for its links and downloads.
+        - yaml $(v yaml): compiled into the builder, for the YAML it reads and writes.
+        - Tabler Icons ${tabler-icons.version}: the icon fonts of the bar previews.
+        - Catppuccin: the colour palettes in the catppuccin theme.
+        - Single Day and Darumadrop One: the fonts of the wordmark.
+        EOF
+          section "React and React DOM" https://github.com/facebook/react "$modules/react/LICENSE"
+          section scheduler https://github.com/facebook/react/tree/main/packages/scheduler "$modules/scheduler/LICENSE"
+          section fflate https://github.com/101arrowz/fflate "$modules/fflate/LICENSE"
+          section yaml https://github.com/eemeli/yaml "$modules/yaml/LICENSE"
+          section "Tabler Icons" https://github.com/tabler/tabler-icons ${tabler-icons}/share/doc/tabler-icons/LICENSE
+          section Catppuccin https://github.com/catppuccin/catppuccin catppuccin
+          section "Single Day" https://github.com/google/fonts/tree/main/ofl/singleday ${fonts}/SingleDay-OFL.txt
+          section "Darumadrop One" https://github.com/google/fonts/tree/main/ofl/darumadropone ${fonts}/DarumadropOne-OFL.txt
+        } > $out
+      '';
+
   # The landing page's bar: the example config it shows, with the states
   # of its plugins from their own generators.
   landingBar = previews.bar {
@@ -99,6 +147,7 @@ let
       }
     }/* $out/
     cp ${fonts}/* $out/fonts/
+    cp ${licenses} $out/licenses.txt
     cp ${landingBar.icons}/icons.css $out/fonts/icons.css
     mv $out/builder.html $out/builder/index.html
     cp ${builder}/main.js ${previews.allIcons}/* $out/builder/
@@ -125,7 +174,7 @@ let
       shift
 
       mkdir -p "$out/docs" "$out/images"
-      cp -r ${pages}/{index.html,404.html,main.js,favicon.svg,install.sh,fonts,builder} "$out/"
+      cp -r ${pages}/{index.html,404.html,main.js,favicon.svg,install.sh,licenses.txt,fonts,builder} "$out/"
       cp ${pages}/docs-versions.js "$out/docs/versions.js"
       cp ${../web/images/og.png} "$out/images/og.png"
       chmod -R u+w "$out"

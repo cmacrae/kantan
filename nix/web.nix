@@ -55,7 +55,7 @@ let
   };
 in
 {
-  inherit src fixtures;
+  inherit src fixtures nodeModules;
 
   # The engine's tests, the shared cases among them, and the tests of the
   # builder's logic, which read the schemas the docs publish.

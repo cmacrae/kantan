@@ -178,6 +178,8 @@ export default function KantanLanding() {
         © 2023–2026 Calum MacRae · Released under the{" "}
         <a href="https://github.com/cmacrae/kantan/blob/main/LICENSE"
           style={{ color: "inherit" }}>MIT License</a>
+        {" · "}
+        <a href="/licenses.txt" style={{ color: "inherit" }}>Third-party licences</a>
       </footer>
     </div>
   );
