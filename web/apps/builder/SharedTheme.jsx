@@ -5,7 +5,7 @@ import { useMemo, useRef, useState } from "react";
 import { BarView } from "../../components/BarView.jsx";
 import { wallpaper } from "../../components/Desk.jsx";
 import { useBar } from "../../components/useBar.js";
-import { useFitZoom } from "../../components/useFitZoom.js";
+import { useFitScale } from "../../components/useFitScale.js";
 import { schemeFileName } from "../../builder/base16.js";
 import { sameValue } from "../../builder/equal.js";
 import { themeFiles, writeYaml } from "../../builder/files.js";
@@ -66,7 +66,7 @@ export function SharedTheme({ shared, systemDark, onBuild }) {
   const samples = useMemo(() => openDrawers(document), [document]);
   const { bar, run, toggleDrawer, switchWorkspace } = useBar(document, { dark, icons, themes: catalog.themes, samples });
   const frame = useRef(null);
-  const zoom = useFitZoom(frame, 0.6);
+  const { style: fitted, box } = useFitScale(frame, 0.6);
 
   const files = useMemo(() => Object.entries(shared.themes).flatMap(([name, theme]) => themeFiles(name, theme)), [shared]);
   // The archive its files download as: under the name it was given, when
@@ -88,10 +88,12 @@ export function SharedTheme({ shared, systemDark, onBuild }) {
       <div className="kb-stage">
         <div className="kb-stage-inner">
           <h1 className="kb-shared-name">{shared.name ?? names.join(" and ")}</h1>
-          <div ref={frame} className="kb-desk" style={{ zoom }}>
-            <div className="kb-desk-paper" style={{ background: wallpaper(dark) }} />
-            <BarView bar={bar} dark={dark} run={run} toggleDrawer={toggleDrawer} switchWorkspace={switchWorkspace} style={{ borderRadius: "10px 10px 0 0" }} />
-            <div className="kb-desk-room" style={{ marginTop: -Math.min(bar.gaps.top, 40) }} />
+          <div style={box}>
+            <div ref={frame} className="kb-desk" style={fitted}>
+              <div className="kb-desk-paper" style={{ background: wallpaper(dark) }} />
+              <BarView bar={bar} dark={dark} run={run} toggleDrawer={toggleDrawer} switchWorkspace={switchWorkspace} style={{ borderRadius: "10px 10px 0 0" }} />
+              <div className="kb-desk-room" style={{ marginTop: -Math.min(bar.gaps.top, 40) }} />
+            </div>
           </div>
           <div className="kb-stage-controls" style={{ justifyContent: "flex-end" }}>
             {flavoured

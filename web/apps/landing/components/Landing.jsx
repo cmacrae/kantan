@@ -133,7 +133,7 @@ export default function KantanLanding() {
       }}>
         <div style={{
           display: "grid",
-          gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))",
+          gridTemplateColumns: "repeat(auto-fit, minmax(min(260px, 100%), 1fr))",
           gap: "32px 48px",
         }}>
           {features.map(({ icon, title, description }) => (

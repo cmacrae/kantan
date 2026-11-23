@@ -6,7 +6,7 @@ import { BarView } from "../../components/BarView.jsx";
 import { wallpaper } from "../../components/Desk.jsx";
 import { cssColor, faded } from "../../components/system.js";
 import { useBar } from "../../components/useBar.js";
-import { useFitZoom } from "../../components/useFitZoom.js";
+import { useFitScale } from "../../components/useFitScale.js";
 import { loadConfig, loadTheme, resolveBar } from "../../engine/index.js";
 import { dict } from "../../engine/values.js";
 import { inVariant, pluginOf } from "../../builder/catalog.js";
@@ -590,7 +590,7 @@ function Workspace({ opened, iconSet, onStart }) {
   // On a narrow screen the bar shrinks only so far, then scrolls.
   const stage = useRef(null);
   const frame = useRef(null);
-  const zoom = useFitZoom(frame, 0.6);
+  const { scale, style: fitted, box } = useFitScale(frame, 0.6);
   const element = name => frame.current?.querySelector(`[data-kantan-module="${CSS.escape(name)}"]`);
   const nameAt = target => target.closest?.("[data-kantan-module]")?.dataset.kantanModule;
 
@@ -606,7 +606,7 @@ function Workspace({ opened, iconSet, onStart }) {
     measure();
     window.addEventListener("resize", measure);
     return () => window.removeEventListener("resize", measure);
-  }, [quick, selected, bar, zoom]);
+  }, [quick, selected, bar, scale]);
 
   // With a notch, each side of the screen has only so much room. A window
   // too narrow to give a side the room its modules need says so, in a
@@ -618,7 +618,7 @@ function Workspace({ opened, iconSet, onStart }) {
     measure();
     window.addEventListener("resize", measure);
     return () => window.removeEventListener("resize", measure);
-  }, [bar, zoom, notch]);
+  }, [bar, scale, notch]);
 
   // A click on a module picks it and drops its quick settings. A click
   // anywhere else on the mock lets go of the one picked.
@@ -634,7 +634,7 @@ function Workspace({ opened, iconSet, onStart }) {
   // A span of the bar, in the bar's own points from its left edge.
   const span = target => {
     const desk = frame.current.getBoundingClientRect(), rect = target.getBoundingClientRect();
-    return { left: (rect.left - desk.left) / zoom, right: (rect.right - desk.left) / zoom };
+    return { left: (rect.left - desk.left) / scale, right: (rect.right - desk.left) / scale };
   };
 
   // Where the pointer would put a module: in the place of the module under
@@ -664,7 +664,7 @@ function Workspace({ opened, iconSet, onStart }) {
       return { name: over, after, x: left, width: right - left };
     }
     const desk = frame.current.getBoundingClientRect();
-    const x = (event.clientX - desk.left) / zoom;
+    const x = (event.clientX - desk.left) / scale;
     const gaps = LANDINGS.filter(key => !masked || key === "right").map(key => {
       const { left, right } = span(frame.current.querySelector(`[data-kantan-placement="${key}"]`));
       return growsLeft(key)
@@ -685,7 +685,7 @@ function Workspace({ opened, iconSet, onStart }) {
     const held = content.getBoundingClientRect();
     const text = getComputedStyle(content);
     const copy = window.document.createElement("div");
-    copy.style.cssText = `position: fixed; top: -1000px; left: 0; zoom: ${zoom}; display: flex; align-items: center; gap: ${text.gap}; color: ${text.color}; font: ${text.font}; white-space: nowrap; background: transparent;`;
+    copy.style.cssText = `position: fixed; top: -1000px; left: 0; zoom: ${scale}; display: flex; align-items: center; gap: ${text.gap}; color: ${text.color}; font: ${text.font}; white-space: nowrap; background: transparent;`;
     copy.append(...[...content.cloneNode(true).childNodes]);
     window.document.body.append(copy);
     event.dataTransfer.setDragImage(copy, event.clientX - held.left, event.clientY - held.top);
@@ -781,34 +781,36 @@ function Workspace({ opened, iconSet, onStart }) {
 
       <div className="kb-stage" ref={stage}>
         <div className="kb-stage-inner">
-          <div ref={frame} className="kb-desk" style={{ zoom }} onClick={pick} {...dragging} {...hovering}>
-            <div className="kb-desk-paper" style={{ background: wallpaper(dark) }} />
-            <BarView bar={bar} dark={dark} run={run} toggleDrawer={trying ? toggleDrawer : yieldDrawer} switchWorkspace={switchWorkspace}
-              interactive={trying} moduleProps={moduleProps} kept={trying ? undefined : module?.name}
-              style={{ borderRadius: "10px 10px 0 0" }} />
-            {slot && (
-              <button type="button" className={`kb-slot ${slot.add ? "add" : ""}`} tabIndex={slot.add ? 0 : -1}
-                aria-label="Add a module here"
-                style={{ left: slot.x, top: 4 + bar.gaps.top, width: slot.width, height: bar.height - 8, color: tint, background: faded(tint, slot.name === undefined ? 0.16 : 0.28) }}
-                onClick={event => { event.stopPropagation(); learn("add"); setAdding({ placement: slot.placement, start: slot.start }); setSlot(undefined); }}>
-                {slot.add && <Ic name="plus" size={14} />}
-              </button>
-            )}
-            {cramped && (
-              <div className="kb-notice" role="status" style={{ top: bar.notch.height + 9 }}>
-                <span className="arrow" />
-                <Ic name="alert-triangle" size={18} />
-                <span><b>Not enough room beside the notch</b>Window too narrow: some modules are under the notch.</span>
-              </div>
-            )}
-            <div className="kb-desk-room" style={{ marginTop: -Math.min(bar.gaps.top, 40) }}>
-              {hinting && (
-                <div className={`kb-hint ${hinted ? "gone" : ""}`} aria-hidden={hinted} style={{ color: dark ? "#cdd6f4" : "#11111b" }}>
-                  Click a module to edit it, drag them to move them around, or click a gap to add a new one
+          <div style={box}>
+            <div ref={frame} className="kb-desk" style={fitted} onClick={pick} {...dragging} {...hovering}>
+              <div className="kb-desk-paper" style={{ background: wallpaper(dark) }} />
+              <BarView bar={bar} dark={dark} run={run} toggleDrawer={trying ? toggleDrawer : yieldDrawer} switchWorkspace={switchWorkspace}
+                interactive={trying} moduleProps={moduleProps} kept={trying ? undefined : module?.name}
+                style={{ borderRadius: "10px 10px 0 0" }} />
+              {slot && (
+                <button type="button" className={`kb-slot ${slot.add ? "add" : ""}`} tabIndex={slot.add ? 0 : -1}
+                  aria-label="Add a module here"
+                  style={{ left: slot.x, top: 4 + bar.gaps.top, width: slot.width, height: bar.height - 8, color: tint, background: faded(tint, slot.name === undefined ? 0.16 : 0.28) }}
+                  onClick={event => { event.stopPropagation(); learn("add"); setAdding({ placement: slot.placement, start: slot.start }); setSlot(undefined); }}>
+                  {slot.add && <Ic name="plus" size={14} />}
+                </button>
+              )}
+              {cramped && (
+                <div className="kb-notice" role="status" style={{ top: bar.notch.height + 9 }}>
+                  <span className="arrow" />
+                  <Ic name="alert-triangle" size={18} />
+                  <span><b>Not enough room beside the notch</b>Window too narrow: some modules are under the notch.</span>
                 </div>
               )}
+              <div className="kb-desk-room" style={{ marginTop: -Math.min(bar.gaps.top, 40) }}>
+                {hinting && (
+                  <div className={`kb-hint ${hinted ? "gone" : ""}`} aria-hidden={hinted} style={{ color: dark ? "#cdd6f4" : "#11111b" }}>
+                    Click a module to edit it, drag them to move them around, or click a gap to add a new one
+                  </div>
+                )}
+              </div>
+              <style>{marks}</style>
             </div>
-            <style>{marks}</style>
           </div>
           <div className="kb-stage-controls">
             <div>

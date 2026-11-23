@@ -42,8 +42,9 @@ export default function InstallTabs({ siteDark }) {
         ))}
       </div>
       {/* Every tab shares one grid cell, so the panel keeps the tallest tab's
-          height and the page doesn't move when switching tabs. */}
-      <div style={{ display: "grid" }}>
+          height and the page doesn't move when switching tabs. The cell is
+          as wide as the column, and a line longer than that scrolls. */}
+      <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr)" }}>
         {INSTALL_TABS.map((t, i) => (
           <div key={t.label} aria-hidden={i !== tab} style={{
             gridArea: "1 / 1", display: "flex", flexDirection: "column",

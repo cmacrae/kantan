@@ -3,7 +3,7 @@
 import { useMemo, useRef } from "react";
 import { Desk } from "../../../components/Desk.jsx";
 import { useBar } from "../../../components/useBar.js";
-import { useFitZoom } from "../../../components/useFitZoom.js";
+import { useFitScale } from "../../../components/useFitScale.js";
 import { iconTable } from "../../../engine/index.js";
 import barDocument from "../../../generated/landing-document.json";
 import iconGlyphs from "../../../generated/landing-icons.json";
@@ -36,15 +36,18 @@ export default function KantanBarMock({ themed, dark, children, time, desktopHei
   const activeSpace = Math.max(0, spaces.findIndex(segment => segment.active));
 
   const frameRef = useRef(null);
-  const zoom = useFitZoom(frameRef);
+  const fit = useFitScale(frameRef);
 
   // The desktop grows to fit the bar, then shrinks as a whole when that's
   // wider than the page. On the page a click on a workspace switches to
   // it, standing in for the window manager that does on a Mac.
   return (
-    <Desk bar={bar} dark={dark} height={desktopHeight} frameRef={frameRef} style={{ width: "100%", maxWidth, minWidth: "max-content", zoom }}
-      run={run} toggleDrawer={toggleDrawer} switchWorkspace={switchWorkspace}>
-      {children ?? <WorkspaceTerminals dark={dark} themed={themed} activeSpace={activeSpace} />}
-    </Desk>
+    <div style={fit.box}>
+      <Desk bar={bar} dark={dark} height={desktopHeight} frameRef={frameRef}
+        style={{ width: "100%", maxWidth, minWidth: "max-content", margin: "0 auto", ...fit.style }}
+        run={run} toggleDrawer={toggleDrawer} switchWorkspace={switchWorkspace}>
+        {children ?? <WorkspaceTerminals dark={dark} themed={themed} activeSpace={activeSpace} />}
+      </Desk>
+    </div>
   );
 }
