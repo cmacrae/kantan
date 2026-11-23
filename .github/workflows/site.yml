@@ -1,17 +1,28 @@
 name: Site
 
 # The release workflow runs this once it publishes a release. It can also be
-# run by hand, to publish the site again.
+# run by hand, to publish the site again: with gh workflow run site.yml -f
+# ref=main, the pages come from main and the docs still from the releases.
 on:
   workflow_call:
+    inputs:
+      ref:
+        description: The branch, tag or commit to build the pages from, or the latest release when empty
+        type: string
+        default: ""
   workflow_dispatch:
+    inputs:
+      ref:
+        description: The branch, tag or commit to build the pages from, or the latest release when empty
+        type: string
+        default: ""
 
 permissions:
   contents: read
 
 jobs:
-  # Builds the site from the latest release, with the docs of the newest
-  # release of each major.minor version.
+  # Builds the site's pages from the ref given, or the latest release, with
+  # the docs of the newest release of each major.minor version.
   build:
     runs-on: macos-26
     steps:
@@ -37,9 +48,11 @@ jobs:
           cat releases
 
       - name: Build
+        env:
+          REF: ${{ inputs.ref }}
         run: |
           latest=$(head -1 releases)
-          git checkout --quiet "$latest"
+          git checkout --quiet "${REF:-$latest}"
           set --
           while read -r tag; do
             version=${tag#v}
