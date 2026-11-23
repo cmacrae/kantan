@@ -772,7 +772,9 @@ class DisplayInstance {
       }
 
       entry.panel.setFrame(panelFrame, display: true)
-      if !entry.panel.isVisible {
+      // A bar slid out for the native menu bar orders its masks in as it
+      // slides back.
+      if !entry.panel.isVisible && !isMenuBarShowing {
         entry.panel.orderFrontRegardless()
       }
     }
@@ -1171,7 +1173,7 @@ class DisplayInstance {
       rightDrawerOpen = open
     }
     // A bar out of view shows its drawers as they are once back.
-    guard !isAutoHidden else { return }
+    guard !isMenuBarShowing else { return }
     let statusBarY = screenLayout(for: screen).statusBarY
 
     let nativeItems = MenuBarItemDetector.detectItems(for: screen)
