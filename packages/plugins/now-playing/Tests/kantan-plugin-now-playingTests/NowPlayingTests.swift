@@ -59,6 +59,15 @@ final class NowPlayingTests {
     #expect(shown(track(rate: 0), Settings()).variables["elapsed"] == "0:30")
   }
 
+  @Test func testAHugeDurationShowsAsTheLongestTime() {
+    var huge = track()
+    huge.duration = 1e300
+    huge.elapsed = 1e300
+    #expect(shown(huge, Settings()).variables["duration"] == "99:59:59")
+    #expect(shown(huge, Settings()).variables["elapsed"] == "99:59:59")
+    #expect(clockTime(-5) == "0:00")
+  }
+
   @Test func testThePositionBarSeeksUnlessThePlayerCant() throws {
     let view = { (track: Track) in
       String(decoding: try JSONEncoder().encode(shown(track, Settings()).view), as: UTF8.self)

@@ -366,8 +366,9 @@ struct Source: Equatable {
 // MARK: - Helpers
 
 /// `seconds` as minutes and seconds, such as `3:07`, with hours from an hour.
+/// A time outside 0 to 99:59:59, or that isn't a number, is held to it.
 func clockTime(_ seconds: Double) -> String {
-  let total = Int(seconds.rounded(.down))
+  let total = seconds.isNaN ? 0 : Int(min(max(seconds, 0), 359_999).rounded(.down))
   let (hours, minutes, secs) = (total / 3600, total / 60 % 60, total % 60)
   let padded = { (number: Int) in number < 10 ? "0\(number)" : "\(number)" }
   return hours > 0 ? "\(hours):\(padded(minutes)):\(padded(secs))" : "\(minutes):\(padded(secs))"
