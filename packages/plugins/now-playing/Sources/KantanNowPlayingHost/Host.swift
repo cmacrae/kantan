@@ -72,6 +72,9 @@ private let infoKeys = [
 private let seekCommand: UInt32 = 24
 private let positionOption = "kMRMediaRemoteOptionPlaybackPosition"
 
+/// The most bytes of artwork the host writes; larger artwork is left out.
+private let maxArtwork = 8 << 20
+
 /// What `info`, MediaRemote's info for a player, says of its track. A
 /// number that isn't finite is left out, as the track has no such value. A
 /// duration without end, as a live stream has, makes the track `live`.
@@ -91,7 +94,9 @@ private func track(from info: [String: Any]) -> [String: Any] {
   if let timestamp = info["kMRMediaRemoteNowPlayingInfoTimestamp"] as? Date {
     track["timestamp"] = timestamp.timeIntervalSince1970
   }
-  if let artwork = info["kMRMediaRemoteNowPlayingInfoArtworkData"] as? Data {
+  if let artwork = info["kMRMediaRemoteNowPlayingInfoArtworkData"] as? Data,
+    artwork.count <= maxArtwork
+  {
     track["artwork"] = artwork.base64EncodedString()
   }
   return track
@@ -322,7 +327,7 @@ private func writeLine(
       }
       group.enter()
       requests.artwork(request) { artwork, type in
-        if let artwork, !artwork.isEmpty {
+        if let artwork, !artwork.isEmpty, artwork.count <= maxArtwork {
           gathering.players[index]["artwork"] = artwork.base64EncodedString()
           if let type { gathering.players[index]["artworkType"] = type }
         }
