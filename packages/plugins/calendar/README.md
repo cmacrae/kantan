@@ -75,6 +75,7 @@ This shows the title in blue, then `in 42m` in overlay1 while the event is upcom
 | `text` | Template for the segment, with the same variables and conditional sections as a `format` string      |
 | `fg`   | Colour of the segment: a hex colour or `{theme(name)}` template. Without it, it takes the module's text colour |
 | `when` | A variable the segment shows only while truthy, or, as `!name`, only while empty                       |
+| `reveal` | Whether the segment stays hidden until the pointer is over the module, when its hover's type is `reveal` |
 
 Segments that come out empty are left out.
 

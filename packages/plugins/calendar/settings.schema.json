@@ -33,6 +33,11 @@
               "when": {
                 "type": "string",
                 "description": "The variable that decides whether the segment shows. A leading '!' shows it when the variable is empty."
+              },
+              "reveal": {
+                "type": "boolean",
+                "default": false,
+                "description": "Whether the segment stays hidden until the pointer is over the module, when its hover's type is 'reveal'."
               }
             }
           }
