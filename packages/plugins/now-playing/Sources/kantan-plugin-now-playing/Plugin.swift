@@ -425,6 +425,14 @@ struct ArtworkCache {
     }
     return directory.appendingPathComponent(name)
   }
+
+  /// Removes every track's artwork.
+  func clear() {
+    let files = FileManager.default
+    for name in (try? files.contentsOfDirectory(atPath: directory.path)) ?? [] {
+      try? files.removeItem(at: directory.appendingPathComponent(name))
+    }
+  }
 }
 
 // MARK: - Source App
@@ -869,6 +877,7 @@ final class NowPlayingWatch {
           player: player.key, icon: settings.icon(for: source),
           color: settings.iconColor(for: source))
       }
+    if track == nil { cache.clear() }
     output.show(
       render(
         track: track, artwork: track.flatMap(cache.file), source: track.flatMap(sourceApp),
@@ -943,7 +952,13 @@ final class NowPlayingWatch {
       }
     }
     RunLoop.main.add(seconds, forMode: .common)
-    exitWhenStdinCloses()
+    // Leaves no artwork, or the app last shown, once kantan stops the watch.
+    DispatchQueue.global().async {
+      while !FileHandle.standardInput.availableData.isEmpty {}
+      ArtworkCache.standard.clear()
+      SelectionStore.standard.save(shown: nil)
+      exit(0)
+    }
     RunLoop.main.run()
     exit(0)
   }
