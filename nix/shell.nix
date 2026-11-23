@@ -16,10 +16,12 @@
       plugin.pluginAttrs { inherit name src; }
       // {
         # Runs main_test.sh, when the plugin has one, against main.sh.
-        doCheck = builtins.pathExists (src + "/main_test.sh");
+        doCheck = true;
         checkPhase = ''
           runHook preCheck
-          sh main_test.sh ./main.sh
+          if [ -f main_test.sh ]; then
+            sh main_test.sh ./main.sh
+          fi
           runHook postCheck
         '';
 
