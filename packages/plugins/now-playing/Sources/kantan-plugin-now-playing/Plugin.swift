@@ -755,12 +755,14 @@ func seek(to fraction: Double, settings: Settings) -> Int32 {
   return runHost(["seek", String(position)] + (track.bundle.map { [$0] } ?? []))
 }
 
-/// Runs the host with `arguments` until it exits, and returns its status.
+/// Runs the host with `arguments` until it exits, or for 3 seconds at
+/// most, and returns its status.
 private func runHost(_ arguments: [String]) -> Int32 {
   guard let host = hostProcess(arguments) else { return 1 }
   host.standardInput = FileHandle.nullDevice
   host.standardOutput = FileHandle.nullDevice
   guard (try? host.run()) != nil else { return 1 }
+  DispatchQueue.global().asyncAfter(deadline: .now() + 3) { host.terminate() }
   host.waitUntilExit()
   return host.terminationStatus
 }
