@@ -1,5 +1,6 @@
 import AppKit
 import Combine
+import CoreAudio
 import CoreGraphics
 import Foundation
 import SwiftUI
@@ -251,6 +252,35 @@ final class AudioAnalysisTests {
     #expect(AudioAnalysis.placed(0.2, among: recent) < 0.1)
     #expect(abs(AudioAnalysis.placed(0.25, among: recent) - 0.5) < 0.01)
     #expect(AudioAnalysis.placed(0.3, among: recent) > 0.9)
+  }
+
+  @Test func testANaNSampleIsKeptAsSilence() {
+    // A stereo tone, its two sides interleaved, with one sample not a number.
+    var frames = (0..<AudioAnalysis.window * 2).map {
+      Float(0.5 * sin(2 * Double.pi * 1000 * Double($0 / 2) / 48000))
+    }
+    frames[101] = .nan
+    let tap = AudioTap()
+    frames.withUnsafeMutableBytes { bytes in
+      var list = AudioBufferList(
+        mNumberBuffers: 1,
+        mBuffers: AudioBuffer(
+          mNumberChannels: 2, mDataByteSize: UInt32(bytes.count), mData: bytes.baseAddress))
+      tap.received(&list)
+    }
+    let samples = tap.latest(AudioAnalysis.window)
+    #expect((samples.mono + samples.left + samples.right).allSatisfy { $0.isFinite })
+    #expect(AudioAnalysis.bands(of: samples.mono, sampleRate: 48000).allSatisfy { $0.isFinite })
+  }
+
+  @Test func testNumbersThatArentFiniteFallBackToTheDefaults() throws {
+    let config = try #require(
+      WaveformConfigFactory().configuration(
+        from: try Yaml.load("{ speed: .nan, sensitivity: .nan, width: .inf, height: -.inf }"),
+        configDir: nil, theme: nil) as? WaveformConfig)
+    #expect(config.speed == WaveformConfig.defaultSpeed)
+    #expect(config.sensitivity == nil)
+    #expect(config.width == 40 && config.height == 14)
   }
 }
 
@@ -4034,4 +4064,5 @@ final class ThemeWatchingTests {
         try write("fg: '#ffffff'", to: "plain.yaml", atomically: true)
       })
   }
+
 }

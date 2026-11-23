@@ -7,7 +7,10 @@ struct WaveformConfigFactory: ModuleConfigurationFactory {
   func configuration(from yaml: Yaml, configDir: String?, theme: ThemeConfig?) throws
     -> ModuleConfiguration
   {
-    let number = { (key: String) in yaml[key].double ?? yaml[key].int.map(Double.init) }
+    // A number that isn't finite is left out, so the module's default holds.
+    let number = { (key: String) in
+      (yaml[key].double ?? yaml[key].int.map(Double.init)).flatMap { $0.isFinite ? $0 : nil }
+    }
     return WaveformConfig(
       style: yaml["style"].string.flatMap(WaveformStyle.init(rawValue:)) ?? .bars,
       bars: min(max(yaml["bars"].int ?? 8, 1), AudioAnalysis.bandCount),
@@ -392,8 +395,9 @@ final class AudioTap: @unchecked Sendable {
 
   /// Keeps the frames received: their channels averaged into one, and the
   /// first two as the left and right sides. The channels come together in
-  /// one buffer, or each in its own.
-  private func received(_ input: UnsafePointer<AudioBufferList>) {
+  /// one buffer, or each in its own. A sample that isn't finite is kept as
+  /// silence.
+  func received(_ input: UnsafePointer<AudioBufferList>) {
     let buffers = UnsafeMutableAudioBufferListPointer(UnsafeMutablePointer(mutating: input))
     let samples = { (buffer: AudioBuffer) in
       UnsafeBufferPointer(
@@ -419,9 +423,9 @@ final class AudioTap: @unchecked Sendable {
         for channel in 0..<channels { sum += first[frame + channel] }
         sum /= Float(channels)
       }
-      ring[writeIndex] = sum
-      leftRing[writeIndex] = left
-      rightRing[writeIndex] = right
+      ring[writeIndex] = sum.isFinite ? sum : 0
+      leftRing[writeIndex] = left.isFinite ? left : 0
+      rightRing[writeIndex] = right.isFinite ? right : 0
       writeIndex = (writeIndex + 1) % Self.capacity
       frame += channels
     }
