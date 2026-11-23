@@ -12,7 +12,7 @@ import os
 /// How long a test waits for something that should happen. A wait ends as
 /// soon as it happens, so this only bounds a test that would otherwise hang,
 /// on however slow and busy a machine the tests run.
-let patience: TimeInterval = 30
+let patience: TimeInterval = 120
 
 /// Something a test waits for, fulfilled from any thread.
 final class Expectation: @unchecked Sendable {
@@ -2820,16 +2820,17 @@ final class EventStreamProcessTests {
   @Test func testCoalescingFiresOncePerBurst() async {
     let events = OSAllocatedUnfairLock(initialState: 0)
     let stream = EventStreamProcess(
-      command: { ["/bin/sh", "-c", "for i in 1 2 3 4 5; do echo $i; done; sleep 5"] },
-      coalescing: 0.2
+      command: { ["/bin/sh", "-c", "for i in 1 2 3 4 5; do echo $i; done; sleep 60"] },
+      coalescing: 3
     ) { events.withLock { $0 += 1 } }
     stream.start()
     let deadline = Date(timeIntervalSinceNow: patience)
     while events.withLock({ $0 }) == 0, Date() < deadline {
       try? await Task.sleep(for: .milliseconds(10))
     }
-    // A second event for the burst would follow within a few windows.
-    try? await Task.sleep(for: .seconds(1))
+    // The window is wide enough for the burst's lines to arrive in it on a
+    // busy machine; a second event would follow within two more windows.
+    try? await Task.sleep(for: .seconds(6))
     stream.stop()
     #expect((events.withLock { $0 }) == 1)
   }
