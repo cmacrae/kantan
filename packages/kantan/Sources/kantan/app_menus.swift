@@ -50,7 +50,8 @@ struct AppMenus: Equatable, Sendable {
       if let last = runs.last, frame.minX <= last.upperBound + runTolerance {
         runs[runs.count - 1] = last.lowerBound...max(last.upperBound, frame.maxX)
       } else {
-        runs.append((frame.minX < runTolerance ? 0 : frame.minX)...frame.maxX)
+        let start = frame.minX < runTolerance ? 0 : frame.minX
+        runs.append(start...max(start, frame.maxX))
       }
     }
     return runs
@@ -174,7 +175,8 @@ final class AppMenuReader {
       // An app that has yet to own the menu bar gives its titles empty frames.
       guard AXValueGetValue(values[1] as! AXValue, .cgPoint, &origin),
         AXValueGetValue(values[2] as! AXValue, .cgSize, &size),
-        size.width > 0, size.height > 0
+        size.width > 0, size.height > 0,
+        CGRect(origin: origin, size: size).isPlausibleScreenFrame
       else { continue }
       titles.append(
         AppMenuTitle(

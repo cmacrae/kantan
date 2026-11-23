@@ -34,6 +34,17 @@ import Testing
     #expect(long.titles(on: laptop, screens: screens, notchMinX: notch).isEmpty)
   }
 
+  @Test func testATitleLeftOfTheScreenStartsARunAtItsEdge() {
+    let titles = menus((-300, 34), (10, 34)).titles
+    #expect(AppMenus.runs(of: titles) == [0...44])
+  }
+
+  @Test func testAFrameNoDisplayCouldHoldIsImplausible() {
+    #expect(CGRect(x: -1512, y: -200, width: 34, height: 24).isPlausibleScreenFrame)
+    #expect(!CGRect(x: CGFloat.nan, y: 0, width: 34, height: 24).isPlausibleScreenFrame)
+    #expect(!CGRect(x: 0, y: 0, width: 1e30, height: 24).isPlausibleScreenFrame)
+  }
+
   @MainActor @Test func testPanelsUnderTheMenusGetTheirClicksBack() {
     _ = NSApplication.shared
     let panels = [(x: 0, ignores: false), (x: 100, ignores: true), (x: 500, ignores: false)].map {

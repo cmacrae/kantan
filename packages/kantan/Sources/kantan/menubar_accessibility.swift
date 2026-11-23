@@ -16,6 +16,14 @@ extension NSRunningApplication {
   }
 }
 
+extension CGRect {
+  /// Whether a frame another app reports could be on a display: finite,
+  /// and within 100,000 points of the origin.
+  var isPlausibleScreenFrame: Bool {
+    [minX, maxX, minY, maxY].allSatisfy { $0.isFinite && abs($0) <= 100_000 }
+  }
+}
+
 /// A status item as the Accessibility API reports it.
 struct AccessibleMenuBarItem: Equatable, Sendable {
   /// Global frame in CG coordinates (origin at the primary display's top-left).
@@ -200,7 +208,8 @@ final class MenuBarAccessibility: @unchecked Sendable {
     var origin = CGPoint.zero
     var extent = CGSize.zero
     guard AXValueGetValue(position as! AXValue, .cgPoint, &origin),
-      AXValueGetValue(size as! AXValue, .cgSize, &extent)
+      AXValueGetValue(size as! AXValue, .cgSize, &extent),
+      CGRect(origin: origin, size: extent).isPlausibleScreenFrame
     else { return nil }
     return CGRect(origin: origin, size: extent)
   }

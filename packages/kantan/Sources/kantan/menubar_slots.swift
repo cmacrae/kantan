@@ -92,9 +92,16 @@ struct SlotSeedSearch: Equatable {
   /// such an item at the left end, and from then on keeps every item where
   /// it is, whatever position it is next made at.
   static let minimum = 0.25
+  /// The greatest position tried, well past the width of any menu bar.
+  static let maximum = 100_000.0
 
   init(seed: Double) {
-    self.seed = max(seed, Self.minimum)
+    self.seed = Self.bounded(seed)
+  }
+
+  /// `seed` within the positions tried.
+  private static func bounded(_ seed: Double) -> Double {
+    seed.isFinite ? min(max(seed, minimum), maximum) : minimum
   }
 
   /// The position likeliest to put an item beside `anchor`: half way
@@ -122,7 +129,7 @@ struct SlotSeedSearch: Equatable {
       high = seed
       seed = low.map { (seed + $0) / 2 } ?? max(seed - step, seed / 2)
     }
-    seed = max(seed, Self.minimum)
+    seed = Self.bounded(seed)
     step *= 2
   }
 }
