@@ -345,14 +345,15 @@ struct MenuBarItemDetector {
     // Resolve aliases to plist identifiers
     let plistName = nameAliases[name] ?? name
 
-    // Named items are matched directly.
+    // Named items are matched directly, a system item before an app's.
     if items.contains(where: { $0.identifier != nil || !$0.matchNames.isEmpty }) {
       let wanted = Set([name, plistName].map { $0.lowercased() })
-      return items.first { item in
+      let matches = items.filter { item in
         ([item.identifier].compactMap { $0 } + item.matchNames).contains {
           wanted.contains($0.lowercased())
         }
       }
+      return matches.first { $0.identifier != nil } ?? matches.first
     }
 
     let controlCenterDefaults = UserDefaults(suiteName: "com.apple.controlcenter")

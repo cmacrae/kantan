@@ -1646,6 +1646,17 @@ final class MenuBarAccessibilityTests {
     }
   }
 
+  @Test func testAnAppNamedForASystemItemDoesntTakeItsMask() {
+    let items = layout(reported + [app(["com.example.wifi", "WiFi", "WiFi"], 1500, 10)])
+    #expect(resolve("wifi", in: items)?.identifier == "WiFi")
+    let path = "/System/Library/CoreServices/MenuBarAgent.app/Contents/MacOS/MenuBarAgent"
+    #expect(MenuBarAccessibility.isSystemProgram(URL(fileURLWithPath: path)))
+    #expect(!MenuBarAccessibility.isSystemProgram(URL(fileURLWithPath: "/Applications/WiFi.app")))
+    #expect(
+      !MenuBarAccessibility.isSystemProgram(
+        URL(fileURLWithPath: "/System/Volumes/Data/Applications/WiFi.app")))
+  }
+
   @Test func testThirdPartyItemsKeepTheirFrame() {
     let rift = resolve("rift", in: layout(reported))
     #expect(rift?.cgRect == CGRect(x: 1150, y: 0, width: 22, height: 33))

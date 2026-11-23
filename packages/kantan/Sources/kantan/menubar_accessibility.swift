@@ -160,6 +160,7 @@ final class MenuBarAccessibility: @unchecked Sendable {
       let executable = app.executableURL?.lastPathComponent
       let appNames = [app.bundleIdentifier, app.localizedName, executable].compactMap { $0 }
       let isMenuBarAgent = app.bundleIdentifier == menuBarAgentBundleIdentifier
+      let isSystem = isSystemProgram(app.executableURL)
       for item in children(of: menuBar) {
         guard let frame = frame(of: item) else { continue }
         // MenuBarAgent wraps each item in a hosting view; the item inside
@@ -170,13 +171,22 @@ final class MenuBarAccessibility: @unchecked Sendable {
         result.append(
           AccessibleMenuBarItem(
             frame: frame,
-            identifier: identifier.flatMap { $0.hasPrefix(systemIdentifierPrefix) ? $0 : nil },
+            identifier: identifier.flatMap {
+              isSystem && $0.hasPrefix(systemIdentifierPrefix) ? $0 : nil
+            },
             owner: app.localizedName ?? executable ?? "",
             appNames: appNames,
             isMenuBarAgentItem: isMenuBarAgent))
       }
     }
     return result
+  }
+
+  /// Whether `executable` is part of macOS, on the read-only system volume,
+  /// so its items' identifiers name system items.
+  static func isSystemProgram(_ executable: URL?) -> Bool {
+    guard let path = executable?.resolvingSymlinksInPath().path else { return false }
+    return path.hasPrefix("/System/") && !path.hasPrefix("/System/Volumes/")
   }
 
   private static func copy(_ element: AXUIElement, _ attribute: String) -> CFTypeRef? {
