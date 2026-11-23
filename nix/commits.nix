@@ -156,6 +156,9 @@ in
         expect pass
         commit "build(nix): tidy" nix/site.nix
         expect pass
+        # The commit `cog bump` makes
+        commit "chore(version): v0.1.0" VERSION
+        expect pass
         commit "feat: a landing page" web/static/index.html
         expect fail
         commit "fix(nix): packaging" nix/homebrew.nix
