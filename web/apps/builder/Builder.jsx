@@ -1,7 +1,7 @@
 // The config builder: a bar drawn live as kantan would draw it, the
 // modules it holds, a form for whichever is picked, and the YAML that
 // makes it, to copy, download or share as a link.
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { Component, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { BarView } from "../../components/BarView.jsx";
 import { wallpaper } from "../../components/Desk.jsx";
 import { cssColor, faded } from "../../components/system.js";
@@ -922,6 +922,33 @@ function Workspace({ opened, iconSet, onStart }) {
   );
 }
 
+// Shows `fallback` in place of what it holds once drawing that throws. A
+// link can hold anything, and what the engine can't draw then costs the
+// reader that bar and not the page.
+class Drawn extends Component {
+  state = { failed: false };
+
+  static getDerivedStateFromError() {
+    return { failed: true };
+  }
+
+  render() {
+    return this.state.failed ? this.props.fallback : this.props.children;
+  }
+}
+
+// What shows in place of a bar that couldn't be drawn.
+function Undrawn({ onExample }) {
+  return (
+    <div style={{ padding: 20 }}>
+      <div className="kb-banner">
+        <span>This bar holds something the builder can't draw, so it isn't shown.</span>
+        <button type="button" className="kb-btn primary" onClick={onExample}>Open the example bar</button>
+      </div>
+    </div>
+  );
+}
+
 // Opens what the page's address asks for, or the example bar, and opens
 // again whenever the address changes or the bar is started over.
 export default function Builder() {
@@ -959,17 +986,19 @@ export default function Builder() {
   return (
     <div className="kb">
       <style>{STYLES}</style>
-      {opened?.shared && (
-        <BuilderContext.Provider value={{ ...iconSet, catalog, schema }}>
-          <SharedModule key={session} shared={opened.shared} systemDark={systemDark} onBuild={() => open(onExample(opened.shared))} />
-        </BuilderContext.Provider>
-      )}
-      {opened?.sharedTheme && (
-        <BuilderContext.Provider value={{ ...iconSet, catalog, schema }}>
-          <SharedTheme key={session} shared={opened.sharedTheme} systemDark={systemDark} onBuild={() => open(inTheme(opened.sharedTheme))} />
-        </BuilderContext.Provider>
-      )}
-      {opened?.document && <Workspace key={session} opened={opened} iconSet={iconSet} onStart={() => setStarting(true)} />}
+      <Drawn key={session} fallback={<Undrawn onExample={() => start({ document: exampleDocument() })} />}>
+        {opened?.shared && (
+          <BuilderContext.Provider value={{ ...iconSet, catalog, schema }}>
+            <SharedModule key={session} shared={opened.shared} systemDark={systemDark} onBuild={() => open(onExample(opened.shared))} />
+          </BuilderContext.Provider>
+        )}
+        {opened?.sharedTheme && (
+          <BuilderContext.Provider value={{ ...iconSet, catalog, schema }}>
+            <SharedTheme key={session} shared={opened.sharedTheme} systemDark={systemDark} onBuild={() => open(inTheme(opened.sharedTheme))} />
+          </BuilderContext.Provider>
+        )}
+        {opened?.document && <Workspace key={session} opened={opened} iconSet={iconSet} onStart={() => setStarting(true)} />}
+      </Drawn>
       {starting && (
         <BuilderContext.Provider value={{ ...iconSet, catalog, schema }}>
           <Start onClose={() => setStarting(false)} onOpen={start} />
