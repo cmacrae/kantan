@@ -37,6 +37,20 @@ deactivate() {
   rm -f "$PID_FILE"
 }
 
+# Takes the lock that keeps two commands from starting two caffeinates at
+# once, waiting up to 2 seconds for another command to give it up. A lock
+# held longer is left from a command that didn't finish, and is taken.
+lock() {
+  mkdir -p "$STATE_DIR"
+  tries=0
+  until mkdir "$STATE_DIR/caffeine.lock" 2>/dev/null; do
+    tries=$((tries + 1))
+    [ "$tries" -lt 20 ] || break
+    sleep 0.1
+  done
+  trap 'rmdir "$STATE_DIR/caffeine.lock" 2>/dev/null || true' EXIT
+}
+
 toggle() {
   if is_active; then
     deactivate
@@ -54,8 +68,8 @@ default_mode() {
 }
 
 case "${1:-}" in
---toggle) toggle ;;
---activate) activate ;;
---deactivate) deactivate ;;
+--toggle) lock && toggle ;;
+--activate) lock && activate ;;
+--deactivate) lock && deactivate ;;
 *) default_mode ;;
 esac
