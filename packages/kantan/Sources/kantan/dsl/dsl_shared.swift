@@ -206,6 +206,17 @@ func dslGridColumnCount(_ columns: Int?) -> Int {
   max(1, columns ?? 2)
 }
 
+/// The furthest from zero, in points, a view's size, spacing or padding
+/// goes.
+let dslMaxLength: Double = 10_000
+
+/// `value` as a length a view can lay out: no further than `dslMaxLength`
+/// from zero, and none when it isn't a finite number.
+func dslLength(_ value: Double?) -> CGFloat? {
+  guard let value, value.isFinite else { return nil }
+  return CGFloat(min(max(value, -dslMaxLength), dslMaxLength))
+}
+
 /// The point size of an icon `size` points tall scaled by `scale`, rounded,
 /// between 1 and 1000.
 func dslScaledFontSize(_ size: Double, scale: Double) -> Int {

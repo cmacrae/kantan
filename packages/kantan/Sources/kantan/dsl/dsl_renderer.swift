@@ -308,7 +308,7 @@ struct DSLRendererView: View {
   ) -> some View {
     VStack(
       alignment: horizontalAlignment(from: alignment),
-      spacing: spacing.map { CGFloat($0) }
+      spacing: dslLength(spacing)
     ) {
       renderChildren(children)
     }
@@ -355,7 +355,7 @@ struct DSLRendererView: View {
 
   @ViewBuilder
   private func renderSpacer(minLength: Double?) -> some View {
-    Spacer(minLength: minLength.map { CGFloat($0) })
+    Spacer(minLength: dslLength(minLength))
   }
 
   @ViewBuilder
@@ -383,7 +383,7 @@ struct DSLRendererView: View {
     strikethrough: Bool?
   ) -> some View {
     let resolved = resolver.resolve(content)
-    let fontSize = size ?? 13.0
+    let fontSize = dslLength(size) ?? 13
     let fwt = dslFontWeight(from: weight)
     let isSecondary = style == .secondary
     let fgColor = resolveColor(
@@ -404,7 +404,7 @@ struct DSLRendererView: View {
     name: String, size: Double?, color: String?, style: IconStyle?
   ) -> some View {
     let resolvedName = resolver.resolve(name)
-    let fontSize = size ?? 13.0
+    let fontSize = dslLength(size) ?? 13
     let fgColor = resolveColor(
       color.map { resolver.resolve($0) },
       isNative: isNative,
@@ -414,7 +414,7 @@ struct DSLRendererView: View {
       let resolved = resolveIconName(resolvedName)
       if let fontOverride = resolved.fontNameOverride {
         // Bundled icon font glyph — render with the correct font family and scale.
-        let scaledSize = dslScaledFontSize(fontSize, scale: resolved.scaleFactor)
+        let scaledSize = dslScaledFontSize(Double(fontSize), scale: resolved.scaleFactor)
         Text(resolved.glyph)
           .font(
             FontConfig(descriptor: "\(fontOverride):\(scaledSize)", source: .bundled).swiftUIFont
@@ -457,8 +457,8 @@ struct DSLRendererView: View {
         .resizable()
         .aspectRatio(contentMode: .fill)
         .frame(
-          width: width.map { CGFloat($0) },
-          height: height.map { CGFloat($0) }
+          width: dslLength(width),
+          height: dslLength(height)
         )
         .clipShape(RoundedRectangle(cornerRadius: CGFloat(radius)))
     } else if let parsedURL = URL(string: resolvedURL) {
@@ -469,22 +469,22 @@ struct DSLRendererView: View {
             .resizable()
             .aspectRatio(contentMode: .fill)
             .frame(
-              width: width.map { CGFloat($0) },
-              height: height.map { CGFloat($0) }
+              width: dslLength(width),
+              height: dslLength(height)
             )
             .clipShape(RoundedRectangle(cornerRadius: CGFloat(radius)))
         case .failure:
           Image(systemName: "photo")
             .foregroundStyle(.secondary)
             .frame(
-              width: width.map { CGFloat($0) },
-              height: height.map { CGFloat($0) }
+              width: dslLength(width),
+              height: dslLength(height)
             )
         case .empty:
           ProgressView()
             .frame(
-              width: width.map { CGFloat($0) },
-              height: height.map { CGFloat($0) }
+              width: dslLength(width),
+              height: dslLength(height)
             )
         @unknown default:
           EmptyView()
@@ -524,8 +524,8 @@ struct DSLRendererView: View {
       isNative: isNative,
       fallback: .clear)
     let radius = CGFloat(cornerRadius ?? 0)
-    let w = width.map { CGFloat($0) }
-    let h = height.map { CGFloat($0) }
+    let w = dslLength(width)
+    let h = dslLength(height)
 
     if let sc = strokeColor.map({ resolver.resolve($0) }) {
       let stroke = resolveColor(sc, isNative: isNative, fallback: .clear)
@@ -552,7 +552,7 @@ struct DSLRendererView: View {
       color.map { resolver.resolve($0) },
       isNative: isNative,
       fallback: .clear)
-    let s = size.map { CGFloat($0) }
+    let s = dslLength(size)
 
     if let sc = strokeColor.map({ resolver.resolve($0) }) {
       let stroke = resolveColor(sc, isNative: isNative, fallback: .clear)
@@ -574,8 +574,8 @@ struct DSLRendererView: View {
       color.map { resolver.resolve($0) },
       isNative: isNative,
       fallback: .clear)
-    let w = width.map { CGFloat($0) }
-    let h = height.map { CGFloat($0) }
+    let w = dslLength(width)
+    let h = dslLength(height)
 
     Capsule()
       .fill(fillColor)
@@ -684,7 +684,7 @@ struct DSLRendererView: View {
   @ViewBuilder
   private func renderGrid(columns: Int?, spacing: Double?, children: [ViewNode]) -> some View {
     let columnCount = dslGridColumnCount(columns)
-    let gap = CGFloat(spacing ?? 8.0)
+    let gap = dslLength(spacing) ?? 8
     let cells = gridCells(children, resolver: resolver)
     let rows = stride(from: 0, to: cells.count, by: columnCount).map {
       Array(cells[$0..<min($0 + columnCount, cells.count)])
@@ -874,7 +874,7 @@ private struct DSLClickableHStack<Content: View>: View {
 
   var body: some View {
     if let command = command, !command.isEmpty {
-      HStack(alignment: alignment, spacing: spacing.map { CGFloat($0) }) {
+      HStack(alignment: alignment, spacing: dslLength(spacing)) {
         content
       }
       .background(
@@ -892,7 +892,7 @@ private struct DSLClickableHStack<Content: View>: View {
         runCommand(command, environment: environment)
       }
     } else {
-      HStack(alignment: alignment, spacing: spacing.map { CGFloat($0) }) {
+      HStack(alignment: alignment, spacing: dslLength(spacing)) {
         content
       }
     }
@@ -1196,12 +1196,12 @@ private struct PaddingModifier: ViewModifier {
     if let padding = padding {
       switch padding {
       case .uniform(let value):
-        content.padding(CGFloat(value))
+        content.padding(dslLength(value) ?? 0)
       case .edges(let top, let leading, let bottom, let trailing):
         content.padding(
           EdgeInsets(
-            top: CGFloat(top), leading: CGFloat(leading),
-            bottom: CGFloat(bottom), trailing: CGFloat(trailing)))
+            top: dslLength(top) ?? 0, leading: dslLength(leading) ?? 0,
+            bottom: dslLength(bottom) ?? 0, trailing: dslLength(trailing) ?? 0))
       }
     } else {
       content
@@ -1217,16 +1217,16 @@ private struct FrameModifier: ViewModifier {
     if let frame = frame {
       content
         .frame(
-          minWidth: frame.minW.map { CGFloat($0) },
+          minWidth: dslLength(frame.minW),
           idealWidth: nil,
           maxWidth: frame.maxW.map { CGFloat($0) },
-          minHeight: frame.minH.map { CGFloat($0) },
+          minHeight: dslLength(frame.minH),
           idealHeight: nil,
           maxHeight: frame.maxH.map { CGFloat($0) }
         )
         .frame(
-          width: frame.w.map { CGFloat($0) },
-          height: frame.h.map { CGFloat($0) }
+          width: dslLength(frame.w),
+          height: dslLength(frame.h)
         )
     } else {
       content

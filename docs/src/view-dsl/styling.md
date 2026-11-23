@@ -17,6 +17,8 @@ These properties can be applied to any node type. They apply in tooltips and pop
 
 They are applied in this order: `visible`, `padding`, `frame`, `background`, `opacity`. `background` covers the padding and frame. `opacity` fades the background too.
 
+A size, spacing or padding further than 10,000 points from zero is drawn as 10,000. A tooltip or popup is no larger than its display.
+
 ## Colours
 
 Colours can be specified as hex strings or as named system colours.

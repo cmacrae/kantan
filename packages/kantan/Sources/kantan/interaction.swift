@@ -210,14 +210,18 @@ class PopupManager {
   }
 
   /// `rect` moved into the visible frame of the first of `screens` whose
-  /// frame contains its top centre, or into `fallback`.
+  /// frame contains its top centre, or into `fallback`, and made no larger
+  /// than that frame, keeping its top centre.
   static func clamp(
     _ rect: NSRect, screens: [(frame: NSRect, visible: NSRect)], fallback: NSRect?
   ) -> NSRect {
     let anchor = NSPoint(x: rect.midX, y: rect.maxY)
     let screen = screens.first(where: { $0.frame.contains(anchor) })?.visible ?? fallback
     guard let screen = screen else { return rect }
-    var clamped = rect
+    let width = min(rect.width, screen.width)
+    let height = min(rect.height, screen.height)
+    var clamped = NSRect(
+      x: anchor.x - width / 2, y: anchor.y - height, width: width, height: height)
     if clamped.maxX > screen.maxX {
       clamped.origin.x = screen.maxX - clamped.width
     }

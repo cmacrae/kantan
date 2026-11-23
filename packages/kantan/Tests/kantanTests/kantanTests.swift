@@ -721,6 +721,12 @@ final class PopupClampTests {
     let clamped = PopupManager.clamp(rect, screens: screens, fallback: nil)
     #expect(clamped.maxX == 1000)
   }
+
+  @Test func testAPopupLargerThanItsDisplayIsCutToFit() {
+    let rect = NSRect(x: 500 - 5e5, y: 600 - 1e6, width: 1e6, height: 1e6)
+    let clamped = PopupManager.clamp(rect, screens: screens, fallback: nil)
+    #expect(clamped == NSRect(x: 0, y: 0, width: 1000, height: 776))
+  }
 }
 
 @MainActor
