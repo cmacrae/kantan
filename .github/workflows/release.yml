@@ -11,9 +11,26 @@ concurrency:
   group: release-${{ github.ref }}
 
 jobs:
+  # Every action the workflows use matches the commit actions.lock records.
+  actions-lock:
+    runs-on: ubuntu-slim
+    steps:
+      - uses: actions/checkout@v7.0.1
+        with:
+          persist-credentials: false
+
+      # The verifier's release is immutable, so its tag can't move.
+      - name: Verify actions.lock
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh extension install github/gh-actions-lock --pin v0.4.1
+          gh actions-lock --verify
+
   # Builds the tarballs, bottles and formulae for the tag, and publishes
   # the GitHub Release with the tarballs, bottles and their checksums attached.
   release:
+    needs: actions-lock
     runs-on: macos-26
     permissions:
       contents: write
