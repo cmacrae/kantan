@@ -962,7 +962,9 @@ func main() -> Int32 {
     }
     return select(player)
   case "--seek":
-    guard let fraction = CommandLine.arguments.dropFirst(2).first.flatMap(Double.init) else {
+    guard let fraction = CommandLine.arguments.dropFirst(2).first.flatMap(Double.init),
+      !fraction.isNaN
+    else {
       FileHandle.standardError.write(Data("\(plugin): --seek takes a number from 0 to 1\n".utf8))
       return 2
     }
