@@ -379,6 +379,7 @@ final class AudioTap: @unchecked Sendable {
     return true
   }
 
+  /// Stops reading the sound, leaving none of it kept.
   func stop() {
     if deviceID != kAudioObjectUnknown {
       if let procID {
@@ -391,6 +392,11 @@ final class AudioTap: @unchecked Sendable {
     procID = nil
     deviceID = AudioObjectID(kAudioObjectUnknown)
     tapID = AudioObjectID(kAudioObjectUnknown)
+    lock.lock()
+    defer { lock.unlock() }
+    ring = [Float](repeating: 0, count: Self.capacity)
+    leftRing = ring
+    rightRing = ring
   }
 
   /// Keeps the frames received: their channels averaged into one, and the
@@ -664,13 +670,14 @@ final class AudioMeter: @unchecked Sendable {
 
   /// Starts the tap again when the processes it leaves out have changed:
   /// as one starts or quits, or an observer with another filter joins.
+  /// Stops it, leaving every observer with silence, when it can't start.
   private func retap() {
     guard tapRunning else { return }
     let excluded = AudioSource.processes(outside: filter)
     guard excluded != self.excluded else { return }
     self.excluded = excluded
     tap.stop()
-    _ = tap.start(excluding: excluded)
+    if !tap.start(excluding: excluded) { MainActor.assumeIsolated { stopTap() } }
   }
 
   private func stop() {
