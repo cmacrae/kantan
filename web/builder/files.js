@@ -100,11 +100,15 @@ export function documentFiles(document) {
   else delete config.modules;
   const text = Object.keys(config).length === 0 ? "" : write(config);
   // A blank line before the modules and between them, as configs are
-  // written by hand.
+  // written by hand. The modules run to the next line that isn't
+  // indented, where any keys after them start.
   const at = text.search(/^modules:\n/m);
+  const from = at + "modules:\n".length;
+  const end = at < 0 ? -1 : text.slice(from).search(/\n(?=\S)/);
+  const to = end < 0 ? text.length : from + end;
   const spaced = at < 0
     ? text
-    : `${text.slice(0, at)}${at > 0 ? "\n" : ""}modules:\n${text.slice(at + "modules:\n".length).replace(/\n(  - )/g, "\n\n$1")}`;
+    : `${text.slice(0, at)}${at > 0 ? "\n" : ""}modules:\n${text.slice(from, to).replace(/\n(  - )/g, "\n\n$1")}${text.slice(to)}`;
   const files = [{ path: "config.yaml", text: spaced }];
   for (const name of Object.keys(dict(document.modulesDir) ?? {}).sort()) {
     if (nameProblem(name) !== undefined || !/\.ya?ml$/.test(name)) continue;

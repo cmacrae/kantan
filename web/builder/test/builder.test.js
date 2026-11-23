@@ -116,6 +116,9 @@ test("the files read back as the config they were written from", () => {
   assert.match(config.text, /big: "1_000"/);
   assert.match(config.text, /\n\n  - name: text\n/);
 
+  const after = { ...document, config: { ...document.config, notes: "first\n- second\n- third\n" } };
+  assert.deepEqual(readYaml(documentFiles(after)[0].text).value, after.config);
+
   const files = documentFiles(toDir(document));
   assert.equal(files[0].text, "");
   assert.equal(files[1].path, "modules.d/00-workspace.yaml");
