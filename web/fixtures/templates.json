@@ -80,9 +80,12 @@
   },
   {
     "name": "a URL command's values are percent-encoded",
-    "variables": { "id": "a b&c=d/e?f#g+h", "accent": "café" },
+    "variables": { "id": "a b&c=d/e?f#g+h", "accent": "café", "host": "a:b;touch$IFS/tmp/P", "path": "@evil.example/x", "up": "../../x" },
     "checks": [
-      { "command": "calshow:{id}", "expect": "calshow:a%20b%26c%3Dd/e%3Ff%23g%2Bh" },
+      { "command": "calshow:{id}", "expect": "calshow:a%20b%26c%3Dd%2Fe%3Ff%23g%2Bh" },
+      { "command": "ssh://{host}", "expect": "ssh://a%3Ab%3Btouch%24IFS%2Ftmp%2FP" },
+      { "command": "https://example.com{path}", "expect": "https://example.com%40evil.example%2Fx" },
+      { "command": "file:///covers/{up}", "expect": "file:///covers/..%2F..%2Fx" },
       { "command": "https://example.com/?q={accent}", "expect": "https://example.com/?q=caf%C3%A9" },
       { "command": "open https://example.com/{id}", "expect": "open https://example.com/'a b&c=d/e?f#g+h'" }
     ]

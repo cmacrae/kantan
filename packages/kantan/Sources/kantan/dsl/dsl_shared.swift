@@ -121,9 +121,11 @@ class TemplateResolver {
     }
   }
 
-  /// Characters a value may keep unencoded in a URL command.
-  private static let urlValueAllowed = CharacterSet.urlQueryAllowed.subtracting(
-    CharacterSet(charactersIn: "&=+#?"))
+  /// Characters a value keeps unencoded in a URL command: the ones a URL
+  /// gives no meaning, so a value can't add a host, a port or a path
+  /// segment.
+  private static let urlValueAllowed = CharacterSet(
+    charactersIn: "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-._~")
 
   /// Replaces each placeholder in a command with `encode(quote, value)`,
   /// `quote` being the shell quote character the placeholder sits within,

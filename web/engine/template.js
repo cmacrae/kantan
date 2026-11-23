@@ -23,9 +23,9 @@ export function isURLCommand(command) {
   return /^[a-z][a-z0-9+.-]*:/i.test(command) && !command.includes(" ");
 }
 
-// The characters a value keeps unencoded in a URL command: those a URL
-// query allows, less the ones that separate its parts.
-const URL_VALUE_ALLOWED = /[A-Za-z0-9\-._~!$'()*,;:@/]/;
+// The characters a value keeps unencoded in a URL command: the ones a URL
+// gives no meaning, so a value can't add a host, a port or a path segment.
+const URL_VALUE_ALLOWED = /[A-Za-z0-9\-._~]/;
 
 function percentEncode(value) {
   let result = "";

@@ -525,6 +525,16 @@ final class CommandTemplateTests {
     }
   }
 
+  @Test func testAURLCommandsValueStaysOnePartOfTheURL() throws {
+    let r = TemplateResolver(
+      variables: ["host": "a:b;touch$IFS/tmp/P", "path": "@evil.example/x"], data: [:])
+    let ssh = try #require(URL(string: r.resolveCommand("ssh://{host}")))
+    #expect(ssh.port == nil)
+    let web = try #require(URL(string: r.resolveCommand("https://example.com{path}")))
+    #expect(web.host != "evil.example")
+    #expect(web.user == nil)
+  }
+
   @Test func testAnEmptyBareValueLeavesNothing() {
     #expect(resolver.resolveCommand("cmd {empty} --x {id}") == "cmd  --x 'x-1'")
   }
